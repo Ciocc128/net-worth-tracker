@@ -9,7 +9,7 @@ import {
   SPENDING_EXPENSE_TYPES,
   SPENDING_ROLE_FLOW_ORDER,
   summarizeCategoryClassification,
-  summarizeSpendingByRole,
+  summarizeEmailSpendingRoles,
   summarizeSpendingRoles,
   summarizeSpendingRoleShares,
   type SpendingRoleSource,
@@ -498,7 +498,7 @@ describe('categoryRoleColor', () => {
   });
 });
 
-describe('summarizeSpendingByRole — the periodic email split (F5, owner 2026-10-05)', () => {
+describe('summarizeEmailSpendingRoles — the periodic email’s 50/30/20 on income (F6b, owner 2026-10-06)', () => {
   const expenses = [
     makeExpense({ type: 'income', amount: 3000, categoryId: 'cat-stipendio' }),
     makeExpense({ type: 'fixed', amount: -800, categoryId: 'cat-casa' }),
@@ -509,23 +509,44 @@ describe('summarizeSpendingByRole — the periodic email split (F5, owner 2026-1
   ];
   const summary = summarizeSpendingRoles(expenses, CATEGORIES);
 
-  it('splits the OUTFLOWS by role in the Flusso order; Risparmi is the saving rows, never the surplus', () => {
-    expect(summarizeSpendingByRole(summary)).toEqual([
-      { bucket: 'need', label: 'Necessità', amount: 830 },
-      { bucket: 'want', label: 'Desideri', amount: 20 },
-      { bucket: 'unclassified', label: 'Da classificare', amount: 100 },
-      { bucket: 'saving', label: 'Risparmi', amount: 200 },
+  it('reads the shares on income, Risparmi = the saving rows PLUS the surplus', () => {
+    const roles = summarizeEmailSpendingRoles(summary)!;
+    expect(roles.base).toBe(3000);
+    expect(roles.rows).toEqual([
+      { bucket: 'need', label: 'Necessità', amount: 830, percentage: 28 },
+      { bucket: 'want', label: 'Desideri', amount: 20, percentage: 1 },
+      { bucket: 'unclassified', label: 'Da classificare', amount: 100, percentage: 3 },
+      { bucket: 'saving', label: 'Risparmi', amount: 2050, percentage: 68 },
     ]);
+    expect(roles.saved).toBe(200);
+    expect(roles.surplus).toBe(1850);
+    expect(roles.deficit).toBe(0);
   });
 
-  it("puts the caller's untyped outflows in «Da classificare», so the rows reach the total", () => {
-    const rows = summarizeSpendingByRole(summary, 1250);
-    expect(rows.find((row) => row.bucket === 'unclassified')!.amount).toBe(200);
-    expect(rows.reduce((sum, row) => sum + row.amount, 0)).toBe(1250);
+  it("puts the caller's untyped outflows in «Da classificare» and takes them off the surplus", () => {
+    const roles = summarizeEmailSpendingRoles(summary, 1250)!;
+    expect(roles.rows.find((row) => row.bucket === 'unclassified')!.amount).toBe(200);
+    expect(roles.surplus).toBe(1750);
+    expect(roles.rows.reduce((sum, row) => sum + row.percentage, 0)).toBe(100);
   });
 
-  it('leaves out an empty bucket', () => {
-    const onlyNeeds = summarizeSpendingRoles([makeExpense({ type: 'fixed', amount: -50, categoryId: 'cat-casa' })], CATEGORIES);
-    expect(summarizeSpendingByRole(onlyNeeds).map((row) => row.bucket)).toEqual(['need']);
+  it('with outflows beyond income, the base is the outflows and the deficit is named', () => {
+    const july = summarizeSpendingRoles(
+      [
+        makeExpense({ type: 'income', amount: 2014, categoryId: 'cat-stipendio' }),
+        makeExpense({ type: 'fixed', amount: -1104, categoryId: 'cat-casa' }),
+        makeExpense({ type: 'variable', amount: -1392, categoryId: 'cat-altro' }),
+      ],
+      CATEGORIES.map((category) => (category.id === 'cat-altro' ? { ...category, spendingRole: 'want' as const } : category))
+    );
+    const roles = summarizeEmailSpendingRoles(july)!;
+    expect(roles.base).toBe(2496);
+    expect(roles.deficit).toBe(482);
+    expect(roles.surplus).toBe(0);
+    expect(roles.rows.map((row) => row.bucket)).toEqual(['need', 'want']);
+  });
+
+  it('is null with nothing recorded', () => {
+    expect(summarizeEmailSpendingRoles(summarizeSpendingRoles([], CATEGORIES))).toBeNull();
   });
 });

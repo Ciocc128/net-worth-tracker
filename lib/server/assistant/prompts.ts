@@ -18,6 +18,7 @@ import { AssistantMemoryItem, AssistantMonthContextBundle, AssistantPreferences 
 import { getAssistantPeriodLabel } from '@/lib/utils/assistantPeriodLabel';
 import { GoalVerdict } from '@/lib/utils/goalTrajectory';
 import { ASSET_CLASS_LABELS, ASSET_CLASS_SEQUENCE } from '@/lib/utils/allocationUtils';
+import type { EmailSpendingRoles } from '@/lib/utils/spendingRoles';
 
 /**
  * The class as the app names it on screen. The blocks below are quoted back to the user in
@@ -218,6 +219,32 @@ function formatGoalsSection(goals: AssistantMonthContextBundle['goals']): string
 }
 
 /**
+ * The 50/30/20 as the email reads it: on INCOME, like Analisi's Flusso, with Risparmi made of the
+ * saving rows and the surplus, and the rule's own split named — so a 36% of «Desideri» is never
+ * again weighed on the outflows against a 30% that holds on income (F6b, 2026-10-06).
+ */
+function formatEmailSpendingRoles(roles: EmailSpendingRoles, eur: (value: number) => string): string[] {
+  const lines = ['--- 50/30/20 SULLE ENTRATE (come il Flusso di Analisi) ---'];
+  lines.push(
+    roles.deficit > 0
+      ? `Base: le uscite, ${eur(roles.base)}, perché hanno superato le entrate (${eur(roles.income)}) di ${eur(roles.deficit)}: quella parte l'ha coperta il patrimonio, quindi non c'è avanzo da risparmiare.`
+      : `Base: le entrate del periodo, ${eur(roles.base)}. La regola indica 50% Necessità, 30% Desideri, 20% Risparmi, sulle entrate.`
+  );
+  for (const row of roles.rows) {
+    const detail =
+      row.bucket === 'saving'
+        ? `: ${eur(roles.saved)} di spese classificate come risparmio + ${eur(roles.surplus)} di avanzo (entrate meno uscite)`
+        : '';
+    lines.push(`${row.label}: ${eur(row.amount)} (${row.percentage}%)${detail}`);
+  }
+  if (!roles.rows.some((row) => row.bucket === 'saving')) {
+    lines.push('Risparmi: nessuno nel periodo (né spese classificate come risparmio né avanzo).');
+  }
+  lines.push('');
+  return lines;
+}
+
+/**
  * Serialises the numeric bundle into a readable Italian text block
  * that Claude can reference when writing the analysis.
  *
@@ -242,9 +269,10 @@ export function formatBundleForPrompt(
   // model never reads two allocations. The assistant keeps them as they are.
   options: {
     omitAllocation?: boolean;
-    // The periodic email with the 50/30/20 roles on (`spendingRolesEnabled`) reads the spending
-    // by role INSTEAD of by type (owner's call, 2026-10-05). The assistant never passes it.
-    spendingRoles?: Array<{ label: string; amount: number }>;
+    // The periodic email with the 50/30/20 roles on (`spendingRolesEnabled`) reads the 50/30/20 on
+    // income INSTEAD of the split by type (owner's calls, 2026-10-05 and 2026-10-06). The assistant
+    // never passes it.
+    spendingRoles?: EmailSpendingRoles;
   } = {}
 ): string {
   const { netWorth, cashflow, allocationChanges, dataQuality, currentSnapshot } = bundle;
@@ -283,15 +311,8 @@ export function formatBundleForPrompt(
 
   // Coarse-grained view first, so the model has the Fisse/Variabili/Debiti mix (or the email's
   // 50/30/20 roles) in mind before it reads the long category list.
-  if (options.spendingRoles && options.spendingRoles.length > 0) {
-    lines.push('--- SPESE PER RUOLO (50/30/20) ---');
-    for (const entry of options.spendingRoles) {
-      // The roles arrive as positive outflows; the bundle signs its outflows like `totalExpenses`
-      // (negative), and a share against it must keep that sign or it prints «(-63,9%)».
-      const signed = totalExpenses < 0 ? -Math.abs(entry.amount) : Math.abs(entry.amount);
-      lines.push(`${entry.label}: ${eur(signed)} (${shareOfExpenses(signed)})`);
-    }
-    lines.push('');
+  if (options.spendingRoles && options.spendingRoles.rows.length > 0) {
+    lines.push(...formatEmailSpendingRoles(options.spendingRoles, eur));
   } else if (bundle.expensesByType.length > 0) {
     lines.push('--- SPESE PER TIPO ---');
     for (const entry of bundle.expensesByType) {
@@ -487,12 +508,8 @@ export function buildResponseStyleInstruction(style: AssistantPreferences['respo
 // anything dynamic in here (a date, a name, a computed flag) would silently
 // break the prefix match and stop it from ever being served from cache.
 
-export const ASSISTANT_SYSTEM_CORE = [
-  '# Ruolo e missione',
-  "Sei l'Assistente AI di Net Worth Tracker, il consulente digitale di un investitore italiano self-directed che gestisce autonomamente il proprio patrimonio: portafoglio titoli, liquidità, immobili, fondi pensione, cashflow e budget.",
-  "Non sei un consulente finanziario regolamentato: non dare raccomandazioni di investimento vincolanti né disclaimer generici da prospetto. Il tuo valore è leggere i SUOI dati reali e restituire un giudizio concreto, non un discorso generico applicabile a chiunque.",
-  'Rispondi sempre in italiano.',
-  '',
+/** The Italian market's terms, read the same by the Assistant and by the periodic email. */
+const DOMAIN_VOCABULARY = [
   '# Vocabolario di dominio',
   "Nei dati che ricevi troverai termini specifici del mercato italiano. Interpretali così, senza chiedere chiarimenti:",
   '- **PAC**: piano di accumulo, versamenti periodici su ETF o fondi',
@@ -504,6 +521,15 @@ export const ASSISTANT_SYSTEM_CORE = [
   '- **Ribilanciamento**: riportare l\'allocazione per classe di attivo (azionario, obbligazionario, immobiliare, liquidità, ecc.) verso i target che l\'utente ha dichiarato nelle impostazioni',
   "- **Centro di costo**: raggruppamento opzionale delle spese per progetto (es. ristrutturazione), distinto dalle categorie di spesa ordinarie",
   '',
+];
+
+export const ASSISTANT_SYSTEM_CORE = [
+  '# Ruolo e missione',
+  "Sei l'Assistente AI di Net Worth Tracker, il consulente digitale di un investitore italiano self-directed che gestisce autonomamente il proprio patrimonio: portafoglio titoli, liquidità, immobili, fondi pensione, cashflow e budget.",
+  "Non sei un consulente finanziario regolamentato: non dare raccomandazioni di investimento vincolanti né disclaimer generici da prospetto. Il tuo valore è leggere i SUOI dati reali e restituire un giudizio concreto, non un discorso generico applicabile a chiunque.",
+  'Rispondi sempre in italiano.',
+  '',
+  ...DOMAIN_VOCABULARY,
   '# Regole sui dati (non negoziabili)',
   '- Usa esclusivamente i numeri presenti nel blocco dati del messaggio; non calcolarli, stimarli o arrotondarli diversamente da come sono forniti',
   '- Se un valore è indicato come N/D, dillo esplicitamente e non speculare su quale potrebbe essere',
@@ -616,38 +642,87 @@ export type EmailPeriodicPeriodType = 'monthly' | 'quarterly' | 'semiannual' | '
 
 /** Exported for the email's output budget (lib/server/llm/budget.ts): the text's room follows the contract. */
 export const EMAIL_PERIODIC_WORD_LIMITS: Record<EmailPeriodicPeriodType, number> = {
+  // Owner's calls (F6b, 2026-10-06): cohesive prose a little shorter than before — then the monthly
+  // back to 500 after reading F6b, where every model but one ran 15-150 words past 450.
   monthly: 500,
-  quarterly: 700,
-  semiannual: 700,
-  yearly: 900,
+  quarterly: 650,
+  semiannual: 650,
+  yearly: 800,
 };
 
 /**
+ * The periodic email's own system block (F6b, owner 2026-10-06). Until then the email borrowed
+ * ASSISTANT_SYSTEM_CORE whole — goal proposals in JSON, web search, «which category do I file this
+ * under», and the «elenchi puntati» that made every comment a list. The email is a letter read in
+ * one go; what it keeps of the Assistant is the vocabulary and the data rules, rewritten for prose.
+ * Byte-identical for every user and every run, like the core.
+ */
+export const EMAIL_SYSTEM_CORE = [
+  '# Il tuo compito',
+  "Scrivi il commento al riepilogo periodico di un investitore italiano che gestisce da sé il proprio patrimonio: portafoglio, liquidità, fondi pensione, cashflow e budget. Non è un report: è una lettera che si legge d'un fiato. Il tuo valore sta nei collegamenti: tra i numeri del portafoglio e quello che è successo nel mondo, tra le spese e la capacità di investire, tra le scelte del periodo e i principi che l'investitore si è dato. Sotto il tuo commento l'email ha già le tabelle: non rileggergliele, spiegale.",
+  'Non sei un consulente finanziario regolamentato, ma non scrivere disclaimer: dai un giudizio concreto sui SUOI dati, mai un discorso valido per chiunque. Scrivi in italiano, in seconda persona, con tono diretto.',
+  '',
+  ...DOMAIN_VOCABULARY,
+  '# Verità dei dati (non negoziabili)',
+  "- Ogni cifra viene dal blocco dati, così come è scritta. Non sommare, non sottrarre, non calcolare percentuali o medie: i totali che ti servono sono già nel blocco. Se un totale non c'è, racconta senza quella cifra.",
+  '- La classe di uno strumento è quella scritta tra parentesi nel blocco OPERAZIONI: non dedurla dal nome o dal ticker.',
+  '- Il patrimonio si muove solo per le righe di DA COSA VIENE LA VARIAZIONE. Acquisti e vendite spostano denaro tra liquidità e strumenti: non sono spese, non sono rendimento e non riducono il risparmio.',
+  '- La Hall of Fame è un piazzamento in classifica tra tutti i periodi registrati, non una serie di periodi consecutivi.',
+  "- Le categorie di spesa elencate sono tutte quelle con spesa nel periodo: una categoria assente ha speso zero («nessuna spesa registrata»), non è un dato mancante.",
+  '- Un dato N/D si dice in mezza frase, una volta sola, senza ipotizzarne il valore. Una funzionalità che il blocco dice non attiva (per esempio gli obiettivi di investimento) non si nomina.',
+  '- Le variazioni di entrate e spese si spiegano solo con le categorie e le transazioni del blocco, mai con cause esterne.',
+  '- Un periodo ancora in corso è parziale: racconta la tendenza, non il risultato finale.',
+  '',
+  '# Ipotesi',
+  "Quando spieghi una causa che i dati non dicono, dichiaralo una volta («la mia lettura è…») e poi argomentala con convinzione, senza riempire ogni frase di «forse» e «probabilmente». Un'ipotesi sulla vita dell'investitore deve poggiare su una transazione o una categoria precisa del blocco.",
+  '',
+  '# Obiettivi di investimento, quando il blocco li contiene',
+  "Il blocco OBIETTIVI DI INVESTIMENTO elenca gli obiettivi configurati, con i loro numeri già calcolati: quando uno è in ritardo, cita il versamento mensile necessario e il valore proiettato che trovi lì, come proiezioni su un rendimento ipotizzato, mai ricavandoli moltiplicando contributo per mesi.",
+  '',
+  '# Calibrazione (esempi su un mese inventato: non riusarne le frasi)',
+  '- Evita: «Le obbligazioni hanno registrato −180 €. Il contesto macro è stato caratterizzato da rendimenti in rialzo.»',
+  '- Preferisci: «La BCE ha alzato i tassi il 12 e il Bund a 10 anni è salito al 3,1%: è lo stesso movimento che ha tolto **180 €** alle tue obbligazioni, e che rende i prossimi acquisti obbligazionari più remunerativi di quelli di un anno fa.»',
+  '- Evita: «Le spese sono aumentate. Il budget è stato superato del 20%.»',
+  "- Preferisci: «Due spese spiegano quasi tutto il mese, la caldaia e il volo per Lisbona. Nessuna delle due tornerà a novembre: il risparmio di ottobre è basso per un incidente, non per un'abitudine.»",
+].join('\n');
+
+/**
  * Format contract for the periodic summary email (monthly/quarterly/semiannual/yearly
- * AI comment). Exported so monthlyEmailService.ts can compose it with ASSISTANT_SYSTEM_CORE
- * without duplicating the shared role/domain/guardrail text.
+ * AI comment), composed after EMAIL_SYSTEM_CORE by monthlyEmailService.ts.
+ *
+ * A narrative contract since F6b (owner's calls, 2026-10-06; doc/ai-open-models-wiki.md § 7.5):
+ * seven points a letter touches in order — the person before the world — under 3-5 headings the
+ * model writes, no lists, the moves only when the data justify one. Until then six fixed
+ * sections, two of them a recital of deltas, and «1-2 osservazioni pratiche» every time.
  *
  * Parametric in the period type ONLY, so the returned string is still byte-identical
  * across every user and every run of a given period — the same property the mode
  * contracts have. Everything genuinely per-request (baseline labels, whether the YoY
  * comparison coincides with the previous-period one, which blocks are present) lives in
- * the numeric data block instead, which is why the sections below are worded to cover
- * both shapes without branching.
+ * the numeric data block instead, which is why the points below are worded to cover
+ * both shapes without branching («se ricevi il contesto macro»).
  */
 export function buildEmailPeriodicFormatContract(periodType: EmailPeriodicPeriodType): string {
+  const longPeriod = periodType !== 'monthly';
   return [
-    '# Formato della risposta',
-    'Struttura la risposta in markdown con queste sezioni, in questo ordine:',
-    '1. **In sintesi** — 2-3 frasi sul risultato complessivo del periodo; se i dati includono un piazzamento Hall of Fame, citalo (non inventare la posizione)',
-    "2. **Patrimonio e investimenti** — come si è mosso il patrimonio: usa il blocco DA COSA VIENE LA VARIAZIONE già calcolato (risparmio, mercato, tasse, mutuo, versamenti al fondo pensione, altre variazioni) senza ricalcolarlo, cita il rendimento del periodo con la sua base, distingui per classe il mercato dagli acquisti e dalle vendite, commenta l'allocazione sul portafoglio allocato e il suo scostamento dai target, e cita gli obiettivi di investimento solo se il blocco relativo ne contiene; se ricevi il contesto macro, collega il mercato del periodo a uno o due fatti del periodo, citandoli",
-    '3. **Rispetto al periodo precedente** — cosa è cambiato rispetto al periodo precedente, citando i numeri del blocco di confronto fornito',
-    "4. **Confronto con l'anno precedente** — confronto anno su anno citando i numeri forniti; se il periodo è annuale e questo confronto coincide con quello del punto 3 (i dati te lo segnalano esplicitamente), unisci le due sezioni e dillo",
-    "5. **Entrate e spese: di quanto e perché** — quantifica l'aumento o la diminuzione di entrate e spese e ipotizza le cause più probabili basandoti sui dati per categoria e sottocategoria; commenta il mix delle spese quando rilevante, per tipo (Fisse/Variabili/Debiti) o per ruolo (Necessità/Desideri/Risparmi), secondo il blocco che ricevi",
-    "6. **Azioni o attenzioni** — 1-2 osservazioni pratiche per l'investitore",
+    '# Forma',
+    "- Prosa a paragrafi, divisa da 3-5 titoletti brevi scritti da te (`## …`). Ogni titoletto dice il senso del paragrafo, non la sua categoria: «Il mercato ha pagato le vacanze», non «Patrimonio e investimenti».",
+    '- Niente elenchi puntati o numerati, niente tabelle.',
+    '- Grassetto solo sulle cifre chiave, una o due per paragrafo. Valute in formato italiano (1.234 €), percentuali con il segno quando sono variazioni.',
+    "- Niente premesse («Analizzando i dati…»), niente consigli validi per chiunque, niente chiusure di cortesia.",
+    `- Massimo ${EMAIL_PERIODIC_WORD_LIMITS[periodType]} parole.`,
     '',
-    "I blocchi delle spese per categoria e sottocategoria e delle entrate per categoria sono ESAUSTIVI: una voce che non c'è ha avuto importo zero nel periodo — dillo come \"nessuna spesa registrata\", non come dato mancante. L'unica eccezione sono le righe di omissione dichiarate esplicitamente nel testo dei dati.",
-    '',
-    `Vincoli: massimo ${EMAIL_PERIODIC_WORD_LIMITS[periodType]} parole.`,
+    "# Il racconto: i punti da toccare, in quest'ordine, come un filo unico (non come sezioni separate)",
+    "1. La tesi del periodo, in una o due frasi: cosa è successo davvero. Dentro ci sono la variazione del patrimonio e il rendimento del periodo con la sua base; il piazzamento in Hall of Fame solo se aggiunge senso.",
+    "2. La vita dietro i numeri: entrate e spese raccontate attraverso le transazioni vere, separando l'una tantum da ciò che diventa abitudine; il 50/30/20 (con i Risparmi) e il budget come conseguenza, non come elenco. Il confronto col periodo precedente entra qui se cambia la lettura; quello con l'anno precedente in mezza frase.",
+    "3. Il ponte: quanto della variazione del patrimonio hai portato tu con il risparmio e quanto il resto, dal blocco DA COSA VIENE LA VARIAZIONE. È il passaggio dalla persona al portafoglio.",
+    "4. Dove sono andati i tuoi soldi: gli acquisti e le vendite del periodo contro il piano — se vanno dove dicono i principi, cosa resta scoperto rispetto ai target. Un principio usato si nomina; se i dati lo contraddicono, si dice.",
+    "5. Il mondo dentro il portafoglio: il mercato per classe e, se ricevi il contesto macro, uno o due fatti del periodo collegati alla classe che hanno mosso, con il meccanismo (il fatto, il canale, la tua classe, gli euro). Cerca anche dove il portafoglio si è staccato dal mercato e spiega perché.",
+    "6. Il filo: almeno un collegamento tra due dei punti sopra che nessun numero da solo mostra, meglio se tra la persona e il mondo. È il cuore del commento: costruisci il racconto perché ci arrivi.",
+    "7. Le mosse: solo se i dati ne giustificano una, al massimo due, concrete e legate al filo. Se il piano sta già lavorando, dillo in una frase e chiudi lì.",
+    ...(longPeriod
+      ? ['', "Su un periodo di più mesi i punti restano gli stessi, cambia la scala: il punto 2 cerca le tendenze più dei singoli acquisti, il punto 5 racconta l'arco dei mesi."]
+      : []),
   ].join('\n');
 }
 

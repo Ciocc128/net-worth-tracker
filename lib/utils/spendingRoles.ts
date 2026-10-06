@@ -209,25 +209,63 @@ export interface SpendingByRoleRow {
   /** `SPENDING_BUCKET_LABELS[bucket]`. */
   label: string;
   amount: number;
+  /** Whole percent of the email's base (`EmailSpendingRoles.base`); the rows add up to 100. */
+  percentage: number;
+}
+
+/** The periodic email's 50/30/20: the Flusso's reading, on the email's own outflow total. */
+export interface EmailSpendingRoles {
+  /** Income + deficit: the income when it covered everything, else the outflows. */
+  base: number;
+  /** SIGNED income of the period (rows of type income). */
+  income: number;
+  /** In SPENDING_ROLE_FLOW_ORDER; `saving` is the saving rows PLUS the surplus. */
+  rows: SpendingByRoleRow[];
+  /** Saving-classified rows… */
+  saved: number;
+  /** …and what the period left over (income − outflows, when positive). */
+  surplus: number;
+  /** Outflows beyond income, «coperto dal patrimonio»; 0 when income covered them. */
+  deficit: number;
 }
 
 /**
- * The period's SPENDING by role — the periodic email's split when the roles are on (owner's call,
- * 2026-10-05), in place of the Fisse/Variabili/Debiti one and on the same base: the outflows, not
- * the Flusso's income (`summarizeSpendingRoleShares`). Risparmi is therefore the rows classified
- * as saving, never the surplus.
+ * The period's 50/30/20 for the periodic email — the Flusso's reading (`summarizeSpendingRoleShares`,
+ * base = income), so Risparmi is the saving rows PLUS the surplus. Until F6b the email split the
+ * outflows alone: Risparmi never appeared, and the models read a 36% of «Desideri» on the outflows
+ * against the rule's 30% on income (owner's card, 2026-10-06).
  *
  * `totalSpending` is the caller's own outflow total: the email counts a row with no spending type
- * (legacy, imported) as an outflow, which the roles skip, and that residual joins «Da
- * classificare» — a row without a type has no role either — so the rows add up to the total.
+ * (legacy, imported) as an outflow, which the roles skip; that residual joins «Da classificare» — a
+ * row without a type has no role either — and lowers the surplus like any other outflow. Null when
+ * there is no flow to read (nothing recorded, or no income and no spending).
  */
-export function summarizeSpendingByRole(summary: SpendingRolesSummary, totalSpending: number = summary.spending): SpendingByRoleRow[] {
+export function summarizeEmailSpendingRoles(summary: SpendingRolesSummary, totalSpending: number = summary.spending): EmailSpendingRoles | null {
   const residual = Math.max(0, totalSpending - summary.spending);
-  return SPENDING_ROLE_FLOW_ORDER.map((bucket) => ({
-    bucket,
-    label: SPENDING_BUCKET_LABELS[bucket],
-    amount: summary.byBucket[bucket].total + (bucket === 'unclassified' ? residual : 0),
-  })).filter((row) => row.amount > 0.005);
+  const spending = summary.spending + residual;
+  const surplus = Math.max(0, summary.income - spending);
+  const deficit = Math.max(0, spending - summary.income);
+  const adjusted: SpendingRolesSummary = {
+    ...summary,
+    spending,
+    surplus,
+    deficit,
+    savings: summary.byBucket.saving.total + surplus,
+    byBucket: {
+      ...summary.byBucket,
+      unclassified: { ...summary.byBucket.unclassified, total: summary.byBucket.unclassified.total + residual },
+    },
+  };
+  const shares = summarizeSpendingRoleShares(adjusted);
+  if (shares.absence !== null) return null;
+  return {
+    base: shares.base,
+    income: summary.income,
+    rows: shares.shares.map((share) => ({ bucket: share.bucket, label: share.label, amount: share.amount, percentage: share.percentage })),
+    saved: shares.saved,
+    surplus: shares.surplus,
+    deficit: shares.deficit,
+  };
 }
 
 /**

@@ -46,15 +46,17 @@ const GLM_QUANTIZATIONS = ['fp8', 'bf16', 'fp16'] as const;
  * Every AI surface of the app. The first three go through `lib/server/llm`; the last three call
  * the Anthropic SDK directly and read only their `model` (the SDK is their provider by code).
  *
- * The emails run on GLM 5.3 Flash, chosen by the quick eval (F2) on 2026-09-28, on fp8/bf16/fp16
- * hosts only; TheBull's compilation on DeepSeek V4.1 Flash with the reasoning off, chosen by the
- * owner on 2026-10-05 after the probe (GLM failed one compilation in five, DeepSeek none in 50;
- * doc/ai-open-models-wiki.md § 7.3). Both stay provisional until the full eval (F6), which picks
- * the definitive model per task (§ 7).
+ * The periodic emails run on DeepSeek V4.1 Flash WITH its reasoning, the owner's definitive choice
+ * after F6b (2026-10-06, doc/ai-open-models-wiki.md § 7.6): one grave error in six letters against
+ * three for GLM 5.3 Flash and nine for GLM-5.3. It ignores the reasoning ceiling, so the real cap
+ * is `max_tokens` (`EMAIL_AI_REASONING_TOKENS`, sized to the email timeout). The weekly budget
+ * email stays on GLM 5.3 Flash on fp8/bf16/fp16 hosts (F2): the owner does not use it, and its
+ * 1.500-token budget would not hold DeepSeek's reasoning. TheBull's compilation on DeepSeek V4.1
+ * Flash with the reasoning OFF (§ 7.3), confirmed by F6.
  */
 export const AI_MODELS = {
   /** The comment of the periodic emails (monthly, quarterly, semiannual, yearly). */
-  EMAIL_PERIODIC: { provider: 'openrouter', model: 'z-ai/glm-5.3-flash', quantizations: GLM_QUANTIZATIONS },
+  EMAIL_PERIODIC: { provider: 'openrouter', model: 'deepseek/deepseek-v4.1-flash' },
   /** The two sentences of the weekly budget email. */
   EMAIL_WEEKLY_BUDGET: { provider: 'openrouter', model: 'z-ai/glm-5.3-flash', quantizations: GLM_QUANTIZATIONS },
   /** TheBull's weekly macro page (F3): structured extraction, every item with its quote. */

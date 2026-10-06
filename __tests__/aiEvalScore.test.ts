@@ -35,6 +35,24 @@ describe('isFailedRun', () => {
     expect(isFailedRun(run('m', 'b', 0, { checks: FIGURE_FAIL }))).toBe(true);
     expect(isFailedRun(run('m', 'b', 0))).toBe(false);
   });
+  it('fails a Wiki check (F6), and ignores the Wiki checks a bundle without the vault never ran', () => {
+    expect(isFailedRun(run('m', 'b', 0, { checks: { ...PASS, macro: { pass: false, details: ['+3,7%'] } } }))).toBe(true);
+    expect(isFailedRun(run('m', 'b', 0, { checks: { ...PASS, principles: { pass: true, details: [] } } }))).toBe(false);
+  });
+});
+
+describe('scoreModels (F6)', () => {
+  it('counts the Wiki checks and averages the third vote apart from the rule’s mean', () => {
+    const [score] = scoreModels(
+      [{ model: 'm', role: 'candidate' }],
+      [run('m', 'b1', 0.002, { checks: { ...PASS, crossover: { pass: false, details: ['x'] } } }), run('m', 'b2', 0.002)],
+      { b1: { m: { utilita: 4, tono: 4, collegamento: 2 } }, b2: { m: { utilita: 4, tono: 4 } } }
+    );
+    expect(score.failuresByCheck.crossover).toBe(1);
+    expect(score.failuresByCheck.macro).toBe(0);
+    expect(score.meanCollegamento).toBe(2);
+    expect(score.meanVote).toBe(4);
+  });
 });
 
 describe('scoreModels', () => {

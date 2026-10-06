@@ -112,6 +112,7 @@ import { MAX_CATEGORY_DELTAS, buildPeriodComparison, type PeriodComparison } fro
 import { buildAssistantPeriodRangeContext } from '@/lib/services/assistantMonthContextService';
 import type { AssistantMemoryItem, AssistantMonthContextBundle, AssistantPreferences } from '@/types/assistant';
 import type { MonthlySnapshot } from '@/types/assets';
+import type { EmailInstrumentTrades } from '@/lib/utils/emailPortfolio';
 import type { BudgetAlert } from '@/types/budget';
 
 // ─── Shared fixtures ──────────────────────────────────────────────────────────
@@ -240,26 +241,27 @@ function makeComparison(overrides: Partial<PeriodComparison> = {}): PeriodCompar
     previousEqualsYoy: false,
     vsPrevious: {
       baselineLabel: 'Q2 2026',
-      netWorth: { absChange: 12000, pctChange: 6.4 },
-      income: { absChange: 500, pctChange: 5.9 },
-      expenses: { absChange: 300, pctChange: 4.5 },
-      savings: { absChange: 200, pctChange: 11.1 },
+      netWorth: { absChange: 12000, pctChange: 6.4, previous: 187500 },
+      income: { absChange: 500, pctChange: 5.9, previous: 8475 },
+      expenses: { absChange: 300, pctChange: 4.5, previous: 6667 },
+      savings: { absChange: 200, pctChange: 11.1, previous: 1802 },
     },
     vsYoy: {
       baselineLabel: 'Q3 2025',
-      netWorth: { absChange: 30000, pctChange: 17.6 },
+      netWorth: { absChange: 30000, pctChange: 17.6, previous: 170455 },
       income: null,
-      expenses: { absChange: -400, pctChange: -5.4 },
+      expenses: { absChange: -400, pctChange: -5.4, previous: 7407 },
       savings: null,
     },
     categoryDeltas: [
       {
         name: 'Casa',
         current: 4000,
-        vsPrevious: { absChange: 200, pctChange: 5.3 },
-        vsYoy: { absChange: 100, pctChange: 2.6 },
+        vsPrevious: { absChange: 200, pctChange: 5.3, previous: 3774 },
+        vsYoy: { absChange: 100, pctChange: 2.6, previous: 3846 },
       },
     ],
+    droppedCategories: [],
     ...overrides,
   };
 }
@@ -499,6 +501,63 @@ describe('buildEmailAiPrompt', () => {
     expect(userContent).toContain('non una serie di periodi consecutivi');
   });
 
+  it('says where a Hall of Fame standing falls, so 18th of 19 never reads as a streak', () => {
+    const { userContent } = buildEmailAiPrompt(
+      makeMonthlyData({ hallOfFameRank: { rank: 18, total: 19, trend: 'growth', scope: 'month' } }),
+      makeComparison(),
+      makeBundle(),
+      makePreferences(),
+      []
+    );
+    expect(userContent).toContain('In altre parole: tra le crescite più deboli.');
+  });
+
+  it('prints each comparison from and to, a zero baseline as «nessuna spesa», and the categories gone to zero', () => {
+    const { userContent } = buildEmailAiPrompt(
+      makeMonthlyData(),
+      makeComparison({
+        vsPrevious: {
+          baselineLabel: 'Q2 2026',
+          netWorth: { absChange: 516, pctChange: 0.4, previous: 126655 },
+          income: { absChange: 172, pctChange: 8.6, previous: 2014 },
+          expenses: { absChange: -319, pctChange: -12.8, previous: 2496 },
+          savings: { absChange: 492, pctChange: 101.9, previous: -483 },
+        },
+        categoryDeltas: [{ name: 'Shopping', current: 864, vsPrevious: { absChange: 864, pctChange: null, previous: 0 }, vsYoy: null }],
+        droppedCategories: [{ name: 'Viaggi', previous: 968 }],
+      }),
+      makeBundle(),
+      makePreferences(),
+      []
+    );
+    expect(userContent.replace(/\u00a0/g, ' ')).toContain('Risparmio netto: +492 € (+101,9%), da −483 € a +9 €');
+    expect(userContent.replace(/\u00a0/g, ' ')).toContain('vs periodo prec.: +864 €, nessuna spesa nel periodo prec.');
+    expect(userContent.replace(/\u00a0/g, ' ')).toContain('Scese a zero (spesa nel periodo prec., nessuna in questo): Viaggi (968 € nel periodo prec.).');
+  });
+
+  it('names each traded instrument’s class and gives the period’s totals', () => {
+    const trade = (name: string, invested: number, legs: EmailInstrumentTrades['legs'], leverageRatio = 1): EmailInstrumentTrades => ({
+      assetId: name, name, buys: 1, sells: 0, boughtQuantity: 1, soldQuantity: 0, invested, proceeds: 0, estimatedTax: null, legs, leverageRatio,
+    });
+    const { userContent } = buildEmailAiPrompt(
+      makeMonthlyData({
+        trades: [
+          trade('XDEM', 1127, [{ assetClass: 'equity', percentage: 100, subCategory: 'Momentum' }]),
+          trade('CL2', 451, [{ assetClass: 'equity', percentage: 100, subCategory: 'Market' }], 2),
+          trade('MIX', 300, [{ assetClass: 'equity', percentage: 60 }, { assetClass: 'bonds', percentage: 40 }]),
+        ],
+      }),
+      makeComparison(),
+      makeBundle(),
+      makePreferences(),
+      []
+    );
+    expect(userContent).toContain('- XDEM (Azioni › Momentum): 1 acquisto');
+    expect(userContent).toContain('- CL2 (Azioni › Market, leva 2×): 1 acquisto');
+    expect(userContent).toContain('- MIX (Azioni 60% · Obbligazioni 40%): 1 acquisto');
+    expect(userContent.replace(/\u00a0/g, ' ')).toContain('Totale del periodo: 1878 € investiti in 3 acquisti.');
+  });
+
   it('injects memory only when the preference allows it', () => {
     const items: AssistantMemoryItem[] = [
       {
@@ -534,9 +593,9 @@ describe('buildEmailAiPrompt', () => {
   it('scales the word ceiling with the period and states the new patrimony section', () => {
     const cases: Array<[MonthlyEmailData['periodType'], number]> = [
       ['monthly', 500],
-      ['quarterly', 700],
-      ['semiannual', 700],
-      ['yearly', 900],
+      ['quarterly', 650],
+      ['semiannual', 650],
+      ['yearly', 800],
     ];
 
     for (const [periodType, words] of cases) {
@@ -547,9 +606,22 @@ describe('buildEmailAiPrompt', () => {
         makePreferences(),
         []
       );
-      expect(system).toContain(`massimo ${words} parole`);
-      expect(system).toContain('Patrimonio e investimenti');
+      expect(system).toContain(`Massimo ${words} parole.`);
+      // The narrative contract (F6b): prose under the model's own headings, the person before the world.
+      expect(system).toContain('Niente elenchi puntati o numerati');
+      expect(system.indexOf('La vita dietro i numeri')).toBeLessThan(system.indexOf('Il mondo dentro il portafoglio'));
+      expect(system.includes('cambia la scala')).toBe(periodType !== 'monthly');
     }
+  });
+
+  it('gives the email its own system block, not the Assistant’s', () => {
+    const { system } = buildEmailAiPrompt(makeMonthlyData(), makeComparison(), makeBundle(), makePreferences(), []);
+    expect(system.startsWith('# Il tuo compito')).toBe(true);
+    expect(system).toContain('**TWR (Time-Weighted Return)**');
+    expect(system).toContain('non dedurla dal nome o dal ticker');
+    expect(system).not.toContain('goal-proposal');
+    expect(system).not.toContain('elenchi puntati per le liste');
+    expect(system).not.toContain('Ricerca web');
   });
 
   it('keeps the system block free of per-request data', () => {
@@ -610,21 +682,41 @@ describe('buildEmailAiPrompt', () => {
     });
   });
 
-  it('with the 50/30/20 roles reads the spending by role INSTEAD of by type', () => {
-    const roles = [
-      { bucket: 'need' as const, label: 'Necessità', amount: 4000 },
-      { bucket: 'want' as const, label: 'Desideri', amount: 2000 },
-      { bucket: 'unclassified' as const, label: 'Da classificare', amount: 1000 },
-    ];
+  it('with the 50/30/20 roles reads them on income, Risparmi named, INSTEAD of the types', () => {
+    const roles = {
+      base: 2441,
+      income: 2441,
+      rows: [
+        { bucket: 'need' as const, label: 'Necessità', amount: 1310, percentage: 54 },
+        { bucket: 'want' as const, label: 'Desideri', amount: 740, percentage: 30 },
+        { bucket: 'saving' as const, label: 'Risparmi', amount: 391, percentage: 16 },
+      ],
+      saved: 0,
+      surplus: 391,
+      deficit: 0,
+    };
     const withRoles = buildEmailAiPrompt(makeMonthlyData({ expensesByRole: roles }), makeComparison(), makeBundle(), makePreferences(), []);
-    expect(withRoles.userContent).toContain('--- SPESE PER RUOLO (50/30/20) ---');
-    // Signed like the bundle's outflows (−7.000 €), so the share is a share, never «(-57,1%)».
-    expect(withRoles.userContent).toMatch(/Necessità: -4000\s€ \(57,1%\)/);
-    expect(withRoles.userContent).not.toContain('--- SPESE PER TIPO ---');
+    const text = withRoles.userContent.replace(/\u00a0/g, ' ');
+    expect(text).toContain('--- 50/30/20 SULLE ENTRATE (come il Flusso di Analisi) ---');
+    expect(text).toContain('La regola indica 50% Necessità, 30% Desideri, 20% Risparmi, sulle entrate.');
+    expect(text).toContain('Risparmi: 391 € (16%): 0 € di spese classificate come risparmio + 391 € di avanzo');
+    expect(text).not.toContain('--- SPESE PER TIPO ---');
+
+    const deficit = buildEmailAiPrompt(
+      makeMonthlyData({
+        expensesByRole: { base: 2496, income: 2014, rows: [{ bucket: 'need' as const, label: 'Necessità', amount: 2496, percentage: 100 }], saved: 0, surplus: 0, deficit: 482 },
+      }),
+      makeComparison(),
+      makeBundle(),
+      makePreferences(),
+      []
+    ).userContent.replace(/\u00a0/g, ' ');
+    expect(deficit).toContain("hanno superato le entrate (2014 €) di 482 €: quella parte l'ha coperta il patrimonio");
+    expect(deficit).toContain('Risparmi: nessuno nel periodo');
 
     const without = buildEmailAiPrompt(makeMonthlyData({ expensesByRole: null }), makeComparison(), makeBundle(), makePreferences(), []);
     expect(without.userContent).toContain('--- SPESE PER TIPO ---');
-    expect(without.userContent).not.toContain('SPESE PER RUOLO');
+    expect(without.userContent).not.toContain('50/30/20');
   });
 });
 
@@ -1179,19 +1271,20 @@ describe('generateEmailHtml', () => {
       previousEqualsYoy: false,
       vsPrevious: {
         baselineLabel: 'mese precedente',
-        netWorth: { absChange: 5000, pctChange: 3.4 },
-        income: { absChange: 500, pctChange: 16.7 },
-        expenses: { absChange: 800, pctChange: 66.7 },
-        savings: { absChange: -300, pctChange: -16.7 },
+        netWorth: { absChange: 5000, pctChange: 3.4, previous: 147059 },
+        income: { absChange: 500, pctChange: 16.7, previous: 2994 },
+        expenses: { absChange: 800, pctChange: 66.7, previous: 1199 },
+        savings: { absChange: -300, pctChange: -16.7, previous: 1796 },
       },
       vsYoy: {
         baselineLabel: 'Marzo 2024',
-        netWorth: { absChange: 20000, pctChange: 15.4 },
+        netWorth: { absChange: 20000, pctChange: 15.4, previous: 129870 },
         income: null,
-        expenses: { absChange: -200, pctChange: -9.1 },
+        expenses: { absChange: -200, pctChange: -9.1, previous: 2198 },
         savings: null,
       },
       categoryDeltas: [],
+      droppedCategories: [],
     };
     const html = generateEmailHtml(makeMonthlyData(), comparison);
     expect(html).toContain('Rispetto a un anno fa');
@@ -1207,14 +1300,14 @@ describe('generateEmailHtml', () => {
     // The One-Tile-One-Question Rule. The old «Confronti» table printed it anyway.
     const identical = {
       baselineLabel: '2024',
-      netWorth: { absChange: 12000, pctChange: 9.1 },
-      income: { absChange: 1000, pctChange: 2.5 },
-      expenses: { absChange: 500, pctChange: 1.8 },
-      savings: { absChange: 500, pctChange: 5.0 },
+      netWorth: { absChange: 12000, pctChange: 9.1, previous: 131868 },
+      income: { absChange: 1000, pctChange: 2.5, previous: 40000 },
+      expenses: { absChange: 500, pctChange: 1.8, previous: 27778 },
+      savings: { absChange: 500, pctChange: 5.0, previous: 10000 },
     };
     const html = generateEmailHtml(
       makeMonthlyData({ periodType: 'yearly', month: 12, year: 2025 }),
-      { previousEqualsYoy: true, vsPrevious: identical, vsYoy: identical, categoryDeltas: [] } as PeriodComparison,
+      { previousEqualsYoy: true, vsPrevious: identical, vsYoy: identical, categoryDeltas: [], droppedCategories: [] } as PeriodComparison,
     );
     expect(html).not.toContain('Rispetto a un anno fa');
   });
@@ -1253,22 +1346,32 @@ describe('generateEmailHtml', () => {
     expect(html).not.toContain('Non classificate');
   });
 
-  it('with the 50/30/20 roles the expense footer splits by role instead of by type', () => {
+  it('with the 50/30/20 roles the expense footer reads the roles on income instead of the types', () => {
     const html = textOf(
       generateEmailHtml(
         makeMonthlyData({
           totalExpenses: 2000,
           expensesByType: [{ type: 'fixed', label: 'Spese Fisse', amount: 1500 }],
-          expensesByRole: [
-            { bucket: 'need', label: 'Necessità', amount: 1200 },
-            { bucket: 'unclassified', label: 'Da classificare', amount: 800 },
-          ],
+          expensesByRole: {
+            base: 2500,
+            income: 2500,
+            rows: [
+              { bucket: 'need', label: 'Necessità', amount: 1200, percentage: 48 },
+              { bucket: 'unclassified', label: 'Da classificare', amount: 800, percentage: 32 },
+              { bucket: 'saving', label: 'Risparmi', amount: 500, percentage: 20 },
+            ],
+            saved: 0,
+            surplus: 500,
+            deficit: 0,
+          },
         }),
       ),
     );
     expect(html).toContain('Necessità');
     expect(html).toContain('Da classificare');
-    expect(html).toContain('60,0%');
+    expect(html).toContain('Sulle entrate: Necessità');
+    expect(html).toContain('Risparmi');
+    expect(html).toContain('20%');
     expect(html).not.toContain('Spese Fisse');
     expect(html).not.toContain('Non classificate');
   });
@@ -1339,7 +1442,7 @@ describe('buildMonthlyEmailData', () => {
     expect(result).toBeNull();
   });
 
-  it('splits the outflows by 50/30/20 role only with spendingRolesEnabled, from the categories', async () => {
+  it('reads the 50/30/20 only with spendingRolesEnabled, from the categories', async () => {
     collectionMocks['monthly-snapshots'] = {
       empty: false,
       docs: [{ data: () => ({ totalNetWorth: 100, liquidNetWorth: 50, byAssetClass: {} }) }],
@@ -1365,12 +1468,20 @@ describe('buildMonthlyEmailData', () => {
     // `mockBudgetDoc` answers every `.doc().get()`, the settings document included.
     mockBudgetDoc = { exists: true, data: () => ({ spendingRolesEnabled: true }) };
     const result = await buildMonthlyEmailData('user-1', 2025, 3);
-    expect(result!.expensesByRole).toEqual([
-      { bucket: 'need', label: 'Necessità', amount: 600 },
-      { bucket: 'want', label: 'Desideri', amount: 100 },
-      // The untyped imported row has no role either.
-      { bucket: 'unclassified', label: 'Da classificare', amount: 50 },
-    ]);
+    // No income in the window: the base is the outflows and the wealth covered all of them.
+    expect(result!.expensesByRole).toEqual({
+      base: 750,
+      income: 0,
+      rows: [
+        { bucket: 'need', label: 'Necessità', amount: 600, percentage: 80 },
+        { bucket: 'want', label: 'Desideri', amount: 100, percentage: 13 },
+        // The untyped imported row has no role either.
+        { bucket: 'unclassified', label: 'Da classificare', amount: 50, percentage: 7 },
+      ],
+      saved: 0,
+      surplus: 0,
+      deficit: 750,
+    });
   });
 
   it('returns aggregated data when snapshot exists', async () => {
@@ -1773,9 +1884,11 @@ describe('buildAndSendForPeriod — AI comment through the provider layer', () =
     );
     expect(await buildAndSendForPeriod('user-1', ['a@b.com'], 'monthly', 2025, 3)).toBe(true);
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    // 4000 of reasoning + 500 words × 1,8 × 2 of text (lib/server/llm/budget.ts).
-    expect(body.max_tokens).toBe(5800);
-    expect(body.reasoning).toEqual({ exclude: true, max_tokens: 4000 });
+    // 6000 of reasoning + 500 words × 1,8 × 2 of text (lib/server/llm/budget.ts): DeepSeek ignores the
+    // reasoning ceiling, so the total is what protects the text (F6b).
+    expect(body.max_tokens).toBe(7800);
+    expect(body.reasoning).toEqual({ exclude: true, max_tokens: 6000 });
+    expect(body.model).toBe('deepseek/deepseek-v4.1-flash');
     expect(body.messages[0].role).toBe('system');
     expect(htmlSent()).toContain('Commento AI');
     expect(htmlSent()).toContain('fenicottero');

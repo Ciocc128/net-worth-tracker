@@ -24,6 +24,9 @@ import { createVaultClient, readVaultConfig } from '@/lib/server/wiki/githubVaul
 import { retryPendingTheBull } from '@/lib/server/wiki/thebullCompiler';
 import { exportToVault } from '@/lib/server/wiki/vaultExport';
 
+// The Hobby plan's ceiling with Fluid compute: the period emails' AI comments run inside it (F6b).
+export const maxDuration = 300;
+
 /**
  * GET /api/cron/monthly-snapshot
  *
@@ -151,156 +154,171 @@ export async function GET(request: NextRequest) {
       console.error('[cron] ECB rate cache refresh failed (non-blocking):', ecbError);
     }
 
-    // Phase 2: Send monthly summary emails (only on the last day of the month)
+    // Phases 2-5: the period emails, SIDE BY SIDE (F6b, 2026-10-06). Each one waits on its AI
+    // comment — a reasoning model, up to EMAIL_AI_TIMEOUT_MS — and on December 31 all four are due:
+    // run in a row they could outlast the function's 300 s and leave the last ones without a comment.
+    // They share nothing but `now` and the users' snapshot; each keeps its own counters.
     const now = new Date();
     const emailResults = { sent: 0, skipped: 0, errors: 0 };
-    if (isLastDayOfMonthItaly(now)) {
-      const { year, month } = getItalyMonthYear(now);
-      console.log(`Last day of month detected — sending summary emails for ${month}/${year}`);
+    const quarterlyEmailResults = { sent: 0, skipped: 0, errors: 0 };
+    const semiAnnualEmailResults = { sent: 0, skipped: 0, errors: 0 };
+    const yearlyEmailResults = { sent: 0, skipped: 0, errors: 0 };
 
-      for (const userDoc of usersSnapshot.docs) {
-        const userId = userDoc.id;
+    // Phase 2: Send monthly summary emails (only on the last day of the month)
+    const sendMonthly = async () => {
+      if (isLastDayOfMonthItaly(now)) {
+        const { year, month } = getItalyMonthYear(now);
+        console.log(`Last day of month detected — sending summary emails for ${month}/${year}`);
 
-        // Skip demo user — its data is synthetic
-        if (userId === process.env.NEXT_PUBLIC_DEMO_USER_ID) {
-          emailResults.skipped++;
-          continue;
-        }
+        for (const userDoc of usersSnapshot.docs) {
+          const userId = userDoc.id;
 
-        try {
-          const settings = await getSettingsAdmin(userId);
-          if (!settings?.monthlyEmailEnabled || !settings.monthlyEmailRecipients?.length) {
+          // Skip demo user — its data is synthetic
+          if (userId === process.env.NEXT_PUBLIC_DEMO_USER_ID) {
             emailResults.skipped++;
             continue;
           }
 
-          const sent = await buildAndSendForPeriod(userId, settings.monthlyEmailRecipients, 'monthly', year, month);
-          if (!sent) {
-            console.warn(`No snapshot found for user ${userId} — skipping monthly email`);
-            emailResults.skipped++;
-          } else {
-            emailResults.sent++;
-            console.log(`Monthly email sent for user ${userId}`);
+          try {
+            const settings = await getSettingsAdmin(userId);
+            if (!settings?.monthlyEmailEnabled || !settings.monthlyEmailRecipients?.length) {
+              emailResults.skipped++;
+              continue;
+            }
+
+            const sent = await buildAndSendForPeriod(userId, settings.monthlyEmailRecipients, 'monthly', year, month);
+            if (!sent) {
+              console.warn(`No snapshot found for user ${userId} — skipping monthly email`);
+              emailResults.skipped++;
+            } else {
+              emailResults.sent++;
+              console.log(`Monthly email sent for user ${userId}`);
+            }
+          } catch (emailError) {
+            console.error(`Monthly email failed for user ${userId}:`, emailError);
+            emailResults.errors++;
           }
-        } catch (emailError) {
-          console.error(`Monthly email failed for user ${userId}:`, emailError);
-          emailResults.errors++;
         }
       }
-    }
+    };
 
     // Phase 3: Send quarterly summary emails (only on the last day of a quarter)
-    const quarterlyEmailResults = { sent: 0, skipped: 0, errors: 0 };
-    if (isLastDayOfQuarterItaly(now)) {
-      const { year, month } = getItalyMonthYear(now);
-      const quarter = monthToQuarter(month);
-      console.log(`Last day of Q${quarter} detected — sending quarterly emails for Q${quarter}/${year}`);
+    const sendQuarterly = async () => {
+      if (isLastDayOfQuarterItaly(now)) {
+        const { year, month } = getItalyMonthYear(now);
+        const quarter = monthToQuarter(month);
+        console.log(`Last day of Q${quarter} detected — sending quarterly emails for Q${quarter}/${year}`);
 
-      for (const userDoc of usersSnapshot.docs) {
-        const userId = userDoc.id;
+        for (const userDoc of usersSnapshot.docs) {
+          const userId = userDoc.id;
 
-        if (userId === process.env.NEXT_PUBLIC_DEMO_USER_ID) {
-          quarterlyEmailResults.skipped++;
-          continue;
-        }
-
-        try {
-          const settings = await getSettingsAdmin(userId);
-          if (!settings?.quarterlyEmailEnabled || !settings.monthlyEmailRecipients?.length) {
+          if (userId === process.env.NEXT_PUBLIC_DEMO_USER_ID) {
             quarterlyEmailResults.skipped++;
             continue;
           }
 
-          const sent = await buildAndSendQuarterly(userId, settings.monthlyEmailRecipients, year, quarter);
-          if (!sent) {
-            console.warn(`No Q${quarter} snapshot found for user ${userId} — skipping quarterly email`);
-            quarterlyEmailResults.skipped++;
-          } else {
-            quarterlyEmailResults.sent++;
-            console.log(`Quarterly email sent for user ${userId}`);
+          try {
+            const settings = await getSettingsAdmin(userId);
+            if (!settings?.quarterlyEmailEnabled || !settings.monthlyEmailRecipients?.length) {
+              quarterlyEmailResults.skipped++;
+              continue;
+            }
+
+            const sent = await buildAndSendQuarterly(userId, settings.monthlyEmailRecipients, year, quarter);
+            if (!sent) {
+              console.warn(`No Q${quarter} snapshot found for user ${userId} — skipping quarterly email`);
+              quarterlyEmailResults.skipped++;
+            } else {
+              quarterlyEmailResults.sent++;
+              console.log(`Quarterly email sent for user ${userId}`);
+            }
+          } catch (emailError) {
+            console.error(`Quarterly email failed for user ${userId}:`, emailError);
+            quarterlyEmailResults.errors++;
           }
-        } catch (emailError) {
-          console.error(`Quarterly email failed for user ${userId}:`, emailError);
-          quarterlyEmailResults.errors++;
         }
       }
-    }
+    };
 
     // Phase 4: Send semi-annual summary emails (only on June 30 / December 31).
     // Note: a half-year-end coincides with a quarter-end (Q2/Q4) and, on Dec 31, with the
     // year-end too — these are independent opt-in emails, so a user enabling several toggles
     // can receive more than one summary on the same day. That is intentional.
-    const semiAnnualEmailResults = { sent: 0, skipped: 0, errors: 0 };
-    if (isLastDayOfHalfYearItaly(now)) {
-      const { year, month } = getItalyMonthYear(now);
-      const semester = monthToSemester(month);
-      console.log(`Last day of H${semester} detected — sending semi-annual emails for H${semester}/${year}`);
+    const sendSemiAnnual = async () => {
+      if (isLastDayOfHalfYearItaly(now)) {
+        const { year, month } = getItalyMonthYear(now);
+        const semester = monthToSemester(month);
+        console.log(`Last day of H${semester} detected — sending semi-annual emails for H${semester}/${year}`);
 
-      for (const userDoc of usersSnapshot.docs) {
-        const userId = userDoc.id;
+        for (const userDoc of usersSnapshot.docs) {
+          const userId = userDoc.id;
 
-        if (userId === process.env.NEXT_PUBLIC_DEMO_USER_ID) {
-          semiAnnualEmailResults.skipped++;
-          continue;
-        }
-
-        try {
-          const settings = await getSettingsAdmin(userId);
-          if (!settings?.semiAnnualEmailEnabled || !settings.monthlyEmailRecipients?.length) {
+          if (userId === process.env.NEXT_PUBLIC_DEMO_USER_ID) {
             semiAnnualEmailResults.skipped++;
             continue;
           }
 
-          const sent = await buildAndSendSemiAnnual(userId, settings.monthlyEmailRecipients, year, semester);
-          if (!sent) {
-            console.warn(`No H${semester} snapshot found for user ${userId} — skipping semi-annual email`);
-            semiAnnualEmailResults.skipped++;
-          } else {
-            semiAnnualEmailResults.sent++;
-            console.log(`Semi-annual email sent for user ${userId}`);
+          try {
+            const settings = await getSettingsAdmin(userId);
+            if (!settings?.semiAnnualEmailEnabled || !settings.monthlyEmailRecipients?.length) {
+              semiAnnualEmailResults.skipped++;
+              continue;
+            }
+
+            const sent = await buildAndSendSemiAnnual(userId, settings.monthlyEmailRecipients, year, semester);
+            if (!sent) {
+              console.warn(`No H${semester} snapshot found for user ${userId} — skipping semi-annual email`);
+              semiAnnualEmailResults.skipped++;
+            } else {
+              semiAnnualEmailResults.sent++;
+              console.log(`Semi-annual email sent for user ${userId}`);
+            }
+          } catch (emailError) {
+            console.error(`Semi-annual email failed for user ${userId}:`, emailError);
+            semiAnnualEmailResults.errors++;
           }
-        } catch (emailError) {
-          console.error(`Semi-annual email failed for user ${userId}:`, emailError);
-          semiAnnualEmailResults.errors++;
         }
       }
-    }
+    };
 
     // Phase 5: Send yearly summary emails (only on December 31)
-    const yearlyEmailResults = { sent: 0, skipped: 0, errors: 0 };
-    if (isLastDayOfYearItaly(now)) {
-      const { year } = getItalyMonthYear(now);
-      console.log(`December 31 detected — sending yearly emails for ${year}`);
+    const sendYearly = async () => {
+      if (isLastDayOfYearItaly(now)) {
+        const { year } = getItalyMonthYear(now);
+        console.log(`December 31 detected — sending yearly emails for ${year}`);
 
-      for (const userDoc of usersSnapshot.docs) {
-        const userId = userDoc.id;
+        for (const userDoc of usersSnapshot.docs) {
+          const userId = userDoc.id;
 
-        if (userId === process.env.NEXT_PUBLIC_DEMO_USER_ID) {
-          yearlyEmailResults.skipped++;
-          continue;
-        }
-
-        try {
-          const settings = await getSettingsAdmin(userId);
-          if (!settings?.yearlyEmailEnabled || !settings.monthlyEmailRecipients?.length) {
+          if (userId === process.env.NEXT_PUBLIC_DEMO_USER_ID) {
             yearlyEmailResults.skipped++;
             continue;
           }
 
-          const sent = await buildAndSendYearly(userId, settings.monthlyEmailRecipients, year);
-          if (!sent) {
-            console.warn(`No December snapshot found for user ${userId} — skipping yearly email`);
-            yearlyEmailResults.skipped++;
-          } else {
-            yearlyEmailResults.sent++;
-            console.log(`Yearly email sent for user ${userId}`);
+          try {
+            const settings = await getSettingsAdmin(userId);
+            if (!settings?.yearlyEmailEnabled || !settings.monthlyEmailRecipients?.length) {
+              yearlyEmailResults.skipped++;
+              continue;
+            }
+
+            const sent = await buildAndSendYearly(userId, settings.monthlyEmailRecipients, year);
+            if (!sent) {
+              console.warn(`No December snapshot found for user ${userId} — skipping yearly email`);
+              yearlyEmailResults.skipped++;
+            } else {
+              yearlyEmailResults.sent++;
+              console.log(`Yearly email sent for user ${userId}`);
+            }
+          } catch (emailError) {
+            console.error(`Yearly email failed for user ${userId}:`, emailError);
+            yearlyEmailResults.errors++;
           }
-        } catch (emailError) {
-          console.error(`Yearly email failed for user ${userId}:`, emailError);
-          yearlyEmailResults.errors++;
         }
       }
-    }
+    };
+
+    await Promise.all([sendMonthly(), sendQuarterly(), sendSemiAnnual(), sendYearly()]);
 
     // Phase 6: Send weekly budget status emails (every Sunday)
     const weeklyBudgetEmailResults = { sent: 0, skipped: 0, errors: 0 };

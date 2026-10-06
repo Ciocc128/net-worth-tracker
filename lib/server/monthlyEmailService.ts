@@ -41,6 +41,7 @@ import {
   describeExpenseCategoriesTile,
   describeIncomeCategoriesTile,
   describeExpenseTypes,
+  describeSpendingRolesFooter,
   describeTopExpensesTile,
   describeDividendsTile,
   describeYearOverYearTile,
@@ -65,7 +66,7 @@ import {
   formatMemoryForPrompt,
   formatBundleForPrompt,
   buildResponseStyleInstruction,
-  ASSISTANT_SYSTEM_CORE,
+  EMAIL_SYSTEM_CORE,
   buildEmailPeriodicFormatContract,
   EMAIL_PERIODIC_WORD_LIMITS,
   type AssistantPromptParts,
@@ -85,7 +86,7 @@ import { evaluateBudgetAlerts } from '@/lib/utils/budgetUtils';
 import { DEFAULT_ALERT_THRESHOLDS } from '@/types/budget';
 import type { BudgetAlert, BudgetItem } from '@/types/budget';
 import { type Expense, type ExpenseCategory, type ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expenses';
-import { summarizeSpendingByRole, summarizeSpendingRoles, type SpendingByRoleRow } from '@/lib/utils/spendingRoles';
+import { summarizeEmailSpendingRoles, summarizeSpendingRoles, type EmailSpendingRoles } from '@/lib/utils/spendingRoles';
 import { buildWikiSystemBlock, formatMacroForPrompt, type EmailWikiContext } from '@/lib/utils/emailWiki';
 import { loadEmailWiki } from '@/lib/server/wiki/wikiReader';
 import { summarizeExpenseSplit, type ExpenseSplitSummary } from '@/lib/utils/expenseSplitSummary';
@@ -161,7 +162,7 @@ export interface MonthlyEmailData {
   // The same outflows by 50/30/20 role, only with `spendingRolesEnabled` (owner's call, 2026-10-05):
   // when present it REPLACES the type split in the expense tile's footer and in the prompt.
   // null = roles off or unreadable; undefined on data built before the field existed.
-  expensesByRole?: SpendingByRoleRow[] | null;
+  expensesByRole?: EmailSpendingRoles | null;
   dividendTotal: number; // gross EUR
   dividendCount: number;
   // Hall of Fame standing of this period's net-worth change — only for monthly/yearly
@@ -517,12 +518,15 @@ function simpleMarkdownToHtml(text: string): string {
  * that the email table displays.
  */
 function formatComparisonForPrompt(title: string, set: ComparisonSet): string {
+  // «da X a Y» beside each change: the change alone let the model invent the baseline (F6).
+  const fromTo = (delta: MetricDelta | null, format: (value: number) => string) =>
+    delta ? `${formatDelta(delta)}, da ${format(delta.previous)} a ${format(delta.previous + delta.absChange)}` : 'N/D';
   return [
     `--- ${title} (${set.baselineLabel}) ---`,
-    `Patrimonio netto: ${formatDelta(set.netWorth)}`,
-    `Entrate: ${formatDelta(set.income)}`,
-    `Uscite: ${formatDelta(set.expenses)}`,
-    `Risparmio netto: ${formatDelta(set.savings)}`,
+    `Patrimonio netto: ${fromTo(set.netWorth, formatEur)}`,
+    `Entrate: ${fromTo(set.income, formatEur)}`,
+    `Uscite: ${fromTo(set.expenses, formatEur)}`,
+    `Risparmio netto: ${fromTo(set.savings, signedEur)}`,
   ].join('\n');
 }
 
@@ -664,15 +668,38 @@ function formatTradesForPrompt(emailData: MonthlyEmailData): string[] {
       const tax = entry.estimatedTax === null ? 'tassa non stimabile' : `tassa stimata ${formatEur(entry.estimatedTax)}`;
       parts.push(`${entry.sells} ${entry.sells === 1 ? 'vendita' : 'vendite'} per ${formatQuantity(entry.soldQuantity)} quote, ${formatEur(entry.proceeds)} incassati al netto delle commissioni (${tax})`);
     }
-    lines.push(`- ${entry.name}: ${parts.join('; ')}`);
+    const kind = describeTradeLegs(entry);
+    lines.push(`- ${entry.name}${kind ? ` (${kind})` : ''}: ${parts.join('; ')}`);
   }
   const omitted = trades.slice(MAX_TRADE_INSTRUMENTS);
   if (omitted.length > 0) {
     const total = omitted.reduce((sum, entry) => sum + entry.invested + entry.proceeds, 0);
     lines.push(`Oltre i primi ${MAX_TRADE_INSTRUMENTS} restano ${omitted.length === 1 ? '1 strumento' : `${omitted.length} strumenti`} per ${formatEur(total)} di operazioni complessive.`);
   }
-  lines.push('Gli acquisti pagati dai conti spiegano il calo della liquidità: non sono spese.', '');
+  // The totals the model would otherwise add up itself — and did, wrong (3.688 € for 4.609 €, F6).
+  const buys = trades.reduce((sum, entry) => sum + entry.buys, 0);
+  const sells = trades.reduce((sum, entry) => sum + entry.sells, 0);
+  const totals: string[] = [];
+  if (buys > 0) totals.push(`${formatEur(trades.reduce((sum, entry) => sum + entry.invested, 0))} investiti in ${buys} ${buys === 1 ? 'acquisto' : 'acquisti'}`);
+  if (sells > 0) totals.push(`${formatEur(trades.reduce((sum, entry) => sum + entry.proceeds, 0))} incassati da ${sells} ${sells === 1 ? 'vendita' : 'vendite'}`);
+  lines.push(`Totale del periodo: ${totals.join('; ')}. Per classe, gli stessi importi sono le righe «acquisti e vendite» di ANDAMENTO PER CLASSE.`);
+  lines.push(
+    "La classe tra parentesi è quella dello strumento (per un composito, le sue gambe): non dedurla dal nome o dal ticker. Gli acquisti pagati dai conti spiegano il calo della liquidità: non sono spese, non sono rendimento e non riducono il risparmio né il patrimonio.",
+    ''
+  );
   return lines;
+}
+
+/** «Azioni › Momentum», «Azioni › Market, leva 2×», «Azioni 60% · Obbligazioni 40%»; '' when the asset is gone. */
+function describeTradeLegs(entry: EmailInstrumentTrades): string {
+  const className = (leg: { assetClass: string; subCategory?: string }) =>
+    `${ASSET_CLASS_LABELS[leg.assetClass] ?? leg.assetClass}${leg.subCategory ? ` › ${leg.subCategory}` : ''}`;
+  const legs =
+    entry.legs.length === 1
+      ? className(entry.legs[0])
+      : entry.legs.map((leg) => `${className(leg)} ${formatNumberIt(leg.percentage, 0)}%`).join(' · ');
+  if (!legs) return '';
+  return entry.leverageRatio > 1 ? `${legs}, leva ${formatNumberIt(entry.leverageRatio, 0)}×` : legs;
 }
 
 /**
@@ -696,11 +723,15 @@ function formatCategoryDeltasForPrompt(
     return lines;
   }
 
+  // A zero baseline is a measured zero, not a missing one: «nessuna spesa», never «N/D».
+  const categoryDelta = (delta: MetricDelta | null, period: string) =>
+    delta && delta.previous === 0 ? `${formatDelta(delta)}, nessuna spesa ${period}` : formatDelta(delta);
   for (const category of comparison.categoryDeltas) {
     lines.push(
-      `- ${category.name}: ${formatEur(category.current)} (vs periodo prec.: ${formatDelta(
-        category.vsPrevious
-      )}; vs anno prec.: ${formatDelta(category.vsYoy)})`
+      `- ${category.name}: ${formatEur(category.current)} (vs periodo prec.: ${categoryDelta(
+        category.vsPrevious,
+        'nel periodo prec.'
+      )}; vs anno prec.: ${categoryDelta(category.vsYoy, "nell'anno prec.")})`
     );
   }
 
@@ -711,6 +742,14 @@ function formatCategoryDeltasForPrompt(
       omittedCategories.length === 1 ? '1 categoria' : `${omittedCategories.length} categorie`;
     lines.push(
       `Le categorie oltre le prime ${MAX_CATEGORY_DELTAS} sono omesse da questo confronto: ${omittedNoun} per ${formatEur(omittedTotal)} complessivi. Il loro dettaglio è comunque nel blocco SPESE PER CATEGORIA E SOTTOCATEGORIA, che è completo.`
+    );
+  }
+
+  if (comparison.droppedCategories.length > 0) {
+    lines.push(
+      `Scese a zero (spesa nel periodo prec., nessuna in questo): ${comparison.droppedCategories
+        .map((category) => `${category.name} (${formatEur(category.previous)} nel periodo prec.)`)
+        .join(', ')}.`
     );
   }
 
@@ -728,9 +767,28 @@ function formatHallOfFameForPrompt(emailData: MonthlyEmailData): string[] {
   return [
     '--- HALL OF FAME ---',
     narrativeToText(describeHallOfFameStanding({ position: rank.rank, total: rank.total, scope: rank.scope, trend: rank.trend })),
+    ...describeHallOfFameBand(rank.rank, rank.total, rank.trend),
     'È un piazzamento in classifica tra tutti i periodi registrati, non una serie di periodi consecutivi.',
     '',
   ];
+}
+
+/**
+ * Where the standing falls, in words: «18° su 19» read as «continuità notevole» (F6, 2026-10-06)
+ * because a bare position does not say that 18 of 19 is near the bottom. Thirds of the ranking;
+ * nothing under three periods, where first and last already say it.
+ */
+export function describeHallOfFameBand(position: number, total: number, trend: 'growth' | 'decline'): string[] {
+  if (total < 3) return [];
+  const third = position / total;
+  const growth = trend === 'growth';
+  const band =
+    third <= 1 / 3
+      ? growth ? 'tra le crescite più forti' : 'tra i cali più marcati'
+      : third > 2 / 3
+        ? growth ? 'tra le crescite più deboli' : 'tra i cali più lievi'
+        : growth ? 'a metà classifica tra le crescite' : 'a metà classifica tra i cali';
+  return [`In altre parole: ${band}.`];
 }
 
 /**
@@ -860,7 +918,7 @@ export function buildEmailPortfolioSections(emailData: MonthlyEmailData): string
  * The body IS the assistant's own numeric block (`formatBundleForPrompt`) over a bundle
  * built on the email's window: the two surfaces then read the same exhaustive data, every
  * future bundle field reaches the emails for free, and the "questo blocco è ESAUSTIVO"
- * guardrails in ASSISTANT_SYSTEM_CORE stop promising blocks the email never sent — minus the
+ * guardrails in EMAIL_SYSTEM_CORE stop promising blocks the email never sent — minus the
  * bundle's allocation blocks (`omitAllocation`), which measure on the whole net worth. Appended
  * to it are the sections only the email has, measured with the pages' rules (F1b): Storico's
  * Driver, Rendimenti's TWR, the composition, Allocazione's comparison, the class moves and the
@@ -910,7 +968,7 @@ export function buildEmailAiPrompt(
 
   const wikiSystem = buildWikiSystemBlock(wiki);
   return {
-    system: [ASSISTANT_SYSTEM_CORE, buildEmailPeriodicFormatContract(emailData.periodType), ...(wikiSystem ? [wikiSystem] : [])].join('\n\n'),
+    system: [EMAIL_SYSTEM_CORE, buildEmailPeriodicFormatContract(emailData.periodType), ...(wikiSystem ? [wikiSystem] : [])].join('\n\n'),
     userContent,
   };
 }
@@ -922,11 +980,22 @@ export function buildEmailAiPrompt(
  * paid answer thrown away and an email without its comment.
  */
 const EMAIL_AI_REASONING_TOKENS: Record<EmailPeriodType, number> = {
-  monthly: 4000,
-  quarterly: 6000,
-  semiannual: 6000,
-  yearly: 8000,
+  // F6b (2026-10-06): DeepSeek V4.1 Flash with its reasoning IGNORES this ceiling (6.784 tokens of
+  // reasoning on a quarter capped at 6.000, 95% of max_tokens), so the figure that protects the
+  // text is the total it feeds into. Sized to `EMAIL_AI_TIMEOUT_MS` at ~100 tokens a second, the
+  // rate measured in F6b; the money is not the limit (a full yearly ≈ 0,02 $), the wall clock is.
+  monthly: 6000,
+  quarterly: 10000,
+  semiannual: 10000,
+  yearly: 11000,
 };
+
+/**
+ * The periodic comment's own timeout, above the adapter's 120 s: a reasoning model on a year of
+ * data runs past two minutes. The four period emails of December 31 run side by side in the cron
+ * (app/api/cron/monthly-snapshot/route.ts), so the function's 300 s hold the slowest, not the sum.
+ */
+export const EMAIL_AI_TIMEOUT_MS = 150_000;
 
 /** Reasoning ceiling + room for the period's word limit, twice over (lib/server/llm/budget.ts). */
 export function emailAiOutputBudget(periodType: EmailPeriodType): OutputBudget {
@@ -1009,6 +1078,7 @@ export async function generateEmailAiComment(
       system,
       user: userContent,
       ...emailAiOutputBudget(emailData.periodType),
+      timeoutMs: EMAIL_AI_TIMEOUT_MS,
     });
     return result?.text ?? null;
   } catch (error) {
@@ -1600,7 +1670,7 @@ async function buildExpensesByRoleForPeriod(
   userId: string,
   expenseDocs: FirebaseFirestore.QueryDocumentSnapshot[],
   totalExpenses: number
-): Promise<SpendingByRoleRow[] | null> {
+): Promise<EmailSpendingRoles | null> {
   try {
     const settings = await getSettingsAdmin(userId);
     if (!settings?.spendingRolesEnabled) return null;
@@ -1610,7 +1680,7 @@ async function buildExpensesByRoleForPeriod(
       return { id: doc.id, ...data, subCategories: data.subCategories ?? [] } as ExpenseCategory;
     });
     const expenses = expenseDocs.map((doc) => ({ ...doc.data(), id: doc.id }) as Expense);
-    return summarizeSpendingByRole(summarizeSpendingRoles(expenses, categories), totalExpenses);
+    return summarizeEmailSpendingRoles(summarizeSpendingRoles(expenses, categories), totalExpenses);
   } catch (error) {
     console.error('Failed to build the spending by role', { userId, error });
     return null;
@@ -2100,7 +2170,8 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
     const unclassified = data.totalExpenses - typedTotal;
     const types = [...data.expensesByType.map((entry) => ({ label: entry.label, amount: entry.amount }))];
     if (unclassified > 0.005) types.push({ label: 'Non classificate', amount: unclassified });
-    const split = data.expensesByRole && data.expensesByRole.length > 0 ? data.expensesByRole : types;
+    // The roles read on INCOME (Risparmi included), the types on the outflows: the footer says which.
+    const roles = data.expensesByRole && data.expensesByRole.rows.length > 0 ? data.expensesByRole : null;
 
     tiles.push(
       emailTile({
@@ -2108,7 +2179,7 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
         scope: `${data.topExpenseCategories.length} categorie`,
         reading: describeExpenseCategoriesTile(data.topExpenseCategories, RANKED_ROWS_SHOWN),
         body: emailRankedRows(expenseRows),
-        footer: describeExpenseTypes(split),
+        footer: roles ? describeSpendingRolesFooter(roles) : describeExpenseTypes(types),
       }),
     );
   }

@@ -21,6 +21,7 @@ import {
   resolveEmailPeriodReturn,
   summarizeEmailAllocation,
   summarizeTradesByInstrument,
+  resolveAssetLegs,
 } from '@/lib/utils/emailPortfolio';
 import { buildMonthlyGrowthDrivers, createGrowthDriverMeter, type GrowthDriverContext } from '@/lib/utils/growthDrivers';
 import { sumByMarketBand, tradedMoney } from '@/lib/utils/marketEffect';
@@ -185,9 +186,17 @@ describe('summarizeTradesByInstrument', () => {
     });
     // January's buy and October's are outside the window.
     expect(trades).toEqual([
-      { assetId: 'vwce', name: 'VWCE', buys: 0, sells: 1, boughtQuantity: 0, soldQuantity: 10, invested: 0, proceeds: 1200, estimatedTax: 182 },
-      { assetId: 'copper', name: 'COPA', buys: 1, sells: 0, boughtQuantity: 5, soldQuantity: 0, invested: 500, proceeds: 0, estimatedTax: null },
+      { assetId: 'vwce', name: 'VWCE', buys: 0, sells: 1, boughtQuantity: 0, soldQuantity: 10, invested: 0, proceeds: 1200, estimatedTax: 182, legs: expect.any(Array), leverageRatio: 1 },
+      { assetId: 'copper', name: 'COPA', buys: 1, sells: 0, boughtQuantity: 5, soldQuantity: 0, invested: 500, proceeds: 0, estimatedTax: null, legs: expect.any(Array), leverageRatio: 1 },
     ]);
+  });
+});
+
+describe('resolveAssetLegs', () => {
+  it('names a plain asset by its class and sleeve, a composite by its legs', () => {
+    expect(resolveAssetLegs({ assetClass: 'equity', subCategory: 'Momentum' } as Asset)).toEqual([{ assetClass: 'equity', percentage: 100, subCategory: 'Momentum' }]);
+    expect(resolveAssetLegs(ASSETS[4])).toEqual([{ assetClass: 'equity', percentage: 60 }, { assetClass: 'bonds', percentage: 40 }]);
+    expect(resolveAssetLegs(undefined)).toEqual([]);
   });
 });
 

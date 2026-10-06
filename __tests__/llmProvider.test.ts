@@ -140,7 +140,8 @@ describe('generateText on OpenRouter', () => {
       { role: 'user', content: 'Commenta il mese.' },
     ]);
     expect(body.max_tokens).toBe(6000);
-    expect(body.provider).toEqual({ data_collection: 'deny', zdr: true, quantizations: ['fp8', 'bf16', 'fp16'] });
+    // DeepSeek since F6b: no quantization allow-list (GLM's fp4 filter stays on the weekly email).
+    expect(body.provider).toEqual({ data_collection: 'deny', zdr: true });
     expect(body.reasoning).toEqual({ exclude: true });
     expect(body.response_format).toBeUndefined();
   });
@@ -242,6 +243,19 @@ describe('the OpenRouter adapter', () => {
     const [first, second] = adapterFetch.mock.calls.map((call) => JSON.parse(call[1].body));
     expect(first.provider).toEqual({ data_collection: 'deny', zdr: true, quantizations: ['fp8'] });
     expect(second.provider).toEqual({ data_collection: 'deny', zdr: true });
+  });
+
+  it('times out on the request’s own timeout, else on the adapter’s, and never sends it to the provider', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
+    try {
+      adapterFetch.mockImplementation(async () => completion('Ok.'));
+      await adapter.generateText('deepseek/deepseek-v4.1-flash', { ...REQUEST, timeoutMs: 150_000 }, 'k');
+      await adapter.generateText('deepseek/deepseek-v4.1-flash', REQUEST, 'k');
+      expect(timeout.mock.calls.map((call) => call[0])).toEqual([150_000, 120_000]);
+      expect(JSON.parse(adapterFetch.mock.calls[0][1].body)).not.toHaveProperty('timeoutMs');
+    } finally {
+      timeout.mockRestore();
+    }
   });
 
   it('refuses a :free model before sending anything', async () => {

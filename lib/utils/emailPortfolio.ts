@@ -18,7 +18,7 @@
  * SDK-free apart from `calculateAssetValue` (the ONE valuation, reached through the comparison).
  */
 
-import type { Asset, AssetAllocationTarget, MonthlySnapshot } from '@/types/assets';
+import type { Asset, AssetAllocationTarget, AssetComposition, MonthlySnapshot } from '@/types/assets';
 import type { AssetTransaction } from '@/types/assetTransactions';
 import { createGrowthDriverMeter, sumGrowthDrivers, type AssetMove, type GrowthDriverContext, type GrowthDrivers } from '@/lib/utils/growthDrivers';
 import type { PeriodSalesSummary } from '@/lib/utils/periodSales';
@@ -249,6 +249,21 @@ export interface EmailInstrumentTrades {
   proceeds: number;
   /** From `summarizePeriodSales`; null without a sell or with an unknown rate. */
   estimatedTax: number | null;
+  /**
+   * The instrument's class — its composition legs, or one leg at 100% — so the prompt NAMES it:
+   * guessed from the ticker, BSP and CL2 became «obbligazioni» and XDEM «non un fattore» (F6,
+   * 2026-10-06). Empty when the asset is gone.
+   */
+  legs: AssetComposition[];
+  /** `Asset.leverageRatio` (2 = 2×); 1 when absent or the asset is gone. */
+  leverageRatio: number;
+}
+
+/** An asset's class legs: its composition when it has one, else its class (and sleeve) at 100%. */
+export function resolveAssetLegs(asset: Asset | undefined): AssetComposition[] {
+  if (!asset) return [];
+  if (asset.composition && asset.composition.length > 0) return asset.composition;
+  return [{ assetClass: asset.assetClass, percentage: 100, ...(asset.subCategory ? { subCategory: asset.subCategory } : {}) }];
 }
 
 /**
@@ -284,6 +299,8 @@ export function summarizeTradesByInstrument(input: {
       invested: 0,
       proceeds: 0,
       estimatedTax: null,
+      legs: resolveAssetLegs(asset),
+      leverageRatio: asset?.leverageRatio && asset.leverageRatio > 1 ? asset.leverageRatio : 1,
     };
     const fees = trade.fees ?? 0;
     if (trade.type === 'buy') {

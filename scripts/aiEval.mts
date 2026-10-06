@@ -22,11 +22,39 @@
  * much each one reasons, it does not tune it. The one exception is Sonnet 5, the `medium`
  * reference of § 7: its request asks `effort: medium` instead of a token ceiling (OpenRouter
  * takes one or the other), inside the same `max_tokens`.
+ *
+ * F6b (§ 7.5) — `--round f6b`, the default: the five open candidates, the narrative contract and
+ * the blinded data block, freshly frozen; `--round f6` reads F6's roster (with the references
+ * written through the subscription), `--round f2` F2's.
+ *
+ * F6 (the second round, § 7.4) — `--round f6`:
+ *
+ *   npm run ai:eval:freeze -- --dir <d> --periods monthly-2026-09,quarterly-2026-09 --wiki --write
+ *                     the named periods WITH the vault (read directly, never through the
+ *                     `WIKI_EXPORT_UID` gate: the mirror's uid is not the owner's)
+ *   npm run ai:eval -- run --dir <d> --repeat 2        every bundle twice per model
+ *   npm run ai:eval -- prompts --dir <d>               one file per bundle for the subscription references
+ *   npm run ai:eval -- import --dir <d> --model <key> --bundle <id> --attempt <n> --file <f>
+ *                     a reference written with the owner's Claude subscription (owner's call:
+ *                     Sonnet and Haiku are never called through the API in F6)
+ *   npm run ai:eval -- thebull --dir <d> --dates 2026-08-16,… [--repeat n] [--reasoning on --max-tokens n]
+ *                     `--reasoning on` overrides the route's «off» (F6b, 2026-10-06: the probe dropped it
+ *                     for truncating under 8000 tokens, before we knew DeepSeek ignores the ceiling)
+ *                     PAID: TheBull's compilation, dry, on the vault's raw issues (nothing written)
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { randomInt } from 'node:crypto';
-import { runEvalChecks, failedChecks, type EvalBundleContract } from '../lib/utils/aiEvalChecks';
+import {
+  checkFigures,
+  countWords,
+  extractFigures,
+  failedChecks,
+  runEvalChecks,
+  type EvalBundleContract,
+  type EvalCheckId,
+  type EvalWikiContext,
+} from '../lib/utils/aiEvalChecks';
 import { pickWinner, scoreModels, type EvalRole, type EvalRun, type EvalVote } from '../lib/utils/aiEvalScore';
 
 // ─── Candidates (§ 7.1, read on 2026-09-28 — owner's roster) ────────────────────────────────
@@ -35,11 +63,46 @@ interface Candidate {
   id: string;
   label: string;
   role: EvalRole;
+  /** The record's model key when one model runs in two variants (`#off`); defaults to `id`. */
+  key?: string;
   /** Replaces the reasoning token ceiling with an effort level (Sonnet 5 `medium`). */
   reasoningEffort?: 'low' | 'medium' | 'high';
+  /** The production route's options (`AiModelRoute`): reasoning switched off, allowed quantizations. */
+  reasoning?: 'off';
+  quantizations?: readonly string[];
+  /** Written with the owner's Claude subscription and imported, never called by `run` (F6). */
+  subscription?: boolean;
 }
 
-const CANDIDATES: Candidate[] = [
+const keyOf = (candidate: Candidate) => candidate.key ?? candidate.id;
+
+const GLM_QUANTIZATIONS = ['fp8', 'bf16', 'fp16'] as const;
+
+/**
+ * F6's roster (owner, 2026-10-05, after re-reading § 7.1): GLM 5.3 Flash as production serves it,
+ * DeepSeek V4.1 Flash with the reasoning on AND off (candidates by the owner's call of § 7.3,
+ * whatever their non-hallucination), the new full GLM-5.3, GPT-6 Luna as the declared exception;
+ * the references — Sonnet 5.5 `medium` replacing the deprecated Sonnet 5, and Haiku 4.5 — written
+ * through the subscription.
+ */
+const F6_CANDIDATES: Candidate[] = [
+  { id: 'z-ai/glm-5.3-flash', label: 'GLM 5.3 Flash', role: 'candidate', quantizations: GLM_QUANTIZATIONS },
+  { id: 'deepseek/deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash', role: 'candidate' },
+  { id: 'deepseek/deepseek-v4.1-flash', key: 'deepseek/deepseek-v4.1-flash#off', label: 'DeepSeek V4.1 Flash spento', role: 'candidate', reasoning: 'off' },
+  { id: 'z-ai/glm-5.3', label: 'GLM-5.3', role: 'candidate', quantizations: GLM_QUANTIZATIONS },
+  { id: 'openai/gpt-6-luna', label: 'GPT-6 Luna', role: 'candidate' },
+  { id: 'subscription/sonnet-5.5', label: 'Sonnet 5.5 (abbonamento)', role: 'reference', subscription: true },
+  { id: 'subscription/haiku-4.5', label: 'Haiku 4.5 (abbonamento)', role: 'reference', subscription: true },
+];
+
+/**
+ * F6b's roster (owner, 2026-10-06): the five open candidates of F6, no subscription reference —
+ * the round measures the narrative contract and the blinded data block, and the owner's vote on
+ * «ti prende» and «collegamenti» decides among the models whose data stay true.
+ */
+const F6B_CANDIDATES: Candidate[] = F6_CANDIDATES.filter((candidate) => !candidate.subscription);
+
+const F2_CANDIDATES: Candidate[] = [
   { id: 'z-ai/glm-5.3-flash', label: 'GLM 5.3 Flash', role: 'candidate' },
   { id: 'minimax/minimax-m3', label: 'MiniMax-M3', role: 'candidate' },
   { id: 'xiaomi/mimo-v2.6-pro', label: 'MiMo-V2.6-Pro', role: 'candidate' },
@@ -65,6 +128,8 @@ interface FrozenBundle {
   user: string;
   maxTokens: number;
   reasoningMaxTokens: number;
+  /** F6: what the prompt carried from the vault, for the three Wiki checks. */
+  wiki?: EvalWikiContext;
 }
 
 interface RunRecord extends EvalRun {
@@ -73,6 +138,8 @@ interface RunRecord extends EvalRun {
   text: string | null;
   error?: string;
   at: string;
+  /** F6: the run's index when a bundle runs more than once per model (`--repeat`). */
+  attempt?: number;
 }
 
 const args = process.argv.slice(2);
@@ -84,6 +151,9 @@ const flag = (name: string) => {
 const DIR = resolve(flag('dir') ?? process.env.AI_EVAL_DIR ?? 'scratchpad/ai-eval');
 const BUNDLES_DIR = join(DIR, 'bundles');
 const RESULTS = join(DIR, 'results.jsonl');
+const ROUND = flag('round') ?? 'f6b';
+const CANDIDATES = ROUND === 'f2' ? F2_CANDIDATES : ROUND === 'f6' ? F6_CANDIDATES : F6B_CANDIDATES;
+const REPEAT = Number(flag('repeat') ?? 1);
 
 function loadBundles(): FrozenBundle[] {
   const index = join(DIR, 'bundles.json');
@@ -100,11 +170,16 @@ function loadResults(): RunRecord[] {
     .map((line) => JSON.parse(line));
 }
 
-/** The LAST record per model × bundle: a re-run replaces an earlier attempt. */
+/** The LAST record per model × bundle × attempt: a re-run replaces an earlier try of the same attempt. */
 function latestResults(): RunRecord[] {
   const byKey = new Map<string, RunRecord>();
-  for (const record of loadResults()) byKey.set(`${record.model}|${record.bundleId}`, record);
+  for (const record of loadResults()) byKey.set(`${record.model}|${record.bundleId}|${record.attempt ?? 0}`, record);
   return [...byKey.values()];
+}
+
+/** The checks of a stored text against its bundle: F2's five, plus the Wiki's three on an F6 bundle. */
+function checksFor(text: string, bundle: FrozenBundle) {
+  return runEvalChecks(text, `${bundle.system}\n${bundle.user}`, bundle.contract, bundle.wiki);
 }
 
 const usd = (value: number | null | undefined, digits = 4) => (value == null ? '—' : `${value.toFixed(digits)} $`);
@@ -136,6 +211,87 @@ async function freeze(): Promise<void> {
   const { year: thisYear, month: thisMonth } = getItalyMonthYear(now);
   const monthName = (year: number, month: number) =>
     new Intl.DateTimeFormat('it-IT', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 15));
+
+  const writeBundles = (all: FrozenBundle[]) => {
+    console.table(
+      all.map((b) => ({
+        id: b.id,
+        periodo: b.label,
+        perché: b.reason,
+        'token in ~': Math.round((b.system.length + b.user.length) / 3.1),
+        max_tokens: b.maxTokens,
+        ragionamento: b.reasoningMaxTokens,
+        parole: b.contract.wordLimit,
+      }))
+    );
+    if (!write) {
+      console.log('\nNothing written: re-run with --write to freeze these bundles.');
+      return;
+    }
+    mkdirSync(BUNDLES_DIR, { recursive: true });
+    for (const bundle of all) writeFileSync(join(BUNDLES_DIR, `${bundle.id}.json`), JSON.stringify(bundle, null, 2));
+    writeFileSync(join(DIR, 'bundles.json'), JSON.stringify(all.map((b) => b.id), null, 2));
+    console.log(`\nFrozen ${all.length} bundles in ${BUNDLES_DIR}`);
+  };
+
+  // ── F6: the named periods, with the vault ──────────────────────────────────────────────
+  // The Wiki is read DIRECTLY (`readEmailWiki`), never through `loadEmailWiki`: its gate is
+  // `WIKI_EXPORT_UID`, the owner's production uid, and the mirror's uid is another one. The
+  // production filter stays as it is; the digest frozen is the vault's of today.
+  const periods = flag('periods');
+  if (periods) {
+    const withWiki = args.includes('--wiki');
+    const { createVaultClient, readVaultConfig } = await import('../lib/server/wiki/githubVault');
+    const { readEmailWiki } = await import('../lib/server/wiki/wikiReader');
+    const { formatMacroForPrompt } = await import('../lib/utils/emailWiki');
+    const vaultConfig = withWiki ? readVaultConfig() : null;
+    if (withWiki && !vaultConfig) throw new Error('--wiki needs WIKI_GITHUB_TOKEN and WIKI_GITHUB_REPO (.env.local).');
+    const span: Record<EmailPeriodType, number> = { monthly: 1, quarterly: 3, semiannual: 6, yearly: 12 };
+    const bundles: FrozenBundle[] = [];
+    for (const id of periods.split(',')) {
+      const match = id.match(/^(monthly|quarterly|semiannual|yearly)-(\d{4})-(\d{2})$/);
+      if (!match) throw new Error(`${id}: expected <periodType>-YYYY-MM (the period's LAST month)`);
+      const periodType = match[1] as EmailPeriodType;
+      const year = Number(match[2]);
+      const month = Number(match[3]);
+      const data = await buildPeriodEmailData(UID, year, month, periodType);
+      if (!data) throw new Error(`${id}: no snapshot for the window`);
+      const comparison = await buildPeriodComparison(UID, data);
+      const bundle = await buildAssistantPeriodRangeContext(UID, resolveEmailPeriodRange(data), memory.preferences.includeDummySnapshots);
+      const wiki = vaultConfig
+        ? await readEmailWiki(createVaultClient(vaultConfig), { periodType, year, startMonth: month - span[periodType] + 1, endMonth: month })
+        : null;
+      const { system, userContent } = buildEmailAiPrompt(data, comparison, bundle, memory.preferences, memoryItems, wiki);
+      const macro = wiki && wiki.months.length > 0 ? formatMacroForPrompt(wiki).join('\n') : null;
+      // The checks split the prompt on these strings: they must be in it verbatim.
+      if (macro && !userContent.includes(macro)) throw new Error(`${id}: the macro block is not verbatim in the user message`);
+      if (wiki?.principles && !system.includes(wiki.principles)) throw new Error(`${id}: the digest is not verbatim in the system block`);
+      const budget = emailAiOutputBudget(periodType);
+      bundles.push({
+        id,
+        label:
+          periodType === 'monthly'
+            ? monthName(year, month)
+            : periodType === 'quarterly'
+              ? `trimestre ${Math.ceil(month / 3)} ${year}`
+              : periodType === 'semiannual'
+                ? `semestre ${Math.ceil(month / 6)} ${year}`
+                : `anno ${year}`,
+        reason: wiki
+          ? `F6: ${wiki.months.length} pagine macro${wiki.missingMonths.length ? `, mancano ${wiki.missingMonths.join(', ')}` : ''}${wiki.principles ? ', digest dei Principi' : ''}`
+          : 'F6: senza Wiki',
+        contract: { kind: 'periodic', wordLimit: EMAIL_PERIODIC_WORD_LIMITS[periodType], comparisonsMerged: comparison.previousEqualsYoy, form: 'narrative' },
+        system,
+        user: userContent,
+        maxTokens: budget.maxTokens,
+        reasoningMaxTokens: budget.reasoningMaxTokens,
+        ...(wiki ? { wiki: { macro, principles: wiki.principles } } : {}),
+      });
+    }
+    console.log(`\nAccount ${UID} · ${bundles.length} periodi${withWiki ? ' con la Wiki' : ''}\n`);
+    writeBundles(bundles);
+    return;
+  }
 
   // ── Every completed month with a snapshot: the pool the rules choose from ──────────────
   const months: Array<{ year: number; month: number; data: MonthlyEmailData; overs: number }> = [];
@@ -199,7 +355,7 @@ async function freeze(): Promise<void> {
       id,
       label,
       reason,
-      contract: { kind: 'periodic', wordLimit: EMAIL_PERIODIC_WORD_LIMITS[periodType], comparisonsMerged: comparison.previousEqualsYoy },
+      contract: { kind: 'periodic', wordLimit: EMAIL_PERIODIC_WORD_LIMITS[periodType], comparisonsMerged: comparison.previousEqualsYoy, form: 'narrative' },
       system,
       user: userContent,
       maxTokens: budget.maxTokens,
@@ -241,26 +397,7 @@ async function freeze(): Promise<void> {
 
   const all = [...periodBundles, ...weeklyBundles];
   console.log(`\nAccount ${UID} · ${months.length} mesi con snapshot · ${sundays.length} domeniche con budget\n`);
-  console.table(
-    all.map((b) => ({
-      id: b.id,
-      periodo: b.label,
-      perché: b.reason,
-      'token in ~': Math.round((b.system.length + b.user.length) / 3.1),
-      max_tokens: b.maxTokens,
-      ragionamento: b.reasoningMaxTokens,
-      parole: b.contract.wordLimit,
-    }))
-  );
-
-  if (!write) {
-    console.log('\nNothing written: re-run with --write to freeze these bundles.');
-    return;
-  }
-  mkdirSync(BUNDLES_DIR, { recursive: true });
-  for (const bundle of all) writeFileSync(join(BUNDLES_DIR, `${bundle.id}.json`), JSON.stringify(bundle, null, 2));
-  writeFileSync(join(DIR, 'bundles.json'), JSON.stringify(all.map((b) => b.id), null, 2));
-  console.log(`\nFrozen ${all.length} bundles in ${BUNDLES_DIR}`);
+  writeBundles(all);
 }
 
 // ─── Prices (OpenRouter, the ZDR endpoints only) ────────────────────────────────────────────
@@ -281,7 +418,7 @@ async function fetchPricing(): Promise<Record<string, Pricing>> {
     fetch('https://openrouter.ai/api/v1/endpoints/zdr').then((r) => r.json()),
   ]);
   const result: Record<string, Pricing> = {};
-  for (const candidate of CANDIDATES) {
+  for (const candidate of CANDIDATES.filter((c) => !c.subscription)) {
     const listed = (models.data as Array<{ id: string; pricing: { prompt: string; completion: string } }>).find((m) => m.id === candidate.id);
     const endpoints = (zdr.data as Array<{ model_id: string; pricing: { prompt: string; completion: string } }>).filter(
       (e) => e.model_id === candidate.id
@@ -310,16 +447,18 @@ const TOKENS_PER_WORD = 1.8;
 async function estimate(): Promise<void> {
   const bundles = loadBundles();
   const pricing = await fetchPricing();
-  const rows = CANDIDATES.map((candidate) => {
+  const rows = CANDIDATES.filter((c) => !c.subscription).map((candidate) => {
     const price = pricing[candidate.id];
     let expected = 0;
     let worst = 0;
     for (const bundle of bundles) {
       const input = (bundle.system.length + bundle.user.length) / CHARS_PER_TOKEN;
       const text = bundle.contract.wordLimit * TOKENS_PER_WORD;
-      // Expected: the text plus half the reasoning ceiling; worst: every max_tokens spent, dearest host.
-      expected += input * price.input + (text + bundle.reasoningMaxTokens / 2) * price.output;
-      worst += input * price.maxInput + bundle.maxTokens * price.maxOutput;
+      // Expected: the text plus half the reasoning ceiling (none when it is off); worst: every
+      // max_tokens spent, dearest host.
+      const reasoning = candidate.reasoning === 'off' ? 0 : bundle.reasoningMaxTokens / 2;
+      expected += (input * price.input + (text + reasoning) * price.output) * REPEAT;
+      worst += (input * price.maxInput + bundle.maxTokens * price.maxOutput) * REPEAT;
     }
     return { candidate, expected, worst, zdr: price.zdrEndpoints };
   });
@@ -328,7 +467,7 @@ async function estimate(): Promise<void> {
       modello: candidate.label,
       ruolo: candidate.role,
       'endpoint ZDR': zdr,
-      [`atteso (${bundles.length} bundle)`]: usd(expected),
+      [`atteso (${bundles.length} bundle × ${REPEAT})`]: usd(expected),
       'caso peggiore': usd(worst),
     }))
   );
@@ -348,10 +487,12 @@ async function run(): Promise<void> {
   const only = flag('models')?.split(',');
   const onlyBundles = flag('bundles')?.split(',');
   const force = args.includes('--force');
-  const candidates = CANDIDATES.filter((c) => !only || only.includes(c.id) || only.includes(c.label));
-  const done = new Set(latestResults().filter((r) => r.outcome !== 'error').map((r) => `${r.model}|${r.bundleId}`));
+  const candidates = CANDIDATES.filter(
+    (c) => !c.subscription && (!only || only.includes(c.id) || only.includes(keyOf(c)) || only.includes(c.label))
+  );
+  const done = new Set(latestResults().filter((r) => r.outcome !== 'error').map((r) => `${r.model}|${r.bundleId}|${r.attempt ?? 0}`));
 
-  async function runOne(candidate: Candidate, bundle: FrozenBundle): Promise<void> {
+  async function runOne(candidate: Candidate, bundle: FrozenBundle, attempt: number): Promise<void> {
     let provider: string | null = null;
     // The production adapter, with a fetch that reads which host answered and, for an effort
     // reference, swaps the token ceiling for the effort level.
@@ -371,13 +512,14 @@ async function run(): Promise<void> {
       },
     });
     const started = Date.now();
-    const base = { model: candidate.id, bundleId: bundle.id, label: candidate.label, at: new Date().toISOString() };
+    const base = { model: keyOf(candidate), bundleId: bundle.id, label: candidate.label, at: new Date().toISOString(), attempt };
     let record: RunRecord;
     try {
       const response = await adapter.generateText(
         candidate.id,
         { system: bundle.system, user: bundle.user, maxTokens: bundle.maxTokens, reasoningMaxTokens: bundle.reasoningMaxTokens },
-        apiKey!
+        apiKey!,
+        { reasoning: candidate.reasoning, quantizations: candidate.quantizations }
       );
       const text = response.value?.trim() ?? '';
       // The layer's own acceptance rule (lib/server/llm/index.ts): truncated first, then empty.
@@ -392,8 +534,16 @@ async function run(): Promise<void> {
         latencyMs: Date.now() - started,
         provider,
         text: text || null,
-        checks: outcome === 'ok' ? runEvalChecks(text, `${bundle.system}\n${bundle.user}`, bundle.contract) : undefined,
       };
+      // The answer is paid for: a check that throws must never cost its text (2026-10-05, the
+      // first F6 run lost 30 answers to a regex). `score` re-runs the checks on the stored text.
+      if (outcome === 'ok') {
+        try {
+          record.checks = checksFor(text, bundle);
+        } catch (error) {
+          console.error(`checks failed on ${keyOf(candidate)} · ${bundle.id}: ${(error as Error).message}`);
+        }
+      }
     } catch (error) {
       record = {
         ...base,
@@ -411,7 +561,7 @@ async function run(): Promise<void> {
     appendFileSync(RESULTS, `${JSON.stringify(record)}\n`);
     const failed = record.checks ? failedChecks(record.checks) : [];
     console.log(
-      `${candidate.label.padEnd(20)} ${bundle.id.padEnd(22)} ${record.outcome.padEnd(9)} in ${record.input ?? '—'} · out ${record.output ?? '—'} · ragion. ${record.reasoning ?? '—'} · ${usd(record.cost, 5)} · ${(record.latencyMs / 1000).toFixed(0)} s${failed.length ? ` · ✗ ${failed.join(', ')}` : ''}${record.error ? ` · ${record.error}` : ''}`
+      `${candidate.label.padEnd(26)} ${bundle.id.padEnd(22)} #${attempt} ${record.outcome.padEnd(9)} in ${record.input ?? '—'} · out ${record.output ?? '—'} · ragion. ${record.reasoning ?? '—'} · ${usd(record.cost, 5)} · ${(record.latencyMs / 1000).toFixed(0)} s${failed.length ? ` · ✗ ${failed.join(', ')}` : ''}${record.error ? ` · ${record.error}` : ''}`
     );
   }
 
@@ -419,10 +569,12 @@ async function run(): Promise<void> {
   // Models in parallel, each model's bundles in sequence: one request at a time per provider.
   await Promise.all(
     candidates.map(async (candidate) => {
-      for (const bundle of bundles) {
-        if (onlyBundles && !onlyBundles.includes(bundle.id)) continue;
-        if (!force && done.has(`${candidate.id}|${bundle.id}`)) continue;
-        await runOne(candidate, bundle);
+      for (let attempt = 0; attempt < REPEAT; attempt++) {
+        for (const bundle of bundles) {
+          if (onlyBundles && !onlyBundles.includes(bundle.id)) continue;
+          if (!force && done.has(`${keyOf(candidate)}|${bundle.id}|${attempt}`)) continue;
+          await runOne(candidate, bundle, attempt);
+        }
       }
     })
   );
@@ -474,33 +626,148 @@ function renderMarkdown(markdown: string): string {
   return html.join('\n');
 }
 
+const CHECK_LABELS: Record<EvalCheckId, string> = {
+  figures: 'cifre fuori prompt',
+  words: 'parole',
+  form: 'forma',
+  promises: 'promesse',
+  italian: 'italiano',
+  macro: 'fatto macro senza soggetto',
+  crossover: 'sconfinamento macro/portafoglio',
+  principles: 'principio non nel digest',
+};
+
+const n1 = (value: number) => value.toLocaleString('it-IT', { maximumFractionDigits: 1 });
+
+/** The judge's reading of one card (F6, `judge.json`, keyed bundle → letter). */
+interface JudgeCard {
+  accuratezza: number;
+  completezza: number;
+  insight: number;
+  collegamento: number;
+  coperti: string;
+  gravi: string[];
+  lievi: string[];
+  nota: string;
+}
+
+/**
+ * Wraps each snippet found in the rendered HTML in `<mark>`. A judge's finding quotes the text
+ * between «…», possibly with «…» ellipses and bold the HTML no longer shows: each piece between
+ * them is tried on its own, and only pieces long enough to be unambiguous are marked.
+ */
+function markSnippets(html: string, snippets: string[], className: string): string {
+  let marked = html;
+  for (const snippet of snippets) {
+    for (const piece of snippet.split(/…|\*\*/).map((p) => p.trim()).filter((p) => p.length >= 6)) {
+      const escaped = escapeHtml(piece);
+      const at = marked.indexOf(escaped);
+      // Never inside a tag, never twice.
+      if (at >= 0 && marked.lastIndexOf('<', at) <= marked.lastIndexOf('>', at)) {
+        marked = `${marked.slice(0, at)}<mark class="${className}">${escaped}</mark>${marked.slice(at + escaped.length)}`;
+      }
+    }
+  }
+  return marked;
+}
+
+/** The text a finding quotes: every «…» span of it. */
+function quotedIn(finding: string): string[] {
+  return [...finding.matchAll(/«([^»]+)»/g)].map((m) => m[1]);
+}
+
 function blind(): void {
   const bundles = loadBundles();
   const results = latestResults().filter((record) => record.outcome === 'ok' && record.text);
   const letters = 'ABCDEFGHIJ';
   const key: Record<string, Record<string, string>> = {};
   const sections: string[] = [];
+  // F6: `--keep-key` keeps the letters of the page already judged; `--judge <file>` shows the
+  // judge's reading next to each card (the owner keeps the tone, owner's call 2026-10-05).
+  const keyFile = join(DIR, 'key.json');
+  const previousKey: Record<string, Record<string, string>> | null =
+    args.includes('--keep-key') && existsSync(keyFile) ? JSON.parse(readFileSync(keyFile, 'utf8')) : null;
+  const judgeFile = flag('judge');
+  const judge: Record<string, Record<string, JudgeCard>> = judgeFile ? JSON.parse(readFileSync(judgeFile, 'utf8')) : {};
 
   for (const bundle of bundles) {
-    const texts = results.filter((record) => record.bundleId === bundle.id);
-    if (texts.length === 0) continue;
-    // Fisher–Yates with a crypto source: the order must not leak the roster's order.
-    const shuffled = [...texts];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = randomInt(i + 1);
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    let shuffled: RunRecord[];
+    if (previousKey?.[bundle.id]) {
+      shuffled = Object.values(previousKey[bundle.id]).map((ref) => {
+        const model = ref.replace(/@\d+$/, '');
+        const attempt = Number(ref.match(/@(\d+)$/)?.[1] ?? 0);
+        const record = results.find((r) => r.bundleId === bundle.id && r.model === model && (r.attempt ?? 0) === attempt);
+        if (!record) throw new Error(`--keep-key: ${bundle.id} ${ref} has no ok record`);
+        return record;
+      });
+    } else {
+      // One run per model, drawn at random among its ok attempts: the owner votes one text a model.
+      const byModel = new Map<string, RunRecord[]>();
+      for (const record of results.filter((r) => r.bundleId === bundle.id)) {
+        byModel.set(record.model, [...(byModel.get(record.model) ?? []), record]);
+      }
+      shuffled = [...byModel.values()].map((attempts) => attempts[randomInt(attempts.length)]);
+      // Fisher–Yates with a crypto source: the order must not leak the roster's order.
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = randomInt(i + 1);
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
     }
-    key[bundle.id] = Object.fromEntries(shuffled.map((record, index) => [letters[index], record.model]));
+    const texts = shuffled;
+    if (texts.length === 0) continue;
+    const axes = bundle.wiki ? (['utilita', 'tono', 'collegamento'] as const) : (['utilita', 'tono'] as const);
+    // F6b keeps the three stored fields and renames two (owner, 2026-10-06): «tono» becomes «ti prende?»
+    // (read in one go?), «collegamento» the links between the person, the world and the portfolio.
+    const axisLabel =
+      ROUND === 'f6b'
+        ? ({ utilita: 'Utilità', tono: 'Ti prende', collegamento: 'Collegamenti' } as const)
+        : ({ utilita: 'Utilità', tono: 'Tono', collegamento: 'Collegamento' } as const);
+    key[bundle.id] = Object.fromEntries(shuffled.map((record, index) => [letters[index], `${record.model}@${record.attempt ?? 0}`]));
+    const prompt = `${bundle.system}\n${bundle.user}`;
     const cards = shuffled
-      .map(
-        (record, index) => `
-        <article class="card" data-bundle="${bundle.id}" data-letter="${letters[index]}">
-          <header><span class="letter">${letters[index]}</span></header>
-          <div class="md">${renderMarkdown(record.text!)}</div>
+      .map((record, index) => {
+        const letter = letters[index];
+        const verdict = judge[bundle.id]?.[letter];
+        const checks = checksFor(record.text!, bundle);
+        const failed = failedChecks(checks);
+        const words = countWords(record.text!);
+        const outside = extractFigures(record.text!).filter((f) => !checkFigures(f.raw, prompt).pass).map((f) => f.raw);
+        let html = renderMarkdown(record.text!);
+        if (verdict) {
+          html = markSnippets(html, verdict.gravi.flatMap(quotedIn), 'grave');
+          html = markSnippets(html, verdict.lievi.flatMap(quotedIn), 'lieve');
+        }
+        html = markSnippets(html, outside, 'figure');
+        const badges = [
+          `<span class="badge ${words > bundle.contract.wordLimit ? 'bad' : ''}">${words}/${bundle.contract.wordLimit} parole</span>`,
+          ...failed
+            .filter((id) => id !== 'words')
+            .map((id) => `<span class="badge bad" title="${escapeHtml(checks[id]!.details.join(' | '))}">${CHECK_LABELS[id]}</span>`),
+          ...(failed.length === 0 ? ['<span class="badge ok">controlli ok</span>'] : []),
+        ].join('');
+        const panel = verdict
+          ? `<aside class="judge">
+            <div class="scores">
+              <span><b>${n1(verdict.accuratezza)}</b> accuratezza</span>
+              <span><b>${n1(verdict.completezza)}</b> completezza</span>
+              <span><b>${n1(verdict.insight)}</b> insight</span>
+              <span><b>${n1(verdict.collegamento)}</b> collegamento</span>
+            </div>
+            <p class="note">${escapeHtml(verdict.nota)}</p>
+            ${verdict.gravi.length ? `<p class="list-title grave-t">Errori gravi (${verdict.gravi.length})</p><ul>${verdict.gravi.map((g) => `<li>${escapeHtml(g)}</li>`).join('')}</ul>` : ''}
+            ${verdict.lievi.length ? `<p class="list-title lieve-t">Errori lievi (${verdict.lievi.length})</p><ul>${verdict.lievi.map((g) => `<li>${escapeHtml(g)}</li>`).join('')}</ul>` : ''}
+            <p class="covered">Fatti chiave: ${escapeHtml(verdict.coperti)}</p>
+          </aside>`
+          : '';
+        return `
+        <article class="card" data-bundle="${bundle.id}" data-letter="${letter}">
+          <header><span class="letter">${letter}</span><span class="badges">${badges}</span></header>
+          ${panel}
+          <div class="md">${html}</div>
           <footer>
-            ${(['utilita', 'tono'] as const)
+            ${axes
               .map(
-                (axis) => `<fieldset><legend>${axis === 'utilita' ? 'Utilità' : 'Tono'}</legend>${[1, 2, 3, 4, 5]
+                (axis) => `<fieldset><legend>${axisLabel[axis]}</legend>${[1, 2, 3, 4, 5]
                   .map(
                     (score) =>
                       `<label><input type="radio" name="${bundle.id}-${letters[index]}-${axis}" value="${score}" data-axis="${axis}">${score}</label>`
@@ -509,13 +776,21 @@ function blind(): void {
               )
               .join('')}
           </footer>
-        </article>`
-      )
+        </article>`;
+      })
       .join('');
     sections.push(`
       <section>
         <h2>${escapeHtml(bundle.label)}</h2>
         <p class="scope">${bundle.contract.kind === 'weekly' ? 'Email budget settimanale' : 'Email periodica'} · limite ${bundle.contract.wordLimit} parole · ${texts.length} versioni</p>
+        ${
+          bundle.wiki
+            ? `<details class="context"><summary>Cosa ha ricevuto il modello dalla Wiki</summary>
+          ${bundle.wiki.principles ? `<h4>Principi (digest)</h4><div class="md">${renderMarkdown(bundle.wiki.principles)}</div>` : ''}
+          ${bundle.wiki.macro ? `<h4>Contesto macro</h4><div class="md">${renderMarkdown(bundle.wiki.macro)}</div>` : '<p>Nessuna pagina macro.</p>'}
+        </details>`
+            : ''
+        }
         <div class="cards">${cards}</div>
       </section>`);
   }
@@ -524,8 +799,8 @@ function blind(): void {
 <html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Giudizio alla cieca</title>
 <style>
-  :root { --bg:#f7f7f5; --fg:#1b1b1b; --muted:#6b6b6b; --card:#fff; --line:#e3e3df; --accent:#3d5a1e; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#141414; --fg:#ececec; --muted:#9a9a9a; --card:#1e1e1e; --line:#333; --accent:#b5d77a; } }
+  :root { --bg:#f7f7f5; --fg:#1b1b1b; --muted:#6b6b6b; --card:#fff; --line:#e3e3df; --accent:#3d5a1e; --panel:#f1f2ec; --bad:#b3261e; --bad-bg:#fbe3e1; --warn:#9a6700; --warn-bg:#fff1c7; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141414; --fg:#ececec; --muted:#9a9a9a; --card:#1e1e1e; --line:#333; --accent:#b5d77a; --panel:#262824; --bad:#f2b8b5; --bad-bg:#5c2320; --warn:#e8c26a; --warn-bg:#4a3a10; } }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 system-ui, sans-serif; }
   main { max-width:1500px; margin:0 auto; padding:24px 16px 120px; }
@@ -534,9 +809,30 @@ function blind(): void {
   .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:16px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; display:flex; flex-direction:column; }
   .letter { font-weight:700; font-size:20px; color:var(--accent); }
+  .card header { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .badges { display:flex; gap:6px; flex-wrap:wrap; }
+  .badge { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+  .badge.bad { border-color:var(--bad); color:var(--bad); }
+  .badge.ok { border-color:var(--accent); color:var(--accent); }
+  .judge { margin:10px 0; padding:10px 12px; border-radius:10px; background:var(--panel); font-size:13px; }
+  .judge .scores { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; margin-bottom:6px; }
+  .judge .scores span { display:flex; flex-direction:column; color:var(--muted); font-size:11px; }
+  .judge .scores b { font-size:20px; color:var(--fg); font-variant-numeric:tabular-nums; }
+  .judge .note { margin:4px 0; }
+  .judge ul { margin:2px 0 6px; padding-left:18px; }
+  .judge .list-title { margin:6px 0 0; font-weight:600; }
+  .judge .grave-t { color:var(--bad); } .judge .lieve-t { color:var(--warn); }
+  .judge .covered { color:var(--muted); margin:4px 0 0; }
+  mark { color:inherit; border-radius:3px; padding:0 2px; }
+  mark.grave { background:var(--bad-bg); box-shadow:inset 0 -2px 0 var(--bad); }
+  mark.lieve { background:var(--warn-bg); }
+  mark.figure { background:none; box-shadow:inset 0 -2px 0 var(--warn); }
+  .context { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 16px; margin:0 0 12px; max-height:none; }
+  .context summary { cursor:pointer; color:var(--muted); min-height:44px; display:flex; align-items:center; }
+  .context .md { font-size:13px; }
   .md { flex:1; } .md p { margin:6px 0; } .md ul, .md ol { padding-left:20px; margin:6px 0; }
   footer { display:flex; gap:12px; flex-wrap:wrap; border-top:1px solid var(--line); margin-top:12px; padding-top:10px; }
-  fieldset { border:0; padding:0; margin:0; display:flex; gap:6px; align-items:center; }
+  fieldset { border:0; padding:0; margin:0; display:flex; flex-wrap:wrap; gap:6px; align-items:center; max-width:100%; min-width:0; }
   legend { float:left; margin-right:6px; color:var(--muted); font-size:13px; }
   label { display:inline-flex; align-items:center; gap:2px; min-width:44px; min-height:44px; justify-content:center; cursor:pointer; }
   .bar { position:fixed; left:0; right:0; bottom:0; background:var(--card); border-top:1px solid var(--line); padding:12px 16px; display:flex; gap:16px; align-items:center; justify-content:center; }
@@ -544,16 +840,26 @@ function blind(): void {
 </style></head>
 <body><main>
   <h1>Giudizio alla cieca</h1>
-  <p class="intro">Per ogni periodo, le versioni in ordine casuale. Voto 1–5 su utilità e tono. I voti restano in questo browser; «Esporta voti» scarica il file per lo scoring. La chiave lettera → modello non è in questa pagina.</p>
+  <p class="intro">${
+    ROUND === 'f6b'
+      ? 'Per ogni periodo, le versioni in ordine casuale. Voto 1–5 su tre domande: <strong>utilità</strong> («mi dice qualcosa che non vedevo?»), <strong>ti prende</strong> («si legge d’un fiato?») e <strong>collegamenti</strong> («la mia vita, il mondo e il portafoglio si tengono?»). La verità dei dati la controlla Claude a parte.'
+      : 'Per ogni periodo, le versioni in ordine casuale. Voto 1–5 su utilità e tono; dove il modello ha ricevuto la Wiki, anche sul <strong>collegamento</strong>: «il legame tra macro, principi e portafoglio è sensato?».'
+  } I voti restano in questo browser; «Esporta voti» scarica il file per lo scoring. La chiave lettera → modello non è in questa pagina.</p>
+  ${
+    judgeFile
+      ? `<p class="intro">Su ogni carta, il giudizio di Claude con la griglia fissata prima di leggere (rubric.md): <strong>accuratezza</strong> (5 − 1,5 per errore grave − 0,5 per lieve), <strong>completezza</strong> (fatti chiave del periodo coperti, pesati), <strong>insight</strong> e <strong>collegamento</strong> (ancore). Nel testo: <mark class="grave">errore grave</mark>, <mark class="lieve">errore lieve</mark>, <mark class="figure">cifra non nel prompt</mark>. Il <strong>tono</strong> è tuo.</p>`
+      : ''
+  }
   ${sections.join('\n')}
 </main>
 <div class="bar"><span id="count"></span><button id="export" type="button">Esporta voti</button></div>
 <script>
-  const STORE = 'ai-eval-votes';
+  // One key per round: every file:// page shares one storage, and F2's page used the same bundle ids.
+  const STORE = 'ai-eval-votes-${ROUND}';
   let votes = {};
   try { votes = JSON.parse(localStorage.getItem(STORE) || '{}'); } catch (e) {}
   const inputs = [...document.querySelectorAll('input[type=radio]')];
-  const total = document.querySelectorAll('.card').length * 2;
+  const total = inputs.length / 5;
   function sync() {
     let n = 0;
     for (const input of inputs) {
@@ -594,9 +900,7 @@ function score(): void {
   // The checks are re-run on the stored texts: a fix to a check never needs a paid run.
   const results = latestResults().map((record) => {
     const bundle = bundles.find((b) => b.id === record.bundleId);
-    return record.outcome === 'ok' && record.text && bundle
-      ? { ...record, checks: runEvalChecks(record.text, `${bundle.system}\n${bundle.user}`, bundle.contract) }
-      : record;
+    return record.outcome === 'ok' && record.text && bundle ? { ...record, checks: checksFor(record.text, bundle) } : record;
   });
   const votesFile = flag('votes') ?? join(DIR, 'votes.json');
   const key: Record<string, Record<string, string>> = existsSync(join(DIR, 'key.json'))
@@ -608,28 +912,33 @@ function score(): void {
   const votes: Record<string, Record<string, EvalVote>> = {};
   for (const [bundleId, letters] of Object.entries(byLetter)) {
     for (const [letter, vote] of Object.entries(letters)) {
-      const model = key[bundleId]?.[letter];
+      // F6 keys carry the voted attempt («model@1»); F2's are the bare model.
+      const model = key[bundleId]?.[letter]?.replace(/@\d+$/, '');
       if (!model || typeof vote.utilita !== 'number' || typeof vote.tono !== 'number') continue;
-      (votes[bundleId] ??= {})[model] = { utilita: vote.utilita, tono: vote.tono };
+      (votes[bundleId] ??= {})[model] = {
+        utilita: vote.utilita,
+        tono: vote.tono,
+        ...(typeof vote.collegamento === 'number' ? { collegamento: vote.collegamento } : {}),
+      };
     }
   }
 
   const scores = scoreModels(
-    CANDIDATES.map((c) => ({ model: c.id, role: c.role })),
+    CANDIDATES.map((c) => ({ model: keyOf(c), role: c.role })),
     results.filter((r) => bundles.some((b) => b.id === r.bundleId)),
     votes
   );
   const verdict = pickWinner(scores);
-  const label = (id: string) => CANDIDATES.find((c) => c.id === id)?.label ?? id;
+  const label = (id: string) => CANDIDATES.find((c) => keyOf(c) === id)?.label ?? id;
   const n = (value: number | null, digits = 0) => (value == null ? '—' : value.toLocaleString('it-IT', { maximumFractionDigits: digits, minimumFractionDigits: digits }));
   const role = { candidate: 'candidato', control: 'controllo', reference: 'riferimento' } as const;
 
   const lines = [
-    '| Modello | Ruolo | Esiti ok | Troncati | Esecuzioni fallite | Cifre · parole · forma · promesse · italiano | Cifre non nel prompt | Token in · out · ragion. (media) | Costo vero / email | Utilità · tono |',
-    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    '| Modello | Ruolo | Esiti ok | Troncati | Esecuzioni fallite | Cifre · parole · forma · promesse · italiano | Macro · sconfinamenti · principi | Cifre non nel prompt | Token in · out · ragion. (media) | Costo vero / email | Latenza media | Utilità · tono · collegamento |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
     ...scores.map(
       (s) =>
-        `| ${label(s.model)} | ${role[s.role]} | ${s.ok}/${s.runs} | ${s.truncated} | ${s.failedRuns} | ${s.failuresByCheck.figures} · ${s.failuresByCheck.words} · ${s.failuresByCheck.form} · ${s.failuresByCheck.promises} · ${s.failuresByCheck.italian} | ${s.unverifiedFigures} | ${n(s.meanInput)} · ${n(s.meanOutput)} · ${n(s.meanReasoning)} | ${s.meanCost == null ? '—' : `${n(s.meanCost, 4)} $`} | ${n(s.meanUtilita, 1)} · ${n(s.meanTono, 1)} |`
+        `| ${label(s.model)} | ${role[s.role]} | ${s.ok}/${s.runs} | ${s.truncated} | ${s.failedRuns} | ${s.failuresByCheck.figures} · ${s.failuresByCheck.words} · ${s.failuresByCheck.form} · ${s.failuresByCheck.promises} · ${s.failuresByCheck.italian} | ${s.failuresByCheck.macro} · ${s.failuresByCheck.crossover} · ${s.failuresByCheck.principles} | ${s.unverifiedFigures} | ${n(s.meanInput)} · ${n(s.meanOutput)} · ${n(s.meanReasoning)} | ${s.meanCost == null ? '—' : `${n(s.meanCost, 4)} $`} | ${n(s.meanLatencyMs / 1000)} s | ${n(s.meanUtilita, 1)} · ${n(s.meanTono, 1)} · ${n(s.meanCollegamento, 1)} |`
     ),
   ];
   console.log(`\n${lines.join('\n')}\n`);
@@ -642,14 +951,197 @@ function score(): void {
   for (const record of results) {
     const failed = record.checks ? failedChecks(record.checks) : [];
     if (record.outcome !== 'ok') console.log(`- ${label(record.model)} · ${record.bundleId}: ${record.outcome}${record.error ? ` (${record.error})` : ''}`);
-    for (const id of failed) console.log(`- ${label(record.model)} · ${record.bundleId} · ${id}: ${record.checks![id].details.join(' | ')}`);
+    for (const id of failed) console.log(`- ${label(record.model)} · ${record.bundleId} · ${id}: ${record.checks![id]!.details.join(' | ')}`);
   }
   writeFileSync(join(DIR, 'score.md'), `${lines.join('\n')}\n`);
 }
 
+// ─── prompts / import: the references written with the owner's subscription (F6) ───────────
+
+/**
+ * One file per bundle with the exact system block and user message, for a Claude Code session
+ * on the owner's subscription to answer (owner's call, 2026-10-05: Sonnet and Haiku are not
+ * called through the API in F6). Declared difference: the answer is written inside a Claude Code
+ * session, so the model also carries that session's own instructions.
+ */
+function prompts(): void {
+  const dir = join(DIR, 'prompts');
+  mkdirSync(dir, { recursive: true });
+  for (const bundle of loadBundles()) {
+    writeFileSync(join(dir, `${bundle.id}.md`), `# SYSTEM\n\n${bundle.system}\n\n# USER\n\n${bundle.user}\n`);
+  }
+  console.log(`Prompts in ${dir}`);
+}
+
+function importRun(): void {
+  const model = flag('model');
+  const bundleId = flag('bundle');
+  const file = flag('file');
+  const attempt = Number(flag('attempt') ?? 0);
+  const candidate = CANDIDATES.find((c) => keyOf(c) === model);
+  if (!candidate?.subscription) throw new Error(`--model must be a subscription reference: ${CANDIDATES.filter((c) => c.subscription).map(keyOf).join(', ')}`);
+  const bundle = loadBundles().find((b) => b.id === bundleId);
+  if (!bundle || !file) throw new Error('usage: import --model <key> --bundle <id> --attempt <n> --file <text.md>');
+  const text = readFileSync(file, 'utf8').trim();
+  const record: RunRecord = {
+    model: keyOf(candidate),
+    bundleId: bundle.id,
+    label: candidate.label,
+    at: new Date().toISOString(),
+    attempt,
+    outcome: text ? 'ok' : 'empty',
+    // Nothing billed and nothing measured: the subscription reports no usage.
+    input: null,
+    output: null,
+    reasoning: null,
+    cost: null,
+    latencyMs: 0,
+    provider: 'subscription',
+    text: text || null,
+    checks: text ? checksFor(text, bundle) : undefined,
+  };
+  appendFileSync(RESULTS, `${JSON.stringify(record)}\n`);
+  const failed = record.checks ? failedChecks(record.checks) : [];
+  console.log(`${candidate.label} ${bundle.id} #${attempt} ${record.outcome}${failed.length ? ` · ✗ ${failed.join(', ')}` : ''}`);
+}
+
+// ─── thebull: the compilation, dry (F6) ─────────────────────────────────────────────────────
+
+/** The production extraction's budget (`thebullCompiler.ts`, not exported there). */
+const THEBULL_MAX_TOKENS = 8000;
+const THEBULL_REASONING_MAX_TOKENS = 2000;
+
+/**
+ * TheBull's compilation on the vault's raw issues, through the production route's model and
+ * options, with nothing written: what the cron would keep, drop and pay. «Cifre tenute» is the
+ * share of kept items whose quote holds a number and whose summary keeps one — the probe's
+ * measure of a model that paraphrases the figures away (§ 7.3).
+ */
+async function thebull(): Promise<void> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error('OPENROUTER_API_KEY is not set (npm run ai:eval reads .env.local).');
+  const dates = flag('dates')?.split(',');
+  if (!dates?.length) throw new Error('usage: thebull --dates YYYY-MM-DD,… [--repeat n]');
+  const { createOpenRouterAdapter } = await import('../lib/server/llm/openrouter');
+  const { createVaultClient, readVaultConfig } = await import('../lib/server/wiki/githubVault');
+  const { AI_MODELS } = await import('../lib/constants/aiModels');
+  type AiModelRoute = import('../lib/constants/aiModels').AiModelRoute;
+  const { parseTheBull, pointText } = await import('../lib/utils/thebullParse');
+  const wiki = await import('../lib/utils/wikiMacro');
+  const config = readVaultConfig();
+  if (!config) throw new Error('WIKI_GITHUB_TOKEN and WIKI_GITHUB_REPO are required (.env.local).');
+  const vault = createVaultClient(config);
+  const route: AiModelRoute = AI_MODELS.THEBULL_COMPILE;
+  const adapter = createOpenRouterAdapter();
+  const file = join(DIR, 'thebull.jsonl');
+  // F6b: the reasoning switched back on, with its own total budget; the kept items are saved
+  // per variant so the two readings can be compared item by item, not only counted.
+  const reasoningOn = flag('reasoning') === 'on';
+  const variant = reasoningOn ? 'on' : 'off';
+  const maxTokens = Number(flag('max-tokens') ?? THEBULL_MAX_TOKENS);
+  const itemsDir = join(DIR, `thebull-${variant}`);
+  mkdirSync(itemsDir, { recursive: true });
+
+  for (let attempt = 0; attempt < REPEAT; attempt++) {
+    for (const date of dates) {
+      const raw = await vault.readFile(wiki.rawPathFor(date));
+      if (raw === null) throw new Error(`${wiki.rawPathFor(date)} is not in the vault`);
+      const issue = parseTheBull(raw);
+      const point = pointText(issue);
+      const started = Date.now();
+      const base = { date, attempt, model: route.model, variant, maxTokens, at: new Date().toISOString() };
+      let record: Record<string, unknown>;
+      try {
+        const response = await adapter.extractJson(
+          route.model,
+          {
+            system: wiki.MACRO_EXTRACTION_SYSTEM,
+            user: wiki.buildMacroExtractionUser(issue, point),
+            jsonSchema: wiki.MACRO_EXTRACTION_JSON_SCHEMA,
+            name: 'thebull_week',
+            maxTokens,
+            reasoningMaxTokens: THEBULL_REASONING_MAX_TOKENS,
+          },
+          apiKey,
+          { reasoning: reasoningOn ? undefined : route.reasoning, quantizations: route.quantizations }
+        );
+        const usage = {
+          input: response.usage?.input ?? null,
+          output: response.usage?.output ?? null,
+          reasoning: response.usage?.reasoning ?? null,
+          cost: response.usage?.cost ?? null,
+        };
+        const parsed = wiki.macroExtractionSchema.safeParse(response.value);
+        if (response.truncated || !parsed.success) {
+          record = { ...base, ...usage, outcome: response.truncated ? 'truncated' : 'invalid', latencyMs: Date.now() - started };
+        } else {
+          const verified = wiki.verifyExtraction(parsed.data, point);
+          writeFileSync(join(itemsDir, `${date}-${attempt}.json`), JSON.stringify(verified, null, 2));
+          const kept = [...verified.kept.fatti, ...verified.kept.tesi, ...verified.kept.spunti];
+          const withNumbers = kept.filter((item) => /\d/.test(item.citazione));
+          record = {
+            ...base,
+            ...usage,
+            outcome: wiki.isExtractionAcceptable(verified) ? 'ok' : 'refused',
+            latencyMs: Date.now() - started,
+            proposed: parsed.data.fatti.length + parsed.data.tesi.length + parsed.data.spunti.length,
+            fatti: verified.kept.fatti.length,
+            tesi: verified.kept.tesi.length,
+            spunti: verified.kept.spunti.length,
+            dropped: verified.dropped.map((d) => d.reason),
+            figuresQuoted: withNumbers.length,
+            figuresKept: withNumbers.filter((item) => /\d/.test(item.sintesi)).length,
+          };
+        }
+      } catch (error) {
+        record = { ...base, outcome: 'error', error: (error as Error).message.slice(0, 300), latencyMs: Date.now() - started };
+      }
+      appendFileSync(file, `${JSON.stringify(record)}\n`);
+      const r = record as Record<string, number | string | string[] | null>;
+      console.log(
+        `${date} #${attempt} ${String(r.outcome).padEnd(8)} fatti ${r.fatti ?? '—'} · tesi ${r.tesi ?? '—'} · spunti ${r.spunti ?? '—'} · scartate ${Array.isArray(r.dropped) ? r.dropped.length : '—'} · cifre ${r.figuresKept ?? '—'}/${r.figuresQuoted ?? '—'} · ${((r.latencyMs as number) / 1000).toFixed(0)} s · ${usd(r.cost as number | null, 5)}`
+      );
+    }
+  }
+}
+
+// ─── sheet: the judge's blind reading (F6) ──────────────────────────────────────────────────
+
+/**
+ * The cards of the blind page, by LETTER only, with the automatic checks and the trace of every
+ * figure (where in the prompt it can come from): what Claude reads to fill `judge.json` without
+ * ever seeing which model wrote what — `key.json` is read here and never printed.
+ */
+async function sheet(): Promise<void> {
+  const { traceFigures } = await import('../lib/utils/aiEvalChecks');
+  const { countWords } = await import('../lib/utils/aiEvalChecks');
+  const bundles = loadBundles();
+  const only = flag('bundles')?.split(',');
+  const key: Record<string, Record<string, string>> = JSON.parse(readFileSync(join(DIR, 'key.json'), 'utf8'));
+  const records = latestResults();
+  for (const bundle of bundles) {
+    if (only && !only.includes(bundle.id)) continue;
+    console.log(`\n════════ ${bundle.id} · ${bundle.label} · limite ${bundle.contract.wordLimit} parole ════════`);
+    for (const [letter, ref] of Object.entries(key[bundle.id] ?? {})) {
+      const [model, attempt] = [ref.replace(/@\d+$/, ''), Number(ref.match(/@(\d+)$/)?.[1] ?? 0)];
+      const record = records.find((r) => r.model === model && r.bundleId === bundle.id && (r.attempt ?? 0) === attempt);
+      if (!record?.text) continue;
+      const checks = checksFor(record.text, bundle);
+      const failed = failedChecks(checks).map((id) => `${id}: ${checks[id]!.details.join(' | ')}`);
+      const prompt = `${bundle.system}\n${bundle.user}`;
+      const traced = traceFigures(record.text, prompt, bundle.wiki?.macro ?? '\u0000');
+      console.log(`\n──── ${letter} · ${countWords(record.text)} parole ────`);
+      console.log(`controlli rossi: ${failed.length ? failed.join(' ‖ ') : 'nessuno'}`);
+      console.log(`cifre non nel prompt: ${traced.filter((t) => t.origin === 'none').map((t) => t.figure.raw).join(', ') || 'nessuna'}`);
+      console.log(`cifre macro: ${traced.filter((t) => t.origin === 'macro').map((t) => t.figure.raw).join(', ') || 'nessuna'}`);
+      console.log(`\n${record.text}`);
+    }
+  }
+}
+
 // ─── main ───────────────────────────────────────────────────────────────────────────────────
 
-const commands: Record<string, () => unknown> = { freeze, estimate, run, blind, score };
+const commands: Record<string, () => unknown> = { freeze, estimate, run, blind, score, prompts, import: importRun, thebull, sheet };
 if (!command || !commands[command]) {
   console.error(`usage: aiEval.mts <${Object.keys(commands).join('|')}> [--dir <d>]`);
   process.exit(1);

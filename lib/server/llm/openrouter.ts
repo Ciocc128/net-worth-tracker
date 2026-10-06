@@ -76,7 +76,7 @@ export function createOpenRouterAdapter({
       throw new Error(`[openrouter] refused ${model}: free variants may log and train on prompts`);
     }
 
-    const { reasoningMaxTokens, ...rest } = body;
+    const { reasoningMaxTokens, timeoutMs, ...rest } = body;
     const payload = JSON.stringify({
       model,
       ...rest,
@@ -104,7 +104,7 @@ export function createOpenRouterAdapter({
           'X-Title': 'Net Worth Tracker',
         },
         body: payload,
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: AbortSignal.timeout(typeof timeoutMs === 'number' ? timeoutMs : TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -137,7 +137,7 @@ export function createOpenRouterAdapter({
   }
 
   return {
-    generateText(model, { system, user, maxTokens, reasoningMaxTokens }, apiKey, options) {
+    generateText(model, { system, user, maxTokens, reasoningMaxTokens, timeoutMs }, apiKey, options) {
       return complete(model, apiKey, {
         messages: [
           { role: 'system', content: system },
@@ -145,6 +145,7 @@ export function createOpenRouterAdapter({
         ],
         max_tokens: maxTokens,
         ...(reasoningMaxTokens !== undefined ? { reasoningMaxTokens } : {}),
+        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
       }, options);
     },
 

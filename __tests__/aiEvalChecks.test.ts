@@ -1,14 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
+  checkNarrativeForm,
+  checkCrossover,
   checkFigures,
   checkForm,
   checkItalian,
+  checkMacroFacts,
+  checkPrinciples,
   checkPromises,
   checkWords,
   countSentences,
   countWords,
   extractFigures,
+  failedChecks,
   readNumber,
+  runEvalChecks,
+  traceFigures,
 } from '@/lib/utils/aiEvalChecks';
 
 describe('readNumber', () => {
@@ -69,6 +76,13 @@ describe('checkFigures', () => {
   });
   it('reads a toFixed decimal in the prompt', () => {
     expect(checkFigures('sotto di 3,6 p.p.', 'gap -3.6 p.p.').pass).toBe(true);
+  });
+  it('pairs each reading with its own tolerance (F6: «€3.688» passed on any «4 €»)', () => {
+    expect(checkFigures('Hai investito €3.688 nel mese.', 'Abbonamenti 4 € | acquisti 4.609 €')).toEqual({
+      pass: false,
+      details: ['€3.688'],
+    });
+    expect(checkFigures('Hai investito €4.609 nel mese.', 'Abbonamenti 4 € | acquisti 4.609 €').pass).toBe(true);
   });
   it('ignores zero', () => {
     expect(checkFigures('nessuna spesa: 0 €', prompt).pass).toBe(true);
@@ -167,5 +181,156 @@ describe('checkItalian', () => {
   it('fails a foreign script and leaked reasoning', () => {
     expect(checkItalian('Il mese 很好 è andato bene.').pass).toBe(false);
     expect(checkItalian('<think>calcolo</think> Il mese è andato bene.').details).toContain('ragionamento nel testo');
+  });
+});
+
+// ─── The Wiki (F6) ──────────────────────────────────────────────────────────────────────────
+
+describe('the Wiki checks (F6)', () => {
+  // A synthetic macro block in the vault's own shape (facts by area, theses, the index table).
+  const macro = [
+    '--- CONTESTO MACRO (newsletter TheBull, settembre 2026) ---',
+    '## Macro di settembre 2026',
+    '### Tassi',
+    '- Il decennale americano è salito al 4,96%. — _Stati Uniti_ (2026-W37)',
+    '- L’indice fenicottero è salito del 3,7% in una settimana. (2026-W38)',
+    '### Banche centrali',
+    '- La BCE ha alzato i tassi al 2,5%. — _Eurozona_ (2026-W37)',
+    '| MSCI All Country World | +1.39% | +20.07% |',
+  ].join('\n');
+  const data = '--- DATI DEL PERIODO ---\nTWR del mese +2,1%. Azioni 62,0% contro target 70%. Liquidità 2,5% del patrimonio.';
+  const prompt = `${data}\n${macro}`;
+  const principles = [
+    '## Allocazione e leva',
+    '- **Mai spostare pesi per motivi di mercato.** In accumulo i nuovi soldi vanno a ciò che è sotto target.',
+    '- La regola dell’ornitorinco: il ribilanciamento si fa a porzioni.',
+  ].join('\n');
+  const wiki = { macro, principles };
+
+  describe('traceFigures', () => {
+    it('tells a macro figure, a portfolio figure and an ambiguous one apart', () => {
+      const traced = traceFigures('Il decennale al 4,96%. Il TWR è +2,1%. La BCE al 2,5%.', prompt, macro);
+      expect(traced.map((t) => [t.figure.raw, t.origin])).toEqual([
+        ['4,96%', 'macro'],
+        ['+2,1%', 'portfolio'],
+        ['2,5%', 'both'],
+      ]);
+    });
+    it('reads the index table’s toFixed decimals', () => {
+      expect(traceFigures('L’MSCI ACWI ha fatto +1,39% nel mese.', prompt, macro)[0].origin).toBe('macro');
+    });
+  });
+
+  describe('checkMacroFacts', () => {
+    it('passes a macro figure cited with its subject', () => {
+      expect(checkMacroFacts('Il decennale americano è arrivato al 4,96%.', prompt, wiki).pass).toBe(true);
+      expect(checkMacroFacts('L’indice fenicottero è salito del 3,7%.', prompt, wiki).pass).toBe(true);
+    });
+    it('fails the F5 collaudo slip: the decoy figure under another subject', () => {
+      const result = checkMacroFacts('Il Bloomberg Euro momentum su +3,7% ha spinto le azioni.', prompt, wiki);
+      expect(result.pass).toBe(false);
+      expect(result.details[0]).toMatch(/^\+3,7% senza il suo soggetto/);
+    });
+    it('reads a subject with an ampersand («S&P»), the first paid run’s crash', () => {
+      const page = `${macro}\n- L’S&P 500 è cresciuto di oltre il 12% da inizio anno. — _Stati Uniti_ (2026-W38)`;
+      const ctx = { macro: page, principles };
+      expect(checkMacroFacts('L’S&P 500 fa +12% da gennaio.', `${data}\n${page}`, ctx).pass).toBe(true);
+      expect(checkMacroFacts('Il Nikkei fa +12% da gennaio.', `${data}\n${page}`, ctx).pass).toBe(false);
+    });
+    it('leaves an ambiguous figure alone (in the data and in the page)', () => {
+      expect(checkMacroFacts('Il Nikkei al 2,5%.', prompt, wiki).pass).toBe(true);
+    });
+    it('passes when the bundle had no macro page', () => {
+      expect(checkMacroFacts('Qualcosa al 4,96%.', prompt, { macro: null, principles }).pass).toBe(true);
+    });
+  });
+
+  describe('checkCrossover', () => {
+    it('fails a macro figure presented as the portfolio’s', () => {
+      const result = checkCrossover('Il tuo portafoglio ha reso il 4,96% nel mese.', prompt, wiki);
+      expect(result).toEqual({ pass: false, details: ['cifra macro come del portafoglio: 4,96%'] });
+    });
+    it('fails a portfolio figure presented as the market’s', () => {
+      const result = checkCrossover('La Fed ha spinto i Treasury a +2,1%.', prompt, wiki);
+      expect(result).toEqual({ pass: false, details: ['cifra del portafoglio come macro: +2,1%'] });
+    });
+    it('passes a sentence that keeps the two sides apart', () => {
+      const text = 'Il tuo TWR è +2,1% mentre il decennale americano saliva al 4,96%.';
+      expect(checkCrossover(text, prompt, wiki).pass).toBe(true);
+    });
+  });
+
+  describe('checkPrinciples', () => {
+    it('passes a principle named as the digest names it', () => {
+      const text = 'Coerente con il principio «Mai spostare pesi per motivi di mercato», i nuovi soldi vanno alle azioni.';
+      expect(checkPrinciples(text, wiki).pass).toBe(true);
+    });
+    it('passes the decoy rule named in bold', () => {
+      expect(checkPrinciples('Vale il principio **regola dell’ornitorinco**.', wiki).pass).toBe(true);
+    });
+    it('fails an invented principle', () => {
+      const result = checkPrinciples('Segui il tuo principio «comprare sempre sui ribassi».', wiki);
+      expect(result).toEqual({ pass: false, details: ['principio non nel digest: «comprare sempre sui ribassi»'] });
+    });
+    it('fails a principle named when no digest was sent', () => {
+      const result = checkPrinciples('Il tuo principio «Mai spostare pesi» regge.', { macro, principles: null });
+      expect(result.pass).toBe(false);
+    });
+    it('ignores a quote in a sentence that does not speak of principles', () => {
+      expect(checkPrinciples('La newsletter titola «La fed alza».', wiki).pass).toBe(true);
+    });
+  });
+
+  // The false positives of the first paid F6 run (2026-10-05), kept as regression guards.
+  describe('the first run’s false positives', () => {
+    const page = `${macro}\n| MSCI All Country World | +2.80% | +18.00% |\n- Il Treasury decennale americano è arrivato al 5,22%. — _Stati Uniti_ (2026-W39)`;
+    const ctx = { macro: page, principles };
+    const full = `${data}\n${page}`;
+    it('reads «ACWI» as the index table’s «MSCI All Country World»', () => {
+      expect(checkMacroFacts('Sul mercato il +2,8% dell’ACWI è coerente con gli utili.', full, ctx).pass).toBe(true);
+    });
+    it('reads a subject with another ending and a country by its adjective', () => {
+      expect(checkMacroFacts('I rendimenti americani a lungo termine sono saliti al 5,22%.', full, ctx).pass).toBe(true);
+      expect(checkMacroFacts('Il Nikkei è salito al 5,22%.', full, ctx).pass).toBe(false);
+    });
+    it('never reads a euro amount as the market’s (instruments carry index names)', () => {
+      const prompt2 = `${data} Acquisti ETF MSCI World 1.457 €.\n${page}`;
+      expect(checkCrossover('L’MSCI World ha assorbito 1.457 €.', prompt2, ctx).pass).toBe(true);
+    });
+    it('counts a macro figure in a portfolio sentence once, as a crossover', () => {
+      const text = 'Il tuo portafoglio ha reso il 4,96% nel mese.';
+      expect(checkMacroFacts(text, full, ctx).pass).toBe(true);
+      expect(checkCrossover(text, full, ctx).pass).toBe(false);
+    });
+  });
+
+  describe('runEvalChecks', () => {
+    const contract = { kind: 'periodic' as const, wordLimit: 500 };
+    it('runs the three Wiki checks only with a Wiki context', () => {
+      expect(Object.keys(runEvalChecks('testo', prompt, contract))).not.toContain('macro');
+      expect(Object.keys(runEvalChecks('testo', prompt, contract, wiki))).toEqual(
+        expect.arrayContaining(['macro', 'crossover', 'principles'])
+      );
+    });
+    it('lists a failed Wiki check among the failed ones', () => {
+      const checks = runEvalChecks('Il Bloomberg Euro momentum su +3,7%.', prompt, contract, wiki);
+      expect(failedChecks(checks)).toContain('macro');
+    });
+  });
+});
+
+describe('checkNarrativeForm — the F6b letter', () => {
+  const para = 'Un paragrafo di prosa che racconta il mese senza elenchi.';
+  it('passes 3-5 headings of prose', () => {
+    expect(checkNarrativeForm(`## Il mese delle vacanze\n${para}\n\n## Il mondo\n${para}\n\n## Il filo\n${para}`).pass).toBe(true);
+  });
+  it('counts the headings and the list lines it finds', () => {
+    const result = checkNarrativeForm(`## Uno\n${para}\n\n## Due\n- primo punto\n- secondo punto\n1. terzo`);
+    expect(result.details).toEqual(['2 titoletti invece di 3-5', '3 righe di elenco']);
+  });
+  it('is the form check of a bundle frozen with the narrative contract, never of an old one', () => {
+    const text = `## A\n${para}\n## B\n${para}\n## C\n${para}`;
+    expect(checkForm(text, { kind: 'periodic', wordLimit: 450, form: 'narrative' }).pass).toBe(true);
+    expect(checkForm(text, { kind: 'periodic', wordLimit: 450 }).pass).toBe(false);
   });
 });
