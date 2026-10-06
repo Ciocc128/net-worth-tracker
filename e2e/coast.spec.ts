@@ -102,6 +102,27 @@ test('the Afflussi tile lists both state pensions and the fund unlock, in calend
   });
 });
 
+test('the Traguardo reads the same walk at three dates, each with what is needed, what there will be and the gap (CO1)', async ({ page }) => {
+  await gotoCoast(page);
+
+  const traguardo = page.getByRole('region', { name: 'Traguardo Coast FIRE' });
+  const stages = traguardo.getByRole('list', { name: 'Tappe del Coast FIRE' }).getByRole('listitem');
+  // The fixture has a target age ahead and two pensions after it: today, at the target age, at steady state.
+  await expect(stages).toHaveCount(3);
+  await expect(stages.nth(0)).toContainText('Oggi');
+  await expect(stages.nth(1)).toContainText('A 60 anni');
+  await expect(stages.nth(2)).toContainText('A regime · dal');
+  for (const index of [0, 1, 2]) {
+    await expect(stages.nth(index)).toContainText('servono');
+    await expect(stages.nth(index)).toContainText(/ne (hai|avrai)/);
+    await expect(stages.nth(index)).toContainText(/basta|mancano/);
+  }
+  // The method line says «a regime» is not the Calcolatore's number.
+  await expect(traguardo).toContainText('Non è il numero FIRE del Calcolatore');
+  // The verdict quotes the capital at the target age, one figure with the second stage.
+  await expect(page.getByRole('region', { name: 'Verdetto sul Coast FIRE' })).toContainText('arriveresti a 60 anni');
+});
+
 test('the Scenari tile ranks the three Coast numbers, base in the middle', async ({ page }) => {
   await gotoCoast(page);
 

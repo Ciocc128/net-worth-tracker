@@ -8,14 +8,13 @@
  *
  * The rail is an ORDER, not a scale: the segments are equal-width and every marker prints its
  * own year, so nothing here implies a proportional time axis it does not have. Without an event
- * the tile keeps its place: the reading says what «nessun afflusso» means for the number, which
- * is the fact the reader needs, not an empty cell.
+ * the tab does not draw the tile at all (§ 17 RCO7): the Traguardo's footer says «nessun afflusso».
  *
  * The footer is ONE line; the method (net real, deflated, the fund at today's value, the equal
  * segments) sits behind «Come si calcola» (`TileMethodNote`, 2026-09-23).
  */
 
-import { Landmark, LockOpen } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Landmark, LockOpen } from 'lucide-react';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { CoastInflowEvent } from '@/lib/utils/coastFireView';
 import { Tile } from '@/components/ui/tile';
@@ -36,16 +35,24 @@ interface AfflussiTileProps {
 const EVENT_ICON = {
   statePension: Landmark,
   pensionFund: LockOpen,
+  datedIn: ArrowDownLeft,
+  datedOut: ArrowUpRight,
 } as const;
 
+/** §17.6: past six events the rail shows six and a «+N» sign; the reading names them all. */
+const MAX_RAIL_EVENTS = 6;
+
 export function AfflussiTile({ reading, events, footer, method, className }: AfflussiTileProps) {
+  const shown = events.slice(0, MAX_RAIL_EVENTS);
+  const hidden = events.length - shown.length;
+  const eyebrow = events.some((event) => event.sign < 0) ? 'Afflussi e uscite' : 'Afflussi';
   return (
-    <Tile eyebrow="Afflussi" aside="in euro di oggi" reading={reading} ariaLabel="Afflussi già considerati" className={className}>
+    <Tile eyebrow={eyebrow} aside="in euro di oggi" reading={reading} ariaLabel="Afflussi già considerati" className={className}>
       {events.length > 0 && (
         <ol aria-label="Afflussi già considerati" className="mt-5 grid gap-5 tablet:grid-flow-col tablet:auto-cols-fr tablet:gap-0">
-          {events.map((event, index) => {
+          {shown.map((event, index) => {
             const Icon = EVENT_ICON[event.kind];
-            const isLast = index === events.length - 1;
+            const isLast = index === shown.length - 1;
             return (
               <li key={event.id} className="min-w-0 tablet:pr-5">
                 <div className="flex items-center gap-2">
@@ -71,6 +78,7 @@ export function AfflussiTile({ reading, events, footer, method, className }: Aff
           })}
         </ol>
       )}
+      {hidden > 0 && <p className="mt-3 font-mono text-[11px] tabular-nums text-muted-foreground">+{hidden} nella lettura</p>}
 
       <TileMethodNote subject="Afflussi già considerati" summary={<NarrativeSegments segments={footer} figureClassName="font-medium" />}>
         {method.map((paragraph) => (

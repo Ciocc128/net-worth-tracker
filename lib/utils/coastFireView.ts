@@ -41,7 +41,8 @@ import {
 // print "40.71%" beside "40,71%". The tests mock the Firebase chain chartService drags in.
 import { formatPercentage } from '@/lib/services/chartService';
 import { cachedFormatCurrencyEUR, formatDate } from '@/lib/utils/formatters';
-import { toDate } from '@/lib/utils/dateHelpers';
+import { getItalyYear, toDate } from '@/lib/utils/dateHelpers';
+import type { ResolvedFlow } from '@/lib/utils/datedFlows';
 import { articleForPercent } from '@/lib/utils/patrimonioNarrative';
 import type { Narrative, NarrativeSegment, PageVerdictModel } from '@/lib/utils/narrative';
 import type { FireLock } from '@/lib/utils/fireSummary';
@@ -410,6 +411,26 @@ export interface CoastTarget {
   futureValueAtRetirement: number;
   /** What the free capital must reach at the target age — net of the fund that re-enters. */
   retirementCapitalRequired: number;
+  /** §17 RCO2: the chart's own Base capital at the target age (the lumps included); the verdict and the stage read it. */
+  capitalAtRetirementOnCourse: number;
+  /** §17 RCO1–RCO3: today, at the target age, at steady state — the same walk seen at three dates. Empty-or-one stage = no strip. */
+  stages: CoastStage[];
+  /** Calendar year of the steady-state stage, or null without one. */
+  regimeCalendarYear: number | null;
+  withdrawalRate: number | null;
+  hasDatedFlows: boolean;
+}
+
+/** One stage of the Traguardo's strip (§ 17.5 RCO4): what is needed, what will be there, and the verdict on the pair. */
+export interface CoastStage {
+  key: 'today' | 'target' | 'regime';
+  label: string;
+  required: number;
+  /** «ne hai» (today) or «ne avrai» (later) — the free capital on course. */
+  onCourse: number;
+  enough: boolean;
+  /** `max(required − onCourse, 0)`; read only when `!enough`. */
+  shortfall: number;
 }
 
 export interface CoastTargetInput {
@@ -418,6 +439,20 @@ export interface CoastTargetInput {
   currentAge: number;
   retirementAge: number;
   isBridge: boolean;
+  /** Italian calendar year of today (the stage labels carry calendar years); defaults to now. */
+  currentYear?: number;
+  /** Percent; the strip's method line names it. */
+  withdrawalRate?: number;
+  /** Any dated flow the number counts: the method line says «più i flussi datati dopo il {anno}». */
+  hasDatedFlows?: boolean;
+}
+
+/** A stage is «enough» with the hero's half-euro tolerance (RCO4). */
+const STAGE_TOLERANCE = 0.5;
+
+function buildStage(key: CoastStage['key'], label: string, required: number, onCourse: number): CoastStage {
+  const enough = onCourse >= required - STAGE_TOLERANCE;
+  return { key, label, required, onCourse, enough, shortfall: enough ? 0 : required - onCourse };
 }
 
 /**
@@ -425,6 +460,16 @@ export interface CoastTargetInput {
  * not on the scenario itself — one ratio and one difference, exactly what the old hero did.
  */
 export function summarizeCoastTarget(base: CoastScenarioMetrics, input: CoastTargetInput): CoastTarget {
+  const currentYear = input.currentYear ?? getItalyYear();
+  const stages: CoastStage[] = [buildStage('today', 'Oggi', base.coastFireNumberToday, input.currentNetWorth)];
+  if (base.yearsToRetirement > 0) {
+    stages.push(buildStage('target', `A ${input.retirementAge} anni · ${currentYear + base.yearsToRetirement}`, base.retirementCapitalRequired, base.capitalAtRetirementOnCourse));
+  }
+  let regimeCalendarYear: number | null = null;
+  if (base.regimeYears > 0) {
+    regimeCalendarYear = currentYear + base.yearsToRetirement + base.regimeYears;
+    stages.push(buildStage('regime', `A regime · dal ${regimeCalendarYear}`, base.regimeCapitalRequired, base.capitalAtRegimeOnCourse));
+  }
   return {
     coastNumberToday: base.coastFireNumberToday,
     netWorth: input.currentNetWorth,
@@ -441,7 +486,21 @@ export function summarizeCoastTarget(base: CoastScenarioMetrics, input: CoastTar
     yearsToRetirement: base.yearsToRetirement,
     futureValueAtRetirement: base.futureValueAtRetirementWithoutNewContributions,
     retirementCapitalRequired: base.retirementCapitalRequired,
+    capitalAtRetirementOnCourse: base.capitalAtRetirementOnCourse,
+    stages,
+    regimeCalendarYear,
+    withdrawalRate: input.withdrawalRate ?? null,
+    hasDatedFlows: input.hasDatedFlows ?? false,
   };
+}
+
+/** The line under the strip's last cell: what «a regime» is, and that it is not the Calcolatore's number (D-CO4). */
+export function describeCoastRegimeMethod(target: CoastTarget): Narrative {
+  const year_ = target.regimeCalendarYear;
+  if (year_ === null) return [];
+  const swr: Narrative = target.withdrawalRate !== null ? [prose('A regime: spesa meno tutte le pensioni, diviso lo SWR del '), rate(target.withdrawalRate), prose(', nel '), year(year_)] : [prose('A regime: spesa meno tutte le pensioni, nel '), year(year_)];
+  const flows: Narrative = target.hasDatedFlows ? [prose(', più i flussi datati dopo il '), year(year_)] : [];
+  return [...swr, ...flows, prose(". Non è il numero FIRE del Calcolatore, che vale all'anno FIRE.")];
 }
 
 export interface CoastScenarioRow {
@@ -675,7 +734,7 @@ function capitalClause(target: CoastTarget, comparison: 'contro' | 'oltre'): Nar
     prose(' arriveresti a '),
     age(target.retirementAge),
     prose(' con '),
-    amount(target.futureValueAtRetirement),
+    amount(target.capitalAtRetirementOnCourse),
     prose(` di oggi, ${comparison} i `),
     amount(target.retirementCapitalRequired),
     prose(' richiesti'),
@@ -758,21 +817,9 @@ export function describeCoastTarget(target: CoastTarget): Narrative {
   ];
 }
 
-/** The caption beside the chip: the liquid read, then what the number is the discount of. */
+/** The caption beside the chip: the liquid read alone (§ 17.6) — the capital at the target age is a stage of the strip now. */
 export function describeCoastTargetCaption(target: CoastTarget): Narrative {
-  const liquid: Narrative = target.liquidNetWorth > 0 ? [percent(target.liquidProgressPct), prose(' con i soli liquidi · ')] : [];
-  if (target.yearsToRetirement <= 0) {
-    return [...liquid, amount(target.retirementCapitalRequired), prose(' richiesti oggi, a '), age(target.retirementAge)];
-  }
-  return [
-    ...liquid,
-    amount(target.retirementCapitalRequired),
-    prose(' richiesti a '),
-    age(target.retirementAge),
-    prose(', scontati al '),
-    rate(target.realReturnRate),
-    prose(' reale'),
-  ];
+  return target.liquidNetWorth > 0 ? [percent(target.liquidProgressPct), prose(' con i soli liquidi')] : [];
 }
 
 export interface CoastTargetFooterInput {
@@ -785,6 +832,8 @@ export interface CoastTargetFooterInput {
   lastProjectedYear: number;
   /** The savings pace, when the chart draws its dotted series. */
   pace: CoastPace | null;
+  /** §17 RCO7: no pension, no fund, no dated flow after the target — the line the vanished Afflussi tile leaves here. */
+  noInflows?: boolean;
 }
 
 /**
@@ -811,7 +860,10 @@ export function describeCoastTargetFooter(input: CoastTargetFooterInput): Narrat
     : input.pace.reached
       ? [prose(' Linea punteggiata: il base con il risparmio attuale fino al '), year(input.pace.reached.calendarYear), prose(', poi da solo.')]
       : [prose(' Linea punteggiata: il base con il risparmio attuale fino al target.')];
-  return [...head, ...lockPart, ...pacePart];
+  const noInflowsPart: Narrative = input.noInflows
+    ? [prose(' Nessun afflusso dopo il target: il portafoglio sostiene da solo tutta la spesa anche dopo i '), age(input.retirementAge), prose('.')]
+    : [];
+  return [...head, ...lockPart, ...pacePart, ...noInflowsPart];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -820,7 +872,9 @@ export function describeCoastTargetFooter(input: CoastTargetFooterInput): Narrat
 
 export interface CoastInflowEvent {
   id: string;
-  kind: 'statePension' | 'pensionFund';
+  kind: 'statePension' | 'pensionFund' | 'datedIn' | 'datedOut';
+  /** +1 money in, −1 money out (§ 17 RCO6); the pensions and the fund are +1. */
+  sign: 1 | -1;
   /** Calendar year the money starts arriving; drives the ordering. */
   year: number;
   title: string;
@@ -845,11 +899,13 @@ export function buildCoastInflowEvents(
   pensionBreakdown: CoastFIREPensionBreakdown[],
   pensionFundInflows: { yearsFromNow: number; amountToday: number }[],
   currentYear: number,
-  currentAge: number | null = null
+  currentAge: number | null = null,
+  datedFlows?: CoastDatedFlowsInput
 ): CoastInflowEvent[] {
   const statePensionEvents: CoastInflowEvent[] = pensionBreakdown.map((pension) => ({
     id: pension.id,
     kind: 'statePension',
+    sign: 1,
     year: pensionStartYear(pension, currentYear),
     title: pension.label,
     amount: formatAmount(pension.netAnnualRealAtStart),
@@ -865,6 +921,7 @@ export function buildCoastInflowEvents(
     return {
       id: `pension-fund-${index}`,
       kind: 'pensionFund',
+      sign: 1,
       year: currentYear + yearsFromNow,
       title: 'Sblocco fondo pensione',
       amount: formatAmount(inflow.amountToday),
@@ -874,7 +931,87 @@ export function buildCoastInflowEvents(
     };
   });
 
-  return [...statePensionEvents, ...fundEvents].sort((left, right) => left.year - right.year);
+  const datedEvents = datedFlows ? buildDatedFlowEvents(datedFlows, currentYear) : [];
+  return [...statePensionEvents, ...fundEvents, ...datedEvents].sort((left, right) => left.year - right.year);
+}
+
+/** What the Afflussi rail needs to place the dated flows the Coast number counts (§ 17 RCO5–RCO6). */
+export interface CoastDatedFlowsInput {
+  resolved: readonly ResolvedFlow[];
+  /** Base scenario inflation, percent: a fixed (non-indexed) amount is deflated to today's euro. */
+  inflationRate: number;
+  /** `T`: whole years to the target age. */
+  retirementYears: number;
+  retirementAge: number;
+}
+
+const signedAmount = (value: number, sign: 1 | -1): string => `${sign > 0 ? '+' : '−'}${formatAmount(value)}`;
+
+/**
+ * RCO5: exactly the flows the number counts — every lump from next year on, and every recurring flow active in at
+ * least one year AFTER the target (a recurring flow that ends by the target is the work's). RCO6: amounts in today's
+ * euro, an indexed one as typed, a fixed one divided by `(1+π)^s`; the mortgage's year is its own nominal instalment.
+ */
+function buildDatedFlowEvents(input: CoastDatedFlowsInput, currentYear: number): CoastInflowEvent[] {
+  const { retirementYears: target, retirementAge } = input;
+  const pi = input.inflationRate / 100;
+  const real = (flow: ResolvedFlow, nominalOrToday: number, s: number): number => (flow.indexed && !flow.yearly ? nominalOrToday : nominalOrToday / Math.pow(1 + pi, s));
+  const events: CoastInflowEvent[] = [];
+  for (const flow of input.resolved) {
+    if (flow.scope === 'saving') continue;
+    const isLump = flow.kind === 'lumpIn' || flow.kind === 'lumpOut';
+    const sign: 1 | -1 = flow.kind === 'lumpIn' || flow.kind === 'income' ? 1 : -1;
+    if (isLump) {
+      const s = flow.start;
+      if (flow.anchor !== 'fixed' || s < 1) continue;
+      const value = real(flow, flow.amount, s);
+      events.push({
+        id: `flow-${flow.id}`,
+        kind: sign > 0 ? 'datedIn' : 'datedOut',
+        sign,
+        year: currentYear + s,
+        title: flow.label,
+        amount: signedAmount(value, sign),
+        amountValue: value,
+        amountCaption: 'una tantum',
+        note: null,
+      });
+      continue;
+    }
+    let first: number;
+    let last: number | null;
+    let opened: number;
+    if (flow.yearly) {
+      const all = [...flow.yearly.keys()].sort((left, right) => left - right);
+      const years = all.filter((year) => year > target);
+      if (years.length === 0) continue;
+      opened = all[0];
+      first = years[0];
+      last = years[years.length - 1];
+    } else {
+      opened = flow.anchor === 'fire' ? target + 1 + flow.start : flow.start;
+      last = flow.durationYears === null ? null : opened + flow.durationYears - 1;
+      if (last !== null && last <= target) continue;
+      first = Math.max(opened, target + 1);
+    }
+    const nominal = flow.yearly ? (flow.yearly.get(first) ?? 0) : flow.amount;
+    const value = real(flow, nominal, first);
+    const notes: string[] = [];
+    if (first > opened) notes.push(`conta da ${retirementAge + 1} anni`);
+    notes.push(last === null ? 'per sempre' : `fino al ${currentYear + last}`);
+    events.push({
+      id: `flow-${flow.id}`,
+      kind: sign > 0 ? 'datedIn' : 'datedOut',
+      sign,
+      year: currentYear + first,
+      title: flow.label,
+      amount: signedAmount(value, sign),
+      amountValue: value,
+      amountCaption: "l'anno",
+      note: notes.join(' · '),
+    });
+  }
+  return events;
 }
 
 /**
@@ -887,7 +1024,10 @@ export function describeCoastInflows(events: CoastInflowEvent[], pensions: Coast
     return [prose('Nessun afflusso dopo il target: il portafoglio deve sostenere per intero le spese anche dopo i '), age(retirementAge), prose('.')];
   }
   const funds = events.filter((event) => event.kind === 'pensionFund');
-  const out: Narrative = [figure(String(events.length)), prose(events.length === 1 ? ' afflusso già scontato: ' : ' afflussi già scontati: ')];
+  const dated = events.filter((event) => event.kind === 'datedIn' || event.kind === 'datedOut');
+  // «afflussi già scontati» while the rail holds money in only; «voci già contate» once a dated flow joins it (§ 17.6).
+  const noun = dated.length > 0 ? (events.length === 1 ? ' voce già contata: ' : ' voci già contate: ') : events.length === 1 ? ' afflusso già scontato: ' : ' afflussi già scontati: ';
+  const out: Narrative = [figure(String(events.length)), prose(noun)];
 
   if (funds.length > 0) {
     out.push(prose(funds.length === 1 ? 'il fondo pensione rientra nel ' : 'i fondi pensione rientrano nel '));
@@ -902,17 +1042,27 @@ export function describeCoastInflows(events: CoastInflowEvent[], pensions: Coast
     out.push(...pensionList(pensions.entries), prose(pensions.count === 1 ? ' copre ' : ' coprono insieme '), amount(pensions.annualNetReal), prose(" netti l'anno"));
   }
 
+  if (dated.length > 0) {
+    out.push(prose(funds.length > 0 || pensions.count > 0 ? '; flussi datati: ' : 'flussi datati: '));
+    dated.forEach((event, index) => {
+      if (index > 0) out.push(prose(', '));
+      const recurring = event.amountCaption === "l'anno";
+      out.push(prose(`${event.title} ${recurring ? 'dal' : 'nel'} `), year(event.year), prose(` (${event.sign > 0 ? '+' : '−'}`), amount(event.amountValue), prose(recurring ? " l'anno)" : ')'));
+    });
+  }
+
   out.push(prose('.'));
   return out;
 }
 
 /** The ONE line that stays on the Afflussi tile; the method goes behind «Come si calcola». */
-export const COAST_INFLOWS_FOOTER: Narrative = [prose('Già scontati: per questo il numero Coast FIRE è più basso di un numero FIRE pieno.')];
+export const COAST_INFLOWS_FOOTER: Narrative = [prose('Già contati nel numero Coast FIRE: le entrate lo abbassano, le uscite lo alzano.')];
 
 /** The method behind «Come si calcola» on the Afflussi tile, one paragraph each. */
 export const COAST_INFLOWS_METHOD: readonly string[] = [
   'Ogni pensione statale entra dalla sua decorrenza, al netto IRPEF e deflazionata con lo scenario base: è la cifra netta reale che riduce il fabbisogno del portafoglio da quell\'anno.',
   'Il fondo pensione rientra al valore di oggi: il calcolo lo fa crescere da solo, quindi qui non è già cresciuto.',
+  'I flussi datati sono quelli di Il mio piano che il numero conta: le una tantum da qui al target e ogni flusso dopo il target. Le spese ricorrenti prima del target le copre il lavoro.',
   'L\'ordine è cronologico; i segmenti sono uguali per scelta, non una scala del tempo.',
 ];
 
@@ -1092,7 +1242,7 @@ export function describeTargetAndSteadyState(base: CoastScenarioMetrics, retirem
     prose(isBridge ? ' (fondo pensione escluso); a regime il fabbisogno è ' : '; a regime il fabbisogno è '),
     amount(base.annualPortfolioNeedAtSteadyState),
     prose(" l'anno, cioè "),
-    amount(base.steadyStatePortfolioNeed),
+    amount(base.regimeYears > 0 ? base.regimeCapitalRequired : base.steadyStatePortfolioNeed),
     prose(' al '),
     rate(withdrawalRate),
     prose('.'),
