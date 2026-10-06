@@ -12,6 +12,7 @@
  *
  *   Desktop (12 col): Traguardo(5, 2 rows) | Afflussi(7)
  *                                          | Scenari(7)
+ *   Without any inflow (§ 17 RCO7–RCO8) the Afflussi tile is not drawn: Traguardo(5) | Scenari(7).
  *   Mobile (1 col):   Traguardo → Afflussi → Scenari
  *
  * Below the grid, two disclosures: «Ipotesi» (the form — ages, expenses, state pensions, IRPEF
@@ -70,6 +71,7 @@ import {
   describeCoastEmptyTiles,
   describeCoastInflows,
   describeCoastScenarios,
+  describeCoastRegimeMethod,
   describeCoastTarget,
   describeCoastTargetCaption,
   describeCoastTargetFooter,
@@ -104,6 +106,7 @@ import { CoastDettaglio } from './coast/CoastDettaglio';
 import { CoastFireProjectionChart } from './CoastFireProjectionChart';
 
 /** The grid's geometry, for the skeleton: the same spans as the tiles below. */
+/** Three cells: the loading state does not know yet whether the Afflussi tile will exist. */
 const SKELETON_CELLS: TileSkeletonCell[] = [
   { span: 5, rows: 2, lines: 12 },
   { span: 7, lines: 5 },
@@ -116,6 +119,8 @@ const GRID_CLASS = 'grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-
 const TRAGUARDO_CELL = cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5 desktop:row-span-2');
 const AFFLUSSI_CELL = cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-7');
 const SCENARI_CELL = cn(TILE_CELL_CLASS, 'order-3 tablet:col-span-2 desktop:order-none desktop:col-span-7');
+/* Without the Afflussi tile the Traguardo is one row tall and the Scenari sits beside it. */
+const TRAGUARDO_ALONE_CELL = cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5');
 
 /** The one action of the empty state: a link (or a button) the size of a touch target, in the tile's own ink. */
 const EMPTY_ACTION_CLASS =
@@ -238,9 +243,9 @@ export function CoastFireTab() {
   const target = useMemo(
     () =>
       baseScenario && currentAge !== null
-        ? summarizeCoastTarget(baseScenario, { currentNetWorth, liquidNetWorth, currentAge, retirementAge: resolvedRetirementAge, isBridge })
+        ? summarizeCoastTarget(baseScenario, { currentNetWorth, liquidNetWorth, currentAge, retirementAge: resolvedRetirementAge, isBridge, currentYear, withdrawalRate, hasDatedFlows: resolvedFlows.length > 0 })
         : null,
-    [baseScenario, currentNetWorth, liquidNetWorth, currentAge, resolvedRetirementAge, isBridge],
+    [baseScenario, currentNetWorth, liquidNetWorth, currentAge, resolvedRetirementAge, isBridge, currentYear, withdrawalRate, resolvedFlows.length],
   );
   const annualSavings = cashflowData?.annualSavings;
   const pace = useMemo(
@@ -261,8 +266,17 @@ export function CoastFireTab() {
   const bridgeYears = baseScenario ? resolveCoastBridgeYears(baseScenario, resolvedRetirementAge) : 0;
   const sortedPensionBreakdown = useMemo(() => (baseScenario ? sortPensionBreakdown(baseScenario.pensionBreakdown) : []), [baseScenario]);
   const inflowEvents = useMemo(
-    () => buildCoastInflowEvents(sortedPensionBreakdown, pensionInflowsToday, currentYear, currentAge),
-    [sortedPensionBreakdown, pensionInflowsToday, currentYear, currentAge],
+    () =>
+      buildCoastInflowEvents(
+        sortedPensionBreakdown,
+        pensionInflowsToday,
+        currentYear,
+        currentAge,
+        coastProjection && resolvedFlows.length > 0
+          ? { resolved: resolvedFlows, inflationRate: scenarios.base.inflationRate, retirementYears: Math.round(coastProjection.scenarios.base.yearsToRetirement), retirementAge: resolvedRetirementAge }
+          : undefined,
+      ),
+    [sortedPensionBreakdown, pensionInflowsToday, currentYear, currentAge, coastProjection, resolvedFlows, scenarios.base.inflationRate, resolvedRetirementAge],
   );
   const emptyKind = resolveCoastEmptyKind(currentNetWorth, effectiveAnnualExpenses, currentAge, retirementAge);
   const incompleteReason = resolveCoastIncompleteReason(currentNetWorth, effectiveAnnualExpenses, currentAge, retirementAge);
@@ -338,6 +352,8 @@ export function CoastFireTab() {
     );
   }
 
+  // §17 RCO7: no event at all (pensions, fund, dated flows) = no tile; its one line moves to the Traguardo's footer.
+  const hasInflows = inflowEvents.length > 0;
   const lastPoint = coastProjection.projectionData[coastProjection.projectionData.length - 1];
 
   return (
@@ -348,8 +364,9 @@ export function CoastFireTab() {
       </div>
 
       <div className={GRID_CLASS}>
-        <div className={TRAGUARDO_CELL}>
+        <div className={hasInflows ? TRAGUARDO_CELL : TRAGUARDO_ALONE_CELL}>
           <CoastTraguardoTile
+            stagesMethod={describeCoastRegimeMethod(target)}
             reading={describeCoastTarget(target)}
             target={target}
             caption={describeCoastTargetCaption(target)}
@@ -369,18 +386,21 @@ export function CoastFireTab() {
               lock,
               lastProjectedYear: lastPoint?.calendarYear ?? currentYear,
               pace,
+              noInflows: !hasInflows,
             })}
           />
         </div>
 
-        <div className={AFFLUSSI_CELL}>
-          <AfflussiTile
-            reading={describeCoastInflows(inflowEvents, pensions, resolvedRetirementAge)}
-            events={inflowEvents}
-            footer={COAST_INFLOWS_FOOTER}
-            method={COAST_INFLOWS_METHOD}
-          />
-        </div>
+        {hasInflows && (
+          <div className={AFFLUSSI_CELL}>
+            <AfflussiTile
+              reading={describeCoastInflows(inflowEvents, pensions, resolvedRetirementAge)}
+              events={inflowEvents}
+              footer={COAST_INFLOWS_FOOTER}
+              method={COAST_INFLOWS_METHOD}
+            />
+          </div>
+        )}
 
         <div className={SCENARI_CELL}>
           <CoastScenariTile reading={describeCoastScenarios(scenarioRows)} rows={scenarioRows} footer={COAST_SCENARIOS_FOOTER} method={COAST_SCENARIOS_METHOD} />

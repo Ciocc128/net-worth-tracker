@@ -4,6 +4,8 @@
 
 ## ✨ New Features
 
+- FIRE › Coast FIRE: the Traguardo tile shows three stages of the same walk — today, at the target age, and at steady state (after the last pension) — each with what is needed, what you will have and what is missing, so the figure that used to sit in the Dettaglio is on the first screen. The verdict now quotes the same capital at the target age as the chart, even with an inheritance before it. The Afflussi tile lists the dated flows the Coast number counts (lumps and flows after the target age, entrates and uscite, «Afflussi e uscite» when one is an outflow) and disappears when there is nothing to list; its one line moves to the Traguardo's footer.
+
 - FIRE › Proiezione: the «numero FIRE» it compares the portfolio with is now the very figure of the Calcolatore, recomputed every year (flows over time, pensions, tax and the locked fund move it), drawn as a dashed line that follows the plan; each row of Tappe says the figure it was compared with. A figure typed in the field stays a straight line, and the new «Numero FIRE» button takes the field back to the plan's number. Tappe now comes right after the verdict, and the Distribuzione tile is gone (its sentence was already in the Ventaglio).
 
 - FIRE: the «Ipotesi usate» line above every tab is now a capital line and four chips — Rendimento, Costi, Spesa, Flussi — each opening a short explanation and a link to where it is changed (the Obiettivi say their flows count only in the effect on the FIRE). The Base di calcolo of the Calcolatore is a ledger: expenses ÷ SWR, then tax on withdrawals, state pensions, locked pension fund and dated flows, each row adding or taking off, adding up to the FIRE number to the euro.

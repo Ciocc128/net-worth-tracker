@@ -17,7 +17,7 @@ import type { CoastFIREPensionBreakdown } from '@/lib/services/fireService';
 import type { Narrative } from '@/lib/utils/narrative';
 import { formatAgeYears, formatYearCount, HOW_TO_READ_READING, PENSION_MODEL_READING, type CoastCoverageStep, type CoastScenarioMetrics } from '@/lib/utils/coastFireView';
 import { cachedFormatCurrencyEUR, formatDate } from '@/lib/utils/formatters';
-import { toDate } from '@/lib/utils/dateHelpers';
+import { getItalyYear, toDate } from '@/lib/utils/dateHelpers';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tile, TILE_CELL_CLASS, TILE_EYEBROW_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
@@ -68,6 +68,7 @@ export function CoastDettaglio({
 }: CoastDettaglioProps) {
   const [open, setOpen] = useState(false);
   const hasPensions = sortedPensionBreakdown.length > 0;
+  const currentYear = getItalyYear();
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -114,11 +115,11 @@ export function CoastDettaglio({
                 </div>
                 <div className="flex flex-col divide-y divide-border">
                   <p className={cn(TILE_SUB_EYEBROW_CLASS, 'pb-1')}>
-                    A regime{base.latestPensionStartDate ? ` · dal ${toDate(base.latestPensionStartDate).getFullYear()}` : ''}
+                    A regime{base.regimeYears > 0 ? ` · dal ${currentYear + base.yearsToRetirement + base.regimeYears}` : base.latestPensionStartDate ? ` · dal ${toDate(base.latestPensionStartDate).getFullYear()}` : ''}
                   </p>
                   <Row label="Pensione netta reale" value={compact(base.totalNetAnnualPensionAtSteadyState)} />
                   <Row label="Fabbisogno da portafoglio" value={compact(base.annualPortfolioNeedAtSteadyState)} />
-                  <Row label="Capitale a regime" value={compact(base.steadyStatePortfolioNeed)} emphasis />
+                  <Row label="Capitale a regime" value={compact(base.regimeYears > 0 ? base.regimeCapitalRequired : base.steadyStatePortfolioNeed)} emphasis />
                   <Row label="Ponte prima dell'ultima pensione" value={bridgeYears > 0 ? formatYearCount(bridgeYears) : 'Nessuno'} />
                 </div>
               </div>

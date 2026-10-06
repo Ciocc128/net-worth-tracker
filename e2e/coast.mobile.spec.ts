@@ -26,6 +26,14 @@ test('il tab Coast FIRE non scorre in orizzontale a 390px', async ({ page }) => 
   await expect(page.getByRole('region', { name: 'Afflussi già considerati' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Scenari Coast FIRE' })).toBeVisible();
 
+  // Le tre tappe del Traguardo restano tutte, impilate una sotto l'altra (D-CO7).
+  const stages = page.getByRole('region', { name: 'Traguardo Coast FIRE' }).getByRole('list', { name: 'Tappe del Coast FIRE' }).getByRole('listitem');
+  await expect(stages).toHaveCount(3);
+  const boxes = await stages.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect()).map((rect) => ({ top: rect.top, left: rect.left })));
+  expect(new Set(boxes.map((box) => Math.round(box.left))).size).toBe(1);
+  expect(boxes[0].top).toBeLessThan(boxes[1].top);
+  expect(boxes[1].top).toBeLessThan(boxes[2].top);
+
   for (const label of DISCLOSURES) {
     const trigger = page.getByRole('button', { name: label });
     if ((await trigger.count()) > 0 && (await trigger.first().getAttribute('data-state')) === 'closed') {

@@ -325,12 +325,10 @@ describe('coastFireView — the Traguardo tile', () => {
     );
   });
 
-  it('should caption the chip with the liquid read and what the number discounts', () => {
-    const { target, base } = buildTarget();
-    expect(plain(describeCoastTargetCaption(target))).toBe(
-      `${formatPercentage(target.liquidProgressPct, 1)} con i soli liquidi · ${euro(base.retirementCapitalRequired)} richiesti a 60 anni, scontati al 4,39% reale`
-    );
-    expect(plain(describeCoastTargetCaption({ ...target, liquidNetWorth: 0 }))).not.toContain('liquidi');
+  it('should caption the chip with the liquid read alone — the target-age capital is a stage of the strip now', () => {
+    const { target } = buildTarget();
+    expect(plain(describeCoastTargetCaption(target))).toBe(`${formatPercentage(target.liquidProgressPct, 1)} con i soli liquidi`);
+    expect(plain(describeCoastTargetCaption({ ...target, liquidNetWorth: 0 }))).toBe('');
   });
 
   it('should name the step in the footer only when the unlock is on the plot', () => {

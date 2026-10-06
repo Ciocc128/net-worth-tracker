@@ -18,10 +18,14 @@
  */
 
 import type { ReactNode } from 'react';
+import { Check } from 'lucide-react';
 import type { Narrative } from '@/lib/utils/narrative';
-import type { CoastTarget } from '@/lib/utils/coastFireView';
+import type { CoastStage, CoastTarget } from '@/lib/utils/coastFireView';
 import { cn } from '@/lib/utils';
 import { formatPercentage } from '@/lib/services/chartService';
+import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
+
+const formatCurrencyEUR = (value: number): string => cachedFormatCurrencyEUR(Math.round(value), true);
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
 import { resolveHeroValueClass } from '@/components/dashboard/overview/PatrimonioTile';
@@ -37,10 +41,12 @@ interface CoastTraguardoTileProps {
   chart: ReactNode;
   /** `describeCoastTargetFooter(...)` — the dashed line in words. */
   footer: Narrative;
+  /** `describeCoastRegimeMethod(target)` — the line under the strip's last cell. */
+  stagesMethod?: Narrative;
   className?: string;
 }
 
-export function CoastTraguardoTile({ reading, target, caption, chart, footer, className }: CoastTraguardoTileProps) {
+export function CoastTraguardoTile({ reading, target, caption, chart, footer, stagesMethod, className }: CoastTraguardoTileProps) {
   const heroValue = target.reached ? target.surplus : target.gap;
   const fill = Math.min(100, Math.max(0, target.progressPct));
 
@@ -67,7 +73,7 @@ export function CoastTraguardoTile({ reading, target, caption, chart, footer, cl
           <SettledPercentageValue value={target.progressPct} />
           <span>del numero Coast FIRE</span>
         </span>
-        <NarrativeText segments={caption} className="min-w-0 text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
+        {caption.length > 0 && <NarrativeText segments={caption} className="min-w-0 text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />}
       </div>
       <div
         className="mt-2.5 h-[3px] overflow-hidden rounded-full bg-muted"
@@ -82,6 +88,20 @@ export function CoastTraguardoTile({ reading, target, caption, chart, footer, cl
         <div className={cn('h-full rounded-full', target.reached ? 'bg-positive' : 'bg-[var(--scenario-base)]')} style={{ width: `${fill}%` }} />
       </div>
 
+      {/* §17.6: the same walk at three dates. One margin grows at the real return, so the cells agree; each is read for itself. */}
+      {target.stages.length > 1 && (
+        <div className="mt-4">
+          <ol aria-label="Tappe del Coast FIRE" className="grid grid-cols-1 gap-3 [@media(min-width:640px)]:grid-flow-col [@media(min-width:640px)]:auto-cols-fr [@media(min-width:640px)]:gap-4">
+            {target.stages.map((stage) => (
+              <StageCell key={stage.key} stage={stage} past={stage.key === 'today'} />
+            ))}
+          </ol>
+          {stagesMethod && stagesMethod.length > 0 && (
+            <NarrativeText segments={stagesMethod} className="mt-2.5 text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
+          )}
+        </div>
+      )}
+
       {/* The chart stretches with the tile's free height: the SVG's 100% height resolves
           against the absolutely positioned box, never against its own ratio. */}
       <div className="relative mt-4 min-h-[240px] flex-1">
@@ -90,5 +110,29 @@ export function CoastTraguardoTile({ reading, target, caption, chart, footer, cl
 
       <NarrativeText segments={footer} className="mt-3.5 border-t border-border pt-3.5 text-[11px] leading-[1.45] text-muted-foreground" figureClassName="font-medium" />
     </Tile>
+  );
+}
+
+function StageCell({ stage, past }: { stage: CoastStage; past: boolean }) {
+  return (
+    <li className="min-w-0 border-t border-border pt-2.5">
+      <p className={TILE_SUB_EYEBROW_CLASS}>{stage.label}</p>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        servono <span className="font-mono text-[13px] font-semibold tabular-nums text-foreground">{formatCurrencyEUR(stage.required)}</span>
+      </p>
+      <p className="text-[11px] text-muted-foreground">
+        {past ? 'ne hai' : 'ne avrai'} <span className="font-mono text-[13px] font-semibold tabular-nums text-foreground">{formatCurrencyEUR(stage.onCourse)}</span>
+      </p>
+      {stage.enough ? (
+        <p className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-positive">
+          <Check className="h-3 w-3" aria-hidden="true" />
+          basta
+        </p>
+      ) : (
+        <p className="mt-0.5 text-[11px] text-foreground">
+          mancano <span className="font-mono font-semibold tabular-nums">{formatCurrencyEUR(stage.shortfall)}</span>
+        </p>
+      )}
+    </li>
   );
 }

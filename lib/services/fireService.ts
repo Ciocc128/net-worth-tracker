@@ -128,6 +128,13 @@ export interface CoastFIREMetrics {
   latestPensionStartAge: number;
   latestPensionStartDate: string | null;
   isCoastReached: boolean;
+  // §17 RCO2: the capital the Base series of the chart holds at the target age (the lumps included): `R_T + M·(1+r)^T`,
+  // `M` = free capital − the Coast number. One margin, three dates: see RCO3.
+  capitalAtRetirementOnCourse: number;
+  // §17 RCO3: the third stage, at the end of the bridge `H` years after the target (0 = no pension and no unlock after it).
+  regimeYears: number;
+  regimeCapitalRequired: number;
+  capitalAtRegimeOnCourse: number;
 }
 
 export interface CoastFIREPensionBreakdown {
@@ -198,6 +205,9 @@ interface CoastFIRERetirementNeeds {
   latestPensionStartAge: number;
   latestPensionStartDate: string | null;
   pensionBreakdown: CoastFIREPensionBreakdown[];
+  // §17 RCO3: the walk's horizon `H` and the fund inflow that lands on it (read-only extras, no calculation changes).
+  walkYears: number;
+  inflowAtHorizon: number;
 }
 
 /**
@@ -1129,6 +1139,8 @@ export function buildCoastFIRERetirementNeeds(
   }
 
   return {
+    walkYears,
+    inflowAtHorizon: inflowsByYear.get(walkYears) ?? 0,
     retirementCapitalRequired,
     steadyStatePortfolioNeed,
     totalNetAnnualPensionAtRetirement,
@@ -1224,7 +1236,40 @@ export function calculateCoastFIREMetrics(
     coastFireNumberToday > 0 ? (currentNetWorth / coastFireNumberToday) * 100 : 0;
   const gapToCoastFI = Math.max(coastFireNumberToday - currentNetWorth, 0);
 
+  // §17 RCO2–RCO3: one margin M = X − C grows at the real return, so each stage's «ne avrai» is «servono + M·(1+r)^t».
+  const growth = 1 + realReturnRate / 100;
+  const margin = currentNetWorth - coastFireNumberToday;
+  const capitalAtRetirementOnCourse = fireNumberAtRetirement + margin * Math.pow(growth, yearsToRetirement);
+  const regimeYears = retirementNeeds.walkYears;
+  let regimeCapitalRequired = 0;
+  let capitalAtRegimeOnCourse = 0;
+  if (regimeYears > 0) {
+    let regimeAdjustment = 0;
+    if (schedule) {
+      const target = Math.round(yearsToRetirement);
+      const horizonYear = target + regimeYears;
+      const allPensions = retirementNeeds.pensionBreakdown.reduce((sum, pension) => sum + pension.netAnnualRealAtStart, 0);
+      regimeAdjustment = flowsRequirementAdjustment({
+        schedule,
+        retirementYear: horizonYear,
+        expensesAtRetirement: annualExpenses,
+        realReturnRate: flowsRealReturnRate ?? realReturnRate,
+        withdrawalRate,
+        taxMultiplier: portfolioNeedMultiplier,
+        pensionNetAt: () => allPensions,
+        pensionHorizon: 0,
+        scale: Math.pow(1 + inflationRate / 100, -horizonYear),
+      });
+    }
+    regimeCapitalRequired = Math.max(retirementNeeds.steadyStatePortfolioNeed - retirementNeeds.inflowAtHorizon, 0) + regimeAdjustment;
+    capitalAtRegimeOnCourse = regimeCapitalRequired + margin * Math.pow(growth, yearsToRetirement + regimeYears);
+  }
+
   return {
+    capitalAtRetirementOnCourse,
+    regimeYears,
+    regimeCapitalRequired,
+    capitalAtRegimeOnCourse,
     yearsToRetirement,
     fireNumberAtRetirement,
     coastFireNumberToday,

@@ -2836,3 +2836,8 @@ thread sul computer del proprietario.
 | Con i flussi datati «ne avrai a regime» non è una simulazione in avanti. | Definizione per margine dichiarata (D-CO3); senza flussi coincide (CO2). |
 | La tessera Afflussi che sparisce rompe `coast.degraded.spec.ts` / `coast.mobile.spec.ts`. | La tessera sparisce solo con la proiezione; lo stato «niente registrato» la tiene (§ 17.3); le spec si rileggono sul Mac. |
 | Merge con upstream su `fireService.ts` e i file di Coast. | Campi nuovi in coda, nessuna firma cambiata; voce in `doc/guide/fork-scelte-ui.md`. |
+
+### 17.11 Esito del task CO1 (06/10/2026, thread «impl», Sonnet 5.5)
+
+Implementato come da §§ 17.5–17.9: `fireService` (`walkYears`/`inflowAtHorizon` dalla camminata, quattro campi nuovi in `CoastFIREMetrics`), `coastFireView` (`CoastStage`, `describeCoastRegimeMethod`, eventi `datedIn`/`datedOut` con `sign`, verdetto su `Y_T`, didascalia, piede RCO7), tessere Traguardo (striscia, impilata sotto i 640px) e Afflussi (occhiello, sei eventi e «+N»), griglia RCO8, Dettaglio su `S_H`. Test: `__tests__/coastStages.test.ts` (CO1–CO11, i valori di § 17.8 a ± 0,01 €) e `coastFireView.test.ts` aggiornato (didascalia). Verificato: `tsc` e `eslint` puliti; Vitest sotto `Europe/Rome` tutto verde tranne `weightOptimizer` (timeout di 5 s nel container, rosso anche su `main`). **Non eseguite**: le spec Playwright `e2e/coast*.spec.ts` e il giro visivo (restano sul Mac di Giorgio).
+
