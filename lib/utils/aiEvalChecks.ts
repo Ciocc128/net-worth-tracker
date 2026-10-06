@@ -15,6 +15,10 @@
  *               prompt does not carry (macro context, Hall of Fame, …).
  *   - italian   no other script, no English prose, no leaked reasoning.
  *
+ * And three more on a bundle that carries the vault (F6, the second round — see «The Wiki» below):
+ * macro facts cited with their subject, no figure crossing between macro and portfolio, every
+ * named principle in the digest.
+ *
  * The prompt mixes two number conventions — the email's own blocks are it-IT («1.234 €»,
  * «−3,6 p.p.»), some of the assistant's bundle uses `toFixed` («3.6 p.p.») — so an ambiguous
  * token is read BOTH ways and a figure matches if either reading does.
@@ -27,8 +31,14 @@ export interface Figure {
   unit: FigureUnit;
   /** Every plausible reading of the number (absolute values; the sign is not compared). */
   values: number[];
-  /** Half the unit of the last written digit: how far rounding may have moved it. */
+  /** Half the unit of the last written digit: how far rounding may have moved it (the widest reading's). */
   tolerance: number;
+  /**
+   * The tolerance of each reading, paired with `values`. «3.688» read as 3,688 has 0,0005, read
+   * as 3.688 has 0,5: until 2026-10-05 the widest one applied to both, so «€3.688» matched any
+   * «4 €» of the prompt and an invented sum passed (found in F6 by reading, not by the check).
+   */
+  tolerances: number[];
 }
 
 export interface CheckResult {
@@ -37,15 +47,23 @@ export interface CheckResult {
   details: string[];
 }
 
-export type EvalCheckId = 'figures' | 'words' | 'form' | 'promises' | 'italian';
+export type EvalCheckId = 'figures' | 'words' | 'form' | 'promises' | 'italian' | 'macro' | 'crossover' | 'principles';
 
-export type EvalChecks = Record<EvalCheckId, CheckResult>;
+/** The five F2 checks always; the three Wiki checks (F6) only on a bundle that carried the vault. */
+export type EvalChecks = Record<'figures' | 'words' | 'form' | 'promises' | 'italian', CheckResult> &
+  Partial<Record<'macro' | 'crossover' | 'principles', CheckResult>>;
 
 export interface EvalBundleContract {
   kind: 'periodic' | 'weekly';
   wordLimit: number;
   /** Yearly email whose two comparisons coincide: sections 3 and 4 may be one. */
   comparisonsMerged?: boolean;
+  /**
+   * The periodic contract the bundle was frozen with: the six fixed sections (F2, F6; the default,
+   * so an old bundle reads as it was written) or the narrative letter of F6b — 3-5 headings of the
+   * model's own, no lists (lib/server/assistant/prompts.ts, owner 2026-10-06).
+   */
+  form?: 'sections' | 'narrative';
 }
 
 // ─── Figures ────────────────────────────────────────────────────────────────────────────────
@@ -140,20 +158,19 @@ export function extractFigures(text: string): Figure[] {
       const readings = readNumber(match[numberGroup]);
       if (readings.length === 0) continue;
       taken.push([start, end]);
-      const tolerance = Math.max(
-        ...readings.map((reading) => {
-          // «5.000 €» may be a rounded 5.240: trailing zeros of an integer widen the tolerance.
-          const trailingZeros =
-            reading.decimals === 0 && reading.value !== 0 ? (String(reading.value).match(/0+$/)?.[0].length ?? 0) : 0;
-          const unitOfLastDigit = reading.decimals > 0 ? 10 ** -reading.decimals : 10 ** trailingZeros;
-          return (unitOfLastDigit / 2) * factor;
-        })
-      );
+      const tolerances = readings.map((reading) => {
+        // «5.000 €» may be a rounded 5.240: trailing zeros of an integer widen the tolerance.
+        const trailingZeros =
+          reading.decimals === 0 && reading.value !== 0 ? (String(reading.value).match(/0+$/)?.[0].length ?? 0) : 0;
+        const unitOfLastDigit = reading.decimals > 0 ? 10 ** -reading.decimals : 10 ** trailingZeros;
+        return (unitOfLastDigit / 2) * factor;
+      });
       figures.push({
         raw: match[0].trim(),
         unit,
         values: readings.map((reading) => Math.abs(reading.value * factor)),
-        tolerance,
+        tolerance: Math.max(...tolerances),
+        tolerances,
       });
     }
   }
@@ -178,7 +195,9 @@ export function checkFigures(text: string, prompt: string): CheckResult {
     // Zero is never an invented figure («0 €», «0,0 p.p.»).
     if (figure.values.every((value) => value === 0)) continue;
     const pool = promptValues[figure.unit];
-    const found = figure.values.some((value) => pool.some((candidate) => Math.abs(candidate - value) <= figure.tolerance + EPSILON));
+    const found = figure.values.some((value, i) =>
+      pool.some((candidate) => Math.abs(candidate - value) <= figure.tolerances[i] + EPSILON)
+    );
     if (!found) details.push(figure.raw);
   }
   return { pass: details.length === 0, details };
@@ -260,7 +279,19 @@ function checkWeeklyForm(text: string): CheckResult {
 }
 
 export function checkForm(text: string, contract: EvalBundleContract): CheckResult {
-  return contract.kind === 'weekly' ? checkWeeklyForm(text) : checkPeriodicSections(text, Boolean(contract.comparisonsMerged));
+  if (contract.kind === 'weekly') return checkWeeklyForm(text);
+  return contract.form === 'narrative' ? checkNarrativeForm(text) : checkPeriodicSections(text, Boolean(contract.comparisonsMerged));
+}
+
+/** The F6b letter: 3-5 markdown headings and no list — the contract's «Forma». */
+export function checkNarrativeForm(text: string): CheckResult {
+  const lines = text.split('\n').map((line) => line.trim());
+  const headings = lines.filter((line) => /^#{1,6}\s+\S/.test(line)).length;
+  const listItems = lines.filter((line) => /^([-*•]|\d+[.)])\s+\S/.test(line)).length;
+  const details: string[] = [];
+  if (headings < 3 || headings > 5) details.push(`${headings} titoletti invece di 3-5`);
+  if (listItems > 0) details.push(`${listItems} ${listItems === 1 ? 'riga' : 'righe'} di elenco`);
+  return { pass: details.length === 0, details };
 }
 
 // ─── Promises of absent blocks ──────────────────────────────────────────────────────────────
@@ -335,18 +366,254 @@ export function checkItalian(text: string): CheckResult {
   return { pass: details.length === 0, details };
 }
 
+// ─── The Wiki (F6, second round) ────────────────────────────────────────────────────────────
+//
+// Three checks for a prompt that carries the vault (F5): the macro month pages at the end of the
+// user message, the Principles digest at the end of the system block. All three are anchored to
+// FIGURES, the one thing code can trace back to a source: a figure of the comment is «macro» when
+// only the macro pages hold it, «portfolio» when only the rest of the prompt does, and ambiguous —
+// left alone — when both do. A macro fact cited without a figure is not checked: that reading is
+// the owner's (doc/ai-open-models-wiki.md § 7.4).
+
+/** What the prompt carried from the vault, exactly as it went in. */
+export interface EvalWikiContext {
+  /** The CONTESTO MACRO block of the user message; null when the period had no page. */
+  macro: string | null;
+  /** The Principles digest of the system block; null when it was not sent. */
+  principles: string | null;
+}
+
+/**
+ * Words that name a macro subject even in lower case: a rate, an index, a commodity, a central
+ * bank. «euro» is left out on purpose — «in euro» is a currency, not a subject.
+ */
+const MACRO_SUBJECT_WORDS = [
+  'decennale', 'trentennale', 'biennale', 'treasury', 'bund', 'btp', 'oat', 'gilt', 'spread', 'inflazione', 'core',
+  'headline', 'disoccupazione', 'occupazione', 'pil', 'gdpnow', 'pmi', 'manifattura', 'brent', 'wti', 'petrolio',
+  'benzina', 'diesel', 'oro', 'bitcoin', 'yen', 'dollaro', 'sterlina', 'fed', 'bce', 'boj', 'msci', 's&p', 'nasdaq',
+  'stoxx', 'nikkei', 'ftse', 'dax', 'cac', 'utili', 'earnings', 'debito', 'deficit', 'tesoro', 'futures', 'bond',
+];
+
+/**
+ * The subjects that put a sentence on the MARKET's side whatever the page says — a figure given
+ * to the Fed is the market's even when the month's page never names the Fed. Only words with no
+ * second meaning in a household's money: «utili», «debito», «core» stay out.
+ */
+const MARKET_SUBJECTS = [
+  'decennale', 'trentennale', 'treasury', 'bund', 'btp', 'oat', 'spread', 'inflazione', 'disoccupazione', 'pil', 'pmi',
+  'brent', 'petrolio', 'fed', 'bce', 'boj', 'msci', 's&p', 'nasdaq', 'stoxx', 'nikkei', 'ftse', 'dax',
+];
+
+/** Lower-case tokens a subject comparison ignores: function words, units, time. */
+const GENERIC_WORDS = new Set([
+  'il', 'lo', 'la', 'le', 'gli', 'un', 'una', 'uno', 'di', 'da', 'in', 'su', 'per', 'con', 'tra', 'fra', 'del', 'dello',
+  'della', 'dei', 'degli', 'delle', 'dal', 'dalla', 'nel', 'nella', 'nei', 'sul', 'sulla', 'al', 'alla', 'ai', 'agli',
+  'che', 'chi', 'non', 'più', 'meno', 'come', 'anche', 'ancora', 'già', 'solo', 'quasi', 'circa', 'oltre', 'sopra',
+  'sotto', 'verso', 'dopo', 'prima', 'mentre', 'quando', 'se', 'ma', 'ed', 'e', 'o', 'è', 'era', 'sono', 'ha', 'hanno',
+  'stato', 'stata', 'mese', 'mesi', 'anno', 'anni', 'settimana', 'giorno', 'giorni', 'oggi', 'ieri', 'punti', 'punto',
+  'base', 'percentuale', 'livello', 'massimo', 'minimo', 'massimi', 'minimi', 'volta', 'sempre', 'inizio', 'fine',
+  'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre',
+  'dicembre', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato', 'domenica', 'questo', 'questa',
+  'quello', 'quella', 'suo', 'sua', 'loro', 'nostro', 'mio', 'tuo', 'tua', 'cui', 'qui', 'lì', 'poi', 'così',
+]);
+
+/** Words that put a sentence on the PORTFOLIO's side: the owner's money, plan and classes. */
+const PORTFOLIO_MARKERS =
+  /\b(portafoglio|patrimonio|tu[oaei]|hai|conto|liquidità|etf|pac|risparmi[oa]?|entrate|spese|uscite|budget|allocazion[ei]|target|quot[ae]|ribilanci\w*|acquist\w*|versament\w*|twr)\b/i;
+
+/** Sentences of a comment: a line break or end punctuation followed by a new sentence. */
+export function splitSentences(text: string): string[] {
+  return text
+    .split(/\n+|(?<=[.!?;])\s+(?=[\p{Lu}«"“*(\-–—])/u)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => /[\p{L}\p{N}]/u.test(sentence));
+}
+
+function tokens(text: string): string[] {
+  return (text.match(/[\p{L}\p{N}&]+/gu) ?? []).filter((token) => !/^\d+$/.test(token));
+}
+
+/**
+ * The subject of a macro line: its capitalised names («Fed», «S&P», «Stati Uniti»), the subject
+ * words it contains, and — for a line with neither, like a decoy «indice fenicottero» — every
+ * content word it has. Lower case.
+ */
+export function subjectTokens(line: string): string[] {
+  const all = tokens(line.replace(/[’']/g, ' '));
+  const named = all.filter((token) => /^\p{Lu}/u.test(token) && !GENERIC_WORDS.has(token.toLowerCase()));
+  const lower = all.map((token) => token.toLowerCase());
+  const subjects = new Set([...named.map((token) => token.toLowerCase()), ...lower.filter((token) => MACRO_SUBJECT_WORDS.includes(token))]);
+  if (subjects.size === 0) {
+    for (const token of lower) if (token.length >= 4 && !GENERIC_WORDS.has(token)) subjects.add(token);
+  }
+  for (const { re, aliases } of SUBJECT_ALIASES) if (re.test(line)) aliases.forEach((alias) => subjects.add(alias));
+  return [...subjects];
+}
+
+/**
+ * Names a page writes one way and a comment another: the index table's «MSCI All Country World»
+ * is «ACWI» in prose, a country tag is its adjective («Stati Uniti» → «americano»). Read on the
+ * first paid run of F6 (2026-10-05), where both were flagged as a missing subject.
+ */
+const SUBJECT_ALIASES: Array<{ re: RegExp; aliases: string[] }> = [
+  { re: /all\s+country\s+world/i, aliases: ['acwi'] },
+  { re: /stati\s+uniti/i, aliases: ['americano', 'usa'] },
+  { re: /eurozona|europa/i, aliases: ['europeo', 'eurozona'] },
+  { re: /\bitalia\b/i, aliases: ['italiano'] },
+  { re: /\bfrancia\b/i, aliases: ['francese'] },
+  { re: /\bgiappone\b/i, aliases: ['giapponese'] },
+  { re: /regno\s+unito/i, aliases: ['britannico'] },
+  { re: /\bgermania\b/i, aliases: ['tedesco'] },
+];
+
+/**
+ * Whether the sentence names the subject: a whole word, or — for a word of six letters or more —
+ * the same word with another ending («decennale» / «decennali», «americano» / «americani»).
+ */
+function mentions(sentence: string, subject: string): boolean {
+  const stem = subject.length >= 6 ? subject.slice(0, -1) : subject;
+  // `&` («S&P») needs no escape, and under the `u` flag an unneeded escape is a SyntaxError.
+  const escaped = stem.replace(/[.*+?^${}()|[\]\\]/g, (c) => `\\${c}`);
+  const tail = stem === subject ? '($|[^\\p{L}\\p{N}])' : '\\p{L}{0,2}($|[^\\p{L}\\p{N}])';
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}${tail}`, 'iu').test(sentence.replace(/[’']/g, ' '));
+}
+
+function matchesAny(figure: Figure, pool: Figure[]): boolean {
+  return pool.some(
+    (candidate) =>
+      candidate.unit === figure.unit &&
+      figure.values.some((value, i) => candidate.values.some((other) => Math.abs(other - value) <= figure.tolerances[i] + EPSILON))
+  );
+}
+
+interface TracedFigure {
+  figure: Figure;
+  sentence: string;
+  origin: 'macro' | 'portfolio' | 'both' | 'none';
+  /** The macro lines (facts, theses, index rows) that hold the figure. */
+  macroLines: string[];
+}
+
+/** Every figure of the comment, with its sentence and where in the prompt it can come from. */
+export function traceFigures(text: string, prompt: string, macro: string): TracedFigure[] {
+  const data = prompt.split(macro).join('\n');
+  const dataFigures = extractFigures(data);
+  const lines = macro.split('\n').filter((line) => /^\s*[-|]/.test(line));
+  const lineFigures = lines.map((line) => ({ line, figures: extractFigures(line) }));
+  const traced: TracedFigure[] = [];
+  for (const sentence of splitSentences(text)) {
+    for (const figure of extractFigures(sentence)) {
+      if (figure.values.every((value) => value === 0)) continue;
+      const macroLines = lineFigures.filter(({ figures }) => matchesAny(figure, figures)).map(({ line }) => line);
+      const inData = matchesAny(figure, dataFigures);
+      const origin = macroLines.length > 0 ? (inData ? 'both' : 'macro') : inData ? 'portfolio' : 'none';
+      traced.push({ figure, sentence, origin, macroLines });
+    }
+  }
+  return traced;
+}
+
+/**
+ * Every macro figure of the comment is cited with ITS subject: the sentence names something the
+ * page's line with that figure names. The F5 collaudo's slip — the decoy «indice fenicottero
+ * +3,7%» cited as «Bloomberg Euro momentum su +3,7%» — fails here.
+ */
+export function checkMacroFacts(text: string, prompt: string, wiki: EvalWikiContext): CheckResult {
+  if (!wiki.macro) return { pass: true, details: [] };
+  const details: string[] = [];
+  for (const { figure, sentence, origin, macroLines } of traceFigures(text, prompt, wiki.macro)) {
+    // A macro figure in a sentence about the owner's money is `checkCrossover`'s: counted once.
+    if (origin !== 'macro' || PORTFOLIO_MARKERS.test(sentence)) continue;
+    const subjects = macroLines.flatMap(subjectTokens);
+    if (!subjects.some((subject) => mentions(sentence, subject))) {
+      details.push(`${figure.raw} senza il suo soggetto («${sentence.slice(0, 90)}»)`);
+    }
+  }
+  return { pass: details.length === 0, details };
+}
+
+/**
+ * No figure crosses sides: a figure only the macro pages hold, in a sentence about the owner's
+ * money that names no macro subject, is a macro figure presented as the portfolio's; a figure
+ * only the data holds, in a sentence that names a macro subject and nothing of the portfolio, is
+ * the portfolio's presented as the market's.
+ */
+export function checkCrossover(text: string, prompt: string, wiki: EvalWikiContext): CheckResult {
+  if (!wiki.macro) return { pass: true, details: [] };
+  const details: string[] = [];
+  for (const { figure, sentence, origin, macroLines } of traceFigures(text, prompt, wiki.macro)) {
+    const onPortfolio = PORTFOLIO_MARKERS.test(sentence);
+    if (origin === 'macro' && onPortfolio && !macroLines.flatMap(subjectTokens).some((subject) => mentions(sentence, subject))) {
+      details.push(`cifra macro come del portafoglio: ${figure.raw}`);
+    }
+    // Only a rate or a share can pass for the market's: the pages hold no euro amounts, and the
+    // owner's instruments carry index names («… MSCI World», «BTP …») that a euro sentence names.
+    if (
+      origin === 'portfolio' &&
+      figure.unit !== 'eur' &&
+      !onPortfolio &&
+      MARKET_SUBJECTS.some((subject) => mentions(sentence, subject))
+    ) {
+      details.push(`cifra del portafoglio come macro: ${figure.raw}`);
+    }
+  }
+  return { pass: details.length === 0, details };
+}
+
+/** «…», "…", “…”, **…** and *…*: how a comment names a principle. */
+const NAMED_SPAN = /«([^»]+)»|"([^"]+)"|“([^”]+)”|\*\*([^*]+)\*\*|\*([^*\n]+)\*/g;
+
+/** Share of a name's content words the digest must hold for the name to be the digest's. */
+const PRINCIPLE_OVERLAP = 0.6;
+
+function normalizeWords(text: string): string[] {
+  return tokens(text.toLowerCase().replace(/[’']/g, ' ').normalize('NFD').replace(/\p{M}/gu, '')).filter(
+    (token) => token.length >= 4 && !GENERIC_WORDS.has(token)
+  );
+}
+
+/**
+ * Every principle the comment names exists in the digest: a quoted or bold span in a sentence
+ * that speaks of a «principio» must share most of its words with the digest. A comment that
+ * names a principle when no digest was sent fails too — it is a block the prompt did not carry.
+ */
+export function checkPrinciples(text: string, wiki: EvalWikiContext): CheckResult {
+  const digestWords = new Set(normalizeWords(wiki.principles ?? ''));
+  const details: string[] = [];
+  for (const sentence of splitSentences(text)) {
+    if (!/\bprincip(io|i)\b/i.test(sentence)) continue;
+    // A section heading that happens to be bold is not a name: only spans inside a sentence count.
+    for (const match of sentence.matchAll(NAMED_SPAN)) {
+      const name = (match[1] ?? match[2] ?? match[3] ?? match[4] ?? match[5]).trim();
+      const words = normalizeWords(name);
+      if (words.length === 0 || /\bprincip(io|i)\b/i.test(name)) continue;
+      if (!wiki.principles) {
+        details.push(`principio senza digest: «${name}»`);
+        continue;
+      }
+      const shared = words.filter((word) => digestWords.has(word)).length;
+      if (shared / words.length < PRINCIPLE_OVERLAP) details.push(`principio non nel digest: «${name}»`);
+    }
+  }
+  return { pass: details.length === 0, details };
+}
+
 // ─── All together ───────────────────────────────────────────────────────────────────────────
 
-export function runEvalChecks(text: string, prompt: string, contract: EvalBundleContract): EvalChecks {
+/** The F2 checks always; the three Wiki checks only when the bundle carried the vault. */
+export function runEvalChecks(text: string, prompt: string, contract: EvalBundleContract, wiki?: EvalWikiContext): EvalChecks {
   return {
     figures: checkFigures(text, prompt),
     words: checkWords(text, contract.wordLimit),
     form: checkForm(text, contract),
     promises: checkPromises(text, prompt),
     italian: checkItalian(text),
+    ...(wiki
+      ? { macro: checkMacroFacts(text, prompt, wiki), crossover: checkCrossover(text, prompt, wiki), principles: checkPrinciples(text, wiki) }
+      : {}),
   };
 }
 
 export function failedChecks(checks: EvalChecks): EvalCheckId[] {
-  return (Object.keys(checks) as EvalCheckId[]).filter((id) => !checks[id].pass);
+  return (Object.keys(checks) as EvalCheckId[]).filter((id) => checks[id] && !checks[id]!.pass);
 }

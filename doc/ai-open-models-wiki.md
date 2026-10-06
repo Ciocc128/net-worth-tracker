@@ -34,7 +34,7 @@ nessuno storico di consumo. Non si migra: si sceglie con che cosa accenderle.
 | D5 | La newsletter domenicale di **TheBull** arriva con un **Google Apps Script** nell'account Gmail del proprietario: niente OAuth nell'app. |
 | D6 | La pagina settimanale macro la compila **il server con un modello open**. Le pagine **Principi** si compilano **in sessione Claude Code**. |
 | D7 | I dati dell'app arrivano al vault per **export markdown** (§6.1); un **server MCP in sola lettura** è una fase facoltativa successiva (§6.3). |
-| D8 | Gateway: **OpenRouter**, costo contato a parte (§4.3). I candidati si **preselezionano su Artificial Analysis** (§7.1) e li decide l'eval. Rosa di F2, riletta il 2026-09-28 (§7.1): candidati **GLM 5.3 Flash**, **MiniMax-M3**, **MiMo-V2.6-Pro**; controlli dichiarati **MiMo-V2.6-Flash** e **DeepSeek V4.1 Flash**; riferimenti **Sonnet 5 `medium`** e **Haiku 4.5** (serviti anche da OpenRouter: una sola chiave). **Qwen3.8-Flash-Next** escluso: nessun endpoint ZDR. Dopo i voti, su richiesta del proprietario, **GPT-5.6 Luna** e **GPT-6 Luna** (chiusi, con ZDR). **Esito di F2: GLM 5.3 Flash** (§7.2). **TheBull dal 2026-10-05: DeepSeek V4.1 Flash** con il ragionamento spento, dopo la sonda (§7.3). |
+| D8 | Gateway: **OpenRouter**, costo contato a parte (§4.3). I candidati si **preselezionano su Artificial Analysis** (§7.1) e li decide l'eval. Rosa di F2, riletta il 2026-09-28 (§7.1): candidati **GLM 5.3 Flash**, **MiniMax-M3**, **MiMo-V2.6-Pro**; controlli dichiarati **MiMo-V2.6-Flash** e **DeepSeek V4.1 Flash**; riferimenti **Sonnet 5 `medium`** e **Haiku 4.5** (serviti anche da OpenRouter: una sola chiave). **Qwen3.8-Flash-Next** escluso: nessun endpoint ZDR. Dopo i voti, su richiesta del proprietario, **GPT-5.6 Luna** e **GPT-6 Luna** (chiusi, con ZDR). **Esito di F2: GLM 5.3 Flash** (§7.2). **TheBull dal 2026-10-05: DeepSeek V4.1 Flash** con il ragionamento spento, dopo la sonda (§7.3). **Email periodiche dal 2026-10-06: DeepSeek V4.1 Flash con il ragionamento**, dopo F6b (§7.6). |
 
 Fuori perimetro: più utenti sulla Wiki (è del solo proprietario; account condiviso e demo non la
 vedono), database vettoriali ed embedding, self-hosting dei modelli, ridistribuzione dei contenuti di
@@ -91,7 +91,7 @@ La Wiki (§5) lo aggiunge; la ricerca web non entra nel nuovo disegno.
 | **F3 — Vault e TheBull** | Repo privato `finance-wiki` con lo schema (✔ 2026-09-28), struttura (§5.1), operazioni (§5.5), ingestione e compilazione (✔ codice 2026-09-28, §5.2–5.3), Apps Script, endpoint di ingestione, compilazione col modello provvisorio, **recupero delle newsletter passate** (§5.2). Il 2026-09-28 GLM ha fallito 9 compilazioni su 13; dopo la sonda la compilazione passa a DeepSeek V4.1 Flash (2026-10-05, §7.3) e le 9 settimane si ricompilano. |
 | **F4 — Il vault interrogabile** | Export dei dati (✔ 2026-09-30, §6.1), `CLAUDE.md` del vault (✔ § 3.1 «I dati»), prime pagine Principi in sessione per intervista (✔ `allocazione-e-leva`, 2026-09-30; restano costi e fiscalità, comportamento, FIRE e obiettivi, liquidità e risparmio). Da qui il canale dell'abbonamento è completo. |
 | **F5 — La Wiki nelle email** ✔ | Blocco macro per periodo e digest dei Principi nei prompt delle email (§5.4, 2026-10-05), e nella stessa sessione le spese per ruolo 50/30/20 nelle email. |
-| **F6 — Eval completo** | Due compiti (§7, secondo giro): email con la Wiki, compilazione di TheBull. Sceglie il modello definitivo; se cambia, si ricompilano le pagine macro dai grezzi. |
+| **F6 — Eval completo** ✔ | Due compiti (§7, secondo giro): email con la Wiki, compilazione di TheBull (§ 7.4). Poi **F6b** (§ 7.5–7.6, 2026-10-06): dati blindati, contratto narrativo e un prompt di sistema solo per l'email; modello definitivo delle email **DeepSeek V4.1 Flash con il ragionamento**, TheBull confermato su DeepSeek spento. |
 | **F7 — MCP (facoltativa)** | Server MCP in sola lettura (§6.3), solo se l'export risulta troppo vecchio nell'uso. |
 
 ---
@@ -565,6 +565,108 @@ recuperare, con i testi salvati e letti affiancati.
   su GLM 5.3 Flash, solo su host fp8/bf16/fp16 (`AiModelRoute.quantizations`: sulla sonda gli host fp4 rispondevano
   con poche voci e citazioni rotte). Entrambe provvisorie fino a F6, dove DeepSeek entra tra i candidati delle email
   (nei voti alla cieca di F2: 3,9 · 3,9 contro 3,4 · 3,7 di GLM), con il ragionamento acceso e spento.
+
+
+### 7.4 Risultati di F6 (2026-10-05 → 10-06)
+
+**Giro:** 4 bundle con la Wiki (luglio, agosto, settembre, Q3 2026), cinque open per 2 tentativi e i riferimenti Sonnet
+5.5 e Haiku 4.5 scritti con l'abbonamento; il proprietario ha votato alla cieca un'email per modello e periodo su
+utilità, tono e collegamento (i voti in `scratchpad/ai-eval/f6/votes.json`). Poi la vista in chiaro, email per email,
+con la griglia di Claude (`f6-in-chiaro.html`, fuori da git): accuratezza sui dati, contratto, insight, collegamento;
+un **errore grave** è un'affermazione sbagliata sui dati che orienterebbe male una decisione.
+
+| Modello | Voto del proprietario (U · T · C) | Lettura di Claude (A · Co · I · Col) | Errori gravi (4 votate / 8) | Costo / email |
+| --- | --- | --- | --- | --- |
+| GLM-5.3 | 3,50 · 4,25 · 4,25 = **4,00** | 2,00 · 4,00 · 3,75 · 3,75 = 3,38 | 9 / — | 0,0120 $ |
+| GLM 5.3 Flash | 3,25 · 3,75 · 4,50 = 3,83 | 3,00 · 4,50 · 4,00 · 3,75 = 3,81 | 3 / 6 | 0,0022 $ |
+| Sonnet 5.5 (rif.) | 3,75 · 3,25 · 3,75 = 3,58 | 4,75 · 4,75 · 3,75 · 4,50 = **4,44** | 0 / — | — |
+| DeepSeek spento | 3,50 · 3,50 · 3,75 = 3,58 | 3,50 · 4,50 · 3,50 · 3,75 = 3,81 | 1 / 3 | 0,0010 $ |
+| DeepSeek acceso | 3,50 · 3,25 · 3,75 = 3,50 | 3,50 · 4,50 · 3,75 · 4,00 = 4,00 | **0 / 2** | 0,0013 $ |
+| GPT-6 Luna | 3,00 · 3,25 · 3,00 = 3,08 | 4,75 · 3,75 · 2,00 · 2,50 = 3,25 | 0 / — | 0,0010 $ |
+| Haiku 4.5 (rif.) | 2,50 · 3,50 · 2,75 = 2,92 | 1,25 · 3,00 · 2,00 · 2,50 = 2,19 | 15 / — | — |
+
+- **La regola del § 7 avrebbe scelto GPT-6 Luna** (il più economico entro mezzo punto da Sonnet): un modello chiuso,
+  penultimo nei voti. Non legge il collegamento, l'asse nuovo di F6. Va riscritta con l'esito di F6b.
+- **Due voti, due cose.** Il proprietario premia il racconto e il collegamento; la griglia di Claude la correttezza sui
+  dati, dove i due GLM sono i più fragili (flussi «andati alle obbligazioni», «luglio +24 €», la Hall of Fame letta come
+  una serie, «gli acquisti azzerano il risparmio»). Gli errori che contano non sono quelli che il controllo automatico
+  segna: le cifre «rosse» sono quasi tutte somme giuste.
+- **Quasi ogni errore grave nasce da un buco del blocco dati**, non dal modello: il ticker senza la classe, nessun totale
+  degli acquisti, la Hall of Fame senza la fascia, il confronto senza il valore di partenza, le categorie scese a zero
+  invisibili (nessun modello ha visto che a settembre i Viaggi passavano da 968 € a zero), il 50/30/20 sulle uscite.
+- **E la forma schematica la chiedeva il prompt**: sei sezioni fisse, «elenchi puntati per le liste», «1-2 osservazioni
+  pratiche», «probabilmente» a ogni ipotesi. Le email votate meglio (GLM Flash su agosto e Q3, DeepSeek acceso sul Q3)
+  sono quelle che più se ne allontanano.
+- **TheBull resta su DeepSeek V4.1 Flash spento** (8/8 settimane ok nel giro di F6, oltre alla sonda del § 7.3).
+
+### 7.5 F6b: dati blindati e contratto narrativo (decisioni del 2026-10-06)
+
+Il proprietario: «i dati devono essere veri, ma le email non le voglio asciutte, asettiche e prudenti, né schematiche:
+coese, che ti prendono mentre le leggi, che fanno capire i collegamenti tra i numeri e quello che succede nel mondo
+reale, e che uniscono i dati tirando fuori insight che un numero da solo non mostra».
+
+| # | Decisione |
+| --- | --- |
+| N1 | **Dati blindati**, per tutti i modelli: la classe (e il fattore, le gambe, la leva) su ogni operazione; i totali di acquisti e vendite; la Hall of Fame con la sua fascia; ogni confronto con il valore di partenza; una categoria a zero nel periodo prima è «nessuna spesa», non N/D; le categorie scese a zero elencate. |
+| N2 | **50/30/20 sulle entrate**, come il Flusso: Risparmi = righe di risparmio + avanzo; con le uscite oltre le entrate la base sono le uscite e il deficit è nominato. Nel prompt e nel piè della tile (la card del proprietario del 2026-10-06). |
+| N3 | **L'email ha un suo prompt di sistema** (`EMAIL_SYSTEM_CORE`): ruolo di lettera, vocabolario condiviso, regole di verità (nessuna somma, la classe dal blocco, gli acquisti non sono spese, la Hall of Fame è una classifica), ipotesi dichiarate una volta e poi argomentate, calibrazione su un mese inventato. Non eredita più `ASSISTANT_SYSTEM_CORE`. |
+| N4 | **Contratto narrativo**: prosa, 3-5 titoletti evocativi scritti dal modello, niente elenchi; sette punti in ordine, la persona prima del mondo — la tesi, la vita dietro i numeri, il ponte del risparmio, dove sono andati i soldi contro i principi, il mondo dentro il portafoglio, il filo, le mosse solo se servono. |
+| N5 | **Parole:** 450 (mensile) · 650 (trimestrale, semestrale) · 800 (annuale). |
+| N6 | **Rosa di F6b:** GLM 5.3 Flash, GLM-5.3, DeepSeek V4.1 Flash acceso e spento, GPT-6 Luna; nessun riferimento in abbonamento. |
+| N7 | **Voto:** utilità, «ti prende?» e collegamenti; la verità dei dati la legge Claude, email per email. |
+
+### 7.6 Risultati di F6b e scelta definitiva (2026-10-06)
+
+**Giro:** i 4 bundle ricongelati sul mirror con i dati blindati e il contratto narrativo, cinque open per 2 tentativi,
+**0,17 $**, 40 risposte su 40. Su richiesta del proprietario, nessun voto alla cieca: una pagina in chiaro su **luglio,
+settembre e il Q3** (`scratchpad/ai-eval/f6b/f6b-in-chiaro.html`, fuori da git) con costo, controlli, errori, testo e
+lettura di Claude; il secondo tentativo letto per gli errori.
+
+| Modello | Lettura di Claude (A · P · C · U) | Errori gravi (6 email) | $ / email | Latenza media · max | Token usati (peggiore) |
+| --- | --- | --- | --- | --- | --- |
+| **DeepSeek V4.1 Flash** | 4,67 · 4,33 · 4,67 · 4,33 = **4,50** | **1** | 0,0029 $ | 35 s · 81 s | 95% |
+| GLM 5.3 Flash | 3,00 · 4,00 · 4,00 · 3,33 = 3,58 | 3 | 0,0025 $ | 41 s · 62 s | 67% |
+| GLM-5.3 | 2,67 · 4,33 · 4,00 · 3,33 = 3,58 | 9 | 0,0116 $ | 31 s · 79 s | 74% |
+| GPT-6 Luna | 5,00 · 3,00 · 3,00 · 3,00 = 3,50 | 0 | 0,0019 $ | 18 s · 23 s | 47% |
+| DeepSeek V4.1 Flash spento | 2,33 · 3,33 · 2,67 · 3,00 = 2,83 | 8 | 0,0026 $ | 14 s · 26 s | 24% |
+
+A = accuratezza sui dati, P = «ti prende», C = collegamenti, U = utilità.
+
+- **I dati blindati funzionano**: GLM 5.3 Flash scende da 6 errori gravi su 8 email (F6) a 3 su 6; nessun modello
+  sbaglia più la classe di uno strumento, i totali degli acquisti o la Hall of Fame; i Viaggi a zero di settembre li
+  nomina ogni modello almeno in un tentativo (in F6 nessuno).
+- **Il contratto narrativo funziona** per tutti tranne DeepSeek spento, che ignora lunghezza e titoletti (fino a 852
+  parole su 650). Tutti tranne DeepSeek acceso sforano le 450 parole della mensile.
+- **Il ragionamento conta**: lo stesso DeepSeek fa 1 errore grave ragionando e 8 senza. Il tetto di ragionamento però
+  non lo governa: lo ignora (6.784 token sul Q3 con un tetto di 6.000, 95% di `max_tokens`).
+
+**Scelta del proprietario:** `EMAIL_PERIODIC` → **DeepSeek V4.1 Flash con il ragionamento acceso**, definitivo; la
+mensile torna a **500 parole**; il budget si alza «tanto è economico» — il limite vero è il tempo, non il costo:
+`max_tokens` 7.800 · 12.340 · 12.340 · 13.880, un timeout di 150 s per il commento (`EMAIL_AI_TIMEOUT_MS`, a ~100 token/s)
+e le quattro email periodiche in parallelo nel cron. `EMAIL_WEEKLY_BUDGET` resta su GLM 5.3 Flash (il proprietario non la
+usa; il suo budget da 1.500 token non reggerebbe il ragionamento di DeepSeek). `THEBULL_COMPILE` resta definitivo su
+DeepSeek spento (§ 7.3, F6): il modello non cambia, nessuna pagina macro da ricompilare.
+
+**TheBull con il ragionamento acceso, la prova del dubbio** (2026-10-06, su richiesta del proprietario): la sonda l'aveva
+scartato per il troncamento sotto 8.000 token, prima di sapere che DeepSeek ignora il tetto di ragionamento. Le stesse 8
+settimane a secco (`npm run ai:eval -- thebull --reasoning on --max-tokens 24000`), accanto allo spento:
+
+| | Spento (8.000 token) | Acceso (24.000 token) |
+| --- | --- | --- |
+| Riuscite | **8/8** | 5/8 (3 timeout a 120 s, il limite dell'endpoint) |
+| Latenza media · massima | 17 s · 29 s | 92 s · 120 s |
+| Ragionamento | 0 | 5.034–17.695 token |
+| Costo delle 8 settimane | 0,011 $ | 0,058 $ |
+| Cifre tenute nella sintesi | 93% (106/114) | 100% (70/70) |
+
+Lette affiancate, le voci dell'acceso sono più ricche (le tesi attribuite ai loro autori, qualche data in più) ma mettono
+giudizi tra i fatti («la mossa è stata inutile», «il mercato perde la pazienza»), proprio la distinzione su cui poggiano
+le regole macro delle email. **TheBull resta su DeepSeek spento.**
+
+**Come si è deciso, al posto della regola del § 7** (che avrebbe scelto GPT-6 Luna, un modello chiuso e penultimo nei
+voti di F6): la lettura di Claude, email per email, separa gli errori veri sui dati dalle cifre «rosse» del controllo
+automatico (quasi tutte somme giuste); il proprietario sceglie vedendo tutto. In un prossimo giro: prima il cancello
+degli errori gravi, poi il voto del proprietario; il costo solo a parità.
 
 ---
 

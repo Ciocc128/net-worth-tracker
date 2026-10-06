@@ -42,6 +42,8 @@ export interface GenerateTextRequest {
    * adapter keeps its adaptive thinking and ignores it.
    */
   reasoningMaxTokens?: number;
+  /** The request's own timeout; the adapter's default (120 s on OpenRouter) otherwise. */
+  timeoutMs?: number;
 }
 
 export interface ExtractStructuredRequest<T> {

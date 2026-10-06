@@ -91,8 +91,14 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **The email AI comment goes through the provider layer** (`lib/server/llm`, since 2026-09-28 — F1 of
   doc/ai-open-models-wiki.md), not the assistant pipeline: `generateText('EMAIL_PERIODIC' | 'EMAIL_WEEKLY_BUDGET', …)`,
   and `lib/constants/aiModels.ts` says which provider and model answer — today an OPEN model on OpenRouter
-  (`OPENROUTER_API_KEY`): GLM 5.3 Flash, chosen by the quick eval (F2, 2026-09-28) and provisional until F6, served only
-  by fp8/bf16/fp16 hosts (the route's `quantizations`, 2026-10-05: the fp4 hosts answered thin in the TheBull probe). The Anthropic adapter keeps the old call (adaptive thinking,
+  (`OPENROUTER_API_KEY`): **DeepSeek V4.1 Flash with its reasoning on** for the periodic comment — the owner's definitive
+  choice after F6b (2026-10-06, doc/ai-open-models-wiki.md § 7.6) — and GLM 5.3 Flash for the weekly budget email (F2,
+  served only by fp8/bf16/fp16 hosts: the fp4 hosts answered thin in the TheBull probe). **DeepSeek ignores the reasoning
+  ceiling** (6.784 tokens on a quarter capped at 6.000), so the total `max_tokens` is what protects the text: 7.800 ·
+  12.340 · 12.340 · 13.880 per period, sized to the comment's own timeout (`EMAIL_AI_TIMEOUT_MS`, 150 s, at the ~100
+  tokens/s measured in F6b) — the wall clock is the limit, not the money (a full yearly ≈ 0,02 $). **The four period
+  emails run side by side in the cron** (phases 2-5, `maxDuration` 300): on December 31, in a row, a reasoning model
+  would outlast the function and leave the last ones without a comment. The Anthropic adapter keeps the old call (adaptive thinking,
   `effort: high`) for whoever routes a surface back to it. AI and comparison failures are both non-blocking — and so
   is the context bundle, built inside the same `try`; without the provider's key the periodic email skips the bundle
   too (its Firestore reads would feed a call that cannot happen).
@@ -143,10 +149,20 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   con i target», then the allocated base with the effective targets. One block with both read 44,7% against a 70% target.
 - **The period's trades are in the prompt, one line per instrument** (`summarizeTradesByInstrument`, owner's call), capped
   at `MAX_TRADE_INSTRUMENTS` (15) with the omitted count and amount stated like `MAX_CATEGORY_DELTAS`. Without them the
-  model explained a −5.119 € cash month as «la vacanza pagata da cassa»; it was six PAC purchases.
+  model explained a −5.119 € cash month as «la vacanza pagata da cassa»; it was six PAC purchases. **Each line names
+  the instrument's class** (F6b, 2026-10-06: `resolveAssetLegs` — the class and sleeve, a composite's legs, the
+  leverage), and the block closes with the period's TOTALS: guessing from the ticker, the models filed BSP and CL2 as
+  bonds and XDEM as «not a factor», and summed 4.609 € of purchases as 3.688 €.
 - **The Hall of Fame standing is ONE sentence, from its own side** (`describeHallOfFameStanding`, verdict and prompt alike,
   2026-09-28): «È il mese con la crescita più piccola tra i 18 mesi in crescita registrati», never «È il 18° mese migliore su
-  18», which the model read twice as «18° mese consecutivo di crescita». The prompt adds that it is a ranking, not a streak.
+  18», which the model read twice as «18° mese consecutivo di crescita». The prompt adds that it is a ranking, not a streak,
+  and where it falls in words (`describeHallOfFameBand`, thirds: «tra le crescite più deboli»): F6 still read «18° su
+  19» as «continuità notevole».
+- **A comparison prints its baseline** (F6b): «Risparmio netto: +492 € (+101,9%), da −483 € a +9 €» (`MetricDelta.previous`).
+  The change alone let a model invent July («era +24 €»). A category with no spending in a TRACKED baseline is a measured
+  zero («+864 €, nessuna spesa nel periodo prec.», `categoryBaseline`), never N/D; and the categories that **dropped to
+  zero** are listed apart (`findDroppedCategories`) — they leave the current list, so no model saw September's outflows
+  fall because 968 € of Viaggi went to zero.
 - **Every email cap is stated in the prompt**: `MAX_CATEGORY_DELTAS` (12) is named in the section header together with
   how many categories were left out. The selection is by SPEND, not by size of variation — describe it as it is.
 - **The output budget comes from the CONTRACT, never from a model** (`lib/server/llm/budget.ts`, 2026-09-28). `max_tokens`
@@ -154,7 +170,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   full, discarded, the email without its comment. On a reasoning model `max_tokens` covers the reasoning AND the text,
   and one August comment spent 5.450 of 6.000 on it. So the reasoning has its own ceiling (`reasoning.max_tokens` on
   OpenRouter: 4000/6000/6000/8000 per period, 1500 for the weekly email) and the text the room of the contract's word
-  limit twice over (`words × 1,8 × 2`); `maxTokens` is their sum (5800 for the monthly). The `[ai-usage]` line logs
+  limit twice over (`words × 1,8 × 2`); `maxTokens` is their sum (5620 for the monthly since the 450-word contract). The `[ai-usage]` line logs
   `reasoning` when the provider reports it: that is where F2 measures what each candidate really costs, and where a
   budget gets revised. **There is no web search since 2026-09-28**: the layer has no tools; the macro context comes from
   the vault (F5, below). `includeMacroContext` is the assistant's web-search switch and plays no part in the email.
@@ -170,13 +186,23 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   page is named as such. Every failed read is an absent page; one `[emailWiki]` line logs which months and whether the
   digest arrived, never their text. Measured on the mirror: a monthly prompt goes from ~6.300 to ~11.000 real tokens,
   a quarter to ~19.000; the output budget did not move.
-- **With `spendingRolesEnabled` the spending splits by 50/30/20 role, not by type** (owner's call, 2026-10-05): the
-  «Spese per categoria» footer and the prompt's `--- SPESE PER RUOLO (50/30/20) ---` block, which REPLACES `--- SPESE PER
-  TIPO ---` through `formatBundleForPrompt`'s email-only `spendingRoles` option (the assistant never passes it, like
-  `omitAllocation`). Base: the OUTFLOWS (`summarizeSpendingByRole`), so Risparmi is the rows classified as saving, never
-  the surplus — that is the Flusso's reading on income, a different question. A row with no type has no role either and
-  joins «Da classificare»; the role is resolved from TODAY's categories, as on Analisi. The bundle signs outflows negative,
-  and a role row is signed like them: a positive amount over a negative total printed «(-63,9%)» on the first mirror run.
+- **With `spendingRolesEnabled` the email reads the 50/30/20 ON INCOME, like Analisi's Flusso** (owner's calls, 2026-10-05
+  and 2026-10-06): the «Spese per categoria» footer («Sulle entrate: Necessità … · Risparmi …», `describeSpendingRolesFooter`)
+  and the prompt's `--- 50/30/20 SULLE ENTRATE ---` block, which REPLACES `--- SPESE PER TIPO ---` through
+  `formatBundleForPrompt`'s email-only `spendingRoles` option (the assistant never passes it, like `omitAllocation`). ONE
+  source, `summarizeEmailSpendingRoles` over `summarizeSpendingRoleShares`: Risparmi = the rows classified as saving PLUS
+  the surplus, and when the outflows ran past income the base is the outflows and the deficit is named («coperto dal
+  patrimonio»). Until F6b the base was the outflows alone: Risparmi never appeared, and the models weighed a 36% of
+  Desideri on the outflows against the rule's 30% on income. A row with no type has no role either and joins «Da
+  classificare», lowering the surplus like any outflow; the role is resolved from TODAY's categories, as on Analisi.
+- **The email has its OWN system block and a narrative contract** (F6b, owner 2026-10-06; doc/ai-open-models-wiki.md
+  § 7.5): `EMAIL_SYSTEM_CORE` (role, the shared `DOMAIN_VOCABULARY`, the truth rules — no sums, the class from the
+  trades block, purchases are not spending, the Hall of Fame is a ranking — one-time hypotheses, a calibration on an
+  invented month), then `buildEmailPeriodicFormatContract`: prose under 3-5 headings of the model's own, no lists, seven
+  points in order (the thesis, the life behind the numbers, the bridge of savings, where the money went against the
+  principles, the world inside the portfolio, the thread, the moves only when they serve), 450 · 650 · 650 · 800 words.
+  Until then it borrowed `ASSISTANT_SYSTEM_CORE` whole — goal proposals in JSON, web search, «elenchi puntati per le
+  liste» — under six fixed sections: the reason the comments came out as lists.
 
 ## The vault and TheBull (F3, doc/ai-open-models-wiki.md § 5)
 

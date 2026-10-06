@@ -48,7 +48,7 @@ vi.mock('@/lib/firebase/admin', () => ({
   adminAuth: { verifyIdToken: vi.fn() },
 }));
 
-import { computeDelta, buildPeriodComparison } from '@/lib/server/emailPeriodComparison';
+import { computeDelta, buildPeriodComparison, categoryBaseline, findDroppedCategories } from '@/lib/server/emailPeriodComparison';
 import type { MonthlyEmailData } from '@/lib/server/monthlyEmailService';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -111,15 +111,15 @@ beforeEach(() => {
 
 describe('computeDelta', () => {
   it('computes absolute and percentage change against a positive base', () => {
-    expect(computeDelta(150, 100)).toEqual({ absChange: 50, pctChange: 50 });
+    expect(computeDelta(150, 100)).toEqual({ absChange: 50, pctChange: 50, previous: 100 });
   });
 
   it('returns null pctChange when the baseline is zero', () => {
-    expect(computeDelta(150, 0)).toEqual({ absChange: 150, pctChange: null });
+    expect(computeDelta(150, 0)).toEqual({ absChange: 150, pctChange: null, previous: 0 });
   });
 
   it('uses the absolute value of the base for percentage (negative base)', () => {
-    expect(computeDelta(-50, -100)).toEqual({ absChange: 50, pctChange: 50 });
+    expect(computeDelta(-50, -100)).toEqual({ absChange: 50, pctChange: 50, previous: -100 });
   });
 
   it('returns null when the current value is null', () => {
@@ -128,6 +128,32 @@ describe('computeDelta', () => {
 
   it('returns null when the baseline value is null', () => {
     expect(computeDelta(100, null)).toBeNull();
+  });
+});
+
+describe('categoryBaseline', () => {
+  it('reads a category absent from a tracked period as a measured zero, not as missing', () => {
+    expect(categoryBaseline({ totalExpenses: 1500, expenseByCategory: { casa: 750 } }, 'shopping')).toBe(0);
+    expect(categoryBaseline({ totalExpenses: 1500, expenseByCategory: { casa: 750 } }, 'casa')).toBe(750);
+    expect(categoryBaseline({ totalExpenses: null, expenseByCategory: {} }, 'casa')).toBeNull();
+  });
+});
+
+describe('findDroppedCategories', () => {
+  it('lists what spent before and nothing now, largest first, under a euro left out', () => {
+    const baseline = {
+      totalExpenses: 2177,
+      expenseByCategory: { viaggi: 968, casa: 808, regali: 18, tasse: 0.4 },
+      categoryNames: { viaggi: 'Viaggi', casa: 'Casa', regali: 'Regali', tasse: 'Tasse' },
+    };
+    expect(findDroppedCategories({ casa: 750 }, baseline)).toEqual([
+      { name: 'Viaggi', previous: 968 },
+      { name: 'Regali', previous: 18 },
+    ]);
+  });
+
+  it('says nothing when the previous period has no tracked cashflow', () => {
+    expect(findDroppedCategories({}, { totalExpenses: null, expenseByCategory: {}, categoryNames: {} })).toEqual([]);
   });
 });
 

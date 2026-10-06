@@ -37,6 +37,8 @@ export interface EvalRun {
 export interface EvalVote {
   utilita: number;
   tono: number;
+  /** F6: «il collegamento tra macro, principi e portafoglio è sensato?» — read apart, not in the rule's mean. */
+  collegamento?: number;
 }
 
 export interface EvalModelScore {
@@ -58,6 +60,7 @@ export interface EvalModelScore {
   votes: number;
   meanUtilita: number | null;
   meanTono: number | null;
+  meanCollegamento: number | null;
   /** The mean of utilità and tono: the figure the half-point rule reads. */
   meanVote: number | null;
 }
@@ -72,7 +75,7 @@ export interface EvalVerdict {
 /** Half a point on the 1–5 scale (§ 7). */
 export const VOTE_MARGIN = 0.5;
 
-const CHECK_IDS: EvalCheckId[] = ['figures', 'words', 'form', 'promises', 'italian'];
+const CHECK_IDS: EvalCheckId[] = ['figures', 'words', 'form', 'promises', 'italian', 'macro', 'crossover', 'principles'];
 
 function mean(values: Array<number | null | undefined>): number | null {
   const present = values.filter((value): value is number => typeof value === 'number');
@@ -81,7 +84,7 @@ function mean(values: Array<number | null | undefined>): number | null {
 
 export function isFailedRun(run: EvalRun): boolean {
   if (run.outcome !== 'ok') return true;
-  return run.checks ? CHECK_IDS.some((id) => !run.checks![id].pass) : false;
+  return run.checks ? CHECK_IDS.some((id) => run.checks![id] && !run.checks![id]!.pass) : false;
 }
 
 /**
@@ -96,7 +99,7 @@ export function scoreModels(
   return models.map(({ model, role }) => {
     const own = runs.filter((run) => run.model === model);
     const failuresByCheck = Object.fromEntries(
-      CHECK_IDS.map((id) => [id, own.filter((run) => run.checks && !run.checks[id].pass).length])
+      CHECK_IDS.map((id) => [id, own.filter((run) => run.checks?.[id] && !run.checks[id]!.pass).length])
     ) as Record<EvalCheckId, number>;
     const ownVotes = Object.values(votes)
       .map((byModel) => byModel[model])
@@ -120,6 +123,7 @@ export function scoreModels(
       votes: ownVotes.length,
       meanUtilita,
       meanTono,
+      meanCollegamento: mean(ownVotes.map((vote) => vote.collegamento)),
       meanVote: meanUtilita === null || meanTono === null ? null : (meanUtilita + meanTono) / 2,
     };
   });

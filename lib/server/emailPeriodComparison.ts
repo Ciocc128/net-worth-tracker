@@ -35,6 +35,11 @@ import {
 export interface MetricDelta {
   absChange: number;
   pctChange: number | null;
+  /**
+   * The baseline itself. The prompt prints it beside the change: given «+492 €» alone the model
+   * wrote «luglio era +24 €» and «un risparmio di luglio quasi nullo» (−483 €; F6, 2026-10-06).
+   */
+  previous: number;
 }
 
 /**
@@ -66,6 +71,13 @@ export interface PeriodComparison {
   previousEqualsYoy: boolean;
   // Top expense categories (by current amount) with their previous/YoY deltas.
   categoryDeltas: CategoryDelta[];
+  /**
+   * Categories with spending in the previous period and none in this one, largest first: a
+   * category that drops to zero leaves the current list, so no row carried it — and no model saw
+   * that September's outflows fell because 968 € of Viaggi went to zero (F6, 2026-10-06).
+   * Empty when the previous period has no tracked cashflow.
+   */
+  droppedCategories: Array<{ name: string; previous: number }>;
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -84,6 +96,8 @@ interface CashflowMetrics {
   // in the period (absolute, positive). Keyed by id so two same-named categories
   // stay two entries and cross-period lookups match the right document.
   expenseByCategory: Record<string, number>;
+  /** Category KEY → its name, for the categories of `expenseByCategory`. */
+  categoryNames: Record<string, string>;
 }
 
 /**
@@ -175,13 +189,15 @@ async function fetchPeriodMetrics(
 
   // No tracked transactions in this past window → treat cashflow as unavailable, not zero.
   if (expensesSnap.empty) {
-    return { netWorth, totalIncome: null, totalExpenses: null, savings: null, expenseByCategory: {} };
+    return { netWorth, totalIncome: null, totalExpenses: null, savings: null, expenseByCategory: {}, categoryNames: {} };
   }
 
   const { totalIncome, totalExpenses, topExpenseCategories } = aggregateExpenses(expensesSnap.docs);
   const expenseByCategory: Record<string, number> = {};
+  const categoryNames: Record<string, string> = {};
   for (const cat of topExpenseCategories) {
     expenseByCategory[cat.key] = cat.amount;
+    categoryNames[cat.key] = cat.name;
   }
 
   return {
@@ -190,6 +206,7 @@ async function fetchPeriodMetrics(
     totalExpenses,
     savings: totalIncome - totalExpenses,
     expenseByCategory,
+    categoryNames,
   };
 }
 
@@ -201,7 +218,7 @@ export function computeDelta(
   if (current === null || baseline === null) return null;
   const absChange = current - baseline;
   const pctChange = baseline !== 0 ? (absChange / Math.abs(baseline)) * 100 : null;
-  return { absChange, pctChange };
+  return { absChange, pctChange, previous: baseline };
 }
 
 /** Builds a comparison set (NW/income/expenses/savings) of `current` against a baseline period. */
@@ -265,8 +282,10 @@ export async function buildPeriodComparison(
 
   // Current-period metrics come straight from the authoritative email data (no extra fetch).
   const currentExpenseByCategory: Record<string, number> = {};
+  const currentCategoryNames: Record<string, string> = {};
   for (const cat of emailData.topExpenseCategories) {
     currentExpenseByCategory[cat.key] = cat.amount;
+    currentCategoryNames[cat.key] = cat.name;
   }
   const current: CashflowMetrics = {
     netWorth: emailData.currentNetWorth,
@@ -274,6 +293,7 @@ export async function buildPeriodComparison(
     totalExpenses: emailData.totalExpenses,
     savings: emailData.totalIncome - emailData.totalExpenses,
     expenseByCategory: currentExpenseByCategory,
+    categoryNames: currentCategoryNames,
   };
 
   // Fetch baselines in parallel. For yearly, prev and YoY are identical → fetch once.
@@ -304,9 +324,31 @@ export async function buildPeriodComparison(
     .map((cat) => ({
       name: cat.name,
       current: cat.amount,
-      vsPrevious: computeDelta(cat.amount, prevMetrics.expenseByCategory[cat.key] ?? null),
-      vsYoy: computeDelta(cat.amount, resolvedYoyMetrics.expenseByCategory[cat.key] ?? null),
+      vsPrevious: computeDelta(cat.amount, categoryBaseline(prevMetrics, cat.key)),
+      vsYoy: computeDelta(cat.amount, categoryBaseline(resolvedYoyMetrics, cat.key)),
     }));
 
-  return { vsPrevious, vsYoy, previousEqualsYoy, categoryDeltas };
+  return { vsPrevious, vsYoy, previousEqualsYoy, categoryDeltas, droppedCategories: findDroppedCategories(currentExpenseByCategory, prevMetrics) };
+}
+
+/**
+ * A category's spending in a baseline period: 0 when that period has tracked cashflow but nothing
+ * in the category, null only when the period has no cashflow at all. July's iPhone read
+ * «Shopping vs periodo prec.: N/D» because June simply had no Shopping row (F6, 2026-10-06).
+ */
+export function categoryBaseline(baseline: Pick<CashflowMetrics, 'totalExpenses' | 'expenseByCategory'>, key: string): number | null {
+  if (baseline.totalExpenses === null) return null;
+  return baseline.expenseByCategory[key] ?? 0;
+}
+
+/** The baseline's categories that spent nothing now (≥ 1 € before), largest first. */
+export function findDroppedCategories(
+  current: Record<string, number>,
+  baseline: Pick<CashflowMetrics, 'totalExpenses' | 'expenseByCategory' | 'categoryNames'>
+): Array<{ name: string; previous: number }> {
+  if (baseline.totalExpenses === null) return [];
+  return Object.entries(baseline.expenseByCategory)
+    .filter(([key, amount]) => amount >= 1 && !(current[key] > 0))
+    .map(([key, amount]) => ({ name: baseline.categoryNames[key] ?? key, previous: amount }))
+    .sort((a, b) => b.previous - a.previous);
 }

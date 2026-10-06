@@ -28,6 +28,7 @@ import { resolveDeclineCause, resolveTaxedGrowth, type PeriodSalesSummary } from
 import { declineHeadlineTail, describePurchases, describeSales, taxedGrowthHeadline } from '@/lib/utils/salesNarrative';
 import type { Narrative, NarrativeSegment, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
 import type { GrowthDrivers } from '@/lib/utils/growthDrivers';
+import type { EmailSpendingRoles } from '@/lib/utils/spendingRoles';
 import { describeDriverEngines, describeDriverRest } from '@/lib/utils/storicoNarrative';
 import { driftClause } from '@/lib/utils/allocazioneNarrative';
 
@@ -628,6 +629,25 @@ export function describeExpenseTypes(
       figure(formatPercentage((entry.amount / total) * 100, 1)),
       prose(')'),
     );
+  });
+  narrative.push(prose('.'));
+  return narrative;
+}
+
+/**
+ * The 50/30/20 footer of «Spese per categoria», on INCOME like Analisi's Flusso: Risparmi is the
+ * saving rows plus what the period left over. When the outflows ran past income the base is the
+ * outflows and the footer says how much the wealth covered (owner's card, 2026-10-06).
+ */
+export function describeSpendingRolesFooter(roles: EmailSpendingRoles): Narrative | null {
+  if (roles.rows.length === 0) return null;
+  const narrative: Narrative =
+    roles.deficit > 0
+      ? [prose('Le uscite superano le entrate di '), euro(roles.deficit), prose(', coperti dal patrimonio; sulle uscite: ')]
+      : [prose('Sulle entrate: ')];
+  roles.rows.forEach((row, index) => {
+    if (index > 0) narrative.push(prose(' · '));
+    narrative.push(prose(`${row.label} `), euro(row.amount), prose(' ('), figure(`${row.percentage}%`), prose(')'));
   });
   narrative.push(prose('.'));
   return narrative;
