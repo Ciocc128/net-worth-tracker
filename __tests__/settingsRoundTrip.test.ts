@@ -455,6 +455,15 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
     expect(writtenPayload().idealAllocation).toEqual(STORED_IDEAL_ALLOCATION);
   });
 
+  // RV6 / PT7: «Salva gli obiettivi» (Allocazione › Accumulo) sends ONLY idealAllocation.
+  it('writes the objectives alone: no other setting is in the payload', async () => {
+    await setSettings('user-1', { idealAllocation: STORED_IDEAL_ALLOCATION } as AssetAllocationSettings);
+
+    const payload = writtenPayload();
+    expect(payload.idealAllocation).toEqual(STORED_IDEAL_ALLOCATION);
+    expect(Object.keys(payload).filter((key) => key !== 'idealAllocation' && key !== 'userId' && key !== 'updatedAt')).toEqual([]);
+  });
+
   it('does not touch the start month when the key is absent from the update', async () => {
     await setSettings('user-1', { costCentersEnabled: true } as AssetAllocationSettings);
 

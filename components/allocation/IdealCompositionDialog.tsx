@@ -62,6 +62,7 @@ import {
   IDEAL_COMPOSITION_TITLE,
   OPTIMIZER_ACTION_CALCULATE,
   OPTIMIZER_ACTION_MODIFY_IN_SETTINGS,
+  OPTIMIZER_OBJECTIVES_HREF,
   OPTIMIZER_LOADING_PROFILES,
   OPTIMIZER_MODE_ARIA_LABEL,
   OPTIMIZER_MODE_LABELS,
@@ -344,7 +345,7 @@ export function IdealCompositionDialog({
             {OPTIMIZER_OBJECTIVES_TITLE}
           </p>
           <NarrativeText segments={describeIdealComposition(readingInput)} className="text-[13px] text-foreground" />
-          <Link href="/dashboard/settings?tab=allocazione" className="mt-1.5 inline-block text-[11px] underline underline-offset-2">
+          <Link href={OPTIMIZER_OBJECTIVES_HREF} className="mt-1.5 inline-block text-[11px] underline underline-offset-2">
             {OPTIMIZER_ACTION_MODIFY_IN_SETTINGS}
           </Link>
         </div>

@@ -624,7 +624,7 @@ export function buildIdealAllocationInput(value: IdealAllocationSettings, target
 }
 
 /** «classi (essenziale)», «leva 1,3× (alta)», … — one entry per objective that is on. */
-function listIdealObjectives({ classPriority, leveragePriority, targetLeverageRatio, factorObjectives, geography }: IdealAllocationInput): string[] {
+export function listIdealObjectives({ classPriority, leveragePriority, targetLeverageRatio, factorObjectives, geography }: IdealAllocationInput): string[] {
   const objectiveTexts: string[] = [`classi (${OBJECTIVE_PRIORITY_LABELS[classPriority]})`];
 
   if (leveragePriority !== 'off') {

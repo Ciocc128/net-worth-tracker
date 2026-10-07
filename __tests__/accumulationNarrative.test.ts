@@ -15,6 +15,8 @@ import { narrativeToText } from '@/lib/utils/narrative';
 import { cachedFormatCurrencyEUR, formatPercentageIt } from '@/lib/utils/formatters';
 import {
   describeAccumulationNone,
+  describeBandReentry,
+  describeDriftReading,
   describeAccumulationDraft,
   describeAccumulationActive,
   describeReserveWarning,
@@ -418,5 +420,49 @@ describe('Comma Rule — every currency and percentage figure is Italian, never 
     const text = narrativeToText(describeAccumulationDraft({ totalEur: 1234.5, months: 4, startMonth: '2026-03' }));
     expect(text).toContain(eur(1234.5));
     expect(text).not.toContain('1234.50');
+  });
+});
+
+// ─── RV5: rientro in banda (PT5) ───────────────────────────────────────────
+describe('describeBandReentry', () => {
+  const MONTHS = ['2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-06', '2027-07'];
+  const bonds = [-5.0, -4.2, -3.5, -2.9, ...Array.from({ length: 9 }, (_, k) => -2.9 + ((k + 1) * 2.0) / 9)];
+  const cash = [12.4, 10.1, 7.8, 5.6, 4.3, 3.0, 1.9, ...Array.from({ length: 6 }, (_, k) => 1.9 - ((k + 1) * 1.4) / 6)];
+  const entry = (driftPp: number) => ({ currentPct: 0, targetPct: 20, driftPp, outOfBand: false });
+  const trajectory = MONTHS.map((month, index) => ({
+    index,
+    month: month as `${number}-${number}`,
+    source: 'projected' as const,
+    byClass: {
+      equity: entry(0),
+      bonds: entry(bonds[index]),
+      commodity: entry(0),
+      carry: entry(0),
+      cash: entry(cash[index]),
+    },
+  }));
+  const band = { type: 'fixed', pp: 2 } as const;
+
+  it('names each class re-entering and the month the whole plan is in band', () => {
+    expect(describeBandReentry(trajectory, 3, band)).toBe(
+      'Nella banda: Liquidità da gennaio, Obbligazioni da marzo. Da marzo tutto il piano è in banda, se i prezzi restano quelli di oggi.',
+    );
+  });
+
+  it('counts months for a draft', () => {
+    expect(describeBandReentry(trajectory, 3, band, { draft: true })).toBe(
+      'Nella banda: Liquidità dal mese 6, Obbligazioni dal mese 8. Dal mese 8 tutto il piano è in banda, se i prezzi restano quelli di oggi.',
+    );
+  });
+
+  it('says so when every class is already in band, and when one never comes back', () => {
+    expect(describeBandReentry(trajectory, 12, band)).toBe('Tutte le classi sono già in banda.');
+    expect(describeBandReentry(trajectory, 3, { type: 'fixed', pp: 0.5 })).toContain('resta fuori banda fino alla fine del piano.');
+  });
+
+  it('reads one point as «quando · classe ±pp»', () => {
+    const reading = describeDriftReading(trajectory[3], band);
+    expect(reading.when).toBe('ottobre 2026 · previsto');
+    expect(reading.items.find((item) => item.label === 'Liquidità')).toEqual({ label: 'Liquidità', text: 'Liquidità +5,6 pp', outOfBand: true });
   });
 });

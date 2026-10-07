@@ -206,7 +206,7 @@ export const OPTIMIZER_IDEAL_BELOW_HELD_CONFIRM =
   'In modalità Ideale alcuni pesi sono sotto ciò che possiedi: il PAC non vende, quindi quelle posizioni riceveranno zero acquisti.';
 
 /** §9.2 point 1 — the panel's whole content when `idealAllocation` is off or unset. */
-export const OPTIMIZER_DISABLED_READING = 'Nessuna allocazione ideale impostata: definiscila in Impostazioni → Allocazione.';
+export const OPTIMIZER_DISABLED_READING = 'Nessuna allocazione ideale impostata: definiscila in Allocazione › Accumulo.';
 
 // ---------------------------------------------------------------------------
 // Panel copy — no PAC component carries an Italian literal of its own (accumulationNarrative.ts's rule)
@@ -214,7 +214,9 @@ export const OPTIMIZER_DISABLED_READING = 'Nessuna allocazione ideale impostata:
 
 export const OPTIMIZER_STEP2_MANUAL = 'Manuale';
 export const OPTIMIZER_STEP2_OPTIMIZED = 'Ottimizzato';
-export const OPTIMIZER_ACTION_MODIFY_IN_SETTINGS = 'Modifica in Impostazioni';
+/** The objectives live in Allocazione › Accumulo since A1 (doc/pac-ottimizzatore § RV6); the query opens their modal. */
+export const OPTIMIZER_OBJECTIVES_HREF = '/dashboard/allocation?tab=accumulo&obiettivi=1';
+export const OPTIMIZER_ACTION_MODIFY_IN_SETTINGS = 'Modifica gli obiettivi';
 export const OPTIMIZER_ACTION_CALCULATE = 'Calcola';
 export const OPTIMIZER_ACTION_APPLY = 'Usa questi pesi';
 export const OPTIMIZER_COL_INSTRUMENT = 'Strumento';
@@ -267,7 +269,7 @@ export function describeOptimizerSnapshot(
 
 export const IDEAL_COMPOSITION_TILE_EYEBROW = 'Composizione ideale';
 export const IDEAL_COMPOSITION_TILE_OFF_READING =
-  "Imposta l'allocazione ideale in Impostazioni → Allocazione per vedere com'è fatto il tuo portafoglio ideale, strumento per strumento.";
+  "Imposta gli obiettivi dell'allocazione ideale per vedere com'è fatto il tuo portafoglio ideale, strumento per strumento.";
 export const IDEAL_COMPOSITION_TITLE = 'Composizione ideale';
 export const IDEAL_COMPOSITION_AMOUNT_LABEL = 'Importo da investire (€)';
 export const IDEAL_COMPOSITION_REACHABLE_DISABLED_REASON =
@@ -323,3 +325,20 @@ export function describeTargetedSaleTotal(sale: OptimizerSaleReport): string {
 export function formatOptimizerWeightDiffEur(currentPct: number, proposedPct: number, baseEur: number): string {
   return formatSignedCurrency(((proposedPct - currentPct) / 100) * baseEur);
 }
+
+// ---------------------------------------------------------------------------
+// Obiettivi dell'allocazione ideale, in Allocazione › Accumulo (doc/pac-ottimizzatore § RV6)
+// ---------------------------------------------------------------------------
+
+export const OBJECTIVES_TILE_EYEBROW = 'Obiettivi';
+export const OBJECTIVES_DIALOG_TITLE = "Obiettivi dell'allocazione ideale";
+export const OBJECTIVES_ACTION_EDIT = 'Modifica obiettivi';
+export const OBJECTIVES_ACTION_TRY = 'Prova';
+export const OBJECTIVES_ACTION_SAVE = 'Salva gli obiettivi';
+export const OBJECTIVES_ACTION_CANCEL = 'Annulla';
+export const OBJECTIVES_DIALOG_READING = 'Cambia gli obiettivi e premi «Prova»: il calcolo gira sulla bozza e non salva nulla. «Salva gli obiettivi» li rende quelli dell’account.';
+export const OBJECTIVES_OFF_READING = 'Gli obiettivi sono spenti: la composizione ideale e il passo Target del PAC restano manuali finché non li accendi.';
+export const OBJECTIVES_SAVED_TOAST = 'Obiettivi salvati';
+export const OBJECTIVES_TRY_EMPTY = 'Nessuno strumento acquistabile su cui provare gli obiettivi.';
+export const OBJECTIVES_LINK_FROM_SETTINGS = 'Modifica in Allocazione › Accumulo';
+export const OBJECTIVES_SETTINGS_EYEBROW = 'Allocazione ideale';

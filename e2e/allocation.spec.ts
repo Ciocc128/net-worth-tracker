@@ -37,6 +37,13 @@ async function openAllocazione(page: Page) {
   await expect(page.locator('section[aria-label="Allocazione per classe"]')).toBeVisible({ timeout: 30_000 });
 }
 
+/** La scheda «Accumulo» (A1, doc/pac-ottimizzatore § RV1): Accumulo, Composizione ideale e Obiettivi vivono qui. */
+async function openAccumulo(page: Page) {
+  await page.goto('/dashboard/allocation?tab=accumulo', { waitUntil: 'load' });
+  await expect(page.getByRole('region', { name: 'Verdetto sul piano di accumulo' })).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('section[aria-label="Composizione ideale"]')).toBeVisible({ timeout: 30_000 });
+}
+
 /** Ogni nodo interattivo raggiungibile con Tab, in ordine, fino a un tetto. */
 async function tabWalk(page: Page, limit = 60): Promise<string[]> {
   const walk: string[] = [];
@@ -203,7 +210,7 @@ async function stacks(page: Page) {
 
 test('due pile indipendenti: fra due tessere della stessa colonna 12px, in ogni modo del Piano (fork, 2026-09-25)', async ({ page }) => {
   await openAllocazione(page);
-  await expect(page.locator('section[aria-label="Accumulo"]')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('section[aria-label="Esposizione del portafoglio"]')).toBeVisible({ timeout: 30_000 });
   const piano = page.locator('section[aria-label="Piano"]');
 
   // Il Piano cambia altezza col modo (sul conto del proprietario da 381 a 1159px): con righe a tutta
@@ -222,17 +229,17 @@ test('due pile indipendenti: fra due tessere della stessa colonna 12px, in ogni 
       }
     }
     const names = columns.map((column) => column.map((tile) => tile.name));
-    expect(names[0].slice(0, 3)).toEqual(["Bilanciamento dell'allocazione", 'Allocazione per classe', 'Accumulo']);
-    expect(names[1].slice(0, 2)).toEqual(['Piano', 'Composizione ideale']);
+    // Dal 2026-10-07 Accumulo e Composizione ideale stanno nella scheda «Accumulo» (A1).
+    expect(names[0].slice(0, 2)).toEqual(["Bilanciamento dell'allocazione", 'Allocazione per classe']);
+    expect(names[1].slice(0, 2)).toEqual(['Piano', 'Esposizione del portafoglio']);
   }
 });
 
 /**
  * Su `tablet:` (768–1439px) le pile sono `contents` e le tessere tornano all'ordine `order-*`: Per
- * classe ed Esposizione sono le sole a mezza larghezza, e con Accumulo e Composizione ideale in mezzo
- * ciascuna restava sola con mezza riga vuota accanto (fork, 2026-09-27, visto sul giro su iPad).
- *
- * REGRESSION GUARD: vista rossa togliendo `tablet:order-4` dall'Esposizione.
+ * classe ed Esposizione sono le sole a mezza larghezza, e con altre tessere in mezzo ciascuna restava
+ * sola con mezza riga vuota accanto (fork, 2026-09-27, visto sul giro su iPad). Dal 2026-10-07 le due
+ * tessere del fork non sono più in questa scheda e le due stanno una dopo l'altra (`order-3`, `order-4`).
  */
 for (const width of [1024, 820]) {
   test(`su iPad Per classe ed Esposizione stanno sulla stessa riga (${width}px)`, async ({ page }) => {
@@ -290,7 +297,7 @@ test.describe('Composizione ideale › Con vendite mirate', () => {
   });
 
   test('cap 0 sells nothing taxed; «Non vendere» takes a row out of sale', async ({ page }) => {
-    await openAllocazione(page);
+    await openAccumulo(page);
     const tile = page.locator('section[aria-label="Composizione ideale"]');
     await tile.getByRole('button', { name: 'Calcola' }).click();
     const dialog = page.getByRole('dialog', { name: 'Composizione ideale' });

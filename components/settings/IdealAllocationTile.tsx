@@ -70,6 +70,11 @@ interface IdealAllocationTileProps {
   secondLevelGaps: SecondLevelGap[];
   tradableAssets: TradableAssetOption[];
   disabled?: boolean;
+  /**
+   * Without the surrounding `Tile`: the editor now also lives in a modal (Allocazione › Accumulo,
+   * RV6), and a tile inside a modal is a card in a card.
+   */
+  bare?: boolean;
 }
 
 const rowLabelClass = 'text-[13px] font-medium';
@@ -84,6 +89,7 @@ export function IdealAllocationTile({
   secondLevelGaps,
   tradableAssets,
   disabled = false,
+  bare = false,
 }: IdealAllocationTileProps) {
   const factorObjectiveByClass = new Map(value.factorObjectives.map((f) => [f.assetClass, f.priority]));
   const geographyProfile = value.geography ? INDEX_PROFILES[value.geography.referenceIndexId] : undefined;
@@ -174,12 +180,12 @@ export function IdealAllocationTile({
     onChange({ ...value, geography: { enabled: true, referenceIndexId: firstIndexId, priority: 'medium' } });
   };
 
-  return (
-    <Tile eyebrow="Allocazione ideale" reading={describeIdealAllocation(readingInput)}>
+  const content = (
+    <>
       <div className="mt-3.5 flex items-center justify-between gap-4 py-2">
         <div className="min-w-0">
           <p className={rowLabelClass}>Attiva</p>
-          <p className={rowHintClass}>Propone i pesi degli strumenti nel passo Target del PAC.</p>
+          <p className={rowHintClass}>Propone i pesi degli strumenti: nella composizione ideale e nel passo Target del PAC.</p>
         </div>
         <Switch
           checked={value.enabled}
@@ -519,6 +525,13 @@ export function IdealAllocationTile({
           </div>
         </div>
       )}
+    </>
+  );
+
+  if (bare) return <div className="min-w-0">{content}</div>;
+  return (
+    <Tile eyebrow="Allocazione ideale" reading={describeIdealAllocation(readingInput)}>
+      {content}
     </Tile>
   );
 }

@@ -31,6 +31,7 @@ import {
   describeSecondLevelGaps,
   OPTIMIZER_ACTION_CALCULATE,
   OPTIMIZER_ACTION_MODIFY_IN_SETTINGS,
+  OPTIMIZER_OBJECTIVES_HREF,
   OPTIMIZER_DISABLED_READING,
   OPTIMIZER_LOADING_PROFILES,
   OPTIMIZER_MODE_ARIA_LABEL,
@@ -133,7 +134,7 @@ export function OptimizerPanel({
     return (
       <div className="rounded-lg bg-muted p-4 text-[13px] text-muted-foreground">
         {OPTIMIZER_DISABLED_READING}{' '}
-        <Link href="/dashboard/settings?tab=allocazione" className="underline underline-offset-2">
+        <Link href={OPTIMIZER_OBJECTIVES_HREF} className="underline underline-offset-2">
           {OPTIMIZER_ACTION_MODIFY_IN_SETTINGS}
         </Link>
       </div>
@@ -185,7 +186,7 @@ export function OptimizerPanel({
           {OPTIMIZER_OBJECTIVES_TITLE}
         </p>
         <NarrativeText segments={describeIdealAllocation(readingInput)} className="text-[13px] text-foreground" />
-        <Link href="/dashboard/settings?tab=allocazione" className="mt-1.5 inline-block text-[11px] underline underline-offset-2">
+        <Link href={OPTIMIZER_OBJECTIVES_HREF} className="mt-1.5 inline-block text-[11px] underline underline-offset-2">
           {OPTIMIZER_ACTION_MODIFY_IN_SETTINGS}
         </Link>
       </div>

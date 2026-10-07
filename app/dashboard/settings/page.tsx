@@ -73,9 +73,8 @@ import {
   FamilyMember,
   IdealAllocationSettings,
 } from '@/types/assets';
-import { DEFAULT_IDEAL_ALLOCATION, findSecondLevelGaps } from '@/lib/utils/weightOptimizer';
-import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
-import { IdealAllocationTile } from '@/components/settings/IdealAllocationTile';
+import { DEFAULT_IDEAL_ALLOCATION } from '@/lib/utils/weightOptimizer';
+import { IdealAllocationSummary } from '@/components/settings/IdealAllocationSummary';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { Button } from '@/components/ui/button';
@@ -718,13 +717,9 @@ export default function SettingsPage() {
   const [transferFeeSubCategoryId, setTransferFeeSubCategoryId] = useState<string>('');
 
   // Allocazione ideale (doc/weight-optimizer-ate.md §7) — the PAC weight optimizer's objectives.
-  // optimizerTradableAssets feeds the tile's instrument/group limit pickers.
+  // Read-only here since A1 (doc/pac-ottimizzatore § RV6): they are edited in Allocazione › Accumulo.
+  // The state stays so this page's «Salva» writes back what it read, exactly as before.
   const [idealAllocation, setIdealAllocation] = useState<IdealAllocationSettings>(DEFAULT_IDEAL_ALLOCATION);
-  const [optimizerTradableAssets, setOptimizerTradableAssets] = useState<Asset[]>([]);
-  // Tradable + frozen, the same scope findSecondLevelGaps (§3.3) checks — frozen wealth is genuinely
-  // invested so it belongs in the "missing sub-category" warning too, unlike the instrument/group
-  // limit pickers above (which only make sense on something the plan can actually buy).
-  const [optimizerScopedAssets, setOptimizerScopedAssets] = useState<Asset[]>([]);
 
   // Dividend settings state
   const [dividendIncomeCategoryId, setDividendIncomeCategoryId] = useState<string>('');
@@ -1099,12 +1094,6 @@ export default function SettingsPage() {
       // a money-market ETF (assetClass 'cash') is not a settlement account. Strict convention
       // (convenzione stretta, doc/guide/patrimonio.md § Asset Pricing, FX and Assets).
       setCashAssets(assets.filter((a) => a.type === 'cash' && a.assetClass === 'cash'));
-      // Same read, second consumer: Allocazione ideale's instrument/group limits — only tradable
-      // assets can carry a weight (doc/weight-optimizer-ate.md §7.3).
-      setOptimizerTradableAssets(assets.filter((a) => resolveAllocationRole(a) === 'tradable'));
-      setOptimizerScopedAssets(
-        assets.filter((a) => resolveAllocationRole(a) === 'tradable' || resolveAllocationRole(a) === 'frozen')
-      );
     } catch (error) {
       // It used to have no catch at all: a failed read left `[]`, and the tile told the reader
       // to create an account they already had.
@@ -1565,28 +1554,6 @@ export default function SettingsPage() {
       return;
     }
     if (cleanedStates !== assetClassStates) setAssetClassStates(cleanedStates);
-
-    // Validate Allocazione ideale (doc/weight-optimizer-ate.md §7.3): min ≤ max, 0..100, and at
-    // most one instrument limit per asset — the UI already prevents the last one by construction.
-    for (const limit of idealAllocation.instrumentLimits) {
-      const outOfRange = [limit.minPct, limit.maxPct].some(
-        (pct) => pct !== undefined && (pct < 0 || pct > 100)
-      );
-      if (outOfRange) {
-        toast.error('I limiti per strumento devono essere tra 0 e 100%.');
-        return;
-      }
-      if (limit.minPct !== undefined && limit.maxPct !== undefined && limit.minPct > limit.maxPct) {
-        toast.error('In un limite per strumento il minimo non può superare il massimo.');
-        return;
-      }
-    }
-    for (const group of idealAllocation.groupLimits) {
-      if (group.maxPct < 0 || group.maxPct > 100) {
-        toast.error(`Il tetto del gruppo "${group.label || 'senza etichetta'}" deve essere tra 0 e 100%.`);
-        return;
-      }
-    }
 
     const taxBracketsPayload = taxBracketsDirty ? parseTaxBracketDrafts(taxBracketDrafts) : null;
     // Simulazioni: written only when the tab holds edits, so a Save elsewhere never turns the
@@ -2140,49 +2107,6 @@ export default function SettingsPage() {
   // when the user has actually set leverage (> 1); the app never stores a manual leverage input.
   const derivedTargetLeverage = total > 0 ? total / 100 : 1;
   const hasTargetLeverage = derivedTargetLeverage > 1.005;
-
-  // Allocazione ideale (doc/weight-optimizer-ate.md §7.3): classes eligible for a second-level
-  // objective are the ones with sub-category targets actually configured, and the tradable-asset
-  // picker feeds both the instrument and the group limits.
-  const idealAllocationFactorClasses = assetClasses
-    .filter(
-      (assetClass) =>
-        assetClassStates[assetClass]?.subCategoryEnabled &&
-        (assetClassStates[assetClass]?.subTargets.length ?? 0) > 0
-    )
-    .map((assetClass) => ({ assetClass, label: ASSET_CLASS_LABELS[assetClass] ?? assetClass }));
-  // §3.2 — classes with a target > 0 whose sub-categories are still off: the guided hint under
-  // the "Secondo livello" row (a second-level objective cannot exist there yet).
-  const secondLevelReadyClasses = assetClasses
-    .filter(
-      (assetClass) =>
-        (assetClassStates[assetClass]?.targetPercentage ?? 0) > 0 && !assetClassStates[assetClass]?.subCategoryEnabled
-    )
-    .map((assetClass) => ({ assetClass, label: ASSET_CLASS_LABELS[assetClass] ?? assetClass }));
-  // §3.3/G5 — instruments (tradable/frozen, value > 0) the second-level objective cannot place
-  // today, scoped to the classes that already have sub-categories enabled.
-  const idealAllocationTargetsForGaps: AssetAllocationTarget = Object.fromEntries(
-    idealAllocationFactorClasses.map(({ assetClass }) => [
-      assetClass,
-      {
-        targetPercentage: assetClassStates[assetClass]?.targetPercentage ?? 0,
-        subCategoryConfig: {
-          enabled: assetClassStates[assetClass]?.subCategoryEnabled ?? false,
-          categories: assetClassStates[assetClass]?.categories ?? [],
-        },
-      },
-    ])
-  );
-  const secondLevelGaps = findSecondLevelGaps(
-    optimizerScopedAssets,
-    idealAllocationTargetsForGaps,
-    idealAllocationFactorClasses.map((c) => c.assetClass),
-    calculateAssetValue
-  );
-  const idealAllocationTradableAssets = optimizerTradableAssets.map((asset) => ({
-    id: asset.id,
-    label: asset.name,
-  }));
 
   // ── Reading-line inputs (numbers from the existing pure utils, words from settingsNarrative) ──
   const formulaSplit =
@@ -3622,18 +3546,9 @@ export default function SettingsPage() {
               </Tile>
             </div>
 
-            {/* Allocazione ideale — the weight optimizer's objectives for the PAC's Target step */}
+            {/* Allocazione ideale — read-only here; the objectives are edited in Allocazione › Accumulo (A1) */}
             <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-12')}>
-              <IdealAllocationTile
-                value={idealAllocation}
-                onChange={setIdealAllocation}
-                targetLeverageRatio={derivedTargetLeverage}
-                factorClassOptions={idealAllocationFactorClasses}
-                secondLevelReadyClasses={secondLevelReadyClasses}
-                secondLevelGaps={secondLevelGaps}
-                tradableAssets={idealAllocationTradableAssets}
-                disabled={isDemo}
-              />
+              <IdealAllocationSummary value={idealAllocation} targetLeverageRatio={derivedTargetLeverage} />
             </div>
 
           </div>

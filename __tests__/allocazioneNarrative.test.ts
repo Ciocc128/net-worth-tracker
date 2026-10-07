@@ -119,6 +119,24 @@ describe('buildAllocazioneVerdict', () => {
     );
   });
 
+  it('names the PAC installment in place of Versa when a plan is active (PT2)', () => {
+    const verdict = buildAllocazioneVerdict(
+      verdictInput({ pac: { monthTotalEur: 3134, instrumentCount: 4, monthLabel: 'ottobre', allClosed: false } }),
+    );
+    expect(plain(verdict.sentence)).toBe(
+      'Le azioni pesano 3,3 pp più del target e le obbligazioni 3,3 pp meno; il piano di accumulo compra questo mese 3134 € in 4 strumenti.',
+    );
+  });
+
+  it('says the installment is closed when every line is (PT3)', () => {
+    const verdict = buildAllocazioneVerdict(
+      verdictInput({ pac: { monthTotalEur: 3134, instrumentCount: 4, monthLabel: 'ottobre', allClosed: true } }),
+    );
+    expect(plain(verdict.sentence)).toBe(
+      'Le azioni pesano 3,3 pp più del target e le obbligazioni 3,3 pp meno; la rata di ottobre del piano di accumulo è chiusa.',
+    );
+  });
+
   it('articulates the preposition on the score, vowel-initial numbers included', () => {
     const headlineAt = (score: number) => buildAllocazioneVerdict(verdictInput({ score })).headline;
     // The owner's live score was 85, and the page printed «Allineato al 85%» until 2026-09-21.
