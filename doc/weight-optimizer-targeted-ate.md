@@ -9,6 +9,10 @@
 >
 > Lingua: conversazione in italiano; codice, identificatori e commenti in inglese; UI in italiano.
 
+> **Nota (2026-10-07, A2):** superata da `doc/pac-ottimizzatore/README.md` per PO11 (un solo solver: «Il tetto non serve»
+> e «Tetto 0» girano sullo stesso active set di «Il tetto lega», non più sulla discesa proiettata) e PO12 (rapporto con
+> le barre). Il resto resta vincolante.
+
 ---
 
 ## 0. Letture obbligatorie

@@ -36,6 +36,8 @@ interface TargetTickProps {
   targetPercentage: number;
   /** Where a plan leaves the class (end of the PAC); drawn as a hollow ring when given. */
   projectedPercentage?: number;
+  /** Replaces the percentage wording (a leverage objective reads in ×). */
+  ariaLabel?: string;
   className?: string;
 }
 
@@ -44,6 +46,7 @@ export function TargetTick({
   currentPercentage,
   targetPercentage,
   projectedPercentage,
+  ariaLabel,
   className,
 }: TargetTickProps) {
   const reducedMotion = useReducedMotion();
@@ -61,7 +64,7 @@ export function TargetTick({
       aria-valuenow={Math.round(currentPercentage)}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-label={`Allocazione corrente ${formatPercentage(currentPercentage, 1)}, target ${formatPercentage(targetPercentage, 0)}${projectedClause}`}
+      aria-label={ariaLabel ?? `Allocazione corrente ${formatPercentage(currentPercentage, 1)}, target ${formatPercentage(targetPercentage, 0)}${projectedClause}`}
     >
       {/* The 3px track, centred in the 9px root so the marker has 3px on each side. */}
       <div className="absolute inset-x-0 top-[3px] h-[3px] overflow-hidden rounded-full bg-muted">

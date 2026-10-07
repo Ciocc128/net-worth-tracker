@@ -10,12 +10,11 @@
  *   plan open:   Questo mese (7) | Classi del piano (5)     — a draft or a finished plan has no
  *                                                              trajectory: Questo mese takes the row
  *   no plan:     Accumulo (12)                              — the empty state, RV4
- *   always:      Composizione ideale (7) | Obiettivi (5)    — the model portfolio's tile replaces
- *                                                              the first with task A2
+ *   always:      Portafoglio modello (7) | Obiettivi (5)    — the model portfolio's own tile (A2)
  * Below `desktop:` one tile per row in that order.
  *
  * The objectives' modal is opened from the Obiettivi tile and by `?obiettivi=1` (the link
- * Impostazioni, the optimizer panels and Composizione ideale carry); the query is dropped once read.
+ * Impostazioni, the optimizer panels and the model portfolio carry); the query is dropped once read.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -29,6 +28,7 @@ import { matchPlanExecutions } from '@/lib/utils/accumulationPlanMatching';
 import { buildAccumuloVerdict, isPlanDone, summarizeDraftTotal } from '@/lib/utils/accumuloSummary';
 import { describeBandReentry } from '@/lib/utils/accumulationNarrative';
 import { useOpenAccumuloPlan } from '@/lib/hooks/useOpenAccumuloPlan';
+import { useModelPortfolio } from '@/lib/hooks/useModelPortfolio';
 import { useAssetTransactions } from '@/lib/hooks/useAssetTransactions';
 import { resolveSurfaceState, describeReadFailure } from '@/lib/utils/statesNarrative';
 import { describeAccumulationReadFailure, ACCUMULO_TILE_EYEBROW } from '@/lib/utils/accumulationNarrative';
@@ -40,7 +40,7 @@ import { ErrorNotice } from '@/components/ui/error-notice';
 import { QuestoMeseTile } from '@/components/allocation/tiles/QuestoMeseTile';
 import { ClassiDelPianoTile } from '@/components/allocation/tiles/ClassiDelPianoTile';
 import { AccumuloVuotoTile, COMPOSITION_ANCHOR_ID } from '@/components/allocation/tiles/AccumuloVuotoTile';
-import { ComposizioneIdealeTile } from '@/components/allocation/tiles/ComposizioneIdealeTile';
+import { PortafoglioModelloTile } from '@/components/allocation/tiles/PortafoglioModelloTile';
 import { ObiettiviTile } from '@/components/allocation/tiles/ObiettiviTile';
 import { ObiettiviDialog } from '@/components/allocation/ObiettiviDialog';
 import { DEPS } from '@/components/allocation/tiles/accumuloShared';
@@ -58,6 +58,8 @@ interface AccumuloTabProps {
 
 export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageRatio, idealAllocation, onAssetsChanged }: AccumuloTabProps) {
   const { plansQuery, plan, today, currentIndex } = useOpenAccumuloPlan(ownerId);
+  const modelQuery = useModelPortfolio(ownerId);
+  const model = modelQuery.data ?? null;
   const transactionsQuery = useAssetTransactions(ownerId, undefined, { enabled: !!plan && plan.status === 'active' });
   const [objectivesOpen, setObjectivesOpen] = useState(false);
   const editRef = useRef<HTMLButtonElement>(null);
@@ -108,11 +110,11 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
 
   const verdict = useMemo(
     () =>
-      buildAccumuloVerdict({ plan, currentIndex, sourceCashEur, hasModel: false, lineStates: matchResult.lineStates, draftTotalEur, reentry }),
-    [plan, currentIndex, sourceCashEur, matchResult.lineStates, draftTotalEur, reentry],
+      buildAccumuloVerdict({ plan, currentIndex, sourceCashEur, hasModel: !!model, lineStates: matchResult.lineStates, draftTotalEur, reentry }),
+    [plan, currentIndex, sourceCashEur, model, matchResult.lineStates, draftTotalEur, reentry],
   );
 
-  const surfaceState = resolveSurfaceState({ loading: plansQuery.isLoading || (!!plan && !targets), failed: plansQuery.isError });
+  const surfaceState = resolveSurfaceState({ loading: plansQuery.isLoading || modelQuery.isLoading || (!!plan && !targets), failed: plansQuery.isError });
 
   if (surfaceState === 'loading') {
     return (
@@ -157,6 +159,7 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
               band={band}
               targetLeverageRatio={targetLeverageRatio}
               idealAllocation={idealAllocation}
+              model={model}
               today={today}
               onAssetsChanged={onAssetsChanged}
             />
@@ -187,13 +190,15 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
         )}
 
         <div id={COMPOSITION_ANCHOR_ID} className={cn(TILE_CELL_CLASS, 'scroll-mt-4 desktop:col-span-7')}>
-          <ComposizioneIdealeTile
+          <PortafoglioModelloTile
             ownerId={ownerId}
             allAssets={allAssets}
             targets={targets}
             band={band}
             targetLeverageRatio={targetLeverageRatio}
             idealAllocation={idealAllocation}
+            model={model}
+            readFailed={modelQuery.isError}
             onAssetsChanged={onAssetsChanged}
           />
         </div>
@@ -202,6 +207,7 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
           <ObiettiviTile
             idealAllocation={idealAllocation}
             targetLeverageRatio={targetLeverageRatio}
+            snapshot={model?.optimizerSnapshot}
             editRef={editRef}
             disabled={!targets}
             onEdit={() => setObjectivesOpen(true)}
@@ -218,6 +224,7 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
           targets={targets}
           targetLeverageRatio={targetLeverageRatio}
           saved={objectivesSaved}
+          model={model}
           onSaved={onAssetsChanged}
           returnFocusTo={editRef}
         />

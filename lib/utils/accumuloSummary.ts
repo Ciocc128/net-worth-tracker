@@ -22,6 +22,7 @@ import {
   type PlanDeps,
 } from './accumulationPlanUtils';
 import { toModelWeights } from './modelPortfolio';
+import type { ModelPortfolioWeight } from '@/types/modelPortfolio';
 import type { RebalanceBand } from './allocationUtils';
 
 /** Every installment fully closed, `late` lines included — the plan has nothing left to do. */
@@ -132,8 +133,8 @@ export interface AccumuloPreview {
   monthlyEur: number;
   /** Where the classes would stand today and at the end of the plan, on today's prices. */
   classes: { assetClass: AssetClass; currentPct: number; targetPct: number; finalPct: number }[];
-  /** The preview's weights come from today's holdings (the model portfolio arrives with A2). */
-  weightsFrom: 'today';
+  /** The saved model portfolio when there is one, else today's holdings (RV4). */
+  weightsFrom: 'today' | 'model';
 }
 
 /**
@@ -148,17 +149,22 @@ export function buildAccumuloPreview(input: {
   compare: AllocationCompare;
   deps: PlanDeps;
   today: Date;
+  /** The saved model's weights: the preview starts from them instead of today's holdings. */
+  model?: ModelPortfolioWeight[] | null;
 }): AccumuloPreview | null {
-  const { allAssets, targets, band, compare, deps, today } = input;
+  const { allAssets, targets, band, compare, deps, today, model } = input;
   const cashIds = allAssets.filter((asset) => asset.assetClass === 'cash' && asset.type === 'cash').map((asset) => asset.id);
   const cashEur = allAssets.filter((asset) => cashIds.includes(asset.id)).reduce((sum, asset) => sum + deps.valueOf(asset), 0);
   if (cashEur <= PREVIEW_RESERVE_EUR) return null;
 
   const assetsById = new Map(allAssets.map((asset) => [asset.id, asset]));
-  const proposed = allAssets
-    .filter((asset) => asset.assetClass !== 'cash' && asset.assetClass !== 'realestate')
-    .map((asset) => ({ assetId: asset.id, pct: deps.valueOf(asset) }))
-    .filter((entry) => entry.pct > 0);
+  const useModel = !!model && model.length > 0;
+  const proposed = useModel
+    ? model.map((weight) => ({ assetId: weight.assetId, pct: weight.targetPercentage })).filter((entry) => entry.pct > 0)
+    : allAssets
+        .filter((asset) => asset.assetClass !== 'cash' && asset.assetClass !== 'realestate')
+        .map((asset) => ({ assetId: asset.id, pct: deps.valueOf(asset) }))
+        .filter((entry) => entry.pct > 0);
   const { weights } = toModelWeights(proposed, assetsById);
   if (weights.length === 0) return null;
 
@@ -194,7 +200,7 @@ export function buildAccumuloPreview(input: {
     if (Math.abs(entry.currentPct) < 0.05 && Math.abs(entry.targetPct) < 0.05 && Math.abs(final.currentPct) < 0.05) return [];
     return [{ assetClass: assetClass as AssetClass, currentPct: entry.currentPct, targetPct: entry.targetPct, finalPct: final.currentPct }];
   });
-  return { months: PREVIEW_MONTHS, reserveEur: PREVIEW_RESERVE_EUR, monthlyEur: totalEur / PREVIEW_MONTHS, classes, weightsFrom: 'today' };
+  return { months: PREVIEW_MONTHS, reserveEur: PREVIEW_RESERVE_EUR, monthlyEur: totalEur / PREVIEW_MONTHS, classes, weightsFrom: useModel ? 'model' : 'today' };
 }
 
 /** Σ of the purchases a draft would make over its whole length (the verdict's «12 rate da X €»). */

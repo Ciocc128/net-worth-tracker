@@ -65,7 +65,7 @@ test.describe('Composizione ideale › Con vendite mirate a 390px', () => {
   test('la tabella con la colonna «Tasse» sta nel dialog, senza scorrere di lato', async ({ page }) => {
     await page.goto('/dashboard/allocation?tab=accumulo', { waitUntil: 'load' });
     await expect(page.getByRole('region', { name: 'Verdetto sul piano di accumulo' })).toBeVisible({ timeout: 60_000 });
-    await page.locator('section[aria-label="Composizione ideale"]').getByRole('button', { name: 'Calcola' }).click();
+    await page.locator('section[aria-label="Portafoglio modello"]').getByRole('button', { name: 'Ricalcola' }).click();
     const dialog = page.getByRole('dialog', { name: 'Composizione ideale' });
     await dialog.getByRole('radio', { name: 'Con vendite mirate' }).click();
     await dialog.getByLabel('Tasse massime (€)').fill('100000');

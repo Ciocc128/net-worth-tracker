@@ -342,3 +342,48 @@ export const OBJECTIVES_SAVED_TOAST = 'Obiettivi salvati';
 export const OBJECTIVES_TRY_EMPTY = 'Nessuno strumento acquistabile su cui provare gli obiettivi.';
 export const OBJECTIVES_LINK_FROM_SETTINGS = 'Modifica in Allocazione › Accumulo';
 export const OBJECTIVES_SETTINGS_EYEBROW = 'Allocazione ideale';
+
+// ---------------------------------------------------------------------------
+// The model portfolio (doc/pac-ottimizzatore § RM1–RM4, RO3) — `PortafoglioModelloTile` and its dialogs
+// ---------------------------------------------------------------------------
+
+export const MODEL_TILE_EYEBROW = 'Portafoglio modello';
+export const MODEL_TILE_EMPTY_READING =
+  'Nessun portafoglio modello: calcola i pesi con l’ottimizzatore o scrivili a mano, e un piano parte da lì.';
+export const MODEL_TILE_READ_FAILURE_READING =
+  'Non riesco a leggere il portafoglio modello. Se è la prima volta, la regola Firestore della nuova collezione potrebbe non essere ancora pubblicata.';
+export const MODEL_ACTION_RECALCULATE = 'Ricalcola';
+export const MODEL_ACTION_EDIT = 'Modifica a mano';
+export const MODEL_ACTION_ADD_CANDIDATE = 'Aggiungi strumento da valutare';
+export const MODEL_ADD_CANDIDATE_NEEDS_MODEL = 'Salva prima un portafoglio modello: lo strumento da valutare ci entra a peso 0.';
+export const MODEL_RECALCULATE_NEEDS_OBJECTIVES = 'Accendi gli obiettivi per far calcolare i pesi all’ottimizzatore.';
+export const MODEL_COL_INSTRUMENT = 'Strumento';
+export const MODEL_COL_TODAY = 'Oggi';
+export const MODEL_COL_MODEL = 'Modello';
+export const MODEL_COL_DIFF = 'Differenza';
+export const MODEL_CANDIDATE_TAG = 'da valutare';
+export const MODEL_OUTSIDE_LABEL = 'Fuori dal modello';
+export const MODEL_TARGETED_HINT =
+  'Per avvicinarti al modello vendendo poco, «Ricalcola» ha la modalità «Con vendite mirate», con un tetto di tasse.';
+
+/** «Calcolato dall'ottimizzatore il 07/10/2026» / «Scritto a mano il 07/10/2026». */
+export function describeModelOrigin(origin: 'manual' | 'optimizer', updatedAt: Date): string {
+  const day = `${String(updatedAt.getDate()).padStart(2, '0')}/${String(updatedAt.getMonth() + 1).padStart(2, '0')}/${updatedAt.getFullYear()}`;
+  return origin === 'optimizer' ? `Calcolato dall'ottimizzatore il ${day}.` : `Scritto a mano il ${day}.`;
+}
+
+export const MODEL_SAVE_ACTION = 'Salva come portafoglio modello';
+export const MODEL_SAVED_TOAST = 'Portafoglio modello salvato';
+export const MODEL_SAVE_REPLACES_NOTE = 'Sostituisce il portafoglio modello attuale.';
+
+export const MODEL_EDIT_TITLE = 'Modifica il portafoglio modello';
+export const MODEL_EDIT_READING =
+  'Scrivi i pesi di mercato di ogni strumento: devono sommare 100%. Uno strumento da valutare entra a peso 0 e lo togli da qui.';
+export const MODEL_EDIT_ACTION_NORMALIZE = 'Riporta a 100%';
+export const MODEL_EDIT_ACTION_SAVE = 'Salva';
+export const MODEL_EDIT_ACTION_CANCEL = 'Annulla';
+export const MODEL_EDIT_ACTION_REMOVE = 'Togli';
+export const MODEL_EDIT_SUM_LABEL = 'Somma';
+
+/** The conflict sentence the Obiettivi tile shows under the bars (first conflict of the saved snapshot). */
+export const OBJECTIVES_TILE_CALCULATED_ON = 'Calcolati sull’ultimo portafoglio modello salvato.';

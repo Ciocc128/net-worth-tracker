@@ -32,7 +32,12 @@ import {
   type OptimizerSaleInput,
 } from '@/lib/utils/weightOptimizer';
 import { weightsToSeedPositions } from '@/lib/utils/accumulationPlanUtils';
-import { toModelWeights, describeModelExclusions, MODEL_NO_TRADABLE_INSTRUMENTS } from '@/lib/utils/modelPortfolio';
+import { proposalToModelWeights, describeModelExclusions, MODEL_NO_TRADABLE_INSTRUMENTS } from '@/lib/utils/modelPortfolio';
+import { useSaveModelPortfolio } from '@/lib/hooks/useModelPortfolio';
+import { describeWriteError } from '@/lib/utils/dialogNarrative';
+import { toast } from 'sonner';
+import type { ModelPortfolio } from '@/types/modelPortfolio';
+import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { useInstrumentProfiles } from '@/lib/hooks/useInstrumentProfiles';
 import { useOptimizerGeographyReference } from '@/lib/hooks/useOptimizerGeographyReference';
@@ -60,6 +65,9 @@ import {
   IDEAL_COMPOSITION_REACHABLE_DISABLED_REASON,
   IDEAL_COMPOSITION_TAX_CAP_LABEL,
   IDEAL_COMPOSITION_TITLE,
+  MODEL_SAVE_ACTION,
+  MODEL_SAVE_REPLACES_NOTE,
+  MODEL_SAVED_TOAST,
   OPTIMIZER_ACTION_CALCULATE,
   OPTIMIZER_ACTION_MODIFY_IN_SETTINGS,
   OPTIMIZER_OBJECTIVES_HREF,
@@ -112,6 +120,8 @@ interface IdealCompositionDialogProps {
   targets: AssetAllocationTarget;
   targetLeverageRatio: number;
   idealAllocation: IdealAllocationSettings;
+  /** The saved model portfolio: its instruments, even at 0 shares, are candidates (RO1, PO10). */
+  model: ModelPortfolio | null;
   /** "Crea un PAC con questi pesi": hands the caller a fresh draft's seed — the caller opens
    *  `AccumulationPlanDialog` itself (never nested under this one). */
   onCreatePac: (seed: { positions: PlanPosition[]; optimizerSnapshot: OptimizerSnapshot }) => void;
@@ -125,8 +135,11 @@ export function IdealCompositionDialog({
   targets,
   targetLeverageRatio,
   idealAllocation,
+  model,
   onCreatePac,
 }: IdealCompositionDialogProps) {
+  const isDemo = useDemoMode();
+  const saveModel = useSaveModelPortfolio(ownerId);
   const [amountInput, setAmountInput] = useState('');
   const [mode, setMode] = useState<OptimizerMode>('ideal');
   const [calcRequested, setCalcRequested] = useState(false);
@@ -159,9 +172,10 @@ export function IdealCompositionDialog({
 
   const { referenceCountries, referenceAreas, referenceEstimatedShare } = useOptimizerGeographyReference(idealAllocation);
 
+  const evaluateAssetIds = useMemo(() => new Set((model?.weights ?? []).map((w) => w.assetId)), [model]);
   const standalone = useMemo(
-    () => buildStandaloneCandidates(allAssets, baseEur, calculateAssetValue),
-    [allAssets, baseEur]
+    () => buildStandaloneCandidates(allAssets, baseEur, calculateAssetValue, evaluateAssetIds),
+    [allAssets, baseEur, evaluateAssetIds]
   );
   const candidateAssetIds = useMemo(() => standalone.positions.map((p) => p.buyAssetId), [standalone.positions]);
   const profilesQuery = useInstrumentProfiles(calcRequested ? ownerId : undefined, candidateAssetIds);
@@ -212,25 +226,45 @@ export function IdealCompositionDialog({
   );
   const showSpecificAssetsNote = hasSpecificAssetTargets(targets, Object.keys(targets) as AssetClass[]);
 
-  // RM2 on the proposed weights: what «Crea un PAC» can keep, rescaled to 100, and what it leaves out.
-  const modelFit = result && result.status === 'ok' ? toModelWeights(result.weights.map((w) => ({ assetId: w.key, pct: w.proposedPct })), assetsById) : null;
+  // RM2 on the proposed weights: what the model / «Crea un PAC» can keep, rescaled to 100, and what it leaves out.
+  const modelFit =
+    result && result.status === 'ok'
+      ? proposalToModelWeights(result.weights.map((w) => ({ assetId: w.key, pct: w.proposedPct })), assetsById, (a) => a.quantity)
+      : null;
   const keptWeights = (modelFit?.weights ?? []).map((w) => ({ key: w.assetId, label: labelOf(w.assetId), proposedPct: w.pct }));
   const exclusionNote = modelFit ? describeModelExclusions(modelFit.excluded, labelOf) : '';
+
+  const buildSnapshot = (computed: OptimizerResult): OptimizerSnapshot => ({
+    computedAt: new Date(),
+    mode: effectiveMode,
+    settingsUsed: idealAllocation,
+    weights: computed.weights.map((w) => ({ key: w.key, proposedPct: w.proposedPct })),
+    objectives: computed.objectives,
+    conflicts: computed.conflicts,
+    ...(isTargeted ? { taxCapEur, lockedKeys } : {}),
+  });
 
   const handleCreatePac = () => {
     if (!result || result.status !== 'ok' || openPlan) return;
     // B1: a frozen asset and a liquidity account never become PAC positions (RM2).
     const positions = weightsToSeedPositions(keptWeights);
     if (positions.length === 0) return;
-    const snapshot: OptimizerSnapshot = {
-      computedAt: new Date(),
-      mode: effectiveMode,
-      settingsUsed: idealAllocation,
-      weights: result.weights.map((w) => ({ key: w.key, proposedPct: w.proposedPct })),
-      objectives: result.objectives,
-      ...(isTargeted ? { taxCapEur, lockedKeys } : {}),
-    };
-    onCreatePac({ positions, optimizerSnapshot: snapshot });
+    onCreatePac({ positions, optimizerSnapshot: buildSnapshot(result) });
+  };
+
+  // RO3: the result becomes the model portfolio (RM2 weights, `origin: 'optimizer'`, the snapshot).
+  const handleSaveModel = async () => {
+    if (!result || result.status !== 'ok' || !modelFit || modelFit.portfolioWeights.length === 0) return;
+    try {
+      await saveModel.mutateAsync({
+        input: { weights: modelFit.portfolioWeights, origin: 'optimizer', optimizerSnapshot: buildSnapshot(result) },
+        allAssets,
+      });
+      toast.success(MODEL_SAVED_TOAST);
+      onClose();
+    } catch (error) {
+      toast.error(describeWriteError(error));
+    }
   };
 
   const toggleLock = (key: string) =>
@@ -446,9 +480,24 @@ export function IdealCompositionDialog({
                 <OptimizerObjectivesReport result={result} labelOf={labelOf} />
 
                 <div>
-                  <Button className="h-11 text-[12px] desktop:h-8" onClick={handleCreatePac} disabled={!!openPlan || keptWeights.length === 0}>
-                    {IDEAL_COMPOSITION_ACTION_CREATE_PAC}
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      className="h-11 text-[12px] desktop:h-8"
+                      onClick={() => void handleSaveModel()}
+                      disabled={isDemo || saveModel.isPending || keptWeights.length === 0}
+                    >
+                      {MODEL_SAVE_ACTION}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-11 text-[12px] desktop:h-8"
+                      onClick={handleCreatePac}
+                      disabled={!!openPlan || keptWeights.length === 0}
+                    >
+                      {IDEAL_COMPOSITION_ACTION_CREATE_PAC}
+                    </Button>
+                  </div>
+                  {model && <p className="mt-1.5 text-[11px] text-muted-foreground">{MODEL_SAVE_REPLACES_NOTE}</p>}
                   {exclusionNote && <p className="mt-1.5 text-[11px] text-muted-foreground">{exclusionNote}</p>}
                   {keptWeights.length === 0 && <p className="mt-1.5 text-[11px] text-muted-foreground">{MODEL_NO_TRADABLE_INSTRUMENTS}</p>}
                   {openPlan && <p className="mt-1.5 text-[11px] text-muted-foreground">{IDEAL_COMPOSITION_PLAN_ALREADY_OPEN}</p>}

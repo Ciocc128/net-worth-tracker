@@ -240,7 +240,7 @@ comportamento è identico a prima: nessun chiamante diverso da `ComposizioneIdea
 
 ## Deploy della regola Firestore
 
-`firestore.rules` porta il blocco `accumulationPlans` da S2 (`match /accumulationPlans/{planId}`,
+(Dall'A2 anche `modelPortfolios`, doc/guide/ottimizzatore.md.) `firestore.rules` porta il blocco `accumulationPlans` da S2 (`match /accumulationPlans/{planId}`,
 stesso schema di `pensionContributions`: lettura/scrittura per chi accede all'account, `userId`
 immutabile in update). **Il deploy delle regole NON avviene con Vercel**: va fatto a mano dalla console
 Firebase (Firestore → Regole → incolla il contenuto di `firestore.rules` → Pubblica) prima di poter
@@ -265,16 +265,26 @@ creare un piano in produzione — nessuna pipeline di questo repo lo fa per cont
   (`stepTrajectoryCursor`, un solo Tab per il grafico), riga di lettura sotto, legenda. Senza quei due prop è il grafico di
   prima (Calendario, passo Anteprima). `describeBandReentry` dice quando ogni classe rientra in banda **a prezzi di oggi**:
   «dal mese N» nelle bozze, il mese in lettere nel piano attivo.
-- **Stato vuoto (RV4).** L'anteprima è su «pesi di oggi» (`buildAccumuloPreview`: strumenti acquistabili pesati per valore,
-  riserva 10.000 €, 12 rate, nessuna entrata). Il portafoglio modello arriva con A2: fino ad allora «Vai alla composizione
-  ideale» fa scorrere fino a quel tile (`COMPOSITION_ANCHOR_ID`).
+- **Stato vuoto (RV4).** L'anteprima parte dai pesi del **portafoglio modello** se c'è (A2), altrimenti da quelli di oggi
+  (`buildAccumuloPreview`, `weightsFrom: 'model' | 'today'`; strumenti acquistabili, riserva 10.000 €, 12 rate, nessuna
+  entrata). «Apri il portafoglio modello» fa scorrere fino al tile (`COMPOSITION_ANCHOR_ID`, `portafoglio-modello`). Il
+  verdetto «senza piano» dice «verso il portafoglio modello» solo se il modello esiste (`hasModel`).
 - **Obiettivi (RV6, D-A6).** Si modificano in `ObiettiviDialog` (aperto dal tile o da `?obiettivi=1`, che `AccumuloTab` legge e
   toglie): la bozza è locale, «Prova» gira `runOptimizer` in modo Ideale e non scrive, «Salva gli obiettivi» scrive
   `{ idealAllocation }` con `setSettings` **senza `targets`**, cioè con la catena a merge: nient'altro del documento
   cambia (`settingsRoundTrip.test.ts`). Il modulo è `IdealAllocationTile` in modalità `bare`; i suoi dati di contorno (classi
   con sottocategorie, lacune del secondo livello, strumenti acquistabili) vengono dai target SALVATI
-  (`lib/utils/idealAllocationEditor.ts`), non più dal modulo dei target di Impostazioni. Mancano ancora le barre target →
-  raggiunto e la prima frase dei conflitti: leggono lo snapshot del portafoglio modello (A2).
+  (`lib/utils/idealAllocationEditor.ts`), non più dal modulo dei target di Impostazioni. Con un portafoglio modello salvato
+  il tile mostra le barre target → raggiunto (`ObjectiveBars`) e la prima frase dei conflitti, lette dallo snapshot del
+  modello (A2); senza snapshot, l'elenco a parole di prima. «Prova» considera anche gli strumenti da valutare del modello.
+
+## Il portafoglio modello (A2, doc/pac-ottimizzatore/README.md § RM1–RM4)
+
+Un solo set di pesi di mercato per strumento, salvato in `modelPortfolios/{ownerId}` (D-A1), da cui un PAC partirà (RP1: il
+«Parti da» del passo Target e la copia dei pesi sono il lavoro di A3; fino ad allora «Crea un PAC con questi pesi» del
+modale di «Ricalcola» resta). Tutto — tipi, regola, tile, «Ricalcola», «Modifica a mano», strumenti da valutare, barre —
+è in doc/guide/ottimizzatore.md § Il portafoglio modello. **La regola Firestore va pubblicata a mano** (sezione sopra: la
+stessa console, ora con anche `match /modelPortfolios/{ownerId}`).
 
 ## Difetti chiusi (A0, doc/pac-ottimizzatore/README.md § B1–B5)
 

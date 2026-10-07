@@ -90,6 +90,7 @@ function toOptimizerSnapshot(data: Record<string, unknown> | undefined): Optimiz
     settingsUsed: data.settingsUsed as OptimizerSnapshot['settingsUsed'],
     weights: (data.weights ?? []) as OptimizerSnapshot['weights'],
     objectives: (data.objectives ?? []) as OptimizerSnapshot['objectives'],
+    ...(Array.isArray(data.conflicts) ? { conflicts: data.conflicts as NonNullable<OptimizerSnapshot['conflicts']> } : {}),
     ...(typeof data.taxCapEur === 'number' ? { taxCapEur: data.taxCapEur } : {}),
     ...(Array.isArray(data.lockedKeys) ? { lockedKeys: data.lockedKeys as string[] } : {}),
   };

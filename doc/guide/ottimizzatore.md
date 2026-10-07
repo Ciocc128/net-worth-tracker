@@ -87,21 +87,22 @@ J(w) = Σ_k λ(priority_k) · r_k(w)²  +  ε · Σ_i (100 · (w_i − wRef_i))�
 λ: essenziale 1000, alta 100, media 10, bassa 1        ε = 0,01
 ```
 
-I vincoli rigidi — somma = 100% e il box `[lowerPct, upperPct]` di ogni candidato — vivono SOLO
-nella proiezione (`projectOntoBudgetBox`), mai come termine di penalità: è la stessa proiezione del
-motore a leva di Allocazione (`leverageAwareAllocationUtils.ts`), estratta in `boxProjection.ts`
-perché i due motori la condividono byte per byte. Il termine di regolarizzazione `ε` rende l'ottimo
+I vincoli rigidi — somma = 100% e il box `[lowerPct, upperPct]` di ogni candidato — sono i vincoli del
+solver, mai un termine di penalità; `projectOntoBudgetBox` (`boxProjection.ts`, la proiezione del motore a leva
+di Allocazione) ne dà solo il punto di partenza. Il termine di regolarizzazione `ε` rende l'ottimo
 unico (senza, più configurazioni di pesi darebbero lo stesso `J`); il riferimento `wRef` è il peso di
 mercato corrente dei candidati (uniforme se il totale è zero).
 
-Il solver è una discesa del gradiente proiettata con backtracking (fino a 8000 iterazioni,
-`not_converged` se non converge — alzato da 3000 dopo la revisione della PR: lo scenario leva +
-geografia di punta impiegava 3112 iterazioni e sforava il vecchio limite a ogni esecuzione, con
-l'avviso mostrato di routine anche a pesi già convergenti; il costo resta sotto i 100 ms anche al
-limite, n ≤ 40 candidati), seguita da due passaggi puramente meccanici: l'euristica del 2%
-(§6.4 — un peso sotto 2 punti con limite inferiore 0 viene azzerato, a meno che azzerarlo renda
-impossibile coprire il 100%) e l'arrotondamento a 0,5 punti col metodo dei resti maggiori (§6.5).
-Determinismo garantito: stesso input → stesso output bit per bit, nessun ordinamento instabile.
+**Un solo solver** (A2, RO2, PO11): l'**active set esatto** di `lib/utils/activeSetQP.ts` (`solvePiecewiseQP`) per
+Ideale, Raggiungibile e Con vendite mirate. Ideale e Raggiungibile lo chiamano a moltiplicatore di tassa zero
+(`solveAtMultiplier(…, mu = 0, …)`: nessun kink, un QP piano su somma e box); «Con vendite mirate» lo chiama con `μ`
+> 0. La discesa del gradiente proiettata con backtracking (`solveQP` a 8000 iterazioni, `not_converged` di routine
+sullo scenario leva + geografia, il timeout a 5 s dei test nel container) è uscita: `solveQP` oggi è solo il
+guscio dell'active set, e `SolverOptions.maxIterations` è il tetto dei suoi passi (`maxIterations: 0` forza
+`not_converged` nei test). `projectOntoBudgetBox` resta, la usa il motore a leva. Seguono due passaggi
+puramente meccanici: l'euristica del 2% (§6.4 — un peso sotto 2 punti con limite inferiore 0 viene azzerato,
+a meno che azzerarlo renda impossibile coprire il 100%) e l'arrotondamento a 0,5 punti col metodo dei resti
+maggiori (§6.5). Determinismo garantito: stesso input → stesso output bit per bit, nessun ordinamento instabile.
 
 ### «Con vendite mirate» — il tetto di tasse
 
@@ -112,7 +113,7 @@ candidati costruiti a mano; un blocco sopra un massimo di Impostazioni vince, co
 
 **Tre percorsi, e i casi limite di T6 per costruzione** (`solveTargetedCore`):
 
-1. **Il tetto non serve**: gira la pipeline di Ideale (`applyMinWeightHeuristic` → `solveQP`, con i limiti
+1. **Il tetto non serve**: gira la pipeline di Ideale (`applyMinWeightHeuristic` → `solveQP`, ora lo stesso active set, con i limiti
    della modalità); se la sua tassa sta sotto il tetto, il risultato È Ideale, bit per bit (`wRef` usa la
    formula di Ideale, v/Σv, identica a quella «raggiungibile» normalizzata che chiede la ATE §4).
 2. **Tetto 0** (e nessuna vendita obbligata): gira la pipeline di Raggiungibile, ogni candidato tassato
@@ -122,7 +123,7 @@ candidati costruiti a mano; un blocco sopra un massimo di Impostazioni vince, co
    centesimo sotto il tetto. I tetti di gruppo restano esatti con una variabile di scarto per cerniera
    (`max(0, r)² = min_{t ≥ 0} (r + t)²`).
 
-**Perché un solver esatto e non la discesa proiettata della ATE §5** (decisione del proprietario,
+**Perché un solver esatto e non la discesa proiettata della ATE §5** (dal refactor A2 vale per tutte e tre le modalità, non solo dove il tetto lega) (decisione del proprietario,
 2026-09-27, con le misure della revisione sul fixture reale a 12 candidati): il prototipo impiegava 330–525
 ms per calcolo (54 solve × ~1.000 iterazioni; il 74% del tempo in `projectOntoBudgetBox` su 2n variabili, e
 soprattutto `μ` partiva da 1 in una scala dove serviva 10⁶–10⁸); la stessa discesa con `μ` in euro e Illinois
@@ -188,9 +189,10 @@ stesso paese vestirebbe due aree diverse nello stesso rapporto, a seconda di qua
 `dot`, `clamp`, `projectOntoBudgetBox` erano funzioni PRIVATE di
 `lib/utils/leverageAwareAllocationUtils.ts` (il planner di Allocazione): stesso identico problema —
 proiettare un vettore su un simplesso con limiti per componente — quindi O1 le ha spostate in
-`boxProjection.ts` senza toccarle, e il motore a leva le importa da lì. Un solo posto dove la
-proiezione può avere un bug, verificato da entrambi i motori (`__tests__/boxProjection.test.ts` +
-`__tests__/leverageAwareAllocationUtils.test.ts`, quest'ultimo invariato dall'estrazione).
+`boxProjection.ts` senza toccarle, e il motore a leva le importa da lì. Dall'A2 l'ottimizzatore non ne fa più
+la sua discesa (l'active set ha sostituito il solver proiettato): gli resta il punto di partenza dell'active set
+(`projectOntoBudgetBox(start, lo, hi, 1)`), mentre il motore a leva la usa ancora per intero. Un solo posto
+dove la proiezione può avere un bug (`__tests__/boxProjection.test.ts` + `__tests__/leverageAwareAllocationUtils.test.ts`).
 
 ## Profili sul client — `includeZeroQuantity` (O3)
 
@@ -203,11 +205,40 @@ comportamento di prima. La route `GET /api/portfolio/instrument-profiles` (deleg
 modello di `/api/asset-transactions`) è l'unica a passarla, per i membri di TUTTE le posizioni della
 bozza — non ha una cache propria: il resolver ha già la cache di 30 giorni per ticker.
 
-## Candidati dello strumento a sé (A0, RO1)
+## Candidati dello strumento a sé (A0 e A2, RO1)
 
-`buildStandaloneCandidates` prende gli strumenti `tradable` o `frozen` con valore > 0 e **mai un conto di liquidità**
-(`type !== 'cash'`): un conto è da dove arrivano i soldi, non un candidato. I `frozen` restano fissati al peso attuale
-dentro il calcolo e `toModelWeights` li toglie quando i pesi diventano un PAC.
+`buildStandaloneCandidates(assets, baseEur, valueOf, evaluateAssetIds?)` prende gli strumenti `tradable` o `frozen`
+con valore > 0 e **mai un conto di liquidità** (`type !== 'cash'`): un conto è da dove arrivano i soldi, non un
+candidato. I `frozen` restano fissati al peso attuale dentro il calcolo e `toModelWeights` li toglie quando i pesi
+diventano il portafoglio modello o un PAC. **Strumenti da valutare (A2, PO10, RM3)**: gli id degli strumenti del
+portafoglio modello (`evaluateAssetIds`) entrano come candidati anche a 0 quote, purché `tradable` e non conti; i
+loro profili arrivano da `GET /api/portfolio/instrument-profiles` (`includeZeroQuantity`). Un candidato a valore 0
+ha peso corrente 0 e l'ottimizzatore gli dà un peso solo se un obiettivo lo chiede (PZ5).
+
+## Il portafoglio modello (A2, PO1, RM1–RM4, RO3–RO4)
+
+- **Dove vive**: collezione nuova `modelPortfolios/{ownerId}` (un documento per account, `types/modelPortfolio.ts`:
+  pesi di mercato per strumento sommati a 100, `origin: 'manual' | 'optimizer'`, `optimizerSnapshot?` con anche i
+  conflitti del calcolo, `updatedAt`). Service `lib/services/modelPortfolioService.ts` (client SDK; rifiuta Σ ≠ 100 ±
+  0,01, uno strumento che non c'è più, un `frozen`/`excluded` o un conto, con `userFacingError`), hook
+  `useModelPortfolio`/`useSaveModelPortfolio`, chiave `queryKeys.modelPortfolio.byOwner`. **La regola Firestore
+  (`match /modelPortfolios/{ownerId}` in `firestore.rules`) non parte con Vercel**: va pubblicata a mano
+  (`firebase deploy --only firestore:rules`, SETUP.md) prima del primo salvataggio; senza, il tile dice che non
+  riesce a leggere il modello.
+- **Cosa può starci (RM2)**: `toModelWeights` (`lib/utils/modelPortfolio.ts`) toglie `frozen`, `excluded` e conti e
+  riscala a 100 al centesimo di punto; `proposalToModelWeights` lo applica a un calcolo e marca `candidate` ciò che non
+  si possiede (RM3). Un fondo monetario resta.
+- **Il tile «Portafoglio modello»** (`PortafoglioModelloTile`, sostituisce Composizione ideale): tabella oggi · modello ·
+  differenza in euro (`describeModelVsToday`, RM4: base `M` = valore degli strumenti del modello, i «da valutare» in
+  fondo, ciò che si possiede fuori dal modello in una riga a parte); «Ricalcola» (`IdealCompositionDialog`: le tre
+  modalità, **«Salva come portafoglio modello»** scrive il risultato con `origin: 'optimizer'` e lo snapshot, «Crea un
+  PAC con questi pesi» resta fino ad A3), «Modifica a mano» (`ModelEditDialog`: somma 100 obbligatoria, «Riporta a
+  100%», `origin: 'manual'`, lo snapshot resta), «Aggiungi strumento da valutare» (`AssetDialog` `createEmpty`, il
+  modello deve già esistere perché la somma resta 100).
+- **Il rapporto con le barre (RO4)**: `ObjectiveBars` (`OptimizerReport.tsx`) — nome, chip di priorità, «target →
+  raggiunto (gap)» in mono e un `TargetTick` — è l'unica presentazione per lo strumento a sé, il passo Target del
+  PAC, il modale degli Obiettivi e il tile Obiettivi (che lo legge dallo snapshot del modello, con la prima frase dei
+  conflitti). I conflitti restano frasi.
 
 ## Limiti noti
 
@@ -223,7 +254,7 @@ dentro il calcolo e `toModelWeights` li toglie quando i pesi diventano un PAC.
 - **Nessun profilo curato ha ancora un `otherAreaSplit`** (vedi sopra) — finché resta così, "Altri
   paesi" passa sempre dalla stima o dal ripiego, mai dal passo curato.
 - **Perimetro (O9): mai Versa, Ribilancia, Preleva** — l'ottimizzatore alimenta solo il passo Target
-  del PAC e, da G4, lo strumento a sé `ComposizioneIdealeTile`/`IdealCompositionDialog`; nessuno dei
+  del PAC e, da G4, lo strumento a sé (dall'A2 `PortafoglioModelloTile` + `IdealCompositionDialog`); nessuno dei
   due tocca il Piano (Versa/Ribilancia/Preleva) della pagina Allocazione, e nessuno scrive mai da
   solo — lo strumento a sé propone di aprire un PAC nuovo, mai un `AllocationRow`/trade diretto.
 - **«Con vendite mirate»: i conflitti si calcolano a `μ` fisso** (targeted ATE §8) — il «senza
@@ -235,8 +266,11 @@ dentro il calcolo e `toModelWeights` li toglie quando i pesi diventano un PAC.
   in modalità mirata; la tassa che non si può stimare non si presume zero.
 - **Le commissioni del broker non contano**, né sulla tassa né sul venduto; e il PAC creato da qui non
   vende: le vendite le fa l'utente al broker.
-- **Il solver esatto non ha un piano B numerico**: se non convergesse (mai visto su 1.600 portafogli
-  casuali), il risultato ricade sulla pipeline senza vendite tassate con l'avviso `not_converged`.
+- **L'active set non ha un piano B numerico**: se non convergesse (mai visto su 1.600 portafogli casuali),
+  il risultato porta l'avviso `not_converged`. Dopo A2 questo vale anche per Ideale e Raggiungibile: il vecchio
+  `not_converged` di routine dell'8000ª iterazione non esiste più.
+- **Un candidato da valutare ha un peso solo se un obiettivo lo chiede** (o se l'ε verso il peso corrente 0 lo lascia
+  fuori): non è una raccomandazione di acquisto, è la domanda «con questo strumento il portafoglio migliora?».
 - **Lo strumento a sé non raggruppa mai**: un candidato è sempre un singolo strumento
   (`buildStandaloneCandidates`), mai un gruppo proxy — quello resta un gesto del PAC (D6,
   doc/guide/accumulo.md), che si fa nell'editor, non in questo modale di sola lettura.

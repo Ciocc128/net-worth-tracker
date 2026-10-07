@@ -90,6 +90,11 @@ export const queryKeys = {
     all: (userId: string) => ['accumulation-plans', userId] as const,
   },
 
+  // Model portfolio (PAC / Accumulo) — one document per account, `modelPortfolios/{ownerId}`.
+  modelPortfolio: {
+    byOwner: (userId: string) => ['model-portfolio', userId] as const,
+  },
+
   // Cost centers (list + per-center spend stats derived from expenses).
   // Both keys share the ['cost-centers', userId] prefix so invalidating `all`
   // also refreshes any open detail view via prefix match.

@@ -10,12 +10,15 @@
  * offers "Crea un PAC con questi pesi" instead. `OptimizerReport` wraps `OptimizerObjectivesReport`
  * with the PAC's own table and "Usa questi pesi" action, unchanged from before this split.
  */
-import type { OptimizerResult } from '@/lib/utils/weightOptimizer';
+import type { ObjectiveReport, OptimizerResult } from '@/lib/utils/weightOptimizer';
+import { OBJECTIVE_PRIORITY_LABELS } from '@/lib/utils/settingsNarrative';
 import { formatPercentageIt } from '@/lib/utils/formatters';
 import { ACCUMULO_ACTION_CANCEL } from '@/lib/utils/accumulationNarrative';
 import {
   describeConflict,
-  describeObjectiveRow,
+  formatObjectiveAchieved,
+  formatObjectiveGap,
+  formatObjectiveTarget,
   describeOptimizerWarning,
   OPTIMIZER_ACTION_APPLY,
   OPTIMIZER_COL_CURRENT,
@@ -29,6 +32,44 @@ import {
   OPTIMIZER_WARNINGS_TITLE,
 } from '@/lib/utils/weightOptimizerNarrative';
 import { Button } from '@/components/ui/button';
+import { TargetTick } from '@/components/allocation/TargetTick';
+
+/**
+ * RO4 — the objectives as rows: name, priority chip, «target → raggiunto» in mono and a `TargetTick`
+ * (the target as the hairline, the achieved value as the fill). One presentation for the standalone
+ * tool, the PAC's Target step, the objectives' modal and the Obiettivi tile (from a saved snapshot).
+ */
+export function ObjectiveBars({ objectives }: { objectives: ObjectiveReport[] }) {
+  return (
+    <ul className="space-y-2.5">
+      {objectives.map((objective) => {
+        const target = formatObjectiveTarget(objective);
+        const achieved = formatObjectiveAchieved(objective);
+        return (
+          <li key={objective.id}>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="min-w-0 text-[13px] text-foreground">
+                {objective.label}
+                <span className="ml-1.5 rounded-full bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground">
+                  {OBJECTIVE_PRIORITY_LABELS[objective.priority]}
+                </span>
+              </span>
+              <span className="shrink-0 font-mono text-[12px] tabular-nums text-muted-foreground">
+                {target} → <span className="font-semibold text-foreground">{achieved}</span> ({formatObjectiveGap(objective)})
+              </span>
+            </div>
+            <TargetTick
+              className="mt-1"
+              currentPercentage={objective.achievedValue}
+              targetPercentage={objective.targetValue}
+              ariaLabel={`${objective.label}: obiettivo ${target}, raggiunto ${achieved}`}
+            />
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 interface OptimizerObjectivesReportProps {
   result: OptimizerResult;
@@ -43,11 +84,7 @@ export function OptimizerObjectivesReport({ result, labelOf }: OptimizerObjectiv
       {result.objectives.length > 0 && (
         <div>
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{OPTIMIZER_REPORT_TITLE}</p>
-          <ul className="space-y-1 font-mono text-[12px] tabular-nums text-muted-foreground">
-            {result.objectives.map((objective) => (
-              <li key={objective.id}>{describeObjectiveRow(objective)}</li>
-            ))}
-          </ul>
+          <ObjectiveBars objectives={result.objectives} />
         </div>
       )}
 

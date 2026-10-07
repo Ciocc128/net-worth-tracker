@@ -160,6 +160,15 @@ service cloud.firestore {
       allow delete: if canAccess(resource.data.userId);
     }
 
+    // Collezione modelPortfolios - portafoglio modello del PAC (doc id = ownerUid)
+    // Un documento per account, scritto dal client SDK: stessa forma di accumulationPlans.
+    match /modelPortfolios/{ownerId} {
+      allow read: if canAccess(ownerId);
+      allow create, update: if canAccess(ownerId) &&
+                               request.resource.data.userId == ownerId;
+      allow delete: if canAccess(ownerId);
+    }
+
     // Collezione hall-of-fame - ranking dell'account (doc id = ownerUid)
     match /hall-of-fame/{userId} {
       // Lettura: proprietario o membro delegato
