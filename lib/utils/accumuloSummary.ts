@@ -138,6 +138,8 @@ export interface AccumuloPreview {
   classes: { assetClass: AssetClass; currentPct: number; targetPct: number; finalPct: number }[];
   /** The saved model portfolio when there is one, else today's holdings (RV4). */
   weightsFrom: 'today' | 'model';
+  /** The cash in the liquidity accounts the preview spends from. */
+  cashEur: number;
 }
 
 /**
@@ -206,7 +208,7 @@ export function buildAccumuloPreview(input: {
     if (Math.abs(entry.currentPct) < 0.05 && Math.abs(entry.targetPct) < 0.05 && Math.abs(final.currentPct) < 0.05) return [];
     return [{ assetClass: assetClass as AssetClass, currentPct: entry.currentPct, targetPct: entry.targetPct, finalPct: final.currentPct }];
   });
-  return { months: PREVIEW_MONTHS, reserveEur: PREVIEW_RESERVE_EUR, monthlyEur: totalEur / PREVIEW_MONTHS, inflowEur, classes, weightsFrom: useModel ? 'model' : 'today' };
+  return { months: PREVIEW_MONTHS, reserveEur: PREVIEW_RESERVE_EUR, monthlyEur: totalEur / PREVIEW_MONTHS, inflowEur, classes, weightsFrom: useModel ? 'model' : 'today', cashEur };
 }
 
 /** Σ of the purchases a draft would make over its whole length (the verdict's «12 rate da X €»). */

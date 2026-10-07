@@ -10,6 +10,8 @@ import { seedModelFromToday } from '@/lib/utils/modelPortfolio';
 import { describeModelOrigin, describeModelSalesHint, MODEL_TARGETED_HINT } from '@/lib/utils/weightOptimizerNarrative';
 import {
   describeAccumuloPreview,
+  describeAccumuloIntro,
+  describeAccumuloPreviewLead,
   describeAccumulationOutcomeFooter,
   describeClosedPlansAside,
   describeMatchNote,
@@ -135,5 +137,14 @@ describe('redistributeRemainder', () => {
   it('takes weight back when the sum is above 100', () => {
     const out = redistributeRemainder([pos('a', 80), pos('b', 40)]);
     expect(out.reduce((s, p) => s + p.targetPercentage, 0)).toBeCloseTo(100, 5);
+  });
+});
+
+describe('empty-tile reading and preview lead (RV4, render)', () => {
+  it('says the cash, then the lead with reserve, inflow and rata', () => {
+    expect(flat(narrativeToText(describeAccumuloIntro({ cashEur: 36500, weightsFrom: 'model' })))).toContain('Nei conti di liquidità hai 36.500 €');
+    expect(flat(narrativeToText(describeAccumuloPreviewLead({ months: 12, reserveEur: 10000, monthlyEur: 3208, inflowEur: 1000 })))).toBe(
+      'Con una riserva di 10.000 € e 1000 € al mese, 12 rate da 3208 € porterebbero:',
+    );
   });
 });

@@ -908,19 +908,19 @@ export function describeAccumuloVerdict(input: AccumuloVerdictInput): PageVerdic
 
 export const ACCUMULO_EMPTY_DOES_TITLE = 'Cosa fa';
 export const ACCUMULO_EMPTY_DOES: readonly string[] = [
-  'divide liquidità ed entrate in rate mensili a quote intere',
-  'tiene intatta la riserva che scegli',
-  'vende al primo mese ciò che lasci fuori, anche solo in parte',
-  'riconosce gli acquisti nel Registro e ti chiede solo di confermare',
-  'ricalcola la rata quando i prezzi cambiano, se lo accetti',
-  'mostra mese per mese come si muovono le classi, leva compresa',
+  'Divide liquidità ed entrate in rate mensili, a quote intere.',
+  'Tiene intatta la riserva che scegli.',
+  'Vende al primo mese gli strumenti che lasci fuori, anche solo in parte.',
+  'Riconosce gli acquisti nel Registro e ti chiede solo di confermare.',
+  'Ricalcola la rata quando i prezzi cambiano, se lo accetti.',
+  'Mostra mese per mese come si muovono le classi, leva compresa.',
 ];
 export const ACCUMULO_EMPTY_DOESNT_TITLE = 'Cosa non fa';
 export const ACCUMULO_EMPTY_DOESNT: readonly string[] = [
-  'non vende gli strumenti del piano per ribilanciare (c’è il Ribilancia)',
-  'non manda ordini al broker e non conta le commissioni',
-  'un piano alla volta, al massimo 60 mesi',
-  'non sceglie strumenti che non hai indicato',
+  'Non vende gli strumenti del piano per ribilanciare: per quello c’è Ribilancia.',
+  'Non manda ordini al broker e non conta le commissioni.',
+  'Un piano alla volta, al massimo 60 mesi.',
+  'Non sceglie strumenti che non hai indicato: puoi aggiungerli da valutare.',
 ];
 export const ACCUMULO_EMPTY_PREVIEW_TITLE = 'Anteprima sui tuoi numeri';
 export const ACCUMULO_EMPTY_ASIDE = 'nessun piano aperto';
@@ -943,6 +943,34 @@ export function describeAccumuloPreview(
     ...((preview.inflowEur ?? 0) > 0
       ? ([{ text: ' e ' }, { text: cachedFormatCurrencyEUR(preview.inflowEur as number, true), mono: true }, { text: ' al mese di entrate.' }] as Narrative)
       : ([{ text: ' e senza entrate mensili.' }] as Narrative)),
+  ];
+}
+
+/** The empty tile's reading (render RV4): «Nei conti di liquidità hai 36.500 €. Un piano di accumulo li
+ *  spende in rate mensili verso il portafoglio modello, a quote intere, e ti dice ogni mese cosa comprare.» */
+export function describeAccumuloIntro(preview: { cashEur: number; weightsFrom?: 'today' | 'model' } | null): Narrative {
+  if (!preview) return describeAccumuloPreview(null);
+  return [
+    { text: 'Nei conti di liquidità hai ' },
+    { text: cachedFormatCurrencyEUR(preview.cashEur, true), mono: true },
+    {
+      text: `. Un piano di accumulo li spende in rate mensili verso ${preview.weightsFrom === 'model' ? 'il portafoglio modello' : 'i pesi di oggi'}, a quote intere, e ti dice ogni mese cosa comprare.`,
+    },
+  ];
+}
+
+/** The preview box's lead: «Con una riserva di 10.000 € e 1000 € al mese, 12 rate da 3208 € porterebbero:» */
+export function describeAccumuloPreviewLead(preview: { months: number; reserveEur: number; monthlyEur: number; inflowEur?: number }): Narrative {
+  const inflow = preview.inflowEur ?? 0;
+  return [
+    { text: 'Con una riserva di ' },
+    { text: cachedFormatCurrencyEUR(preview.reserveEur, true), mono: true },
+    ...(inflow > 0
+      ? ([{ text: ' e ' }, { text: cachedFormatCurrencyEUR(inflow, true), mono: true }, { text: ' al mese' }] as Narrative)
+      : ([{ text: ' e senza entrate mensili' }] as Narrative)),
+    { text: `, ${preview.months} rate da ` },
+    { text: cachedFormatCurrencyEUR(preview.monthlyEur, true), mono: true },
+    { text: ' porterebbero:' },
   ];
 }
 
