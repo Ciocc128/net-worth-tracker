@@ -280,11 +280,48 @@ creare un piano in produzione — nessuna pipeline di questo repo lo fa per cont
 
 ## Il portafoglio modello (A2, doc/pac-ottimizzatore/README.md § RM1–RM4)
 
-Un solo set di pesi di mercato per strumento, salvato in `modelPortfolios/{ownerId}` (D-A1), da cui un PAC partirà (RP1: il
-«Parti da» del passo Target e la copia dei pesi sono il lavoro di A3; fino ad allora «Crea un PAC con questi pesi» del
-modale di «Ricalcola» resta). Tutto — tipi, regola, tile, «Ricalcola», «Modifica a mano», strumenti da valutare, barre —
+Un solo set di pesi di mercato per strumento, salvato in `modelPortfolios/{ownerId}` (D-A1), da cui un PAC parte (RP1, A3: sotto,
+§ Il PAC dal modello; «Crea un PAC con questi pesi» del modale di «Ricalcola» resta come seconda entrata). Tutto — tipi, regola, tile, «Ricalcola», «Modifica a mano», strumenti da valutare, barre —
 è in doc/guide/ottimizzatore.md § Il portafoglio modello. **La regola Firestore va pubblicata a mano** (sezione sopra: la
 stessa console, ora con anche `match /modelPortfolios/{ownerId}`).
+
+## Il PAC dal modello, rivedere, registrare (A3, doc/pac-ottimizzatore/README.md § RP1–RP8)
+
+- **Da dove parte (RP1).** `AccumulationPlanDialog` riceve `model`: una bozza NUOVA parte dai pesi del modello
+  (`applyWeightsToPositions` su `seedPositionsFromAssets`: gli strumenti posseduti fuori dal modello restano a 0%, così
+  restano righe da decidere; i candidati a 0 quote entrano solo se hanno peso) e copia il suo `optimizerSnapshot`. Il
+  passo Target ha «Parti da»: **Portafoglio modello** (solo se esiste) · **Pesi di oggi** (`marketWeights`, due decimali,
+  Σ 100) · **Ricalcola** (il pannello Ottimizzato). I pesi sono una copia modificabile: il modello non si tocca.
+- **Vendite parziali (RP2).** `PlanDisposal.quantity?` (intero) e `monthIndex?` (assente = 1). `proceedsOfDisposal` =
+  `quantity × prezzo`; `resolvePositionStates(…, disposals)` toglie dal valore della posizione le quote ancora in vendita
+  (non eseguite né saltate); `buildProjectedAssets` toglie `quantity` quote dal mese `monthIndex`. Lo schema: vendita
+  totale di un membro di una posizione → `disposal_full_on_position`, quantità non intera o ≤ 0 → `disposal_quantity`;
+  una vendita PARZIALE di un membro non è un `duplicate_asset`. Nel passo Target «Tieni | Vendi» ha la sua intestazione e,
+  sotto «Tieni», «Vendi quote» (vuoto = nessuna vendita). «Con vendite mirate» semina le vendite
+  (`seedDisposalsFromSale`: `floor(€ / prezzo)`, mai tutte le quote di una posizione, peso 0 = vendita totale fuori piano).
+- **Rivedi il piano (RP4, D-A3).** Solo su un piano `active`: `buildRevisedPlan` riscrive dal **primo mese intatto** `k`
+  (nessuna riga `executed`/`skipped` né `transactionIds`); le rate 1..k−1 restano identiche, misure comprese; `baseline` non
+  cambia; `months = (k−1) + mesi restanti` (1..60, altrimenti `months_range`); le vendite nuove hanno `monthIndex = k`,
+  una per strumento (`duplicate_asset`); `revisions[]` ricorda com'era (`fromIndex`, mesi, entrata, riserva). Lo stesso
+  editor in modalità `revise`: passo 1 chiede i «Mesi restanti», conti sorgente e prima rata sono fissi, le vendite già
+  salvate si vedono ma non si tolgono; il salvataggio è `revisePlan` (in `runTransaction`, rilegge e rivalida). Un mese
+  a metà (una riga eseguita) NON si rivede: si riscrive dal successivo.
+- **Registra (RP5).** `TransactionDialog` ha `prefill` e `onCreated` (opzionali, ignorati in modifica). La riga della rata
+  («Registra», su `todo`/`late`) apre un acquisto già compilato (quote pianificate, primo conto sorgente con saldo
+  sufficiente, nota «PAC «nome», rata i di N»); salvato, la riga diventa `executed` con l'id restituito
+  (`buildRegisteredLinePatch`: quote × prezzo EUR, commissioni escluse come nell'abbinamento). Stesso per le vendite.
+- **Ricalibrazione in riga (RP3).** `shouldProposeRecalibration`: la proposta compare nel tile se la riserva è sotto o una
+  riga cambia di almeno una quota, e se le quote suggerite non sono quelle che «Lascia così» ha ricordato
+  (`Installment.recalibrationDismissed`). «Applica» = `applyRecalibration` (azzera il ricordo). Il bottone «Ricalibra rata»
+  e `AccumulationRecalibrateDialog` non esistono più.
+- **Piani conclusi (RP6)** (`PianiConclusiTile`, `summarizeClosedPlan`): nome · periodo · rate chiuse («2 / 3 · interrotto») ·
+  investito su `L` all'attivazione · scostamento maggiore all'ultima misura contro i target di oggi, per CLASSE («+0,6 pp su
+  Azioni»; «—» senza misure). Nessuna azione.
+- **Entrata suggerita (RP7).** Al passo 1, `suggestMonthlyInflow` (risparmio annuo del Cashflow ÷ 12, per difetto alle decine)
+  con «Usa»; mai riempita da sola; nessuna riga con risparmio 0.
+- **Parole (RP8).** «Rata mensile», «Entrate nei N mesi», «Liquidità da spendere»; colonne Strumento · Tieni o vendi · Oggi ·
+  Target · Da comprare · Al mese (euro con le quote sotto, tutto sulla base B del passo); «Raggruppa due strumenti» sotto la
+  tabella accende le caselle (non più davanti a ogni nome).
 
 ## Difetti chiusi (A0, doc/pac-ottimizzatore/README.md § B1–B5)
 
@@ -308,7 +345,7 @@ stessa console, ora con anche `match /modelPortfolios/{ownerId}`).
   2026-09-25: «Crea piano» ≥ 44px a 390): nessun fixture semina un piano, quindi le righe della rata, la
   striscia delle classi e le due colonne si verificano sul mirror (`npm run mirror:seed`, che dal
   2026-09-25 copia `accumulationPlans`), non nella suite.
-- **`recalibrateInstallment` non scrive**: propone soltanto; `applyRecalibration` (chiamata dal dialog)
+- **`recalibrateInstallment` non scrive**: propone soltanto; `applyRecalibration` (chiamata dal tile)
   sostituisce le righe ancora `planned` della rata, quelle già `executed` restano intatte.
 - **L'Ottimizzato tocca solo i pesi**: non aggiunge, rimuove o raggruppa posizioni — quello resta un
   gesto Manuale. Un cambio di struttura fatto DOPO "Usa questi pesi" (un nuovo asset, un
