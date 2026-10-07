@@ -113,9 +113,9 @@ function PriorityChip({ priority }: { priority: ObjectiveReport['priority'] }) {
 }
 
 /**
- * The objective's track: a 3px track with the theme's progress fill (`--progress-fill`, the slate of
- * Storico's bars) in ONE flat colour — no warming gradient, the hairline already says where the
- * target is. No theme-blue «allocation» colour: these are goals.
+ * The objective's track: a 3px track filled with `--hero-series` (the colour of Storico's net-worth
+ * trend chart) in ONE flat colour — no warming gradient, the hairline already says where the
+ * target is.
  */
 function ObjectiveTrack({ achieved, target, ariaLabel }: { achieved: number; target: number; ariaLabel: string }) {
   const scaleMax = Math.max(achieved, target, 1) * 1.12;
@@ -127,7 +127,7 @@ function ObjectiveTrack({ achieved, target, ariaLabel }: { achieved: number; tar
       <div className="absolute inset-x-0 top-[3px] h-[3px] overflow-hidden rounded-full bg-muted">
         <div
           className="h-full rounded-full"
-          style={{ width: `${fillWidth}%`, backgroundColor: 'var(--progress-fill)' }}
+          style={{ width: `${fillWidth}%`, backgroundColor: 'var(--hero-series)' }}
         />
       </div>
       <div className="absolute inset-y-0 w-px -translate-x-1/2 bg-foreground/70" style={{ left: `${targetPosition}%` }} aria-hidden="true" />
