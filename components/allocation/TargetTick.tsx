@@ -59,15 +59,15 @@ export function TargetTick({
 
   return (
     <div
-      className={cn('relative h-[9px] w-full', className)}
+      className={cn('relative h-[10px] w-full', className)}
       role="progressbar"
       aria-valuenow={Math.round(currentPercentage)}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-label={ariaLabel ?? `Allocazione corrente ${formatPercentage(currentPercentage, 1)}, target ${formatPercentage(targetPercentage, 0)}${projectedClause}`}
     >
-      {/* The 3px track, centred in the 9px root so the marker has 3px on each side. */}
-      <div className="absolute inset-x-0 top-[3px] h-[3px] overflow-hidden rounded-full bg-muted">
+      {/* The 4px track, centred in the 10px root so the marker has 3px on each side. */}
+      <div className="absolute inset-x-0 top-[3px] h-1 overflow-hidden rounded-full bg-muted">
         <motion.div
           className="absolute inset-y-0 left-0 rounded-full"
           style={{
