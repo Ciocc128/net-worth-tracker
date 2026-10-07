@@ -130,7 +130,9 @@ import {
   ACCUMULO_STEP3_SECTION_EXPOSURE,
   ACCUMULO_STEP3_SECTION_WEIGHTS,
   ACCUMULO_STEP_TITLES,
-  describeAboveTargetWarning,
+  describeStep3Summary,
+  ACCUMULO_STEP_READINGS,
+  ACCUMULO_STEP3_WEIGHTS_COLUMNS,
   describeAccumuloDialogEyebrow,
   describeInsufficientLiquidityWarning,
   describeUnpricedWarning,
@@ -138,7 +140,6 @@ import {
   formatSignedPp,
   monthLabelLong,
   monthLabelShort,
-  trajectoryPointLabel,
 } from '@/lib/utils/accumulationNarrative';
 
 interface AccumulationPlanDialogProps {
@@ -171,7 +172,6 @@ interface AccumulationPlanDialogProps {
 
 const DEPS: PlanDeps = { valueOf: calculateAssetValue, priceOf: unitPriceEur };
 const MAX_CALENDAR_ROWS = 8;
-const TRAJECTORY_SAMPLE_INDICES = [0, 1, 3, 6, 9];
 
 function emptyDraft(
   startMonth: string,
@@ -587,15 +587,64 @@ export function AccumulationPlanDialog({
   };
 
   const canProceedFromStep2 = Math.abs(weightsSum - 100) <= 0.01 && draft.positions.length > 0;
-  const modalStatus = describeModalStatus(status, {
-    idle: [{ text: firstIssue ?? (step === 2 && weightsMessage ? weightsMessage : ACCUMULO_STEP_TITLES[step]) }],
-    submitting: 'Salvataggio in corso…',
-  });
-
   const preview = useMemo(
     () => (step === 3 ? buildDraftPreview({ draft, allAssets, targets, band, compare: compareAllocations, deps: DEPS }) : null),
     [step, draft, allAssets, targets, band],
   );
+  // Coverage (D9/§5.5): `preview.totals` always SUMS to L (splitTowardTarget redistributes whatever
+  // is available), so a shortfall shows only by comparing L against the IDEAL deficit —
+  // Σ max(0, target%×B − currentValue) — computed the same way `computeTotalPurchases` does.
+  const coveragePct = useMemo(() => {
+    if (!preview) return null;
+    const states = resolvePositionStates(draft.positions, assetsById, DEPS, draft.disposals);
+    const B = states.reduce((sum, s) => sum + s.currentValueEur, 0) + preview.liquidity.L;
+    const totalDeficit = states.filter((s) => !s.unpriced).reduce((sum, s) => sum + Math.max(0, (s.targetPercentage / 100) * B - s.currentValueEur), 0);
+    if (totalDeficit <= 0.5) return null;
+    const pct = Math.min(100, (preview.liquidity.L / totalDeficit) * 100);
+    return pct >= 99.5 ? null : pct;
+  }, [preview, draft.positions, draft.disposals, assetsById]);
+  const step3Summary = preview
+    ? describeStep3Summary({
+        months: preview.schedule.installments.length,
+        averageEur:
+          preview.schedule.installments.reduce((sum, i) => sum + i.lines.reduce((acc, line) => acc + line.plannedAmountEur, 0), 0) /
+          Math.max(1, preview.schedule.installments.length),
+        coveragePct,
+        leverageRatio: preview.outcome.leverageRatio,
+      })
+    : null;
+  // Step 3: today's weight on the Target step's footing (the plan's instruments, Σ 100%), and the
+  // class trajectory without the classes that hold neither weight nor target.
+  const stepThreeTodayPct = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!preview) return map;
+    const states = resolvePositionStates(draft.positions, assetsById, DEPS, draft.disposals);
+    const base = states.reduce((sum, state) => sum + state.currentValueEur, 0);
+    for (const state of states) map.set(state.positionId, base > 0 ? (state.currentValueEur / base) * 100 : 0);
+    return map;
+  }, [preview, draft.positions, draft.disposals, assetsById]);
+  const stepThreeTrajectory = useMemo(() => {
+    if (!preview) return [];
+    const live = new Set<string>();
+    for (const point of preview.trajectory)
+      for (const [assetClass, entry] of Object.entries(point.byClass))
+        if (entry && (Math.abs(entry.currentPct) >= 0.05 || Math.abs(entry.targetPct) >= 0.05)) live.add(assetClass);
+    return preview.trajectory.map((point) => ({
+      ...point,
+      byClass: Object.fromEntries(Object.entries(point.byClass).filter(([assetClass]) => live.has(assetClass))) as typeof point.byClass,
+    }));
+  }, [preview]);
+  const modalStatus = describeModalStatus(status, {
+    idle: firstIssue
+      ? [{ text: firstIssue }]
+      : step === 2 && weightsMessage
+        ? [{ text: weightsMessage }]
+        : step === 3
+          ? (step3Summary ?? [{ text: ACCUMULO_STEP_TITLES[3] }])
+          : [{ text: ACCUMULO_STEP_READINGS[step as 1 | 2] }],
+    submitting: 'Salvataggio in corso…',
+  });
+
   // PO15: the Target step's side panel recomputes 300 ms after the last keystroke, not on each one.
   const [settledDraft, setSettledDraft] = useState(draft);
   useEffect(() => {
@@ -610,17 +659,6 @@ export function AccumulationPlanDialog({
         : null,
     [step, settledDraft, allAssets, targets, band],
   );
-  // The trajectory's own class set (stable across points — all come from the same `targets`),
-  // read once for the "Classi mese per mese" table's header and column order below.
-  const classKeys = useMemo(() => Object.keys(preview?.trajectory[0]?.byClass ?? {}), [preview]);
-  // Same class → color mapping as the exposure bar above and `ClassDriftChart`'s own line/label
-  // colors — the table's header leans on it instead of (or as well as) the text label, so a
-  // column reads at a glance against the chart right above it.
-  const classColor = (assetClass: string) => {
-    const idx = ASSET_CLASS_CHART_INDEX[assetClass] ?? 0;
-    return chartColors[idx] ?? CHART_COLORS[idx] ?? CHART_COLORS[0];
-  };
-
   return (
     <>
       <ResponsiveModal
@@ -1097,23 +1135,14 @@ export function AccumulationPlanDialog({
 
         {step === 3 && preview && (
           <div className="space-y-6">
-            {(() => {
-              // Coverage warning (D9/§5.5): `preview.totals` always SUMS to L (splitTowardTarget
-              // redistributes whatever is available), so a shortfall shows only by comparing L
-              // against the IDEAL deficit — Σ max(0, target%×B − currentValue) — computed here the
-              // same way `computeTotalPurchases` does internally.
-              const states = resolvePositionStates(draft.positions, assetsById, DEPS, draft.disposals);
-              const priced = states.filter((s) => !s.unpriced);
-              const B = states.reduce((sum, s) => sum + s.currentValueEur, 0) + preview.liquidity.L;
-              const totalDeficit = priced.reduce((sum, s) => sum + Math.max(0, (s.targetPercentage / 100) * B - s.currentValueEur), 0);
-              if (totalDeficit <= 0.5) return null;
-              const coveragePct = Math.min(100, (preview.liquidity.L / totalDeficit) * 100);
-              if (coveragePct >= 99.5) return null;
-              return <p className="text-[12px] text-warning-foreground">{describeInsufficientLiquidityWarning(coveragePct)}</p>;
-            })()}
+            {/* The plan in one line is the dialog's reading (describeStep3Summary); here the
+                warnings, then where it lands, the calendar and the classes month by month. */}
+            {coveragePct !== null && (
+              <p className="rounded-lg border border-warning-border bg-warning p-3 text-[12px] text-warning-foreground">{describeInsufficientLiquidityWarning(coveragePct)}</p>
+            )}
 
             {preview.unpricedPositionIds.length > 0 && (
-              <p className="text-[12px] text-warning-foreground">
+              <p className="rounded-lg border border-warning-border bg-warning p-3 text-[12px] text-warning-foreground">
                 {describeUnpricedWarning(
                   preview.unpricedPositionIds.map((id) => draft.positions.find((p) => p.id === id)?.label ?? id),
                 )}
@@ -1127,17 +1156,77 @@ export function AccumulationPlanDialog({
             )}
 
             <div>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_SECTION_WEIGHTS}</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="border-b border-border text-left">
+                      {ACCUMULO_STEP3_WEIGHTS_COLUMNS.map((column, index) => (
+                        <th
+                          key={column}
+                          scope="col"
+                          className={`py-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground ${index === 0 ? 'pr-3' : 'px-2 text-right'}`}
+                        >
+                          {column}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.outcome.positions.map((position) => {
+                      const source = draft.positions.find((p) => p.id === position.positionId);
+                      const asset = source ? assetsById.get(source.buyAssetId) : undefined;
+                      const today = stepThreeTodayPct.get(position.positionId);
+                      const off = Math.abs(position.driftPp) > 0.5;
+                      return (
+                        <tr key={position.positionId} className="border-b border-border last:border-0">
+                          <th scope="row" className="py-2 pr-3 text-left font-normal text-foreground">
+                            {position.label}
+                            {asset && <span className="block text-[11px] text-muted-foreground">{getAssetDisplayTicker(asset)}</span>}
+                          </th>
+                          <td className="whitespace-nowrap px-2 py-2 text-right font-mono tabular-nums">
+                            <span className="text-muted-foreground">{today === undefined ? '—' : formatPercentageIt(today, 1)}</span>
+                            <span className="text-foreground"> → {formatPercentageIt(position.finalWeightPct, 1)}</span>
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2 text-right font-mono tabular-nums text-muted-foreground">{formatPercentageIt(position.targetPercentage, 1)}</td>
+                          <td className={`whitespace-nowrap py-2 pl-2 text-right font-mono tabular-nums ${off ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
+                            {formatSignedPp(position.driftPp)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-3">
+                <p className="mb-1.5 text-[11px] text-muted-foreground">
+                  {ACCUMULO_STEP3_SECTION_EXPOSURE} {preview.outcome.leverageRatio > 1.01 && `· leva ${formatNumberIt(preview.outcome.leverageRatio, 2)}×`}
+                </p>
+                <div className="flex h-2 overflow-hidden rounded-full">
+                  {Object.entries(preview.outcome.implicitClassPct).map(([assetClass, pct]) => {
+                    const idx = ASSET_CLASS_CHART_INDEX[assetClass] ?? 0;
+                    const color = chartColors[idx] ?? CHART_COLORS[idx] ?? CHART_COLORS[0];
+                    return <div key={assetClass} style={{ width: `${Math.max(0, pct)}%`, backgroundColor: color }} title={`${ASSET_CLASS_LABELS[assetClass] ?? assetClass} ${formatPercentageIt(pct, 1)}`} />;
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div>
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Calendario</p>
               <div className="overflow-x-auto">
-                <table className="w-full text-[12px]">
+                <table className="w-full text-[13px]">
                   <thead>
                     <tr className="border-b border-border text-left">
                       <th scope="col" className="py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_COL_MONTH}</th>
-                      {draft.positions.map((position) => (
-                        <th key={position.id} scope="col" className="py-1.5 px-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                          {position.label}
-                        </th>
-                      ))}
+                      {draft.positions.map((position) => {
+                        const asset = assetsById.get(position.buyAssetId);
+                        return (
+                          <th key={position.id} scope="col" title={position.label} className="px-2 py-1.5 text-right text-[10px] font-semibold tracking-[0.04em] text-muted-foreground">
+                            {asset ? getAssetDisplayTicker(asset) : position.label}
+                          </th>
+                        );
+                      })}
                       <th scope="col" className="py-1.5 pl-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_COL_TOTAL}</th>
                     </tr>
                   </thead>
@@ -1159,16 +1248,16 @@ export function AccumulationPlanDialog({
                         const total = installment.lines.reduce((sum, line) => sum + line.plannedAmountEur, 0);
                         return (
                           <tr key={installment.index} className="border-b border-border last:border-0">
-                            <th scope="row" className="py-1.5 pr-2 text-left font-normal text-foreground">{monthLabelShort(installment.month)}</th>
+                            <th scope="row" className="whitespace-nowrap py-2 pr-2 text-left font-normal text-foreground">{monthLabelShort(installment.month)}</th>
                             {draft.positions.map((position) => {
                               const line = installment.lines.find((l) => l.positionId === position.id);
                               return (
-                                <td key={position.id} className="py-1.5 px-2 text-right font-mono tabular-nums text-muted-foreground">
+                                <td key={position.id} className="px-2 py-2 text-right font-mono tabular-nums text-muted-foreground">
                                   {line ? formatNumberIt(line.plannedQuantity, 0) : '—'}
                                 </td>
                               );
                             })}
-                            <td className="py-1.5 pl-2 text-right font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(total)}</td>
+                            <td className="whitespace-nowrap py-2 pl-2 text-right font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(total)}</td>
                           </tr>
                         );
                       });
@@ -1178,92 +1267,9 @@ export function AccumulationPlanDialog({
               </div>
             </div>
 
-            <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_SECTION_WEIGHTS}</p>
-              <ul className="space-y-2">
-                {preview.outcome.positions.map((position) => {
-                  const overTarget = position.finalWeightPct > position.targetPercentage + 0.5;
-                  return (
-                    <li key={position.positionId}>
-                      <div className="flex items-center justify-between text-[12px]">
-                        <span className="text-foreground">{position.label}</span>
-                        <span className="font-mono tabular-nums text-muted-foreground">
-                          {formatPercentageIt(position.finalWeightPct, 1)} · target {formatPercentageIt(position.targetPercentage, 1)} · {formatSignedPp(position.driftPp)}
-                        </span>
-                      </div>
-                      <div className="relative mt-1 h-[3px] rounded-full bg-muted">
-                        <div className="absolute inset-y-0 left-0 rounded-full bg-foreground" style={{ width: `${Math.min(100, position.finalWeightPct)}%` }} />
-                        <div className="absolute inset-y-[-3px] w-px bg-foreground/70" style={{ left: `${Math.min(100, position.targetPercentage)}%` }} />
-                      </div>
-                      {overTarget && <p className="mt-0.5 text-[11px] text-muted-foreground">{describeAboveTargetWarning([position.label])}</p>}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-
-            <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                {ACCUMULO_STEP3_SECTION_EXPOSURE} {preview.outcome.leverageRatio > 1.01 && `· leva ${formatNumberIt(preview.outcome.leverageRatio, 2)}×`}
-              </p>
-              <div className="flex h-3 overflow-hidden rounded-full">
-                {Object.entries(preview.outcome.implicitClassPct).map(([assetClass, pct]) => {
-                  const idx = ASSET_CLASS_CHART_INDEX[assetClass] ?? 0;
-                  const color = chartColors[idx] ?? CHART_COLORS[idx] ?? CHART_COLORS[0];
-                  return <div key={assetClass} style={{ width: `${Math.max(0, pct)}%`, backgroundColor: color }} title={`${ASSET_CLASS_LABELS[assetClass] ?? assetClass} ${formatPercentageIt(pct, 1)}`} />;
-                })}
-              </div>
-            </div>
-
-            <div>
+            <div className="max-w-[560px]">
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_SECTION_CLASSES}</p>
-              <ClassDriftChart points={preview.trajectory} band={band} height={160} />
-              {/* Peso assoluto per classe (primario) sopra lo scostamento in pp (secondario, muted) —
-                  stesso ordine dell'assoluto-poi-delta della striscia classi del tile attivo
-                  (decisione del proprietario, 2026-09-20). Intestazioni come la tabella Calendario
-                  sopra: prima non c'era modo di sapere quale colonna fosse quale classe. */}
-              <div className="mt-2 overflow-x-auto">
-                <table className="w-full text-[11px]">
-                  <thead>
-                    <tr className="border-b border-border text-left">
-                      <th scope="col" className="py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_COL_MONTH}</th>
-                      {classKeys.map((assetClass) => (
-                        <th
-                          key={assetClass}
-                          scope="col"
-                          className="py-1.5 pl-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em]"
-                          style={{ color: classColor(assetClass) }}
-                        >
-                          {ASSET_CLASS_LABELS[assetClass] ?? assetClass}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {TRAJECTORY_SAMPLE_INDICES.concat(draft.months).filter((i, idx, arr) => i <= draft.months && arr.indexOf(i) === idx).map((index) => {
-                      const point = preview.trajectory.find((p) => p.index === index);
-                      if (!point) return null;
-                      return (
-                        <tr key={index} className="border-b border-border last:border-0">
-                          <th scope="row" className="py-1 pr-2 text-left font-normal text-muted-foreground">{trajectoryPointLabel(point.month)}</th>
-                          {classKeys.map((assetClass) => {
-                            const data = point.byClass[assetClass as keyof typeof point.byClass];
-                            if (!data) return <td key={assetClass} className="py-1 pl-2 text-right text-muted-foreground">—</td>;
-                            return (
-                              <td key={assetClass} className="py-1 pl-2 text-right">
-                                <div className={`font-mono tabular-nums ${data.outOfBand ? 'text-warning-foreground' : 'text-foreground'}`}>
-                                  {formatPercentageIt(data.currentPct, 1)}
-                                </div>
-                                <div className="font-mono text-[10px] tabular-nums text-muted-foreground">{formatSignedPp(data.driftPp)}</div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <ClassDriftChart points={stepThreeTrajectory} band={band} height={140} />
             </div>
           </div>
         )}

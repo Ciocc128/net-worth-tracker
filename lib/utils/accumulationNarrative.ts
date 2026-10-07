@@ -506,6 +506,25 @@ export const ACCUMULO_STEP1_REMAINING_MONTHS = 'Mesi restanti';
 export const ACCUMULO_ACTION_SAVE_REVISION = 'Salva la revisione';
 export const ACCUMULO_STEP1_REVISE_NOTE = 'Le rate già eseguite, saltate o collegate restano com’erano: la revisione riscrive dalla prima rata intatta.';
 
+/** The dialog's reading under each step's title (it no longer repeats the title). */
+export const ACCUMULO_STEP_READINGS: Record<1 | 2, string> = {
+  1: 'Scegli i conti da cui prendere i soldi, la riserva da non toccare e quanto aggiungi ogni mese.',
+  2: 'Scegli dove deve arrivare ogni strumento a fine piano: il pannello mostra dove porta.',
+};
+
+/** Step 3's reading, the plan in one line: «5 rate da circa 5905 € · copre il 98% del piano · leva a fine piano 1,27×». */
+export function describeStep3Summary(input: { months: number; averageEur: number; coveragePct: number | null; leverageRatio: number }): Narrative {
+  const parts: Narrative = [
+    { text: `${input.months} ${input.months === 1 ? 'rata' : 'rate'} da circa ` },
+    { text: cachedFormatCurrencyEUR(input.averageEur, true), mono: true },
+  ];
+  if (input.coveragePct !== null) parts.push({ text: ` · copre il ${formatPercentageIt(input.coveragePct, 0)} del piano` });
+  if (input.leverageRatio > 1.01) parts.push({ text: ` · leva a fine piano ${formatNumberIt(input.leverageRatio, 2)}×` });
+  return parts;
+}
+
+export const ACCUMULO_STEP3_WEIGHTS_COLUMNS: readonly string[] = ['Strumento', 'Oggi → fine piano', 'Target', 'Scarto'];
+
 export const ACCUMULO_STEP_TITLES: Record<1 | 2 | 3, string> = {
   1: 'Da dove arriva la liquidità',
   2: 'Dove deve arrivare il portafoglio',
