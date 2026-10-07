@@ -114,6 +114,19 @@ export function describeConflict(conflict: ConflictReport, objectives: Objective
   return `Senza l'obiettivo «${removedLabel}»: ${parts.join('; ')}.`;
 }
 
+/** The tile's reading of a conflict, as in the render: «Leva e Stati Uniti nell'azionario tirano in
+ *  direzioni opposte: senza «Leva», Stati Uniti nell'azionario passerebbe da 66,1% a 62,0%.» */
+export function describeConflictReading(conflict: ConflictReport, objectives: ObjectiveReport[]): string {
+  const removed = objectives.find((o) => o.id === conflict.removedObjectiveId);
+  const removedLabel = removed?.label ?? conflict.removedObjectiveId;
+  const labels = conflict.improvements
+    .map((improvement) => objectives.find((o) => o.id === improvement.objectiveId)?.label)
+    .filter((label): label is string => !!label);
+  const detail = describeConflict(conflict, objectives).replace(/^Senza l'obiettivo «[^»]*»: /, '').replace(/ da /g, ' passerebbe da ');
+  const pull = labels.length === 0 ? removedLabel : `${removedLabel} e ${labels.join(', ')}`;
+  return `${pull} tirano in direzioni opposte: senza «${removedLabel}», ${detail}`;
+}
+
 // ---------------------------------------------------------------------------
 // Warnings — one text per OptimizerWarning.code
 // ---------------------------------------------------------------------------

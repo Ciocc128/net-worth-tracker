@@ -18,7 +18,7 @@ import { useInstrumentProfiles } from '@/lib/hooks/useInstrumentProfiles';
 import { useOptimizerGeographyReference } from '@/lib/hooks/useOptimizerGeographyReference';
 import { buildIdealAllocationInput, describeIdealComposition, listIdealObjectives } from '@/lib/utils/settingsNarrative';
 import {
-  describeConflict,
+  describeConflictReading,
   OBJECTIVES_ACTION_EDIT,
   OBJECTIVES_OFF_READING,
   OBJECTIVES_TILE_CALCULATED_ON,
@@ -90,7 +90,7 @@ export function ObiettiviTile({ idealAllocation, targetLeverageRatio, snapshot, 
   }, [planActive, plan, targets, allAssets, idealAllocation, profilesQuery.data, referenceCountries, referenceAreas, referenceEstimatedShare, targetLeverageRatio]);
 
   const reached = planObjectives
-    ? { objectives: planObjectives, conflicts: undefined as OptimizerSnapshot['conflicts'] }
+    ? { objectives: planObjectives, conflicts: snapshot?.conflicts }
     : enabled && snapshot && snapshot.objectives.length > 0
       ? snapshot
       : null;
@@ -105,7 +105,7 @@ export function ObiettiviTile({ idealAllocation, targetLeverageRatio, snapshot, 
       {reached && (
         <div className="mt-3">
           <ObjectiveBars objectives={reached.objectives} />
-          {firstConflict && <p className="mt-3 text-[12px] text-muted-foreground">{describeConflict(firstConflict, reached.objectives)}</p>}
+          {firstConflict && <p className="mt-3 rounded-[10px] bg-muted px-3 py-2.5 text-[12px] text-foreground">{describeConflictReading(firstConflict, reached.objectives)}</p>}
           <p className="mt-2 text-[11px] text-muted-foreground">{planObjectives ? OBJECTIVES_TILE_PLAN_NOTE : OBJECTIVES_TILE_CALCULATED_ON}</p>
         </div>
       )}
