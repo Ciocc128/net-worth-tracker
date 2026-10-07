@@ -552,8 +552,8 @@ export function QuestoMeseTile({
         )}
 
         {proposal && (
-          <div className="mt-3 rounded-lg bg-muted p-3">
-            <NarrativeText segments={proposal.reading} className="text-[12px] leading-[1.5] text-foreground" />
+          <div className="mt-3 rounded-lg border border-warning-border bg-warning p-3">
+            <NarrativeText segments={proposal.reading} className="text-[12px] leading-[1.5] text-warning-foreground" />
             {!isDemo && (
               <div className="mt-2 flex flex-wrap gap-2">
                 <Button className={ROW_ACTION_CLASS} disabled={applyRecalibrationMutation.isPending} onClick={() => void applyProposal()}>
