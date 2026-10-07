@@ -7,6 +7,10 @@
 > chiusa è `doc/pac-ate.md`; questa guida ne è la traduzione operativa, con le decisioni D1–D12 come
 > regole e le trappole trovate scrivendo il codice. In `AGENTS.md` resta lo stub con l'essenziale.
 
+> **Refactor in corso (dal 07/10/2026)** — `doc/pac-ottimizzatore/README.md` ridisegna questa feature con la scheda
+> «Accumulo» di Allocazione, il portafoglio modello e le decisioni PO1–PO15; i task A0–A3 aggiornano questa guida
+> man mano. Dove il dossier e questa guida divergono, per il lavoro nuovo vale il dossier.
+
 ## Modello dati
 
 Un `AccumulationPlan` (`types/accumulationPlan.ts`) è UN documento in `accumulationPlans/{planId}`,
