@@ -102,7 +102,8 @@ import {
   ACCUMULO_MONTH_TILE_EYEBROW,
   describeAccumulationOutcomeFooter,
   describeMonthsBarCaption,
-  describeRecalibration,
+  describeMonthReading,
+  describePriceChangeNotice,
   describeRegisterNote,
   describeRegisterSaleNote,
   describeReserveWarning,
@@ -485,7 +486,7 @@ export function QuestoMeseTile({
     currentInstallment && recalibration && shouldProposeRecalibration(recalibration, currentInstallment.recalibrationDismissed)
       ? {
           result: recalibration,
-          reading: describeRecalibration({
+          reading: describePriceChangeNotice({
             lines: recalibration.lines.map((line) => ({
               label: plan.positions.find((p) => p.id === line.positionId)?.label ?? line.positionId,
               plannedQuantity: line.plannedQuantity,
@@ -519,9 +520,23 @@ export function QuestoMeseTile({
     }
   };
 
+  // The month's own reading: the lines of the open installment still waiting to be registered.
+  const openMonthLines = currentLines.filter((line) => {
+    const state = effectiveLineState(matchResult.lineStates[`${currentIndex}:${line.positionId}`] ?? 'todo', `${currentIndex}:${line.positionId}`, ignoredMatches, false);
+    return state === 'todo' || state === 'toConfirm' || state === 'late';
+  });
+  const monthReading = describeMonthReading(
+    openMonthLines.length,
+    openMonthLines.reduce((sum, line) => sum + line.plannedAmountEur, 0),
+  );
+
   return (
     <>
-      <Tile eyebrow={ACCUMULO_MONTH_TILE_EYEBROW} aside={describeMonthTileAside(currentInstallment?.month ?? plan.startMonth, Math.min(Math.max(currentIndex, 1), plan.months), plan.months)}>
+      <Tile
+        eyebrow={ACCUMULO_MONTH_TILE_EYEBROW}
+        reading={monthReading}
+        aside={describeMonthTileAside(currentInstallment?.month ?? plan.startMonth, Math.min(Math.max(currentIndex, 1), plan.months), plan.months)}
+      >
         {belowReserve && (
           <p className="mt-2 text-[12px] text-warning-foreground">
             <NarrativeText

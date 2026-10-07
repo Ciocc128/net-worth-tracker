@@ -218,6 +218,10 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
               snapshot={model?.optimizerSnapshot}
               editRef={editRef}
               disabled={!targets}
+              plan={isActive && !done ? plan : null}
+              ownerId={ownerId}
+              allAssets={allAssets}
+              targets={targets}
               onEdit={() => setObjectivesOpen(true)}
             />
           </div>

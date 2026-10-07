@@ -8,15 +8,22 @@
  * (`ObjectiveBars`, RO4) and the first conflict of that calculation is quoted under them; without a
  * snapshot — or when the model was written by hand — the tile lists the objectives as words.
  */
-import { useRef } from 'react';
-import type { IdealAllocationSettings } from '@/types/assets';
-import type { OptimizerSnapshot } from '@/types/accumulationPlan';
+import { useMemo, useRef } from 'react';
+import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
+import type { AccumulationPlan, OptimizerSnapshot } from '@/types/accumulationPlan';
+import { evaluateObjectivesAt } from '@/lib/utils/weightOptimizer';
+import { projectPlanOutcome, resolvePositionStates } from '@/lib/utils/accumulationPlanUtils';
+import { calculateAssetValue } from '@/lib/services/assetService';
+import { useInstrumentProfiles } from '@/lib/hooks/useInstrumentProfiles';
+import { useOptimizerGeographyReference } from '@/lib/hooks/useOptimizerGeographyReference';
 import { buildIdealAllocationInput, describeIdealComposition, listIdealObjectives } from '@/lib/utils/settingsNarrative';
 import {
   describeConflict,
   OBJECTIVES_ACTION_EDIT,
   OBJECTIVES_OFF_READING,
   OBJECTIVES_TILE_CALCULATED_ON,
+  OBJECTIVES_TILE_PLAN_ASIDE,
+  OBJECTIVES_TILE_PLAN_NOTE,
   OBJECTIVES_TILE_ASIDE,
   OBJECTIVES_TILE_EYEBROW,
 } from '@/lib/utils/weightOptimizerNarrative';
@@ -24,7 +31,7 @@ import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { Tile } from '@/components/ui/tile';
 import { Button } from '@/components/ui/button';
 import { ObjectiveBars } from '@/components/allocation/OptimizerReport';
-import { TILE_ACTION_CLASS } from '@/components/allocation/tiles/accumuloShared';
+import { DEPS, TILE_ACTION_CLASS } from '@/components/allocation/tiles/accumuloShared';
 
 interface ObiettiviTileProps {
   idealAllocation: IdealAllocationSettings | null;
@@ -35,28 +42,71 @@ interface ObiettiviTileProps {
   /** The button that opened the modal, so closing it can return the focus there. */
   editRef?: React.RefObject<HTMLButtonElement | null>;
   disabled?: boolean;
+  /** The open plan, when there is one: the bars then show what ITS end state reaches (A4). */
+  plan?: AccumulationPlan | null;
+  ownerId?: string;
+  allAssets?: Asset[];
+  targets?: AssetAllocationTarget | null;
 }
 
-export function ObiettiviTile({ idealAllocation, targetLeverageRatio, snapshot, onEdit, editRef, disabled }: ObiettiviTileProps) {
+export function ObiettiviTile({ idealAllocation, targetLeverageRatio, snapshot, onEdit, editRef, disabled, plan, ownerId, allAssets, targets }: ObiettiviTileProps) {
   const isDemo = useDemoMode();
   const fallbackRef = useRef<HTMLButtonElement>(null);
   const enabled = !!idealAllocation?.enabled;
   const input = idealAllocation ? buildIdealAllocationInput(idealAllocation, targetLeverageRatio) : null;
   const objectives = enabled && input ? listIdealObjectives(input) : [];
-  const reached = enabled && snapshot && snapshot.objectives.length > 0 ? snapshot : null;
+  // With an open plan the bars are the plan's own end state (what the PAC reaches), computed on the
+  // same objectives; the instrument profiles are read only then (cached for an hour).
+  const planActive = enabled && !!plan && plan.status === 'active' && !!targets && !!allAssets;
+  const memberAssetIds = useMemo(() => Array.from(new Set((plan?.positions ?? []).flatMap((position) => position.memberAssetIds))), [plan]);
+  const profilesQuery = useInstrumentProfiles(planActive ? ownerId : undefined, memberAssetIds);
+  const { referenceCountries, referenceAreas, referenceEstimatedShare } = useOptimizerGeographyReference(idealAllocation);
+  const planObjectives = useMemo(() => {
+    if (!planActive || !plan || !targets || !allAssets || !idealAllocation || !profilesQuery.data) return null;
+    const assetsById = new Map(allAssets.map((asset) => [asset.id, asset]));
+    const states = resolvePositionStates(plan.positions, assetsById, DEPS, plan.disposals);
+    const outcome = projectPlanOutcome(states, plan.installments, plan.residualEur ?? 0, assetsById, plan.positions, DEPS);
+    const weightsPctByKey = Object.fromEntries(outcome.positions.map((position) => [position.positionId, position.finalWeightPct]));
+    const remainingEur = plan.installments.reduce(
+      (sum, installment) => sum + installment.lines.filter((line) => line.status === 'planned').reduce((acc, line) => acc + line.plannedAmountEur, 0),
+      0,
+    );
+    const baseEur = states.reduce((sum, state) => sum + state.currentValueEur, 0) + remainingEur;
+    const objectives = evaluateObjectivesAt({
+      positions: plan.positions.map((position) => ({ key: position.id, label: position.label, memberAssetIds: position.memberAssetIds, buyAssetId: position.buyAssetId })),
+      assetsById,
+      profilesByTicker: new Map(Object.entries(profilesQuery.data.profiles)),
+      referenceCountries,
+      settings: idealAllocation,
+      baseEur,
+      valueOf: calculateAssetValue,
+      targets,
+      referenceAreas,
+      referenceEstimatedShare,
+      targetLeverageRatio,
+      weightsPctByKey,
+    });
+    return objectives.length > 0 ? objectives : null;
+  }, [planActive, plan, targets, allAssets, idealAllocation, profilesQuery.data, referenceCountries, referenceAreas, referenceEstimatedShare, targetLeverageRatio]);
+
+  const reached = planObjectives
+    ? { objectives: planObjectives, conflicts: undefined as OptimizerSnapshot['conflicts'] }
+    : enabled && snapshot && snapshot.objectives.length > 0
+      ? snapshot
+      : null;
   const firstConflict = reached?.conflicts?.[0];
 
   return (
     <Tile
       eyebrow={OBJECTIVES_TILE_EYEBROW}
-      aside={OBJECTIVES_TILE_ASIDE}
+      aside={planObjectives ? OBJECTIVES_TILE_PLAN_ASIDE : OBJECTIVES_TILE_ASIDE}
       reading={enabled && input ? describeIdealComposition(input) : [{ text: OBJECTIVES_OFF_READING }]}
     >
       {reached && (
         <div className="mt-3">
           <ObjectiveBars objectives={reached.objectives} />
           {firstConflict && <p className="mt-3 text-[12px] text-muted-foreground">{describeConflict(firstConflict, reached.objectives)}</p>}
-          <p className="mt-2 text-[11px] text-muted-foreground">{OBJECTIVES_TILE_CALCULATED_ON}</p>
+          <p className="mt-2 text-[11px] text-muted-foreground">{planObjectives ? OBJECTIVES_TILE_PLAN_NOTE : OBJECTIVES_TILE_CALCULATED_ON}</p>
         </div>
       )}
       {!reached && objectives.length > 0 && (

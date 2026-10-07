@@ -12,7 +12,9 @@ import {
   describeAccumulationOutcomeFooter,
   describeClosedPlansAside,
   describeMatchNote,
+  describeMonthReading,
   describeMonthTileAside,
+  describePriceChangeNotice,
 } from '@/lib/utils/accumulationNarrative';
 import { narrativeToText } from '@/lib/utils/narrative';
 
@@ -88,5 +90,31 @@ describe('Questo mese (M5, M6)', () => {
   it('closed plans count', () => {
     expect(describeClosedPlansAside(1)).toBe('1 piano');
     expect(describeClosedPlansAside(2)).toBe('2 piani');
+  });
+});
+
+describe('Questo mese reading and price notice', () => {
+  it('reads the open purchases in words, singular and plural, and nothing when none is open', () => {
+    expect(flat(narrativeToText(describeMonthReading(4, 3134) ?? []))).toBe(
+      "Quattro acquisti per 3134 €. Registrali da qui: l'operazione va nel Registro e la riga si chiude da sola.",
+    );
+    expect(flat(narrativeToText(describeMonthReading(1, 500) ?? []))).toContain('Un acquisto per 500 €. Registralo da qui');
+    expect(describeMonthReading(0, 0)).toBeNull();
+  });
+
+  it('says what the prices changed in the rata, like the render', () => {
+    const text = flat(
+      narrativeToText(
+        describePriceChangeNotice({
+          lines: [
+            { label: 'VWCE', plannedQuantity: 10, suggestedQuantity: 9 },
+            { label: 'AVWS', plannedQuantity: 0, suggestedQuantity: 2 },
+          ],
+          plannedTotalEur: 1000,
+          suggestedTotalEur: 904.8,
+        }),
+      ),
+    );
+    expect(text).toMatch(/^I prezzi sono cambiati dall'attivazione: con quelli di oggi la rata compra 9 VWCE invece di 10 e 2 AVWS in più \(.*95,20 €\)\.$/);
   });
 });

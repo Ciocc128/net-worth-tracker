@@ -653,6 +653,46 @@ export interface RecalibrationReadingInput {
   suggestedTotalEur: number;
 }
 
+const COUNT_WORDS = ['zero', 'un', 'due', 'tre', 'quattro', 'cinque', 'sei', 'sette', 'otto', 'nove', 'dieci', 'undici', 'dodici'];
+
+/**
+ * Questo mese's reading (render, view 1): what the open month asks, and that registering from here
+ * closes the line. «Quattro acquisti per 3134 €. Registrali da qui: l'operazione va nel Registro e la
+ * riga si chiude da sola.» `null` when no line of the month is open.
+ */
+export function describeMonthReading(openCount: number, openAmountEur: number): Narrative | null {
+  if (openCount <= 0) return null;
+  const count = COUNT_WORDS[openCount] ?? String(openCount);
+  const one = openCount === 1;
+  return [
+    { text: `${capitalize(count)} acquist${one ? 'o' : 'i'} per ` },
+    { text: cachedFormatCurrencyEUR(openAmountEur, true), mono: true },
+    { text: `. Registrali da qui: l'operazione va nel Registro e la riga si chiude da sola.`.replace('Registrali', one ? 'Registralo' : 'Registrali') },
+  ];
+}
+
+/**
+ * The recalibration notice (render, PO6): «I prezzi sono cambiati dall'attivazione: con quelli di oggi
+ * la rata compra 9 VWCE invece di 10 e 2 AVWS in più (−95,20 €).»
+ */
+export function describePriceChangeNotice(input: RecalibrationReadingInput): Narrative {
+  const totalDeltaEur = input.suggestedTotalEur - input.plannedTotalEur;
+  const parts = input.lines
+    .filter((line) => line.suggestedQuantity !== line.plannedQuantity)
+    .map((line) =>
+      line.suggestedQuantity < line.plannedQuantity
+        ? `${line.suggestedQuantity} ${line.label} invece di ${line.plannedQuantity}`
+        : `${line.suggestedQuantity - line.plannedQuantity} ${line.label} in più`,
+    );
+  if (parts.length === 0) return [{ text: 'La rata resta come pianificata.' }];
+  const joined = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} e ${parts[parts.length - 1]}`;
+  return [
+    { text: `I prezzi sono cambiati dall'attivazione: con quelli di oggi la rata compra ${joined} (` },
+    { text: formatSignedCurrency(totalDeltaEur), mono: true },
+    { text: ').' },
+  ];
+}
+
 /** The recalibrate modal's reading: what moved, or why the rata shrank without a mover. */
 export function describeRecalibration(input: RecalibrationReadingInput): Narrative {
   const totalDeltaEur = input.suggestedTotalEur - input.plannedTotalEur;

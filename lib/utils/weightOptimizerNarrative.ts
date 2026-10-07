@@ -332,6 +332,8 @@ export function formatOptimizerWeightDiffEur(currentPct: number, proposedPct: nu
 
 export const OBJECTIVES_TILE_EYEBROW = 'Obiettivi';
 export const OBJECTIVES_TILE_ASIDE = 'target · raggiunto dal modello';
+export const OBJECTIVES_TILE_PLAN_ASIDE = 'target · raggiunto dal piano';
+export const OBJECTIVES_TILE_PLAN_NOTE = 'A fine piano, ai prezzi di oggi: le barre sono quanto raggiunge il PAC aperto.';
 export const OBJECTIVES_DIALOG_TITLE = "Obiettivi dell'allocazione ideale";
 export const OBJECTIVES_ACTION_EDIT = 'Modifica obiettivi';
 export const OBJECTIVES_ACTION_TRY = 'Prova';
