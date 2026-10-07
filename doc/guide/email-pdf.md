@@ -34,6 +34,9 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   comes from fixed-width right-aligned COLUMNS (a declared exception to the Mono Mandate, in `PDF_FONTS`). WinAnsi
   has no U+2212 and react-pdf drops what it cannot encode **silently**: the Allocazione gaps printed «620» where they
   meant «−620 €». `pdfSafeText` converts it at the boundary — every PDF text node goes through it.
+- **The FIRE section's figure is «Spese ÷ SWR», never «numero FIRE»** (doc/fire-ipotesi/README.md § 19, D-N3): it is
+  `calculateFIREMetrics` on the whole FIRE net worth, without dated flows, pensions, withdrawal tax or the locked fund, so
+  the reading closes with «Non è il numero FIRE del Calcolatore…». `÷` is in WinAnsi (0xF7): no `pdfSafeText` mapping.
 - **Sub-tiles are a `--muted` fill with no border**: on white paper a 1px rule at 0.92 lightness is invisible, and a
   4%-ink fill survives a photocopy.
 - **A section's reading must not mix two windows.** `HistoryData` carries `netWorthEvolution` (the filtered series the

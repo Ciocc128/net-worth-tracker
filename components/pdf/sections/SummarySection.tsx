@@ -67,7 +67,7 @@ export function SummarySection({ data, reportScope }: SummarySectionProps) {
       note: '100 meno la somma degli scarti in punti',
     },
 
-    { label: 'Progresso FIRE', value: formatPercentageIt(data.fireProgress, 1) },
+    { label: 'Progresso FIRE', value: formatPercentageIt(data.fireProgress, 1), note: 'su spese ÷ SWR' },
     {
       label: 'Entrate su uscite',
       value: `${formatNumberIt(data.incomeToExpenseRatio, 2)}×`,

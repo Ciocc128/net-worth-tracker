@@ -17,8 +17,9 @@ const euro = (value: number) => cachedFormatCurrencyEUR(value, true);
 /**
  * The FIRE section.
  *
- * The FIRE number is the page's one dominant figure, so it is the hero and everything else is
- * subordinate to it — the Trade Republic hierarchy, on paper. The Trinity Study note stays: the
+ * Expenses ÷ SWR is the page's one dominant figure, so it is the hero and everything else is
+ * subordinate to it — the Trade Republic hierarchy, on paper. It is NOT named «numero FIRE»: that name
+ * belongs to the Calcolatore's figure (doc/fire-ipotesi/README.md § 19, D-N3). The Trinity Study note stays: the
  * multiple is a modelling assumption, not a fact about the reader's money, and a report that
  * prints a target without saying what it rests on invites it to be read as a promise.
  */
@@ -31,7 +32,7 @@ export function FireSection({ data, reportScope }: FireSectionProps) {
       <PDFPage eyebrow="Net Worth Tracker" section={title} footerNote={footerNote}>
         <PDFSection eyebrow={title} reading={describeFireSection(data)} ruled={false}>
           <PDFText variant="caption">
-            Il numero FIRE poggia sulla spesa annuale: senza spese registrate non c’è un traguardo da calcolare.
+            La cifra poggia sulla spesa annuale: senza spese registrate non c’è un traguardo da calcolare.
           </PDFText>
         </PDFSection>
       </PDFPage>
@@ -97,7 +98,7 @@ export function FireSection({ data, reportScope }: FireSectionProps) {
       <PDFSection eyebrow="Quanto pagherebbe" scope="a traguardo raggiunto">
         <PDFMetrics items={allowance} />
         <PDFNote>
-          Il numero FIRE è {formatNumberIt(multiple, 1)}× le spese annuali, secondo il Trinity Study a un tasso di
+          La cifra è {formatNumberIt(multiple, 1)}× le spese annuali, secondo il Trinity Study a un tasso di
           prelievo del {formatPercentageIt(data.safeWithdrawalRate, 1)}.
           {data.safeWithdrawalRate === 4
             ? ' Al 4% lo studio misura una probabilità di successo superiore al 95% su un portafoglio 50/50 per trent’anni di prelievi.'

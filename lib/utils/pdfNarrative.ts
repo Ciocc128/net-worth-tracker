@@ -355,11 +355,13 @@ export function describePerformanceSection(data: PerformanceData): Narrative {
 /** FIRE: how far along the path, in one figure and one horizon. */
 export function describeFireSection(data: FireData): Narrative {
   if (data.fireNumber <= 0) {
-    return [prose('Il numero FIRE non è calcolabile: manca una stima di spesa annuale su cui poggiarlo.')];
+    return [prose('Spese ÷ SWR non è calcolabile: manca una stima di spesa annuale su cui poggiarla.')];
   }
   const remaining = Math.max(0, data.fireNumber - data.currentNetWorth);
+  // Not the Calcolatore's FIRE number (no dated flows, pensions, withdrawal tax or locked fund):
+  // the name is reserved to that figure (doc/fire-ipotesi/README.md § 19, D-N3), so this one is named by its formula.
   const narrative: Narrative = [
-    prose('Il numero FIRE è '),
+    prose('Spese ÷ SWR fa '),
     euro(data.fireNumber),
     prose(' al '),
     figure(formatPercentage(data.safeWithdrawalRate, 1)),
@@ -372,6 +374,7 @@ export function describeFireSection(data: FireData): Narrative {
   } else {
     narrative.push(prose(' Il traguardo è raggiunto.'));
   }
+  narrative.push(prose(' Non è il numero FIRE del Calcolatore, che conta anche tassa sui prelievi, pensioni e flussi datati.'));
   return narrative;
 }
 
@@ -388,7 +391,7 @@ export function describeSummarySection(data: SummaryData): Narrative {
       figure(data.incomeToExpenseRatio.toFixed(2).replace('.', ',')),
     );
   }
-  narrative.push(prose('. Alla FIRE manca il '), figure(formatPercentage(Math.max(0, 100 - data.fireProgress), 1)), prose(' del percorso.'));
+  narrative.push(prose('. Alla FIRE manca il '), figure(formatPercentage(Math.max(0, 100 - data.fireProgress), 1)), prose(' del percorso, misurato su spese ÷ SWR.'));
   return narrative;
 }
 
