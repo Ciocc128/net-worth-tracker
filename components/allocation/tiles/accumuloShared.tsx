@@ -33,3 +33,15 @@ export function DraftBox({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+const CHIP_BASE = 'shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px]';
+const CHIP_TONE: Partial<Record<LineUiState, string>> = {
+  executed: 'bg-accent text-accent-foreground',
+  toConfirm: 'bg-warning/15 text-warning-foreground',
+  late: 'bg-warning/15 text-warning-foreground',
+};
+
+/** A line's state as the render draws it: a pill, filled for done, amber for what asks the reader. */
+export function LineStateChip({ state, label }: { state: LineUiState; label: string }) {
+  return <span className={`${CHIP_BASE} ${CHIP_TONE[state] ?? 'bg-muted text-muted-foreground'}`}>{label}</span>;
+}

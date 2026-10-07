@@ -17,6 +17,7 @@ import {
   OBJECTIVES_ACTION_EDIT,
   OBJECTIVES_OFF_READING,
   OBJECTIVES_TILE_CALCULATED_ON,
+  OBJECTIVES_TILE_ASIDE,
   OBJECTIVES_TILE_EYEBROW,
 } from '@/lib/utils/weightOptimizerNarrative';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
@@ -48,6 +49,7 @@ export function ObiettiviTile({ idealAllocation, targetLeverageRatio, snapshot, 
   return (
     <Tile
       eyebrow={OBJECTIVES_TILE_EYEBROW}
+      aside={OBJECTIVES_TILE_ASIDE}
       reading={enabled && input ? describeIdealComposition(input) : [{ text: OBJECTIVES_OFF_READING }]}
     >
       {reached && (

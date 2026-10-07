@@ -186,14 +186,22 @@ export const ACCUMULO_DONE_BOX_DRIFT = 'Scostamento medio';
 
 /** A line's status as the tile shows it — the matching engine's `LineUiState` (§9). */
 export const ACCUMULO_LINE_STATUS_LABEL: Record<LineUiState, string> = {
-  todo: 'Da eseguire',
+  todo: 'Da fare',
   toConfirm: 'Da confermare',
-  executed: 'Eseguita',
+  executed: 'Registrato',
   late: 'In ritardo',
   skipped: 'Saltata',
   lostLink: 'Collegamento perso',
 };
 
+/** Questo mese's header aside: «ottobre 2026 · rata 3 di 12» (render, view 1). */
+export function describeMonthTileAside(month: MonthKey, installmentIndex: number, totalMonths: number): string {
+  return `${monthLabelLong(month)} · rata ${installmentIndex} di ${totalMonths}`;
+}
+/** «Trovato nel Registro: 24 quote, 3134 €» under a line waiting for the reader's confirmation. */
+export function describeMatchNote(quantity: number, amountEur: number): string {
+  return `Trovato nel Registro: ${formatNumberIt(quantity, 0)} quote, ${cachedFormatCurrencyEUR(amountEur)}`;
+}
 export const ACCUMULO_ACTION_MARK_EXECUTED = 'Segna eseguita';
 export const ACCUMULO_ACTION_SKIP = 'Salta';
 export const ACCUMULO_ACTION_UNDO_EXECUTED = 'Segna da rifare';
@@ -422,6 +430,8 @@ export function describeClassStripItem(input: ClassStripItemInput): ClassStripIt
 export interface AccumulationOutcomeFooterInput {
   maxDrift: { label: string; deltaPp: number } | null;
   residualEur: number;
+  /** M6: the reserve the plan keeps; named as intact only when the accounts still cover it. */
+  reserve?: { eur: number; intact: boolean };
 }
 
 /** The tile's pinned footer: the plan's worst projected drift and what is left unspent. */
@@ -440,6 +450,9 @@ export function describeAccumulationOutcomeFooter(input: AccumulationOutcomeFoot
     { text: ' · liquidità residua ' },
     { text: cachedFormatCurrencyEUR(input.residualEur), mono: true },
   );
+  if (input.reserve && input.reserve.eur > 0 && input.reserve.intact) {
+    segments.push({ text: ' · riserva di ' }, { text: cachedFormatCurrencyEUR(input.reserve.eur, true), mono: true }, { text: ' intatta' });
+  }
   return segments;
 }
 
@@ -857,6 +870,7 @@ export const ACCUMULO_EMPTY_DOESNT: readonly string[] = [
   'non sceglie strumenti che non hai indicato',
 ];
 export const ACCUMULO_EMPTY_PREVIEW_TITLE = 'Anteprima sui tuoi numeri';
+export const ACCUMULO_EMPTY_ASIDE = 'nessun piano aperto';
 export const ACCUMULO_EMPTY_PREVIEW_CLASSES = 'oggi → a fine piano';
 export const ACCUMULO_ACTION_OPEN_MODEL = 'Apri il portafoglio modello';
 
@@ -880,12 +894,18 @@ export function describeAccumuloPreview(
 }
 
 export const ACCUMULO_CLASSES_TILE_EYEBROW = 'Classi del piano';
+export const ACCUMULO_CLASSES_TILE_ASIDE = 'scostamento dal target, mese per mese';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Piani conclusi (RP6) and the suggested monthly inflow (RP7)
 // ─────────────────────────────────────────────────────────────────────────
 
 export const ACCUMULO_CLOSED_PLANS_EYEBROW = 'Piani conclusi';
+export const ACCUMULO_CLOSED_PLANS_COLUMNS: readonly string[] = ['Piano', 'Periodo', 'Rate', 'Investito', 'Scostamento finale'];
+/** «2 piani» / «1 piano» beside the tile's eyebrow. */
+export function describeClosedPlansAside(count: number): string {
+  return `${count} ${count === 1 ? 'piano' : 'piani'}`;
+}
 
 export interface ClosedPlanReadingInput {
   name: string;

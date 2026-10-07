@@ -33,7 +33,7 @@ import {
   ACCUMULO_EMPTY_DOES,
   ACCUMULO_EMPTY_DOES_TITLE,
   ACCUMULO_EMPTY_PREVIEW_CLASSES,
-  ACCUMULO_EMPTY_PREVIEW_TITLE,
+  ACCUMULO_EMPTY_ASIDE,
   ACCUMULO_TILE_EYEBROW,
   describeAccumuloPreview,
   suggestMonthlyInflow,
@@ -82,7 +82,7 @@ export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLev
 
   return (
     <>
-      <Tile eyebrow={ACCUMULO_TILE_EYEBROW} aside={ACCUMULO_EMPTY_PREVIEW_TITLE} reading={describeAccumuloPreview(preview)}>
+      <Tile eyebrow={ACCUMULO_TILE_EYEBROW} aside={ACCUMULO_EMPTY_ASIDE} reading={describeAccumuloPreview(preview)}>
         {preview && preview.classes.length > 0 && (
           <div className="mt-3 max-w-[640px]">
             <p className={TILE_SUB_EYEBROW_CLASS}>{ACCUMULO_EMPTY_PREVIEW_CLASSES}</p>

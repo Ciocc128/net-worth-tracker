@@ -4,7 +4,7 @@
  * ClassiDelPianoTile — «dove porta le classi il piano, mese per mese?» (doc/pac-ottimizzatore § RV5,
  * PO15). The right half of Allocazione's Accumulo tab with an active plan: the class trajectory in
  * view (`ClassDriftChart` with its cursor on the month), the sentence that says when each class is
- * back in band, and under it the strip that stood alone in the old `AccumuloTile` — one row per
+ * back in band (said once, in the page verdict, not repeated here), and under it the strip that stood alone in the old `AccumuloTile` — one row per
  * class the plan touches (D11): today's share and the target on one line, the track under it
  * (fill = today, hairline = target, ring = end of the plan), the drift in pp as the muted second
  * figure. Amber marks only a class OUT of band now, on its drift line and its re-entry month, never
@@ -20,6 +20,7 @@ import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { ClassDriftChart } from '@/components/allocation/ClassDriftChart';
 import { TargetTick } from '@/components/allocation/TargetTick';
 import {
+  ACCUMULO_CLASSES_TILE_ASIDE,
   ACCUMULO_CLASSES_TILE_EYEBROW,
   ACCUMULO_CLASS_STRIP_LEGEND,
   describeClassStripItem,
@@ -32,11 +33,9 @@ interface ClassiDelPianoTileProps {
   /** `monthIndexOf(plan, today)`; the chart's cursor starts on the open month. */
   currentIndex: number;
   band: RebalanceBand;
-  /** `describeBandReentry` for the open month. */
-  reentry: string;
 }
 
-export function ClassiDelPianoTile({ plan, trajectory, currentIndex, band, reentry }: ClassiDelPianoTileProps) {
+export function ClassiDelPianoTile({ plan, trajectory, currentIndex, band }: ClassiDelPianoTileProps) {
   const clampedIndex = Math.min(Math.max(currentIndex, 0), plan.months);
   // `null` = the cursor has not been moved: it follows the open month, so a month that turns while
   // the page is open moves it too.
@@ -58,7 +57,7 @@ export function ClassiDelPianoTile({ plan, trajectory, currentIndex, band, reent
   }));
 
   return (
-    <Tile eyebrow={ACCUMULO_CLASSES_TILE_EYEBROW} reading={reentry ? [{ text: reentry }] : null}>
+    <Tile eyebrow={ACCUMULO_CLASSES_TILE_EYEBROW} aside={ACCUMULO_CLASSES_TILE_ASIDE}>
       {trajectory.length > 1 && (
         <ClassDriftChart className="mt-3" points={trajectory} band={band} height={180} selectedIndex={selectedIndex} onSelect={setPicked} />
       )}

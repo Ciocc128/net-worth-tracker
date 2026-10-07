@@ -27,6 +27,8 @@ import { describeWriteError } from '@/lib/utils/dialogNarrative';
 import { cachedFormatCurrencyEUR, formatPercentageIt } from '@/lib/utils/formatters';
 import {
   describeModelOrigin,
+  describeModelSalesHint,
+  describeModelTileAside,
   MODEL_ACTION_ADD_CANDIDATE,
   MODEL_ACTION_EDIT,
   MODEL_ACTION_RECALCULATE,
@@ -38,7 +40,6 @@ import {
   MODEL_COL_TODAY,
   MODEL_OUTSIDE_LABEL,
   MODEL_RECALCULATE_NEEDS_OBJECTIVES,
-  MODEL_TARGETED_HINT,
   MODEL_TILE_EMPTY_READING,
   MODEL_TILE_EYEBROW,
   MODEL_TILE_READ_FAILURE_READING,
@@ -97,6 +98,7 @@ export function PortafoglioModelloTile({
   const [pacSeed, setPacSeed] = useState<{ positions: PlanPosition[]; disposals?: PlanDisposal[]; optimizerSnapshot: OptimizerSnapshot } | undefined>(undefined);
 
   const assetsById = useMemo(() => new Map(allAssets.map((asset) => [asset.id, asset])), [allAssets]);
+  const nameOf = (assetId: string): string => assetsById.get(assetId)?.name ?? assetId;
   const labelOf = (assetId: string): string => {
     const asset = assetsById.get(assetId);
     return asset ? getAssetDisplayTicker(asset) || asset.name : assetId;
@@ -106,13 +108,16 @@ export function PortafoglioModelloTile({
   const toBuyEur = comparison ? comparison.rows.reduce((sum, row) => sum + Math.max(0, row.diffEur), 0) : 0;
 
   const objectivesOn = !!idealAllocation?.enabled;
+  // Mini-bars share ONE scale across the rows, so a long bar is a big weight on every row.
+  const barScale = comparison ? Math.max(1, ...comparison.rows.flatMap((row) => [row.todayPct, row.modelPct])) * 1.12 : 1;
+  const overweightLabels = comparison ? comparison.rows.filter((row) => row.diffEur < -1).map((row) => labelOf(row.assetId)) : [];
 
   const reading: Narrative = readFailed
     ? [{ text: MODEL_TILE_READ_FAILURE_READING }]
     : !model || !comparison
       ? [{ text: MODEL_TILE_EMPTY_READING }]
       : [
-          { text: `${model.weights.length} strument${model.weights.length === 1 ? 'o' : 'i'}. ${describeModelOrigin(model.origin, model.updatedAt)} ` },
+          { text: `${model.weights.length} strument${model.weights.length === 1 ? 'o' : 'i'}. ${describeModelOrigin(model.origin, model.updatedAt, model.optimizerSnapshot)} ` },
           ...(toBuyEur >= 1
             ? ([{ text: 'Per portare il portafoglio sul modello servono ' }, { text: cachedFormatCurrencyEUR(toBuyEur, true), mono: true }, { text: ' di acquisti.' }] as Narrative)
             : ([{ text: 'Il portafoglio è già sul modello.' }] as Narrative)),
@@ -136,7 +141,7 @@ export function PortafoglioModelloTile({
 
   return (
     <>
-      <Tile eyebrow={MODEL_TILE_EYEBROW} reading={reading}>
+      <Tile eyebrow={MODEL_TILE_EYEBROW} aside={comparison ? describeModelTileAside(comparison.baseEur) : undefined} reading={reading}>
         {comparison && comparison.rows.length > 0 && (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-[13px]">
@@ -160,12 +165,25 @@ export function PortafoglioModelloTile({
                 {comparison.rows.map((row) => (
                   <tr key={row.assetId} className="border-b border-border last:border-0">
                     <th scope="row" className="py-1.5 pr-2 text-left font-normal text-foreground">
-                      {labelOf(row.assetId)}
-                      {row.candidate && <span className="ml-1.5 text-[11px] text-muted-foreground">{MODEL_CANDIDATE_TAG}</span>}
+                      {nameOf(row.assetId)}
+                      <span className="block text-[11px] text-muted-foreground">
+                        {labelOf(row.assetId)}
+                        {row.candidate && (
+                          <span className="ml-1.5 rounded-full bg-muted px-2 py-0.5 text-[10.5px]">{MODEL_CANDIDATE_TAG}</span>
+                        )}
+                      </span>
                     </th>
                     <td className={`${NUM_CELL_CLASS} text-muted-foreground`}>{formatPercentageIt(row.todayPct, 1)}</td>
-                    <td className={`${NUM_CELL_CLASS} text-foreground`}>{formatPercentageIt(row.modelPct, 1)}</td>
-                    <td className={`${NUM_CELL_CLASS} pr-0 text-muted-foreground`}>{signedEur(row.diffEur)}</td>
+                    <td className={`${NUM_CELL_CLASS} text-foreground`}>
+                      <span className="inline-flex items-center justify-end gap-2">
+                        <span className="relative hidden h-[3px] w-14 rounded-full bg-muted tablet:inline-block" aria-hidden="true">
+                          <span className="absolute inset-y-0 left-0 rounded-full bg-muted-foreground/60" style={{ width: `${(row.todayPct / barScale) * 100}%` }} />
+                          <span className="absolute -inset-y-[3px] w-px bg-foreground" style={{ left: `${(row.modelPct / barScale) * 100}%` }} />
+                        </span>
+                        {formatPercentageIt(row.modelPct, 1)}
+                      </span>
+                    </td>
+                    <td className={`${NUM_CELL_CLASS} pr-0 ${row.diffEur >= 1 ? 'text-positive' : 'text-muted-foreground'}`}>{signedEur(row.diffEur)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -177,7 +195,7 @@ export function PortafoglioModelloTile({
                 <span className="font-mono tabular-nums">{cachedFormatCurrencyEUR(comparison.outside.valueEur, true)}</span>
               </p>
             )}
-            <p className="mt-2 text-[11px] text-muted-foreground">{MODEL_TARGETED_HINT}</p>
+            <p className="mt-2 text-[11px] text-muted-foreground">{describeModelSalesHint(overweightLabels)}</p>
           </div>
         )}
 

@@ -358,3 +358,13 @@ stessa console, ora con anche `match /modelPortfolios/{ownerId}`).
   come una classe cash sotto target (drift negativo) a fine piano, mai come un conflitto esplicito
   fra i due numeri: non è un bug della proiezione (§5.9 la calcola correttamente contro il saldo
   REALE che risulterebbe), è che i due concetti non si parlano.
+
+## A4 «aderenza al render» (2026-10-07)
+
+`doc/pac-ottimizzatore/confronto-spec-implementazione.md` § 1–2 chiuso contro `render-accumulo.html`:
+
+- **Passo Target**: `PlanDraftSidePanel` accanto alla tabella (rata, composizione di `L`, «Pesi a 100,0%», classi a fine piano, leva, grafico con cursore); il ricalcolo parte 300 ms dopo l'ultimo tasto (`settledDraft`). Il raggruppamento non ha caselle: in modalità «Raggruppa» il nome è un bottone `aria-pressed`. La riga in vendita dice il ricavo al mese 1.
+- **Portafoglio modello creabile a mano**: «Modifica a mano» è attivo senza modello e parte dai pesi di oggi (`seedModelFromToday`: strumenti acquistabili con valore). «Aggiungi strumento da valutare» resta legato a un modello salvato. La frase sulle vendite mirate è dinamica solo nella prima metà (chi resta sopra il modello): il tetto di tasse e l'importo venduto si calcolano in «Ricalcola», mai nel tile.
+- **Anteprima dello stato vuoto** con l'entrata suggerita da RP7 (`monthlyInflowEur`); il verdetto senza piano conta solo i conti di liquidità.
+- **Scheda**: due pile indipendenti (Questo mese + Modello · Classi + Obiettivi); testo accanto ai titoli; il rientro in banda sta solo nel verdetto; chip di stato (Registrato · Da confermare · Da fare), Registra e Conferma pieni, ordine Ignora · Conferma; proposta, righe, barra dei mesi; footer Calendario · Rivedi · Interrompi con «riserva intatta»; Piani conclusi in tabella.
+- Fuori da A4 (M7, M8 del confronto): «Distribuisci il resto» e il link «vedi Accumulo» in Bilanciamento.
