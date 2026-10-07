@@ -394,6 +394,13 @@ The `goal` source of `DatedFlow['source']` is now live, but only on the resolved
 - The Dettaglio's «Reddito passivo» series is rescaled to the plan's PREVIEW SWR (`rescaleMonthlyAllowance`): the history query is keyed on the saved rate. The runway
   series stays on the real trailing-12-month spending (not the plan's expense) by design; only its target years and progress follow the SWR.
 
+## NF1 — one FIRE number (2026-10-07, doc/fire-ipotesi/README.md § 19)
+- **«numero FIRE» is a reserved name**: it is the Calcolatore's requirement (`resolveFireRequirement`, Base, saved plan) —
+  today in the hero, the Base di calcolo and the What If, year by year in the Scenari chart and the Proiezione's
+  threshold. Any other figure takes its own name (numero Coast FIRE, «A regime · dal …», Capitale al FIRE, soglia,
+  «Spese ÷ SWR» in the PDF, «Progresso su spesa ÷ SWR» in the historical runway) and, where it could be mistaken for it,
+  a line saying it is not the Calcolatore's. The glossary is § 19.1 of the dossier: a new figure goes there first.
+
 ## Per-page blind spots
 - **Dated flows** (F1): deterministic (the same in every path); amounts are NET and typed by the user; the surplus of a year of income over the need is not reinvested; no tax on what the accumulation sells; a linked mortgage changes the FIRE year by itself when an instalment is settled or the TAN changes (that is the point); a flow anchored to an age is excluded without `userAge`; an age anchor on a typed Coast draft age is not previewed (the saved age counts); the stochastic engines read the SAME deterministic flows in every path (no probability on an inheritance), the Ventaglio's FIRE-anchored flows follow each path's own FIRE year while Monte Carlo starts them in year 1, and the Proiezione ignores them.
 - **With no emergency fund set, the cash outside the portfolio does not count, and the year FIRE moves away** (K1, rewritten by EF1, 2026-10-05): it is declared in the line («fuori: Liquidità …») and the fund is set in Parametri (0 € = all of it enters). Not a bug: the portfolio is what the target weights describe. A fund larger than the cash outside enters nothing and the field says it is not covered.

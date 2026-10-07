@@ -203,7 +203,7 @@ describe('buildFireVerdict', () => {
 
     const noExpenses = buildFireVerdict(verdictInput({ target: null, timeline: null }));
     expect(noExpenses.headline).toBe('Numero FIRE non calcolabile.');
-    expect(plain(noExpenses.sentence)).toBe('Servono spese registrate nel Cashflow: il numero FIRE è spese annue ÷ SWR.');
+    expect(plain(noExpenses.sentence)).toBe('Servono spese registrate nel Cashflow: il numero FIRE parte da spese annue ÷ SWR.');
   });
 
   it('states the target when the projection cannot run', () => {

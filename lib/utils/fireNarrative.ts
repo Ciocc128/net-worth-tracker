@@ -168,7 +168,7 @@ export function buildFireVerdict(input: FireVerdictInput): PageVerdictModel {
     return {
       headline: 'Numero FIRE non calcolabile.',
       tone: 'neutral',
-      sentence: [prose('Servono spese registrate nel Cashflow: il numero FIRE è spese annue ÷ SWR.')],
+      sentence: [prose('Servono spese registrate nel Cashflow: il numero FIRE parte da spese annue ÷ SWR.')],
     };
   }
 
@@ -280,7 +280,7 @@ export function describeEmptyTiles(kind: FireEmptyKind): FireEmptyTiles {
     };
   }
   return {
-    traguardo: 'Il numero FIRE è spese annue ÷ SWR: senza spese registrate nel Cashflow non c\'è un traguardo.',
+    traguardo: 'Il numero FIRE parte da spese annue ÷ SWR: senza spese registrate nel Cashflow non c\'è un traguardo.',
     base: 'Il patrimonio c\'è; mancano le spese dell\'ultimo anno, che danno il numero FIRE e il ritmo.',
     passiveIncome: null,
     scenarios: 'Gli scenari partono dalle spese: senza spese non c\'è un numero FIRE da raggiungere.',

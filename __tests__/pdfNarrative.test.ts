@@ -329,7 +329,7 @@ describe('describeFireSection', () => {
 
   it('states the target, the rate and what is left', () => {
     expect(plain(describeFireSection(base))).toBe(
-      'Il numero FIRE è 789.000 € al 4,0% di prelievo: sei al 39,6%. Mancano 476.520 €.',
+      'Spese ÷ SWR fa 789.000 € al 4,0% di prelievo: sei al 39,6%. Mancano 476.520 €. Non è il numero FIRE del Calcolatore, che conta anche tassa sui prelievi, pensioni e flussi datati.',
     );
   });
 
@@ -354,7 +354,7 @@ describe('describeSummarySection', () => {
           fireProgress: 39.6,
         } as SummaryData),
       ),
-    ).toBe('L’allocazione è a 92 su 100 dal bersaglio e per ogni euro speso ne entrano 1,34. Alla FIRE manca il 60,4% del percorso.');
+    ).toBe('L’allocazione è a 92 su 100 dal bersaglio e per ogni euro speso ne entrano 1,34. Alla FIRE manca il 60,4% del percorso, misurato su spese ÷ SWR.');
   });
 });
 

@@ -49,7 +49,7 @@ export function PrimaDopoTile({ reading, aside, chart, targetsDiffer, footer, cl
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="w-3.5 border-t-[1.5px] border-dashed border-[var(--scenario-base)]" />
-          {targetsDiffer ? 'Numero FIRE (oggi in grigio)' : 'Numero FIRE'}
+          {targetsDiffer ? 'Numero FIRE (grigio: senza l\'evento)' : 'Numero FIRE'}
         </span>
       </div>
 

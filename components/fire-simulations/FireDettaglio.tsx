@@ -80,7 +80,7 @@ function RunwayTooltip({ active, payload, label }: { active?: boolean; payload?:
     ['Runway liquida', point.liquidYearsOfExpenses !== null ? `${oneDecimal(point.liquidYearsOfExpenses)} anni` : '—'],
     ['Spese rolling 12M', cachedFormatCurrencyEUR(point.trailing12mExpenses, true)],
     ['Patrimonio FIRE', cachedFormatCurrencyEUR(point.fireNetWorthUsed, true)],
-    ['Progresso FIRE', point.fireProgressToFI !== null ? formatPercentage(point.fireProgressToFI) : '—'],
+    ['Progresso su spesa ÷ SWR', point.fireProgressToFI !== null ? formatPercentage(point.fireProgressToFI) : '—'],
   ];
   return (
     <div className="rounded-lg border border-border bg-card p-3 text-sm shadow-sm">
@@ -196,8 +196,10 @@ export function FireDettaglio({ description, runwayData, runwaySummary, runwayRe
             <Tile eyebrow="Come funziona il FIRE" reading={EXPLAINER_READING} ariaLabel="Come funziona il FIRE">
               <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 text-[13px] leading-[1.5] text-muted-foreground desktop:grid-cols-2">
                 <p>
-                  <strong className="font-semibold text-foreground">Numero FIRE.</strong> Il patrimonio target: spese annuali ÷ Safe Withdrawal Rate. Con un SWR
-                  del 4% servono 25 volte le spese annuali.
+                  <strong className="font-semibold text-foreground">Numero FIRE.</strong> Il capitale che serve per smettere. Parte da spese annuali ÷ Safe
+                  Withdrawal Rate (con un SWR del 4%, 25 volte le spese); la tassa sui prelievi, le pensioni, il fondo bloccato e i flussi datati lo
+                  spostano, riga per riga nella tessera Base di calcolo. È l&apos;unica cifra che la pagina chiama così: il numero Coast FIRE, la cifra
+                  «a regime» del Coast e la runway storica qui accanto, che usa la spesa dei 12 mesi ÷ SWR, misurano altro.
                 </p>
                 <p>
                   <strong className="font-semibold text-foreground">Safe Withdrawal Rate.</strong> La percentuale del patrimonio prelevabile ogni anno in modo

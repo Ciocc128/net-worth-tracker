@@ -2858,3 +2858,45 @@ Layout: Allocazione derivata prende 7 colonne sotto la Traiettoria (assente senz
 telefono: Obiettivi → Traiettoria → Allocazione derivata → Assegnazioni. Nessuna regola di calcolo cambia.
 Codice: `describeGoalStatus` (`lateArrival`) in `lib/utils/goalsNarrative.ts`; via `MilestoneTile`, `buildMilestones`,
 `describeMilestone*`. Guida: `doc/guide/fire-obiettivi.md`.
+
+## 19. Glossario delle cifre FIRE — un numero FIRE solo (passo 9 del riallineamento, task NF1)
+
+> Aggiunta il 07/10/2026 (thread «spec + impl», card Todoist «FEAT FIRE: un numero FIRE solo, regola dei nomi tra le
+> schede», ultimo passo dell'ordine delle card FEAT FIRE). Regola approvata dal proprietario il 05/10: **ogni scheda cita
+> il numero FIRE del Calcolatore, oppure dice perché il suo è un altro.** Decisioni D-N1–D-N4 confermate dal
+> proprietario il 07/10. **Solo testi**: nessuna formula cambia. Base di codice: commit `278d13a` (`main` del fork,
+> merge della PR #82).
+
+### 19.1 Glossario
+
+| Nome nella UI | Cifra | Regola | Dove |
+| --- | --- | --- | --- |
+| **numero FIRE** | il capitale che serve per smettere, sul piano salvato e nello scenario Base | `resolveFireRequirement` (spesa ÷ SWR, poi tassa sui prelievi, pensioni, fondo bloccato, flussi datati: RB1) | Calcolatore (eroe, Base di calcolo, verdetto); What If (verdetto, Delta, Prima e dopo); grafico Scenari anno per anno; soglia della Proiezione anno per anno in euro di oggi (T6) |
+| **numero Coast FIRE** | il capitale di oggi che, senza versare, arriva al target | § 12 RF9, § 17 | Coast (eroe, Scenari); What If («Numero Coast oggi») |
+| **A regime · dal {anno}** | il capitale che serve quando tutte le pensioni sono partite | § 17 RCO3; riga «Non è il numero FIRE del Calcolatore, che vale all'anno FIRE» | Coast (terza tappa, Dettaglio) |
+| **Capitale al FIRE** | il capitale del Base all'anno FIRE, da cui parte la simulazione | `doc/montecarlo/README.md` § 12 | Dopo il FIRE |
+| **soglia** | una cifra scritta a mano nella Proiezione (retta) | `doc/montecarlo/README.md` § 13 | Proiezione |
+| **Spese ÷ SWR** | spese annuali ÷ SWR, sul patrimonio FIRE intero | `calculateFIREMetrics` | PDF (sezione FIRE e Riepilogo), con la riga «Non è il numero FIRE del Calcolatore» |
+| **Progresso su spesa ÷ SWR** | patrimonio FIRE del mese ÷ (spesa dei 12 mesi ÷ SWR) | `getHistoricalFIRERunway` | Dettaglio › Runway storica (tooltip) |
+
+### 19.2 Decisioni
+
+| # | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| D-N1 | **Presa** (07/10/2026, proprietario) | «numero FIRE» è riservato alla cifra del Calcolatore: oggi nell'eroe, nella Base di calcolo e nel What If; anno per anno nel grafico Scenari e nella soglia della Proiezione. Stessa cifra a date diverse, quindi lo stesso nome. | Nomi diversi per «oggi» e «anno per anno» (due nomi per una cifra sola). |
+| D-N2 | **Presa** (07/10/2026, proprietario) | Le altre cifre tengono il loro nome (19.1). «A regime · dal {anno}» è il nome definitivo di D-CO4, senza «numero». La Runway storica chiama la sua percentuale «Progresso su spesa ÷ SWR». | Ricalcolare il numero vero mese per mese nella Runway (servirebbe il piano di ogni mese passato, che non esiste). |
+| D-N3 | **Presa** (07/10/2026, proprietario: la strada consigliata) | Il PDF chiama la sua cifra «Spese ÷ SWR» e chiude la lettura con «Non è il numero FIRE del Calcolatore, che conta anche tassa sui prelievi, pensioni e flussi datati.» | Calcolare nel PDF il numero vero (ricostruire fuori dalla pagina capitale K1, flussi, pensioni e tassa: una task a sé, non chiesta). |
+| D-N4 | **Presa** (07/10/2026, proprietario) | What If, linea grigia: «Numero FIRE senza l'evento» (era «Numero FIRE di oggi», che si leggeva come «in euro di oggi»). | — |
+
+Testi corretti con la stessa regola: il paragrafo «Numero FIRE» di Come funziona il FIRE (parte da spese ÷ SWR, le
+righe della Base di calcolo lo spostano, ed elenca le cifre che misurano altro) e gli stati vuoti del Calcolatore («il
+numero FIRE parte da spese annue ÷ SWR»).
+
+### 19.3 Criteri di accettazione
+
+| # | Caso | Atteso |
+| --- | --- | --- |
+| NF1 | `grep -rni "numero fire" app components lib` | ogni occorrenza è la cifra di 19.1 riga 1, oppure una frase che dice che la cifra non lo è |
+| NF2 | Numero FIRE di oggi nel What If e nel Calcolatore | lo stesso valore (test A-N4 di `__tests__/whatIfService.test.ts`, invariato) |
+| NF3 | PDF, fixture di `__tests__/pdfNarrative.test.ts` | «Spese ÷ SWR fa 789.000 € al 4,0% di prelievo: sei al 39,6%. Mancano 476.520 €. Non è il numero FIRE del Calcolatore, che conta anche tassa sui prelievi, pensioni e flussi datati.» |
+| NF4 | Nessun valore cambia | tutti i test di calcolo invariati |
