@@ -111,6 +111,9 @@ import {
   ACCUMULO_STEP1_NO_CASH_ACCOUNTS,
   ACCUMULO_STEP1_RESERVE,
   ACCUMULO_STEP1_SOURCE_ACCOUNTS,
+  ACCUMULO_STEP1_NAME,
+  ACCUMULO_STEP1_SELECT_ALL,
+  ACCUMULO_STEP1_SELECT_NONE,
   ACCUMULO_STEP1_START_MONTH,
   ACCUMULO_STEP2_BUY_ASSET_CONFIRM,
   ACCUMULO_STEP2_BUY_ASSET_PROMPT,
@@ -696,8 +699,39 @@ export function AccumulationPlanDialog({
         {step === 1 && (
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-4">
+              {/* The name the plan carries in Piani conclusi; a revision keeps the plan's own. */}
+              <label className="block text-[13px] text-foreground">
+                {ACCUMULO_STEP1_NAME}
+                <Input
+                  value={draft.name}
+                  disabled={revise}
+                  maxLength={60}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
+                  onBlur={() => setDraft((prev) => (prev.name.trim() ? prev : { ...prev, name: 'Piano di accumulo' }))}
+                  className="mt-1"
+                />
+              </label>
               <div>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP1_SOURCE_ACCOUNTS}</p>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP1_SOURCE_ACCOUNTS}</p>
+                  {!revise && cashAccounts.length > 1 && (() => {
+                    const allSelected = cashAccounts.every((account) => draft.liquidity.sourceCashAssetIds.includes(account.id));
+                    return (
+                      <Button
+                        variant="ghost"
+                        className="h-11 px-2 text-[12px] desktop:h-7"
+                        onClick={() =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            liquidity: { ...prev.liquidity, sourceCashAssetIds: allSelected ? [] : cashAccounts.map((account) => account.id) },
+                          }))
+                        }
+                      >
+                        {allSelected ? ACCUMULO_STEP1_SELECT_NONE : ACCUMULO_STEP1_SELECT_ALL}
+                      </Button>
+                    );
+                  })()}
+                </div>
                 {cashAccounts.length === 0 ? (
                   <p className="text-[13px] text-muted-foreground">{ACCUMULO_STEP1_NO_CASH_ACCOUNTS}</p>
                 ) : (

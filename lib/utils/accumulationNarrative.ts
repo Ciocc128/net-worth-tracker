@@ -537,6 +537,9 @@ export const ACCUMULO_ACTION_SAVE_DRAFT = 'Salva bozza';
 
 // Step 1 — Liquidità
 export const ACCUMULO_STEP1_SOURCE_ACCOUNTS = 'Conti sorgente';
+export const ACCUMULO_STEP1_NAME = 'Nome del piano';
+export const ACCUMULO_STEP1_SELECT_ALL = 'Seleziona tutti';
+export const ACCUMULO_STEP1_SELECT_NONE = 'Nessuno';
 export const ACCUMULO_STEP1_NO_CASH_ACCOUNTS = 'Nessun conto di liquidità disponibile come fonte.';
 export const ACCUMULO_STEP1_RESERVE = 'Riserva da non toccare (€)';
 export const ACCUMULO_STEP1_INFLOW = 'Entrata mensile stimata (€)';
