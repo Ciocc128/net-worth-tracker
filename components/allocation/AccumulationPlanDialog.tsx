@@ -855,7 +855,7 @@ export function AccumulationPlanDialog({
                     <th scope="col" className="py-1.5 pr-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_CURRENT_WEIGHT}</th>
                     <th scope="col" className="py-1.5 pr-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_TARGET}</th>
                     <th scope="col" className="py-1.5 pr-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_TO_BUY}</th>
-                    <th scope="col" className="py-1.5 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_PER_MONTH}</th>
+                    <th scope="col" className="hidden py-1.5 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground sm:table-cell">{ACCUMULO_STEP2_COL_PER_MONTH}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -946,7 +946,7 @@ export function AccumulationPlanDialog({
                                   min={0}
                                   value={position.targetPercentage}
                                   onChange={(event) => setPositionTarget(position.id, Number(event.target.value) || 0)}
-                                  className="h-11 w-24 px-2 text-right font-mono tabular-nums desktop:h-8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                  className="h-11 w-20 px-2 text-right sm:w-24 font-mono tabular-nums desktop:h-8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                 />
                               ) : (
                                 <span className="text-muted-foreground">—</span>
@@ -962,7 +962,8 @@ export function AccumulationPlanDialog({
                                 '—'
                               )}
                             </td>
-                            <td className="py-1.5 text-right font-mono tabular-nums text-muted-foreground">
+                            {/* «Al mese» is «Da comprare» ÷ the months: below 640px it gives way so Target fits. */}
+                            <td className="hidden py-1.5 text-right font-mono tabular-nums text-muted-foreground sm:table-cell">
                               {isHead && figures ? cachedFormatCurrencyEUR(figures.monthlyEur) : '—'}
                             </td>
                           </tr>,
@@ -991,7 +992,7 @@ export function AccumulationPlanDialog({
                             {cachedFormatCurrencyEUR(proceedsOfDisposal(disposal, asset, DEPS))}
                             <span className="block text-[11px] text-muted-foreground">{ACCUMULO_STEP2_SALE_PROCEEDS}</span>
                           </td>
-                          <td className="py-1.5 text-right text-muted-foreground">—</td>
+                          <td className="hidden py-1.5 text-right text-muted-foreground sm:table-cell">—</td>
                         </tr>,
                       );
                     }
