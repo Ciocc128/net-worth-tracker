@@ -25,7 +25,7 @@ import type {
   PlanDisposal,
   PlanPosition,
 } from '@/types/accumulationPlan';
-import { ASSET_CLASS_CHART_INDEX, ASSET_CLASS_LABELS, resolveAllocationRole, type RebalanceBand } from '@/lib/utils/allocationUtils';
+import { ACTION_CHIP_FILL_PCT, ASSET_CLASS_CHART_INDEX, ASSET_CLASS_LABELS, resolveAllocationRole, type RebalanceBand } from '@/lib/utils/allocationUtils';
 import {
   addMonths,
   applyWeightsToPositions,
@@ -46,6 +46,7 @@ import { compareAllocations } from '@/lib/services/assetAllocationService';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { useCreateDraftPlan, useUpdateDraftPlan, useActivatePlan, useRevisePlan } from '@/lib/hooks/useAccumulationPlan';
 import { getAnnualCashflowData } from '@/lib/services/fireService';
+import { useActionColors } from '@/lib/hooks/useActionColors';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { CHART_COLORS } from '@/lib/constants/colors';
@@ -257,6 +258,7 @@ export function AccumulationPlanDialog({
 }: AccumulationPlanDialogProps) {
   const isDemo = useDemoMode();
   const chartColors = useChartColors();
+  const [rowOrder, setRowOrder] = useState<string[]>([]);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [draft, setDraft] = useState<AccumulationPlanDraft>(() => emptyDraft(addMonths(toMonthKey(new Date()), 1)));
   const [status, setStatus] = useState<ModalStatus>({ phase: 'idle' });
@@ -293,7 +295,7 @@ export function AccumulationPlanDialog({
               seedDraft?.disposals
             )
       );
-      setWeightsFrom(fromModel ? 'model' : seedDraft ? 'optimizer' : null);
+      setWeightsFrom(fromModel ? 'model' : seedDraft ? 'optimizer' : plan ? null : 'today');
       setShowOptimizer(false);
       setGroupingMode(false);
       setStep(plan && !revise ? 2 : 1);
@@ -314,6 +316,12 @@ export function AccumulationPlanDialog({
     for (const disposal of draft.disposals) ids.add(disposal.assetId);
     return ids;
   }, [draft.positions, draft.disposals]);
+
+  // Step 2 row order, fixed at first appearance, so a row flipping Tieni ↔ Vendi stays where it is
+  // (state adjusted during render, guarded: it settles in one extra pass).
+  const draftAssetIds = [...draft.positions.flatMap((position) => position.memberAssetIds), ...draft.disposals.map((disposal) => disposal.assetId)];
+  const missingFromOrder = draftAssetIds.filter((id, index) => !rowOrder.includes(id) && draftAssetIds.indexOf(id) === index);
+  if (open && missingFromOrder.length > 0) setRowOrder([...rowOrder, ...missingFromOrder]);
 
   // Same rilievo 6 exclusion as the seeder above: a cash account never appears as a step 2 row.
   const candidateAssets = useMemo(
@@ -953,7 +961,12 @@ export function AccumulationPlanDialog({
                       );
                     }
 
-                    return rows;
+                    // A row keeps its place when it flips Tieni ↔ Vendi: order by first appearance.
+                    const rank = (node: React.ReactNode) => {
+                      const index = rowOrder.indexOf(String((node as React.ReactElement).key));
+                      return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+                    };
+                    return [...rows].sort((a, b) => rank(a) - rank(b));
                   })()}
                 </tbody>
               </table>
@@ -1233,13 +1246,21 @@ export function AccumulationPlanDialog({
 
 /** «Tieni | Vendi» — a two-state switch with its own heading in the column (RP8), never a link that renames itself. */
 function KeepSellToggle({ sell, disabled, onKeep, onSell }: { sell: boolean; disabled?: boolean; onKeep: () => void; onSell: () => void }) {
-  const base = 'min-h-11 min-w-14 rounded-md px-2 text-[12px] desktop:min-h-7 disabled:opacity-50';
+  const actionColors = useActionColors();
+  const base = 'min-h-11 min-w-14 rounded-md border px-2 text-[12px] font-medium desktop:min-h-7 disabled:opacity-50';
+  const idle = 'border-transparent text-muted-foreground';
+  // The active choice wears the Allocazione colours: Tieni = COMPRA's, Vendi = VENDI's.
+  const active = (color: string) => ({
+    color,
+    backgroundColor: `color-mix(in srgb, ${color} ${ACTION_CHIP_FILL_PCT}%, transparent)`,
+    borderColor: `color-mix(in srgb, ${color} 34%, transparent)`,
+  });
   return (
     <div role="group" aria-label={ACCUMULO_STEP2_COL_KEEP_OR_SELL} className="inline-flex gap-0.5 rounded-lg bg-muted p-0.5">
-      <button type="button" aria-pressed={!sell} disabled={disabled} className={`${base} ${!sell ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`} onClick={onKeep}>
+      <button type="button" aria-pressed={!sell} disabled={disabled} className={`${base} ${!sell ? '' : idle}`} style={!sell ? active(actionColors.COMPRA) : undefined} onClick={onKeep}>
         {ACCUMULO_STEP2_TOGGLE_IN_PLAN}
       </button>
-      <button type="button" aria-pressed={sell} disabled={disabled} className={`${base} ${sell ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`} onClick={onSell}>
+      <button type="button" aria-pressed={sell} disabled={disabled} className={`${base} ${sell ? '' : idle}`} style={sell ? active(actionColors.VENDI) : undefined} onClick={onSell}>
         {ACCUMULO_STEP2_TOGGLE_SELL}
       </button>
     </div>
