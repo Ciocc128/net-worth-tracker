@@ -21,11 +21,13 @@
 import { useMemo, useRef, useState } from 'react';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { AccumulationPlan } from '@/types/accumulationPlan';
+import type { ModelPortfolio } from '@/types/modelPortfolio';
 import type { RebalanceBand } from '@/lib/utils/allocationUtils';
 import {
   computeUsableLiquidity,
   summarizeReserve,
   buildRegisteredLinePatch,
+  findFirstIntactInstallment,
   projectPlanOutcome,
   recalibrateInstallment,
   recalibrationQuantities,
@@ -74,6 +76,7 @@ import {
   ACCUMULO_ACTION_APPLY,
   ACCUMULO_ACTION_KEEP_AS_IS,
   ACCUMULO_ACTION_REGISTER,
+  ACCUMULO_ACTION_REVISE,
   ACCUMULO_ACTION_REVIEW,
   ACCUMULO_ACTION_SAVE,
   ACCUMULO_ACTION_SKIP,
@@ -118,6 +121,8 @@ interface QuestoMeseTileProps {
   currentIndex: number;
   /** The ledger matching of the plan, computed once by the tab (its verdict reads the same states). */
   matchResult: { matches: LineMatch[]; lineStates: Record<string, LineUiState> };
+  /** The model portfolio: the editor's «Parti da» offers it (RP1). */
+  model?: ModelPortfolio | null;
   onAssetsChanged: () => void;
 }
 
@@ -131,11 +136,13 @@ export function QuestoMeseTile({
   idealAllocation,
   currentIndex,
   matchResult,
+  model = null,
   onAssetsChanged,
 }: QuestoMeseTileProps) {
   const isDemo = useDemoMode();
 
   const [planDialogOpen, setPlanDialogOpen] = useState(false);
+  const [reviseOpen, setReviseOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarFocusIndex, setCalendarFocusIndex] = useState<number | undefined>(undefined);
   const [registerTarget, setRegisterTarget] = useState<
@@ -326,8 +333,27 @@ export function QuestoMeseTile({
       band={band}
       targetLeverageRatio={targetLeverageRatio}
       idealAllocation={idealAllocation}
+      model={model}
       onAssetsChanged={onAssetsChanged}
       onSaved={() => setPlanDialogOpen(false)}
+    />
+  );
+
+  const reviseDialog = reviseOpen && (
+    <AccumulationPlanDialog
+      open={reviseOpen}
+      onClose={() => setReviseOpen(false)}
+      ownerId={ownerId}
+      plan={plan}
+      revise
+      allAssets={allAssets}
+      targets={targets}
+      band={band}
+      targetLeverageRatio={targetLeverageRatio}
+      idealAllocation={idealAllocation}
+      model={model}
+      onAssetsChanged={onAssetsChanged}
+      onSaved={() => setReviseOpen(false)}
     />
   );
 
@@ -756,6 +782,9 @@ export function QuestoMeseTile({
         <div className="mt-auto border-t border-border pt-3.5">
           <NarrativeText segments={describeAccumulationOutcomeFooter({ maxDrift, residualEur: outcome.residualEur })} className="text-[11px] leading-[1.5] text-muted-foreground" />
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <Button variant="outline" className={TILE_ACTION_CLASS} disabled={isDemo || !findFirstIntactInstallment(plan)} onClick={() => setReviseOpen(true)}>
+              {ACCUMULO_ACTION_REVISE}
+            </Button>
             <Button variant="outline" className={TILE_ACTION_CLASS} onClick={() => { setCalendarFocusIndex(undefined); setCalendarOpen(true); }}>
               {ACCUMULO_ACTION_CALENDAR}
             </Button>
@@ -775,6 +804,7 @@ export function QuestoMeseTile({
 
       {calendarDialog}
       {registerDialog}
+      {reviseDialog}
     </>
   );
 }

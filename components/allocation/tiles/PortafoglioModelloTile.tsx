@@ -233,6 +233,7 @@ export function PortafoglioModelloTile({
           targetLeverageRatio={targetLeverageRatio}
           idealAllocation={idealAllocation}
           seedDraft={pacSeed}
+          model={model}
           onAssetsChanged={onAssetsChanged}
           onSaved={() => setView('closed')}
         />

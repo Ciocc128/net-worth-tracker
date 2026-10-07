@@ -133,6 +133,7 @@ export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLev
           band={band}
           targetLeverageRatio={targetLeverageRatio}
           idealAllocation={idealAllocation}
+          model={model}
           onAssetsChanged={onAssetsChanged}
           onSaved={() => setDialogOpen(false)}
         />

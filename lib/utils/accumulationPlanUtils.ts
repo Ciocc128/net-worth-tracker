@@ -18,6 +18,7 @@ import type {
   PlanLiquidity,
   PlanPosition,
 } from '@/types/accumulationPlan';
+import type { ModelPortfolio } from '@/types/modelPortfolio';
 import { splitTowardTarget, bandForTarget, type RebalanceBand } from './allocationUtils';
 import { unitPriceEur } from './costBasisEur';
 import { getItalyMonthYear } from './dateHelpers';
@@ -1036,4 +1037,62 @@ export function weightsToSeedPositions(
     memberAssetIds: [w.key],
     buyAssetId: w.key,
   }));
+}
+
+// ---------------------------------------------------------------------------
+// RP1 «Parti da» — where the Target step's weights come from
+// ---------------------------------------------------------------------------
+
+/** Today's market weights (%) among `assets`: two decimals, Σ = 100 (the rounding remainder goes to the largest). */
+export function marketWeights(assets: Asset[], deps: PlanDeps): Record<string, number> {
+  const values = assets.map((asset) => ({ id: asset.id, value: Math.max(0, deps.valueOf(asset)) }));
+  const total = values.reduce((sum, v) => sum + v.value, 0);
+  const weights: Record<string, number> = {};
+  if (total <= 0) return weights;
+  let largest = values[0];
+  let allocated = 0;
+  for (const { id, value } of values) {
+    const pct = Math.round((value / total) * 10000) / 100;
+    weights[id] = pct;
+    allocated += pct;
+    if (value > largest.value) largest = { id, value };
+  }
+  weights[largest.id] = Math.round((weights[largest.id] + (100 - allocated)) * 100) / 100;
+  return weights;
+}
+
+/**
+ * Sets the positions' target weights from a per-instrument map (the model portfolio, today's market
+ * weights): a position takes the sum of its members' weights (none = 0); an instrument of the map
+ * that no position holds and that is not being sold becomes a new single-instrument position.
+ */
+export function applyWeightsToPositions(
+  positions: PlanPosition[],
+  weightsByAssetId: Record<string, number>,
+  soldAssetIds: Set<string>,
+  labelOf: (assetId: string) => string,
+  generateId: () => string = () => crypto.randomUUID()
+): PlanPosition[] {
+  const covered = new Set(positions.flatMap((position) => position.memberAssetIds));
+  const updated = positions.map((position) => ({
+    ...position,
+    targetPercentage: position.memberAssetIds.reduce((sum, id) => sum + (weightsByAssetId[id] ?? 0), 0),
+  }));
+  const added: PlanPosition[] = Object.entries(weightsByAssetId)
+    .filter(([assetId, pct]) => pct > 0 && !covered.has(assetId) && !soldAssetIds.has(assetId))
+    .map(([assetId, pct]) => ({
+      id: generateId(),
+      label: labelOf(assetId),
+      targetPercentage: pct,
+      memberAssetIds: [assetId],
+      buyAssetId: assetId,
+    }));
+  return [...updated, ...added];
+}
+
+/** The model portfolio as a per-instrument weight map (candidates at 0 are left out). */
+export function modelWeightMap(model: ModelPortfolio): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const weight of model.weights) if (weight.targetPercentage > 0) map[weight.assetId] = weight.targetPercentage;
+  return map;
 }

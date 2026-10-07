@@ -281,3 +281,44 @@ describe('RP7 — the suggested inflow (PP10)', () => {
     expect(describeSuggestedInflow(1200, 2026, true)).toBe('Il tuo risparmio medio è di 1200 € al mese (2026, finora).');
   });
 });
+
+import { applyWeightsToPositions, marketWeights, modelWeightMap } from '@/lib/utils/accumulationPlanUtils';
+import type { ModelPortfolio } from '@/types/modelPortfolio';
+
+describe('RP1 — «Parti da» (PP11)', () => {
+  const model: ModelPortfolio = {
+    userId: 'u1',
+    origin: 'manual',
+    updatedAt: new Date(0),
+    weights: [
+      { assetId: 'vwce', targetPercentage: 60 },
+      { assetId: 'xdem', targetPercentage: 40 },
+    ],
+  };
+  const ids = ['pv', 'px', 'pn'];
+  const gen = () => ids.shift()!;
+  const label = (id: string) => id.toUpperCase();
+
+  it('a model VWCE 60 / XDEM 40 gives two positions at 60 and 40, even from empty seeds', () => {
+    const seeded = applyWeightsToPositions([], modelWeightMap(model), new Set(), label, gen);
+    expect(seeded.map((p) => [p.buyAssetId, p.targetPercentage])).toEqual([['vwce', 60], ['xdem', 40]]);
+  });
+
+  it('seeds at 0 for held instruments are re-weighted; an instrument outside the model stays at 0', () => {
+    const extra: PlanPosition = { id: 'pe', label: 'EXTRA', targetPercentage: 0, memberAssetIds: ['extra'], buyAssetId: 'extra' };
+    const out = applyWeightsToPositions([...positions.map((p) => ({ ...p, targetPercentage: 0 })), extra], modelWeightMap(model), new Set(), label);
+    expect(out.map((p) => p.targetPercentage)).toEqual([60, 40, 0]);
+  });
+
+  it('«Pesi di oggi» on F gives 50 / 50 (before the sale)', () => {
+    const weights = marketWeights([vwce(), xdem()], deps);
+    expect(weights).toEqual({ vwce: 50, xdem: 50 });
+    const thirds = marketWeights([vwce(100), xdem(100), makeAsset({ id: 'z', quantity: 100, currentPrice: 120 })], deps);
+    expect(Object.values(thirds).reduce((a, b) => a + b, 0)).toBeCloseTo(100, 9);
+  });
+
+  it('a sold instrument never becomes a new position', () => {
+    const out = applyWeightsToPositions([], { vwce: 100 }, new Set(['vwce']), label);
+    expect(out).toEqual([]);
+  });
+});

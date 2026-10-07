@@ -180,6 +180,7 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
               idealAllocation={idealAllocation}
               currentIndex={currentIndex}
               matchResult={matchResult}
+              model={model}
               onAssetsChanged={onAssetsChanged}
             />
           </div>

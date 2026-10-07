@@ -15,7 +15,9 @@
  * before the write is even attempted (§6, §10.3: "uno alla volta, il primo").
  */
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
+import type { ModelPortfolio } from '@/types/modelPortfolio';
 import type {
   AccumulationPlan,
   AccumulationPlanDraft,
@@ -26,8 +28,13 @@ import type {
 import { ASSET_CLASS_CHART_INDEX, ASSET_CLASS_LABELS, resolveAllocationRole, type RebalanceBand } from '@/lib/utils/allocationUtils';
 import {
   addMonths,
+  applyWeightsToPositions,
   buildDraftPreview,
+  computeTotalPurchases,
   computeUsableLiquidity,
+  findFirstIntactInstallment,
+  marketWeights,
+  modelWeightMap,
   resolvePositionStates,
   toMonthKey,
   unitPriceEur,
@@ -36,7 +43,8 @@ import {
 import { validateDraftAgainstAssets, type DraftIssue } from '@/lib/utils/accumulationPlanSchema';
 import { compareAllocations } from '@/lib/services/assetAllocationService';
 import { calculateAssetValue } from '@/lib/services/assetService';
-import { useCreateDraftPlan, useUpdateDraftPlan, useActivatePlan } from '@/lib/hooks/useAccumulationPlan';
+import { useCreateDraftPlan, useUpdateDraftPlan, useActivatePlan, useRevisePlan } from '@/lib/hooks/useAccumulationPlan';
+import { getAnnualCashflowData } from '@/lib/services/fireService';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { CHART_COLORS } from '@/lib/constants/colors';
@@ -52,15 +60,33 @@ import { SegmentedPill } from '@/components/ui/segmented-pill';
 import {
   describeOptimizerSnapshot,
   OPTIMIZER_STEP2_ARIA_LABEL,
-  OPTIMIZER_STEP2_MANUAL,
-  OPTIMIZER_STEP2_OPTIMIZED,
 } from '@/lib/utils/weightOptimizerNarrative';
 import { cachedFormatCurrencyEUR, formatNumberIt, formatPercentageIt } from '@/lib/utils/formatters';
 import { describeModalStatus, describeWriteError, type ModalStatus } from '@/lib/utils/dialogNarrative';
 import {
   ACCUMULO_ACTION_ACTIVATE,
   ACCUMULO_ACTION_BACK,
+  ACCUMULO_ACTION_GROUP_CANCEL,
   ACCUMULO_ACTION_GROUP_PROXY,
+  ACCUMULO_ACTION_SAVE_REVISION,
+  ACCUMULO_STEP1_L_AVAILABLE,
+  ACCUMULO_STEP1_REMAINING_MONTHS,
+  ACCUMULO_STEP1_REVISE_NOTE,
+  ACCUMULO_STEP2_ALREADY_SELLING,
+  ACCUMULO_STEP2_COL_KEEP_OR_SELL,
+  ACCUMULO_STEP2_COL_PER_MONTH,
+  ACCUMULO_STEP2_COL_TO_BUY,
+  ACCUMULO_STEP2_FROM_LABEL,
+  ACCUMULO_STEP2_FROM_MODEL,
+  ACCUMULO_STEP2_FROM_OPTIMIZER,
+  ACCUMULO_STEP2_FROM_TODAY,
+  ACCUMULO_STEP2_GROUP_HINT,
+  ACCUMULO_STEP2_SELL_SHARES,
+  ACCUMULO_USE_SUGGESTED_INFLOW,
+  describeStep1InflowsLabel,
+  describeStep2Shares,
+  describeSuggestedInflow,
+  suggestMonthlyInflow,
   ACCUMULO_ACTION_NEW_ASSET,
   ACCUMULO_ACTION_NEXT,
   ACCUMULO_ACTION_SAVE_DRAFT,
@@ -69,7 +95,6 @@ import {
   ACCUMULO_STEP1_INFLOW,
   ACCUMULO_STEP1_L_DISPOSALS,
   ACCUMULO_STEP1_L_HEADLINE,
-  ACCUMULO_STEP1_L_INFLOWS,
   ACCUMULO_STEP1_L_MONTHLY,
   ACCUMULO_STEP1_L_RESERVE,
   ACCUMULO_STEP1_L_SOURCE,
@@ -128,6 +153,10 @@ interface AccumulationPlanDialogProps {
    *  existing draft/active plan never re-seeds it) — without this prop the dialog behaves exactly
    *  as before. */
   seedDraft?: { positions: PlanPosition[]; disposals?: PlanDisposal[]; optimizerSnapshot?: OptimizerSnapshot };
+  /** RP1: the model portfolio — a brand-new draft starts from it, and the Target step offers it under «Parti da». */
+  model?: ModelPortfolio | null;
+  /** RP4: «Rivedi il piano» on an ACTIVE `plan` — same form, step 1 asks the months left, the save is `revisePlan`. */
+  revise?: boolean;
 }
 
 const DEPS: PlanDeps = { valueOf: calculateAssetValue, priceOf: unitPriceEur };
@@ -159,6 +188,24 @@ function draftFromPlan(plan: AccumulationPlan): AccumulationPlanDraft {
     liquidity: plan.liquidity,
     positions: plan.positions,
     disposals: plan.disposals,
+    optimizerSnapshot: plan.optimizerSnapshot,
+  };
+}
+
+/**
+ * RP4: the draft a revision edits — from the first intact installment `k` on: its month, the months
+ * left, the plan's positions and the sales not yet executed (the saved ones show but never come off).
+ */
+function draftForRevision(plan: AccumulationPlan): AccumulationPlanDraft {
+  const first = findFirstIntactInstallment(plan);
+  const remaining = first ? plan.months - (first.index - 1) : plan.months;
+  return {
+    name: plan.name,
+    startMonth: first?.month ?? plan.startMonth,
+    months: Math.max(1, remaining),
+    liquidity: plan.liquidity,
+    positions: plan.positions,
+    disposals: plan.disposals.filter((disposal) => disposal.status !== 'executed'),
     optimizerSnapshot: plan.optimizerSnapshot,
   };
 }
@@ -200,6 +247,8 @@ export function AccumulationPlanDialog({
   onAssetsChanged,
   onSaved,
   seedDraft,
+  model = null,
+  revise = false,
 }: AccumulationPlanDialogProps) {
   const isDemo = useDemoMode();
   const chartColors = useChartColors();
@@ -209,28 +258,43 @@ export function AccumulationPlanDialog({
   const [selectedForGroup, setSelectedForGroup] = useState<Set<string>>(new Set());
   const [groupingBuyAssetId, setGroupingBuyAssetId] = useState<string | null>(null);
   const [newAssetDialogOpen, setNewAssetDialogOpen] = useState(false);
-  const [step2Mode, setStep2Mode] = useState<'manual' | 'optimizer'>('manual');
+  const [showOptimizer, setShowOptimizer] = useState(false);
+  const [weightsFrom, setWeightsFrom] = useState<'model' | 'today' | 'optimizer' | null>(null);
+  const [groupingMode, setGroupingMode] = useState(false);
 
   // Reset on every (open, plan) change, settled during render — AGENTS.md § Dialog Form Reset.
   const [openSubject, setOpenSubject] = useState<{ open: boolean; plan: AccumulationPlan | null } | null>(null);
   if (!openSubject || openSubject.open !== open || openSubject.plan !== plan) {
     setOpenSubject({ open, plan });
     if (open) {
+      const fromModel = !plan && !seedDraft && !!model && Object.keys(modelWeightMap(model)).length > 0;
       setDraft(
         plan
-          ? draftFromPlan(plan)
+          ? revise
+            ? draftForRevision(plan)
+            : draftFromPlan(plan)
           : emptyDraft(
               addMonths(toMonthKey(new Date()), 1),
-              seedDraft?.positions ?? seedPositionsFromAssets(allAssets),
-              seedDraft?.optimizerSnapshot,
+              seedDraft?.positions ??
+                (fromModel && model
+                  ? applyWeightsToPositions(
+                      seedPositionsFromAssets(allAssets),
+                      modelWeightMap(model),
+                      new Set(),
+                      (id) => allAssets.find((a) => a.id === id)?.name ?? id
+                    )
+                  : seedPositionsFromAssets(allAssets)),
+              seedDraft?.optimizerSnapshot ?? (fromModel ? model?.optimizerSnapshot : undefined),
               seedDraft?.disposals
             )
       );
-      setStep(plan ? 2 : 1);
+      setWeightsFrom(fromModel ? 'model' : seedDraft ? 'optimizer' : null);
+      setShowOptimizer(false);
+      setGroupingMode(false);
+      setStep(plan && !revise ? 2 : 1);
       setStatus({ phase: 'idle' });
       setSelectedForGroup(new Set());
       setGroupingBuyAssetId(null);
-      setStep2Mode('manual');
     }
   }
 
@@ -275,6 +339,75 @@ export function AccumulationPlanDialog({
   const weightsMessage = describeWeightsTotal(weightsSum);
   const firstIssue = issues[0]?.message ?? null;
 
+  // RP7: the Cashflow's saving as a monthly figure, read only while step 1 is on screen.
+  const cashflowQuery = useQuery({
+    queryKey: ['annualCashflowData', ownerId],
+    queryFn: () => getAnnualCashflowData(ownerId),
+    enabled: open && step === 1 && !!ownerId,
+    staleTime: 300000,
+  });
+  const suggestedInflow = suggestMonthlyInflow(cashflowQuery.data?.annualSavings ?? 0);
+
+  // Step 2's figures, on ONE base B (the positions' value + L): today's share, the target, what to
+  // buy (euro, whole shares under it) and the monthly part — the same split the calendar uses.
+  const stepTwoFigures = useMemo(() => {
+    if (!open || !liquidity) return new Map<string, { todayPct: number; buyEur: number; buyShares: number; monthlyEur: number }>();
+    const states = resolvePositionStates(draft.positions, assetsById, DEPS, draft.disposals);
+    const totals = computeTotalPurchases(states, liquidity.L);
+    const base = states.reduce((sum, state) => sum + state.currentValueEur, 0) + liquidity.L;
+    const figures = new Map<string, { todayPct: number; buyEur: number; buyShares: number; monthlyEur: number }>();
+    for (const state of states) {
+      const buyEur = totals[state.positionId] ?? 0;
+      figures.set(state.positionId, {
+        todayPct: base > 0 ? (state.currentValueEur / base) * 100 : 0,
+        buyEur,
+        buyShares: state.unpriced ? 0 : Math.floor(buyEur / state.buyPriceEur + 1e-9),
+        monthlyEur: draft.months > 0 ? buyEur / draft.months : 0,
+      });
+    }
+    return figures;
+  }, [open, liquidity, draft.positions, draft.disposals, draft.months, assetsById]);
+
+  const labelOfAsset = (assetId: string) => assetsById.get(assetId)?.name ?? assetId;
+  const lockedSaleIds = useMemo(() => new Set(revise && plan ? plan.disposals.map((d) => d.assetId) : []), [revise, plan]);
+
+  /** RP1: «Parti da» — the model's weights, or today's market weights, onto the draft's positions. */
+  const startFrom = (source: 'model' | 'today' | 'optimizer') => {
+    setWeightsFrom(source);
+    if (source === 'optimizer') {
+      setShowOptimizer(true);
+      return;
+    }
+    setShowOptimizer(false);
+    const sold = new Set(draft.disposals.filter((d) => d.quantity === undefined).map((d) => d.assetId));
+    const weights =
+      source === 'model' && model
+        ? modelWeightMap(model)
+        : marketWeights(
+            draft.positions.flatMap((position) => position.memberAssetIds).map((id) => assetsById.get(id)).filter((a): a is Asset => !!a),
+            DEPS
+          );
+    setDraft((prev) => ({
+      ...prev,
+      positions: applyWeightsToPositions(prev.positions, weights, sold, labelOfAsset),
+      optimizerSnapshot: source === 'model' ? model?.optimizerSnapshot ?? prev.optimizerSnapshot : prev.optimizerSnapshot,
+    }));
+  };
+
+  /** RP2: sell `quantity` shares of a held position member (integer ≥ 1); 0 or blank takes the sale back. */
+  const setPartialSale = (asset: Asset, quantity: number) => {
+    const rest = draft.disposals.filter((disposal) => disposal.assetId !== asset.id);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      updateDisposals(rest);
+      return;
+    }
+    const whole = Math.floor(quantity);
+    updateDisposals([
+      ...rest,
+      { assetId: asset.id, quantity: whole, estimatedProceedsEur: Math.min(whole, asset.quantity) * DEPS.priceOf(asset), status: 'planned' },
+    ]);
+  };
+
   // ── Step 2 helpers — one row per candidate asset ──────────────────────────
 
   const updatePositions = (positions: PlanPosition[]) => setDraft((prev) => ({ ...prev, positions }));
@@ -282,7 +415,10 @@ export function AccumulationPlanDialog({
 
   const moveAssetToDisposal = (asset: Asset) => {
     updatePositions(draft.positions.filter((position) => !(position.memberAssetIds.length === 1 && position.memberAssetIds[0] === asset.id)));
-    updateDisposals([...draft.disposals, { assetId: asset.id, estimatedProceedsEur: calculateAssetValue(asset), status: 'planned' }]);
+    updateDisposals([
+      ...draft.disposals.filter((disposal) => disposal.assetId !== asset.id),
+      { assetId: asset.id, estimatedProceedsEur: calculateAssetValue(asset), status: 'planned' },
+    ]);
   };
 
   const moveAssetToPosition = (asset: Asset) => {
@@ -337,6 +473,7 @@ export function AccumulationPlanDialog({
   const createMutation = useCreateDraftPlan(ownerId);
   const updateMutation = useUpdateDraftPlan(ownerId);
   const activateMutation = useActivatePlan(ownerId);
+  const reviseMutation = useRevisePlan(ownerId);
 
   const saveDraft = async (): Promise<string | null> => {
     setStatus({ phase: 'submitting' });
@@ -380,6 +517,29 @@ export function AccumulationPlanDialog({
     }
   };
 
+  /** RP4: the revision writes only what is new — the plan's saved sales stay as they are. */
+  const handleRevise = async () => {
+    if (!plan) return;
+    setStatus({ phase: 'submitting' });
+    try {
+      await reviseMutation.mutateAsync({
+        planId: plan.id,
+        revision: {
+          monthlyInflowEur: draft.liquidity.monthlyInflowEur,
+          reserveEur: draft.liquidity.reserveEur,
+          remainingMonths: draft.months,
+          positions: draft.positions,
+          disposals: draft.disposals.filter((disposal) => !lockedSaleIds.has(disposal.assetId)),
+        },
+        input: { allAssets, deps: DEPS, today: new Date() },
+      });
+      onSaved(plan.id);
+      onClose();
+    } catch (error) {
+      setStatus({ phase: 'error', message: describeWriteError(error) });
+    }
+  };
+
   const canProceedFromStep2 = Math.abs(weightsSum - 100) <= 0.01 && draft.positions.length > 0;
   const modalStatus = describeModalStatus(status, {
     idle: [{ text: firstIssue ?? (step === 2 && weightsMessage ? weightsMessage : ACCUMULO_STEP_TITLES[step]) }],
@@ -407,7 +567,7 @@ export function AccumulationPlanDialog({
         open={open}
         onClose={onClose}
         width="xl"
-        eyebrow={describeAccumuloDialogEyebrow(step)}
+        eyebrow={describeAccumuloDialogEyebrow(step, revise)}
         title={ACCUMULO_STEP_TITLES[step]}
         reading={modalStatus}
         footer={
@@ -420,6 +580,10 @@ export function AccumulationPlanDialog({
             {step < 3 ? (
               <Button onClick={() => setStep((step + 1) as 2 | 3)} disabled={step === 2 && !canProceedFromStep2}>
                 {ACCUMULO_ACTION_NEXT}
+              </Button>
+            ) : revise ? (
+              <Button onClick={() => void handleRevise()} disabled={isDemo || status.phase === 'submitting' || issues.length > 0}>
+                {ACCUMULO_ACTION_SAVE_REVISION}
               </Button>
             ) : (
               <>
@@ -450,6 +614,7 @@ export function AccumulationPlanDialog({
                           <Checkbox
                             id={`src-${account.id}`}
                             checked={checked}
+                            disabled={revise}
                             onCheckedChange={(value) =>
                               setDraft((prev) => ({
                                 ...prev,
@@ -494,9 +659,22 @@ export function AccumulationPlanDialog({
                   className="mt-1 font-mono"
                 />
               </label>
+              {/* RP7: the Cashflow's average saving, offered and never filled in by itself. */}
+              {suggestedInflow > 0 && cashflowQuery.data && (
+                <p className="-mt-2 flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
+                  <span>{describeSuggestedInflow(suggestedInflow, cashflowQuery.data.referenceYear, cashflowQuery.data.isAnnualized)}</span>
+                  <Button
+                    variant="outline"
+                    className="h-11 px-2.5 text-[12px] desktop:h-7"
+                    onClick={() => setDraft((prev) => ({ ...prev, liquidity: { ...prev.liquidity, monthlyInflowEur: suggestedInflow } }))}
+                  >
+                    {ACCUMULO_USE_SUGGESTED_INFLOW}
+                  </Button>
+                </p>
+              )}
 
               <label className="block text-[13px] text-foreground">
-                {ACCUMULO_STEP1_MONTHS}
+                {revise ? ACCUMULO_STEP1_REMAINING_MONTHS : ACCUMULO_STEP1_MONTHS}
                 <Input
                   type="number"
                   min={1}
@@ -509,12 +687,12 @@ export function AccumulationPlanDialog({
 
               <div className="text-[13px] text-foreground">
                 <span className="mb-1 block">{ACCUMULO_STEP1_START_MONTH}</span>
-                <Select value={draft.startMonth} onValueChange={(value) => setDraft((prev) => ({ ...prev, startMonth: value }))}>
+                <Select disabled={revise} value={draft.startMonth} onValueChange={(value) => setDraft((prev) => ({ ...prev, startMonth: value }))}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {monthOptions.map((month) => (
+                    {(revise && !monthOptions.includes(draft.startMonth) ? [draft.startMonth, ...monthOptions] : monthOptions).map((month) => (
                       <SelectItem key={month} value={month}>
                         {monthLabelLong(month)}
                       </SelectItem>
@@ -522,6 +700,7 @@ export function AccumulationPlanDialog({
                   </SelectContent>
                 </Select>
               </div>
+              {revise && <p className="text-[12px] text-muted-foreground">{ACCUMULO_STEP1_REVISE_NOTE}</p>}
             </div>
 
             {liquidity && (
@@ -538,11 +717,15 @@ export function AccumulationPlanDialog({
                     <dd className="font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(draft.liquidity.reserveEur)}</dd>
                   </div>
                   <div className="flex justify-between">
+                    <dt className="text-muted-foreground">{ACCUMULO_STEP1_L_AVAILABLE}</dt>
+                    <dd className="font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(liquidity.availableNowEur)}</dd>
+                  </div>
+                  <div className="flex justify-between">
                     <dt className="text-muted-foreground">{ACCUMULO_STEP1_L_DISPOSALS}</dt>
                     <dd className="font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(liquidity.disposalProceedsEur)}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-muted-foreground">{ACCUMULO_STEP1_L_INFLOWS}</dt>
+                    <dt className="text-muted-foreground">{describeStep1InflowsLabel(draft.months)}</dt>
                     <dd className="font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(liquidity.inflowTotalEur)}</dd>
                   </div>
                   <div className="flex justify-between border-t border-border pt-1.5">
@@ -557,19 +740,24 @@ export function AccumulationPlanDialog({
 
         {step === 2 && (
           <div className="space-y-4">
-            <SegmentedPill
-              options={[
-                { value: 'manual', label: OPTIMIZER_STEP2_MANUAL },
-                { value: 'optimizer', label: OPTIMIZER_STEP2_OPTIMIZED },
-              ]}
-              value={step2Mode}
-              onChange={setStep2Mode}
-              layoutId="accumulo-step2-mode"
-              ariaLabel={OPTIMIZER_STEP2_ARIA_LABEL}
-              semantics="radio"
-            />
+            <div>
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_FROM_LABEL}</p>
+              <SegmentedPill
+                options={[
+                  ...(model ? [{ value: 'model' as const, label: ACCUMULO_STEP2_FROM_MODEL }] : []),
+                  { value: 'today' as const, label: ACCUMULO_STEP2_FROM_TODAY },
+                  { value: 'optimizer' as const, label: ACCUMULO_STEP2_FROM_OPTIMIZER },
+                ]}
+                value={(weightsFrom ?? 'none') as 'model' | 'today' | 'optimizer'}
+                onChange={startFrom}
+                layoutId="accumulo-step2-from"
+                ariaLabel={OPTIMIZER_STEP2_ARIA_LABEL}
+                semantics="radio"
+                optionClassName="min-h-11 desktop:min-h-0"
+              />
+            </div>
 
-            {step2Mode === 'optimizer' ? (
+            {showOptimizer ? (
               <OptimizerPanel
                 ownerId={ownerId}
                 draft={draft}
@@ -587,7 +775,7 @@ export function AccumulationPlanDialog({
                     })),
                     optimizerSnapshot: snapshot,
                   }));
-                  setStep2Mode('manual');
+                  setShowOptimizer(false);
                 }}
               />
             ) : (
@@ -595,35 +783,40 @@ export function AccumulationPlanDialog({
             {candidateAssets.length === 0 ? (
               <p className="text-[13px] text-muted-foreground">{ACCUMULO_STEP2_NO_TRADABLE_ASSETS}</p>
             ) : (
+              <div className="overflow-x-auto">
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="border-b border-border text-left">
                     <th scope="col" className="py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_INSTRUMENT}</th>
+                    <th scope="col" className="py-1.5 pr-2 text-center text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_KEEP_OR_SELL}</th>
                     <th scope="col" className="py-1.5 pr-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_CURRENT_WEIGHT}</th>
-                    <th scope="col" className="py-1.5 pr-2 text-center text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_TOGGLE_IN_PLAN}/{ACCUMULO_STEP2_TOGGLE_SELL}</th>
-                    <th scope="col" className="py-1.5 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_TARGET}</th>
+                    <th scope="col" className="py-1.5 pr-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_TARGET}</th>
+                    <th scope="col" className="py-1.5 pr-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_TO_BUY}</th>
+                    <th scope="col" className="py-1.5 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_PER_MONTH}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(() => {
-                    const totalCandidateValue = candidateAssets.reduce((sum, a) => sum + calculateAssetValue(a), 0);
                     const rendered = new Set<string>();
                     const rows: React.ReactNode[] = [];
 
                     for (const position of draft.positions) {
                       const grouped = position.memberAssetIds.length > 1;
+                      const figures = stepTwoFigures.get(position.id);
                       position.memberAssetIds.forEach((assetId, memberIndex) => {
                         const asset = assetsById.get(assetId);
                         if (!asset || rendered.has(assetId)) return;
                         rendered.add(assetId);
                         const isHead = memberIndex === 0;
-                        const weightPct = totalCandidateValue > 0 ? (calculateAssetValue(asset) / totalCandidateValue) * 100 : 0;
+                        const partial = draft.disposals.find((disposal) => disposal.assetId === assetId && disposal.quantity !== undefined);
+                        const locked = lockedSaleIds.has(assetId);
                         rows.push(
-                          <tr key={assetId} className="border-b border-border last:border-0">
+                          <tr key={assetId} className="border-b border-border last:border-0 align-top">
                             <th scope="row" className={`py-1.5 pr-2 text-left font-normal text-foreground ${grouped && !isHead ? 'pl-5' : ''}`}>
-                              {!grouped && (
+                              {groupingMode && !grouped && (
                                 <Checkbox
                                   className="mr-2 inline-flex align-middle"
+                                  aria-label={asset.name}
                                   checked={selectedForGroup.has(assetId)}
                                   onCheckedChange={(value) =>
                                     setSelectedForGroup((prev) => {
@@ -636,40 +829,72 @@ export function AccumulationPlanDialog({
                                 />
                               )}
                               {asset.name}
-                              {grouped && isHead && (
+                              {grouped && isHead && !revise && (
                                 <Button variant="ghost" className="ml-2 h-6 px-1.5 text-[11px]" onClick={() => ungroup(position.id)}>
                                   {ACCUMULO_ACTION_UNGROUP}
                                 </Button>
                               )}
                             </th>
-                            <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-muted-foreground">{formatPercentageIt(weightPct, 1)}</td>
                             <td className="py-1.5 pr-2 text-center">
                               {grouped ? (
                                 // A grouped member never sells alone — "Separa" (above, on the head
                                 // row) comes first; this cell only reports the state.
                                 <span className="text-muted-foreground">{ACCUMULO_STEP2_TOGGLE_IN_PLAN}</span>
                               ) : (
-                                <button
-                                  type="button"
-                                  className="text-[12px] text-muted-foreground underline-offset-2 hover:underline"
-                                  onClick={() => moveAssetToDisposal(asset)}
-                                >
-                                  {ACCUMULO_STEP2_TOGGLE_IN_PLAN}
-                                </button>
+                                <div className="flex flex-col items-center gap-1">
+                                  <KeepSellToggle
+                                    sell={false}
+                                    disabled={locked}
+                                    onKeep={() => undefined}
+                                    onSell={() => moveAssetToDisposal(asset)}
+                                  />
+                                  {locked ? (
+                                    <span className="text-[11px] text-muted-foreground">{ACCUMULO_STEP2_ALREADY_SELLING}</span>
+                                  ) : (
+                                    <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                      {ACCUMULO_STEP2_SELL_SHARES}
+                                      <Input
+                                        type="number"
+                                        min={0}
+                                        step={1}
+                                        max={Math.max(0, Math.ceil(asset.quantity) - 1)}
+                                        value={partial?.quantity ?? ''}
+                                        onChange={(event) => setPartialSale(asset, Number(event.target.value))}
+                                        className="h-11 w-16 text-right font-mono desktop:h-7"
+                                      />
+                                    </label>
+                                  )}
+                                </div>
                               )}
                             </td>
-                            <td className="py-1.5 text-right">
+                            <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-muted-foreground">
+                              {isHead && figures ? formatPercentageIt(figures.todayPct, 1) : '—'}
+                            </td>
+                            <td className="py-1.5 pr-2 text-right">
                               {isHead ? (
                                 <Input
                                   type="number"
                                   min={0}
                                   value={position.targetPercentage}
                                   onChange={(event) => setPositionTarget(position.id, Number(event.target.value) || 0)}
-                                  className="h-8 w-20 text-right font-mono"
+                                  className="h-11 w-20 text-right font-mono desktop:h-8"
                                 />
                               ) : (
                                 <span className="text-muted-foreground">—</span>
                               )}
+                            </td>
+                            <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-foreground">
+                              {isHead && figures ? (
+                                <>
+                                  {cachedFormatCurrencyEUR(figures.buyEur)}
+                                  <span className="block text-[11px] text-muted-foreground">{describeStep2Shares(figures.buyShares)}</span>
+                                </>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td className="py-1.5 text-right font-mono tabular-nums text-muted-foreground">
+                              {isHead && figures ? cachedFormatCurrencyEUR(figures.monthlyEur) : '—'}
                             </td>
                           </tr>,
                         );
@@ -680,16 +905,20 @@ export function AccumulationPlanDialog({
                       const asset = assetsById.get(disposal.assetId);
                       if (!asset || rendered.has(disposal.assetId)) continue;
                       rendered.add(disposal.assetId);
-                      const weightPct = totalCandidateValue > 0 ? (calculateAssetValue(asset) / totalCandidateValue) * 100 : 0;
                       rows.push(
                         <tr key={disposal.assetId} className="border-b border-border last:border-0">
                           <th scope="row" className="py-1.5 pr-2 text-left font-normal text-foreground">{asset.name}</th>
-                          <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-muted-foreground">{formatPercentageIt(weightPct, 1)}</td>
                           <td className="py-1.5 pr-2 text-center">
-                            <button type="button" className="text-[12px] text-muted-foreground underline-offset-2 hover:underline" onClick={() => moveAssetToPosition(asset)}>
-                              {ACCUMULO_STEP2_TOGGLE_SELL}
-                            </button>
+                            <KeepSellToggle
+                              sell
+                              disabled={lockedSaleIds.has(disposal.assetId)}
+                              onKeep={() => moveAssetToPosition(asset)}
+                              onSell={() => undefined}
+                            />
                           </td>
+                          <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-muted-foreground">—</td>
+                          <td className="py-1.5 pr-2 text-right text-muted-foreground">—</td>
+                          <td className="py-1.5 pr-2 text-right text-muted-foreground">—</td>
                           <td className="py-1.5 text-right text-muted-foreground">—</td>
                         </tr>,
                       );
@@ -699,17 +928,33 @@ export function AccumulationPlanDialog({
                   })()}
                 </tbody>
               </table>
+              </div>
             )}
 
-
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" className="h-11 text-[12px] desktop:h-8" disabled={selectedForGroup.size < 2} onClick={() => setGroupingBuyAssetId(selectedForGroup.values().next().value ?? null)}>
-                {ACCUMULO_ACTION_GROUP_PROXY}
-              </Button>
+              {!revise && (
+                <Button
+                  variant="outline"
+                  className="h-11 text-[12px] desktop:h-8"
+                  onClick={() => {
+                    if (groupingMode) setSelectedForGroup(new Set());
+                    setGroupingBuyAssetId(null);
+                    setGroupingMode(!groupingMode);
+                  }}
+                >
+                  {groupingMode ? ACCUMULO_ACTION_GROUP_CANCEL : ACCUMULO_ACTION_GROUP_PROXY}
+                </Button>
+              )}
+              {groupingMode && (
+                <Button variant="outline" className="h-11 text-[12px] desktop:h-8" disabled={selectedForGroup.size < 2} onClick={() => setGroupingBuyAssetId(selectedForGroup.values().next().value ?? null)}>
+                  {ACCUMULO_STEP2_BUY_ASSET_CONFIRM}…
+                </Button>
+              )}
               <Button variant="outline" className="h-11 text-[12px] desktop:h-8" onClick={() => setNewAssetDialogOpen(true)}>
                 {ACCUMULO_ACTION_NEW_ASSET}
               </Button>
             </div>
+            {groupingMode && groupingBuyAssetId === null && <p className="text-[12px] text-muted-foreground">{ACCUMULO_STEP2_GROUP_HINT}</p>}
 
             {groupingBuyAssetId !== null && (
               <div className="rounded-lg bg-muted p-3">
@@ -731,7 +976,13 @@ export function AccumulationPlanDialog({
                     );
                   })}
                 </div>
-                <Button className="mt-2.5 h-11 text-[12px] desktop:h-8" onClick={confirmGroup}>
+                <Button
+                  className="mt-2.5 h-11 text-[12px] desktop:h-8"
+                  onClick={() => {
+                    confirmGroup();
+                    setGroupingMode(false);
+                  }}
+                >
                   {ACCUMULO_STEP2_BUY_ASSET_CONFIRM}
                 </Button>
               </div>
@@ -940,5 +1191,20 @@ export function AccumulationPlanDialog({
         />
       )}
     </>
+  );
+}
+
+/** «Tieni | Vendi» — a two-state switch with its own heading in the column (RP8), never a link that renames itself. */
+function KeepSellToggle({ sell, disabled, onKeep, onSell }: { sell: boolean; disabled?: boolean; onKeep: () => void; onSell: () => void }) {
+  const base = 'min-h-11 min-w-14 rounded-md px-2 text-[12px] desktop:min-h-7 disabled:opacity-50';
+  return (
+    <div role="group" aria-label={ACCUMULO_STEP2_COL_KEEP_OR_SELL} className="inline-flex gap-0.5 rounded-lg bg-muted p-0.5">
+      <button type="button" aria-pressed={!sell} disabled={disabled} className={`${base} ${!sell ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`} onClick={onKeep}>
+        {ACCUMULO_STEP2_TOGGLE_IN_PLAN}
+      </button>
+      <button type="button" aria-pressed={sell} disabled={disabled} className={`${base} ${sell ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`} onClick={onSell}>
+        {ACCUMULO_STEP2_TOGGLE_SELL}
+      </button>
+    </div>
   );
 }

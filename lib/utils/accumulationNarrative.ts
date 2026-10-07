@@ -484,9 +484,14 @@ export function describeClassDriftChartAriaLabel(input: { classLines: ClassDrift
 // Editor (`AccumulationPlanDialog`) chrome
 // ─────────────────────────────────────────────────────────────────────────
 
-export function describeAccumuloDialogEyebrow(step: 1 | 2 | 3): string {
-  return `Piano di accumulo · Passo ${step} di 3`;
+export function describeAccumuloDialogEyebrow(step: 1 | 2 | 3, revise = false): string {
+  return `${revise ? 'Rivedi il piano' : 'Piano di accumulo'} · Passo ${step} di 3`;
 }
+
+/** «Rivedi il piano» step 1 asks for the months LEFT, not the length (RP4, RP8). */
+export const ACCUMULO_STEP1_REMAINING_MONTHS = 'Mesi restanti';
+export const ACCUMULO_ACTION_SAVE_REVISION = 'Salva la revisione';
+export const ACCUMULO_STEP1_REVISE_NOTE = 'Le rate già eseguite, saltate o collegate restano com’erano: la revisione riscrive dalla prima rata intatta.';
 
 export const ACCUMULO_STEP_TITLES: Record<1 | 2 | 3, string> = {
   1: 'Da dove arriva la liquidità',
@@ -509,16 +514,33 @@ export const ACCUMULO_STEP1_L_HEADLINE = 'Liquidità stimata';
 export const ACCUMULO_STEP1_L_SOURCE = 'Conti sorgente';
 export const ACCUMULO_STEP1_L_RESERVE = '− Riserva';
 export const ACCUMULO_STEP1_L_DISPOSALS = '+ Vendite fuori piano';
-export const ACCUMULO_STEP1_L_INFLOWS = '+ Entrate stimate (E × N)';
-export const ACCUMULO_STEP1_L_MONTHLY = 'Rata mensile (L₀/N + E)';
+export const ACCUMULO_STEP1_L_AVAILABLE = 'Liquidità da spendere';
+export function describeStep1InflowsLabel(months: number): string {
+  return `+ Entrate nei ${months} mesi`;
+}
+export const ACCUMULO_STEP1_L_MONTHLY = 'Rata mensile';
 
 // Step 2 — Target
 export const ACCUMULO_STEP2_COL_INSTRUMENT = 'Strumento';
-export const ACCUMULO_STEP2_COL_CURRENT_WEIGHT = 'Peso oggi';
-export const ACCUMULO_STEP2_COL_TARGET = 'Target %';
-export const ACCUMULO_STEP2_TOGGLE_IN_PLAN = 'Nel piano';
-export const ACCUMULO_STEP2_TOGGLE_SELL = 'Da vendere';
-export const ACCUMULO_ACTION_GROUP_PROXY = 'Raggruppa come proxy';
+export const ACCUMULO_STEP2_COL_CURRENT_WEIGHT = 'Oggi';
+export const ACCUMULO_STEP2_COL_TARGET = 'Target';
+export const ACCUMULO_STEP2_COL_KEEP_OR_SELL = 'Tieni o vendi';
+export const ACCUMULO_STEP2_COL_TO_BUY = 'Da comprare';
+export const ACCUMULO_STEP2_COL_PER_MONTH = 'Al mese';
+export const ACCUMULO_STEP2_TOGGLE_IN_PLAN = 'Tieni';
+export const ACCUMULO_STEP2_TOGGLE_SELL = 'Vendi';
+export const ACCUMULO_STEP2_SELL_SHARES = 'Vendi quote';
+export const ACCUMULO_STEP2_ALREADY_SELLING = 'già in vendita';
+export const ACCUMULO_STEP2_FROM_LABEL = 'Parti da';
+export const ACCUMULO_STEP2_FROM_MODEL = 'Portafoglio modello';
+export const ACCUMULO_STEP2_FROM_TODAY = 'Pesi di oggi';
+export const ACCUMULO_STEP2_FROM_OPTIMIZER = 'Ricalcola';
+export const ACCUMULO_ACTION_GROUP_PROXY = 'Raggruppa due strumenti';
+export const ACCUMULO_ACTION_GROUP_CANCEL = 'Annulla raggruppamento';
+export const ACCUMULO_STEP2_GROUP_HINT = 'Scegli gli strumenti da raggruppare: dividono un solo peso e si compra solo uno dei due.';
+export function describeStep2Shares(quantity: number): string {
+  return `${formatNumberIt(quantity, 0)} quote`;
+}
 export const ACCUMULO_ACTION_UNGROUP = 'Separa';
 export const ACCUMULO_STEP2_BUY_ASSET_PROMPT = 'Strumento d’acquisto';
 export const ACCUMULO_ACTION_NEW_ASSET = '+ Nuovo asset';
