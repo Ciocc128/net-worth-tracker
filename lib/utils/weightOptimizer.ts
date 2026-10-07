@@ -1601,12 +1601,16 @@ export interface StandaloneCandidates {
 export function buildStandaloneCandidates(
   assets: Asset[],
   baseEur: number,
-  valueOf: (a: Asset) => number
+  valueOf: (a: Asset) => number,
+  /** The model portfolio's instruments to evaluate at 0 shares (RO1, PO10): in even with no value. */
+  evaluateAssetIds: ReadonlySet<string> = new Set()
 ): StandaloneCandidates {
   const scoped = assets.filter((a) => {
     const role = resolveAllocationRole(a);
     // A liquidity account is never a candidate (RO1, B1): it is where the money comes from.
-    return (role === 'tradable' || role === 'frozen') && a.type !== 'cash' && valueOf(a) > 0;
+    if (a.type === 'cash') return false;
+    if (role === 'tradable' && evaluateAssetIds.has(a.id)) return true;
+    return (role === 'tradable' || role === 'frozen') && valueOf(a) > 0;
   });
   const frozenValueById = new Map(
     scoped.filter((a) => resolveAllocationRole(a) === 'frozen').map((a) => [a.id, valueOf(a)])

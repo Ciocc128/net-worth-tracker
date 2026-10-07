@@ -813,6 +813,49 @@ describe('buildStandaloneCandidates', () => {
     expect(positions.map((p) => p.key)).toEqual([etf.id]);
   });
 
+  it('PZ5/RO1: an instrument to evaluate at 0 shares is a candidate; a cash account or a frozen one never is', () => {
+    const held = makeAsset({ quantity: 10, currentPrice: 100 });
+    const eimi = makeAsset({ quantity: 0, currentPrice: 30 });
+    const ignored = makeAsset({ quantity: 0, currentPrice: 30 });
+    const account = makeAsset({ type: 'cash', assetClass: 'cash', quantity: 0, currentPrice: 1 });
+    const frozen = makeAsset({ quantity: 0, currentPrice: 30, allocationRole: 'frozen' });
+    const { positions } = buildStandaloneCandidates(
+      [held, eimi, ignored, account, frozen],
+      1000,
+      valueOf,
+      new Set([eimi.id, account.id, frozen.id])
+    );
+    expect(positions.map((p) => p.key)).toEqual([held.id, eimi.id]);
+  });
+
+  it('PZ5: a 0-share candidate gets a weight when an essential sub-target needs it', () => {
+    const candidates = [
+      candidate({ key: 'vwce', exposurePerEuro: { equity: 1 }, factorPerEuro: { equity: { Mercato: 1 } }, currentValueEur: 1000 }),
+      candidate({ key: 'eimi', exposurePerEuro: { equity: 1 }, factorPerEuro: { equity: { Emergenti: 1 } }, currentValueEur: 0 }),
+    ];
+    const targets: AssetAllocationTarget = {
+      equity: {
+        targetPercentage: 100,
+        subCategoryConfig: { enabled: true, categories: ['Mercato', 'Emergenti'] },
+        subTargets: { Mercato: 90, Emergenti: 10 },
+      },
+    };
+    const result = optimizeWeights(
+      makeInput({
+        candidates,
+        targets,
+        settings: makeSettings({
+          classPriority: 'essential',
+          leveragePriority: 'off',
+          factorObjectives: [{ assetClass: 'equity', priority: 'essential' }],
+        }),
+      })
+    );
+    expect(result.status).toBe('ok');
+    expect(pctOf(result, 'eimi')).toBeGreaterThan(0);
+    expect(pctOf(result, 'eimi')).toBeCloseTo(10, 0);
+  });
+
   it('leaves an excluded asset out entirely', () => {
     const excluded = makeAsset({ quantity: 10, currentPrice: 100, allocationRole: 'excluded' });
     const { positions } = buildStandaloneCandidates([excluded], 1000, valueOf);
