@@ -94,16 +94,36 @@ export interface PositionState {
   unpriced: boolean;         // buyPriceEur <= 0 or buy asset missing
 }
 
+/**
+ * RP2: what a disposal brings in at `asset`'s current price — `quantity × price` for a partial sale
+ * (never more than the shares held), the whole position's value when `quantity` is absent.
+ */
+export function proceedsOfDisposal(disposal: PlanDisposal, asset: Asset | undefined, deps: PlanDeps): number {
+  if (!asset) return disposal.estimatedProceedsEur;
+  if (disposal.quantity === undefined) return deps.valueOf(asset);
+  return Math.min(disposal.quantity, asset.quantity) * deps.priceOf(asset);
+}
+
 export function resolvePositionStates(
   positions: PlanPosition[],
   assetsById: Map<string, Asset>,
-  deps: PlanDeps
+  deps: PlanDeps,
+  disposals: PlanDisposal[] = []
 ): PositionState[] {
+  // RP2: the shares still to be sold leave the position's value (an executed/skipped sale already left the ledger or never will).
+  const pendingSale = new Map<string, number>();
+  for (const disposal of disposals) {
+    if (disposal.quantity === undefined) continue;
+    if (disposal.status === 'executed' || disposal.status === 'skipped') continue;
+    pendingSale.set(disposal.assetId, (pendingSale.get(disposal.assetId) ?? 0) + disposal.quantity);
+  }
   return positions.map((position) => {
     let currentValueEur = 0;
     for (const memberId of position.memberAssetIds) {
       const member = assetsById.get(memberId);
-      if (member) currentValueEur += deps.valueOf(member);
+      if (!member) continue;
+      const sold = Math.min(pendingSale.get(memberId) ?? 0, member.quantity);
+      currentValueEur += deps.valueOf(member) - sold * deps.priceOf(member);
     }
     const buyAsset = assetsById.get(position.buyAssetId);
     const buyPriceEur = buyAsset ? deps.priceOf(buyAsset) : 0;
@@ -214,7 +234,8 @@ export function scheduleInstallments(
   totals: Record<string, number>,
   states: PositionState[],
   months: number,
-  startMonth: MonthKey
+  startMonth: MonthKey,
+  firstIndex = 1
 ): ScheduleResult {
   const pricedStates = states.filter((s) => !s.unpriced);
   const carry: Record<string, number> = {};
@@ -298,7 +319,7 @@ export function scheduleInstallments(
       residualEur = pool;
     }
 
-    installments.push({ index: m, month: addMonths(startMonth, m - 1), lines, carryInEur });
+    installments.push({ index: firstIndex + m - 1, month: addMonths(startMonth, m - 1), lines, carryInEur });
   }
 
   return { installments, residualEur };
@@ -339,7 +360,7 @@ export function recalibrateInstallment(
     monthsRemaining,
     deps
   );
-  const states = resolvePositionStates(plan.positions, assetsById, deps);
+  const states = resolvePositionStates(plan.positions, assetsById, deps, plan.disposals);
   const totals = computeTotalPurchases(states, liquidity.L);
   const pricedStates = states.filter((s) => !s.unpriced);
   const cashCeiling = liquidity.availableNowEur + liquidity.disposalProceedsEur;
@@ -389,6 +410,125 @@ export function recalibrateInstallment(
     plannedTotalEur: lines.reduce((sum, l) => sum + l.plannedQuantity * l.priceEur, 0),
     suggestedTotalEur: lines.reduce((sum, l) => sum + l.suggestedAmountEur, 0),
     liquidity,
+  };
+}
+
+/** The suggested whole-share quantities of a recalibration, by position — what «Lascia così» remembers (RP3). */
+export function recalibrationQuantities(result: RecalibrationResult): Record<string, number> {
+  const quantities: Record<string, number> = {};
+  for (const line of result.lines) quantities[line.positionId] = line.suggestedQuantity;
+  return quantities;
+}
+
+/**
+ * RP3: the open installment's recalibration is proposed when the reserve is breached or some line
+ * would move by a whole share, unless the reader already declined these very figures
+ * (`Installment.recalibrationDismissed`).
+ */
+export function shouldProposeRecalibration(
+  result: RecalibrationResult,
+  dismissed?: { quantities: Record<string, number> }
+): boolean {
+  const changes = result.lines.some((line) => Math.abs(line.suggestedQuantity - line.plannedQuantity) >= 1);
+  if (!result.liquidity.belowReserve && !changes) return false;
+  if (!dismissed) return true;
+  const suggested = recalibrationQuantities(result);
+  const keys = new Set([...Object.keys(suggested), ...Object.keys(dismissed.quantities)]);
+  for (const key of keys) {
+    if ((suggested[key] ?? 0) !== (dismissed.quantities[key] ?? 0)) return true;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// RP4 buildRevisedPlan («Rivedi il piano», D-A3)
+// ---------------------------------------------------------------------------
+
+export interface PlanRevisionInput {
+  monthlyInflowEur: number;
+  reserveEur: number;
+  remainingMonths: number;
+  positions: PlanPosition[];
+  /** The NEW disposals only (they fall in the first revised month); the plan's existing ones stay. */
+  disposals: PlanDisposal[];
+}
+
+export type RevisedPlanResult =
+  | { ok: true; plan: AccumulationPlan; firstIndex: number; liquidity: UsableLiquidity }
+  | { ok: false; issue: 'nothing_to_revise' | 'months_range' };
+
+/** The first installment with no line executed, skipped or linked: where a revision starts (D-A3). */
+export function findFirstIntactInstallment(plan: AccumulationPlan): Installment | undefined {
+  return plan.installments.find(
+    (installment) =>
+      !installment.lines.some(
+        (line) => line.status === 'executed' || line.status === 'skipped' || (line.transactionIds?.length ?? 0) > 0
+      )
+  );
+}
+
+/**
+ * Rewrites the calendar from the first intact installment `k` on with new inflow, reserve, months
+ * remaining, positions and sales; installments 1..k−1 are kept as they are, measurements included.
+ * `baseline` never changes. Pure: the service persists the result.
+ */
+export function buildRevisedPlan(
+  plan: AccumulationPlan,
+  revision: PlanRevisionInput,
+  assetsById: Map<string, Asset>,
+  deps: PlanDeps,
+  today: Date
+): RevisedPlanResult {
+  const first = findFirstIntactInstallment(plan);
+  if (!first) return { ok: false, issue: 'nothing_to_revise' };
+  const k = first.index;
+  const months = k - 1 + revision.remainingMonths;
+  if (!Number.isInteger(revision.remainingMonths) || revision.remainingMonths < 1 || months < 1 || months > 60) {
+    return { ok: false, issue: 'months_range' };
+  }
+
+  const newDisposals: PlanDisposal[] = revision.disposals.map((disposal) => ({
+    ...disposal,
+    monthIndex: k,
+    estimatedProceedsEur: proceedsOfDisposal(disposal, assetsById.get(disposal.assetId), deps),
+  }));
+  const disposals = [...plan.disposals, ...newDisposals];
+  const liquiditySettings: PlanLiquidity = {
+    ...plan.liquidity,
+    monthlyInflowEur: revision.monthlyInflowEur,
+    reserveEur: revision.reserveEur,
+  };
+  const liquidity = computeUsableLiquidity(liquiditySettings, assetsById, disposals, revision.remainingMonths, deps);
+  const states = resolvePositionStates(revision.positions, assetsById, deps, disposals);
+  const totals = computeTotalPurchases(states, liquidity.L);
+  const schedule = scheduleInstallments(totals, states, revision.remainingMonths, first.month, k);
+
+  return {
+    ok: true,
+    firstIndex: k,
+    liquidity,
+    plan: {
+      ...plan,
+      months,
+      liquidity: liquiditySettings,
+      positions: revision.positions,
+      disposals,
+      installments: [...plan.installments.filter((installment) => installment.index < k), ...schedule.installments],
+      residualEur: schedule.residualEur,
+      revisions: [
+        ...(plan.revisions ?? []),
+        {
+          at: today,
+          fromIndex: k,
+          before: {
+            months: plan.months,
+            monthlyInflowEur: plan.liquidity.monthlyInflowEur,
+            reserveEur: plan.liquidity.reserveEur,
+          },
+        },
+      ],
+      updatedAt: today,
+    },
   };
 }
 
@@ -597,18 +737,18 @@ function buildProjectedAssets(
     }
   }
 
-  let disposalProceedsEur = 0;
-  if (index >= 1) {
-    for (const disposal of disposals) {
-      if (disposal.status === 'executed') continue;
-      const clone = clonesById.get(disposal.assetId);
-      if (clone) clone.quantity = 0;
-      disposalProceedsEur += disposal.estimatedProceedsEur;
-    }
+  let proceedsEur = 0;
+  for (const disposal of disposals) {
+    if (disposal.status === 'executed') continue;
+    if (index < (disposal.monthIndex ?? 1)) continue;
+    const clone = clonesById.get(disposal.assetId);
+    // RP2: a partial sale takes `quantity` shares away, a total one zeroes the position.
+    if (clone) clone.quantity = disposal.quantity === undefined ? 0 : Math.max(0, clone.quantity - disposal.quantity);
+    proceedsEur += disposal.estimatedProceedsEur;
   }
 
   const inflowEur = liquidity.monthlyInflowEur * index;
-  const cashDeltaEur = inflowEur + disposalProceedsEur - spentEur;
+  const cashDeltaEur = inflowEur + proceedsEur - spentEur;
 
   if (cashDeltaEur !== 0) {
     const sourceCashClones = liquidity.sourceCashAssetIds
@@ -779,10 +919,10 @@ export function buildDraftPreview(input: {
   // Live, not the draft's own stored figure — a disposal's proceeds track the CURRENT market value.
   const liveDisposals: PlanDisposal[] = draft.disposals.map((disposal) => {
     const asset = assetsById.get(disposal.assetId);
-    return { ...disposal, estimatedProceedsEur: asset ? deps.valueOf(asset) : disposal.estimatedProceedsEur };
+    return { ...disposal, estimatedProceedsEur: proceedsOfDisposal(disposal, asset, deps) };
   });
 
-  const states = resolvePositionStates(draft.positions, assetsById, deps);
+  const states = resolvePositionStates(draft.positions, assetsById, deps, liveDisposals);
   const liquidity = computeUsableLiquidity(draft.liquidity, assetsById, liveDisposals, draft.months, deps);
   const totals = computeTotalPurchases(states, liquidity.L);
   const schedule = scheduleInstallments(totals, states, draft.months, draft.startMonth);
@@ -841,6 +981,34 @@ export { unitPriceEur };
 // per single instrument, target = the proposed weight. `generateId` is injected (never
 // `crypto.randomUUID()` called inline) so the conversion stays deterministic under test.
 // ---------------------------------------------------------------------------
+
+/**
+ * RP2: the sales «Con vendite mirate» chose, as the PAC's disposals. A candidate brought to weight 0
+ * is sold whole (outside the plan); one that stays in the plan sells `floor(€ / price)` shares, never
+ * all of them (a total sale of a position is refused by the schema), and nothing when that is 0.
+ */
+export function seedDisposalsFromSale(
+  sold: Array<{ key: string; soldEur: number }>,
+  keptKeys: Set<string>,
+  assetsById: Map<string, Asset>,
+  deps: PlanDeps
+): PlanDisposal[] {
+  const disposals: PlanDisposal[] = [];
+  for (const { key, soldEur } of sold) {
+    const asset = assetsById.get(key);
+    if (!asset || soldEur <= 0) continue;
+    const price = deps.priceOf(asset);
+    if (!keptKeys.has(key)) {
+      disposals.push({ assetId: key, estimatedProceedsEur: deps.valueOf(asset), status: 'planned' });
+      continue;
+    }
+    if (price <= 0) continue;
+    const quantity = Math.min(Math.floor(soldEur / price + 1e-9), Math.ceil(asset.quantity) - 1);
+    if (quantity <= 0) continue;
+    disposals.push({ assetId: key, quantity, estimatedProceedsEur: quantity * price, status: 'planned' });
+  }
+  return disposals;
+}
 
 export function weightsToSeedPositions(
   weights: Array<{ key: string; label: string; proposedPct: number }>,

@@ -207,7 +207,7 @@ export function buildAccumuloPreview(input: {
 export function summarizeDraftTotal(plan: AccumulationPlan, allAssets: Asset[], deps: PlanDeps): number {
   const assetsById = new Map(allAssets.map((asset) => [asset.id, asset]));
   const liquidity = computeUsableLiquidity(plan.liquidity, assetsById, plan.disposals, plan.months, deps);
-  const totals = computeTotalPurchases(resolvePositionStates(plan.positions, assetsById, deps), liquidity.L);
+  const totals = computeTotalPurchases(resolvePositionStates(plan.positions, assetsById, deps, plan.disposals), liquidity.L);
   return Object.values(totals).reduce((sum, value) => sum + value, 0);
 }
 

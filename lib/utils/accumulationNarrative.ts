@@ -95,7 +95,10 @@ export type DraftIssueCode =
   | 'unassigned_tradable'
   | 'months_range'
   | 'negative_amount'
-  | 'no_positions';
+  | 'no_positions'
+  | 'disposal_full_on_position'
+  | 'disposal_quantity'
+  | 'nothing_to_revise';
 
 /** What `validateDraftAgainstAssets` knows about a finding — enough to phrase it, not the final `DraftIssue`. */
 export type DraftIssueContext =
@@ -108,7 +111,10 @@ export type DraftIssueContext =
   | { code: 'unassigned_tradable'; label: string }
   | { code: 'months_range' }
   | { code: 'negative_amount' }
-  | { code: 'no_positions' };
+  | { code: 'no_positions' }
+  | { code: 'disposal_full_on_position'; label: string }
+  | { code: 'disposal_quantity'; label: string }
+  | { code: 'nothing_to_revise' };
 
 /** One Italian sentence per §6 code. */
 export function describeDraftIssue(context: DraftIssueContext): string {
@@ -133,6 +139,12 @@ export function describeDraftIssue(context: DraftIssueContext): string {
       return `La riserva e l'entrata mensile stimata non possono essere negative.`;
     case 'no_positions':
       return 'Il piano non ha nessuna posizione: aggiungine almeno una.';
+    case 'disposal_full_on_position':
+      return `«${context.label}» è una posizione del piano: vendi solo una parte delle quote, oppure toglila dalle posizioni.`;
+    case 'disposal_quantity':
+      return `Le quote da vendere di «${context.label}» devono essere un numero intero maggiore di zero.`;
+    case 'nothing_to_revise':
+      return 'Non c\'è nessuna rata da rivedere: tutte hanno già righe eseguite o saltate.';
     default:
       return 'Il piano non è valido.';
   }

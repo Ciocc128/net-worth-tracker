@@ -309,7 +309,7 @@ export function QuestoMeseTile({
 
   // ── active / done ────────────────────────────────────────────────────────
   const done = isPlanDone(plan, currentIndex);
-  const states = resolvePositionStates(plan.positions, assetsById, DEPS);
+  const states = resolvePositionStates(plan.positions, assetsById, DEPS, plan.disposals);
   const outcome = projectPlanOutcome(states, plan.installments, plan.residualEur ?? 0, assetsById, plan.positions, DEPS);
 
   if (done) {

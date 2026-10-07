@@ -127,7 +127,7 @@ interface AccumulationPlanDialogProps {
    *  weights, in place of `seedPositionsFromAssets`. Ignored whenever `plan` is set (editing an
    *  existing draft/active plan never re-seeds it) — without this prop the dialog behaves exactly
    *  as before. */
-  seedDraft?: { positions: PlanPosition[]; optimizerSnapshot?: OptimizerSnapshot };
+  seedDraft?: { positions: PlanPosition[]; disposals?: PlanDisposal[]; optimizerSnapshot?: OptimizerSnapshot };
 }
 
 const DEPS: PlanDeps = { valueOf: calculateAssetValue, priceOf: unitPriceEur };
@@ -137,7 +137,8 @@ const TRAJECTORY_SAMPLE_INDICES = [0, 1, 3, 6, 9];
 function emptyDraft(
   startMonth: string,
   positions: PlanPosition[] = [],
-  optimizerSnapshot?: OptimizerSnapshot
+  optimizerSnapshot?: OptimizerSnapshot,
+  disposals: PlanDisposal[] = []
 ): AccumulationPlanDraft {
   return {
     name: 'Piano di accumulo',
@@ -145,7 +146,7 @@ function emptyDraft(
     months: 12,
     liquidity: { sourceCashAssetIds: [], reserveEur: 0, monthlyInflowEur: 0 },
     positions,
-    disposals: [],
+    disposals,
     optimizerSnapshot,
   };
 }
@@ -221,7 +222,8 @@ export function AccumulationPlanDialog({
           : emptyDraft(
               addMonths(toMonthKey(new Date()), 1),
               seedDraft?.positions ?? seedPositionsFromAssets(allAssets),
-              seedDraft?.optimizerSnapshot
+              seedDraft?.optimizerSnapshot,
+              seedDraft?.disposals
             )
       );
       setStep(plan ? 2 : 1);
@@ -755,7 +757,7 @@ export function AccumulationPlanDialog({
               // redistributes whatever is available), so a shortfall shows only by comparing L
               // against the IDEAL deficit — Σ max(0, target%×B − currentValue) — computed here the
               // same way `computeTotalPurchases` does internally.
-              const states = resolvePositionStates(draft.positions, assetsById, DEPS);
+              const states = resolvePositionStates(draft.positions, assetsById, DEPS, draft.disposals);
               const priced = states.filter((s) => !s.unpriced);
               const B = states.reduce((sum, s) => sum + s.currentValueEur, 0) + preview.liquidity.L;
               const totalDeficit = priced.reduce((sum, s) => sum + Math.max(0, (s.targetPercentage / 100) * B - s.currentValueEur), 0);
