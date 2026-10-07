@@ -574,7 +574,7 @@ export function describeClassTargets({ classCount, withSubcategories, problem }:
   return segments;
 }
 
-const OBJECTIVE_PRIORITY_LABELS: Record<ObjectivePriority, string> = {
+export const OBJECTIVE_PRIORITY_LABELS: Record<ObjectivePriority, string> = {
   essential: 'essenziale',
   high: 'alta',
   medium: 'media',

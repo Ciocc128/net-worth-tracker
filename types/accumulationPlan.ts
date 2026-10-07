@@ -1,5 +1,5 @@
 import type { AssetClass, IdealAllocationSettings } from './assets';
-import type { ObjectiveReport, OptimizerMode } from '@/lib/utils/weightOptimizer';
+import type { ConflictReport, ObjectiveReport, OptimizerMode } from '@/lib/utils/weightOptimizer';
 
 export type AccumulationPlanStatus = 'draft' | 'active' | 'completed' | 'cancelled';
 export type InstallmentLineStatus = 'planned' | 'executed' | 'skipped';
@@ -76,6 +76,8 @@ export interface OptimizerSnapshot {
   settingsUsed: IdealAllocationSettings;
   weights: Array<{ key: string; proposedPct: number }>;
   objectives: ObjectiveReport[];
+  /** The calculation's conflicts (model portfolio, A2): the Obiettivi tile quotes the first. Absent on older snapshots. */
+  conflicts?: ConflictReport[];
   /** Only mode 'targeted' (doc/weight-optimizer-targeted-ate.md §10): the tax cap and the
    *  «Non vendere» keys the weights were computed with. */
   taxCapEur?: number;

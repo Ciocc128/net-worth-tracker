@@ -14,6 +14,7 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Asset, AssetAllocationSettings, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
+import type { ModelPortfolio } from '@/types/modelPortfolio';
 import { setSettings } from '@/lib/services/assetAllocationService';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
@@ -53,12 +54,14 @@ interface ObiettiviDialogProps {
   targetLeverageRatio: number;
   /** The saved objectives (`DEFAULT_IDEAL_ALLOCATION` when the account has none). */
   saved: IdealAllocationSettings;
+  /** The saved model portfolio: its instruments at 0 shares take part in «Prova» too (PO10). */
+  model?: ModelPortfolio | null;
   /** After a successful save: the page re-reads the settings. */
   onSaved: () => void;
   returnFocusTo?: React.RefObject<HTMLElement | null>;
 }
 
-export function ObiettiviDialog({ open, onClose, ownerId, allAssets, targets, targetLeverageRatio, saved, onSaved, returnFocusTo }: ObiettiviDialogProps) {
+export function ObiettiviDialog({ open, onClose, ownerId, allAssets, targets, targetLeverageRatio, saved, model, onSaved, returnFocusTo }: ObiettiviDialogProps) {
   const isDemo = useDemoMode();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<IdealAllocationSettings>(saved);
@@ -79,7 +82,11 @@ export function ObiettiviDialog({ open, onClose, ownerId, allAssets, targets, ta
       }, 0),
     [allAssets],
   );
-  const standalone = useMemo(() => buildStandaloneCandidates(allAssets, baseEur, calculateAssetValue), [allAssets, baseEur]);
+  const evaluateAssetIds = useMemo(() => new Set((model?.weights ?? []).map((weight) => weight.assetId)), [model]);
+  const standalone = useMemo(
+    () => buildStandaloneCandidates(allAssets, baseEur, calculateAssetValue, evaluateAssetIds),
+    [allAssets, baseEur, evaluateAssetIds],
+  );
   const candidateAssetIds = useMemo(() => standalone.positions.map((position) => position.buyAssetId), [standalone.positions]);
   const profilesQuery = useInstrumentProfiles(tryRequested ? ownerId : undefined, candidateAssetIds);
   const { referenceCountries, referenceAreas, referenceEstimatedShare } = useOptimizerGeographyReference(draft);
