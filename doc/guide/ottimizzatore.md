@@ -11,6 +11,10 @@
 > traduzione operativa e i limiti trovati scrivendo il codice. Prerequisito: la feature PAC
 > (`doc/pac-ate.md`, `doc/guide/accumulo.md`).
 
+> **Refactor in corso (dal 07/10/2026)** — `doc/pac-ottimizzatore/README.md` ridisegna questa feature con la scheda
+> «Accumulo» di Allocazione, il portafoglio modello e le decisioni PO1–PO15; i task A0–A3 aggiornano questa guida
+> man mano. Dove il dossier e questa guida divergono, per il lavoro nuovo vale il dossier.
+
 ## Cosa fa
 
 Il motore (`optimizeWeights`, `lib/utils/weightOptimizer.ts`) propone i **pesi di mercato** degli
