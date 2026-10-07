@@ -25,7 +25,7 @@ import { compareAllocations } from '@/lib/services/assetAllocationService';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { projectClassTrajectory } from '@/lib/utils/accumulationPlanUtils';
 import { matchPlanExecutions } from '@/lib/utils/accumulationPlanMatching';
-import { buildAccumuloVerdict, isPlanDone, summarizeDraftTotal } from '@/lib/utils/accumuloSummary';
+import { buildAccumuloVerdict, isPlanDone, selectClosedPlans, summarizeDraftTotal } from '@/lib/utils/accumuloSummary';
 import { describeBandReentry } from '@/lib/utils/accumulationNarrative';
 import { useOpenAccumuloPlan } from '@/lib/hooks/useOpenAccumuloPlan';
 import { useModelPortfolio } from '@/lib/hooks/useModelPortfolio';
@@ -41,6 +41,7 @@ import { QuestoMeseTile } from '@/components/allocation/tiles/QuestoMeseTile';
 import { ClassiDelPianoTile } from '@/components/allocation/tiles/ClassiDelPianoTile';
 import { AccumuloVuotoTile, COMPOSITION_ANCHOR_ID } from '@/components/allocation/tiles/AccumuloVuotoTile';
 import { PortafoglioModelloTile } from '@/components/allocation/tiles/PortafoglioModelloTile';
+import { PianiConclusiTile } from '@/components/allocation/tiles/PianiConclusiTile';
 import { ObiettiviTile } from '@/components/allocation/tiles/ObiettiviTile';
 import { ObiettiviDialog } from '@/components/allocation/ObiettiviDialog';
 import { DEPS } from '@/components/allocation/tiles/accumuloShared';
@@ -142,6 +143,7 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
   }
 
   const objectivesSaved = idealAllocation ?? DEFAULT_IDEAL_ALLOCATION;
+  const closedPlans = selectClosedPlans(plansQuery.data);
 
   return (
     <div className="mt-4 flex flex-col gap-3">
@@ -213,6 +215,12 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
             onEdit={() => setObjectivesOpen(true)}
           />
         </div>
+
+        {closedPlans.length > 0 && (
+          <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-12')}>
+            <PianiConclusiTile plans={closedPlans} targets={targets} />
+          </div>
+        )}
       </div>
 
       {objectivesOpen && targets && (

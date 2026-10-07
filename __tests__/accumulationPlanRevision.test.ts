@@ -205,3 +205,79 @@ describe('RP3 — the recalibration proposal (PP7)', () => {
     expect(shouldProposeRecalibration(again, dismissed)).toBe(true);
   });
 });
+
+import {
+  describeClosedPlanDrift,
+  describeClosedPlanInstallments,
+  describeClosedPlanInvested,
+  describeClosedPlanPeriod,
+  describeSuggestedInflow,
+  suggestMonthlyInflow,
+} from '@/lib/utils/accumulationNarrative';
+import { selectClosedPlans, summarizeClosedPlan } from '@/lib/utils/accumuloSummary';
+import { buildRegisteredLinePatch } from '@/lib/utils/accumulationPlanUtils';
+import type { AssetAllocationTarget } from '@/types/assets';
+
+describe('RP5 — «Registra» (PP8)', () => {
+  it('links the line with the returned id, quantity and quantity × EUR price', () => {
+    expect(buildRegisteredLinePatch('tx1', 18, 120)).toEqual({
+      status: 'executed',
+      transactionIds: ['tx1'],
+      executedQuantity: 18,
+      executedAmountEur: 2160,
+    });
+  });
+});
+
+describe('RP6 — Piani conclusi (PP9)', () => {
+  it('reads 6 / 6, 24.318 € su 24.500 €, the period and the largest final drift', () => {
+    const { plan } = planOnF();
+    const closed: AccumulationPlan = {
+      ...plan,
+      status: 'completed',
+      name: 'PAC',
+      startMonth: '2026-01',
+      months: 6,
+      liquidity: { sourceCashAssetIds: ['conto'], reserveEur: 10000, monthlyInflowEur: 500 },
+      disposals: [],
+      baseline: {
+        capturedAt: new Date(0), positionValuesEur: {}, pricesEur: {}, sourceCashEur: 31500,
+        measurement: { measuredAt: new Date(0), classNotionalEur: {}, marketBaseEur: 1 },
+      },
+      installments: Array.from({ length: 6 }, (_, k) => ({
+        index: k + 1,
+        month: `2026-0${k + 1}`,
+        carryInEur: {},
+        lines: [{ positionId: 'pv', assetId: 'vwce', plannedQuantity: 1, priceEurAtPlan: 1, plannedAmountEur: 1, status: 'executed' as const, executedAmountEur: 24318 / 6 }],
+        ...(k === 5 ? { measurement: { measuredAt: new Date(0), classNotionalEur: { equity: 60.6, bonds: 39.4 }, marketBaseEur: 100 } } : {}),
+      })),
+    };
+    // 31.500 − 10.000 + 500 × 6 = 24.500
+    const targets = { equity: { targetPercentage: 60 }, bonds: { targetPercentage: 40 } } as unknown as AssetAllocationTarget;
+    const row = summarizeClosedPlan(closed, targets);
+    expect(describeClosedPlanPeriod(row.startMonth, row.endMonth)).toBe('gen 2026 – giu 2026');
+    expect(describeClosedPlanInstallments(row.closedCount, row.totalMonths, row.interrupted)).toBe('6 / 6');
+    expect(describeClosedPlanInvested(row.investedEur, row.plannedEur)).toBe('24.318 € su 24.500 €');
+    expect(describeClosedPlanDrift(row.finalDrift)).toBe('+0,6 pp su Azioni');
+    expect(describeClosedPlanDrift(summarizeClosedPlan({ ...closed, installments: closed.installments.map((i) => ({ ...i, measurement: undefined })) }, targets).finalDrift)).toBe('—');
+  });
+
+  it('a cancelled plan reads «2 / 3 · interrotto»; the list is newest closure first', () => {
+    expect(describeClosedPlanInstallments(2, 3, true)).toBe('2 / 3 · interrotto');
+    const { plan } = planOnF();
+    const a = { ...plan, id: 'a', status: 'completed' as const, closedAt: new Date('2026-01-01') };
+    const b = { ...plan, id: 'b', status: 'cancelled' as const, closedAt: new Date('2026-06-01') };
+    const open = { ...plan, id: 'c' };
+    expect(selectClosedPlans([a, open, b]).map((p) => p.id)).toEqual(['b', 'a']);
+  });
+});
+
+describe('RP7 — the suggested inflow (PP10)', () => {
+  it('14.400 and 14.455 € a year both read 1200 € a month; 0 suggests nothing', () => {
+    expect(suggestMonthlyInflow(14400)).toBe(1200);
+    expect(suggestMonthlyInflow(14455)).toBe(1200);
+    expect(suggestMonthlyInflow(0)).toBe(0);
+    expect(describeSuggestedInflow(1200, 2025, false)).toBe('Il tuo risparmio medio è di 1200 € al mese (Cashflow 2025).');
+    expect(describeSuggestedInflow(1200, 2026, true)).toBe('Il tuo risparmio medio è di 1200 € al mese (2026, finora).');
+  });
+});

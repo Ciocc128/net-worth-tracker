@@ -164,7 +164,9 @@ export const ACCUMULO_ACTION_DELETE_DRAFT = 'Elimina bozza';
 export const ACCUMULO_ACTION_DELETE_DRAFT_VERB = 'eliminare la bozza';
 export const ACCUMULO_ACTION_EDIT = 'Modifica';
 export const ACCUMULO_ACTION_ACTIVATE = 'Attiva piano';
-export const ACCUMULO_ACTION_RECALIBRATE = 'Ricalibra rata';
+export const ACCUMULO_ACTION_REGISTER = 'Registra';
+export const ACCUMULO_ACTION_REVISE = 'Rivedi il piano';
+export const ACCUMULO_ACTION_KEEP_AS_IS = 'Lascia così';
 export const ACCUMULO_ACTION_CALENDAR = 'Calendario';
 export const ACCUMULO_ACTION_STOP = 'Interrompi';
 export const ACCUMULO_ACTION_STOP_VERB = 'interrompere il piano';
@@ -586,6 +588,15 @@ export const ACCUMULO_RECALIBRATE_COL_SUGGESTED = 'Suggerita';
 export const ACCUMULO_RECALIBRATE_COL_DELTA = 'Δ quote';
 export const ACCUMULO_ACTION_IGNORE = 'Ignora';
 export const ACCUMULO_ACTION_APPLY = 'Applica';
+
+/** The note «Registra» pre-fills on the ledger trade (RP5). */
+export function describeRegisterNote(planName: string, installmentIndex: number, totalMonths: number): string {
+  return `PAC «${planName}», rata ${installmentIndex} di ${totalMonths}`;
+}
+
+export function describeRegisterSaleNote(planName: string): string {
+  return `PAC «${planName}», vendita`;
+}
 export const ACCUMULO_RECALIBRATE_SUBMITTING = 'Applico la ricalibrazione…';
 
 /** «3868,10 € → 3849,10 €» — the recalibration's totals row. */
@@ -842,3 +853,60 @@ export function describeAccumuloPreview(
 }
 
 export const ACCUMULO_CLASSES_TILE_EYEBROW = 'Classi del piano';
+
+// ─────────────────────────────────────────────────────────────────────────
+// Piani conclusi (RP6) and the suggested monthly inflow (RP7)
+// ─────────────────────────────────────────────────────────────────────────
+
+export const ACCUMULO_CLOSED_PLANS_EYEBROW = 'Piani conclusi';
+
+export interface ClosedPlanReadingInput {
+  name: string;
+  startMonth: MonthKey;
+  endMonth: MonthKey;
+  closedCount: number;
+  totalMonths: number;
+  interrupted: boolean;
+  investedEur: number;
+  plannedEur: number;
+  /** The largest final drift, or `null` when the plan never closed a month. */
+  finalDrift: { label: string; driftPp: number } | null;
+}
+
+function wholeEuro(value: number): string {
+  return `${formatNumberIt(Math.round(value), 0)} €`;
+}
+
+/** «gen 2026 – giu 2026» */
+export function describeClosedPlanPeriod(startMonth: MonthKey, endMonth: MonthKey): string {
+  return `${monthLabelShort(startMonth)} – ${monthLabelShort(endMonth)}`;
+}
+
+/** «6 / 6» or «2 / 3 · interrotto». */
+export function describeClosedPlanInstallments(closedCount: number, totalMonths: number, interrupted: boolean): string {
+  const base = `${closedCount} / ${totalMonths}`;
+  return interrupted && closedCount < totalMonths ? `${base} · interrotto` : base;
+}
+
+/** «24.318 € su 24.500 €» */
+export function describeClosedPlanInvested(investedEur: number, plannedEur: number): string {
+  return `${wholeEuro(investedEur)} su ${wholeEuro(plannedEur)}`;
+}
+
+/** «+0,6 pp su Azioni», «—» when no month was ever measured. */
+export function describeClosedPlanDrift(drift: { label: string; driftPp: number } | null): string {
+  return drift ? `${formatSignedPp(drift.driftPp)} su ${drift.label}` : '—';
+}
+
+/** The monthly saving a draft may suggest (RP7): the Cashflow's yearly saving ÷ 12, rounded down to the tens; 0 = no suggestion. */
+export function suggestMonthlyInflow(annualSavingsEur: number): number {
+  if (!Number.isFinite(annualSavingsEur) || annualSavingsEur <= 0) return 0;
+  return Math.floor(annualSavingsEur / 12 / 10) * 10;
+}
+
+/** «Il tuo risparmio medio è di 1200 € al mese (Cashflow 2025).» — «(2026, finora)» for a year still running. */
+export function describeSuggestedInflow(monthlyEur: number, referenceYear: number, isAnnualized: boolean): string {
+  const source = isAnnualized ? `${referenceYear}, finora` : `Cashflow ${referenceYear}`;
+  return `Il tuo risparmio medio è di ${Math.round(monthlyEur)} € al mese (${source}).`;
+}
+export const ACCUMULO_USE_SUGGESTED_INFLOW = 'Usa';

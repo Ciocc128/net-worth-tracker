@@ -413,6 +413,15 @@ export function recalibrateInstallment(
   };
 }
 
+/** RP5: the patch a saved «Registra» trade puts on its line (fees excluded, as the matching does — D10). */
+export function buildRegisteredLinePatch(
+  transactionId: string,
+  quantity: number,
+  priceEur: number
+): { status: 'executed'; transactionIds: string[]; executedQuantity: number; executedAmountEur: number } {
+  return { status: 'executed', transactionIds: [transactionId], executedQuantity: quantity, executedAmountEur: quantity * priceEur };
+}
+
 /** The suggested whole-share quantities of a recalibration, by position — what «Lascia così» remembers (RP3). */
 export function recalibrationQuantities(result: RecalibrationResult): Record<string, number> {
   const quantities: Record<string, number> = {};
@@ -455,7 +464,8 @@ export interface PlanRevisionInput {
 
 export type RevisedPlanResult =
   | { ok: true; plan: AccumulationPlan; firstIndex: number; liquidity: UsableLiquidity }
-  | { ok: false; issue: 'nothing_to_revise' | 'months_range' };
+  | { ok: false; issue: 'nothing_to_revise' | 'months_range' }
+  | { ok: false; issue: 'duplicate_asset'; assetId: string };
 
 /** The first installment with no line executed, skipped or linked: where a revision starts (D-A3). */
 export function findFirstIntactInstallment(plan: AccumulationPlan): Installment | undefined {
@@ -486,6 +496,11 @@ export function buildRevisedPlan(
   if (!Number.isInteger(revision.remainingMonths) || revision.remainingMonths < 1 || months < 1 || months > 60) {
     return { ok: false, issue: 'months_range' };
   }
+
+  // One sale per instrument: the ledger matching and `setDisposal` address a sale by its asset.
+  const alreadySelling = new Set(plan.disposals.map((disposal) => disposal.assetId));
+  const repeated = revision.disposals.find((disposal) => alreadySelling.has(disposal.assetId));
+  if (repeated) return { ok: false, issue: 'duplicate_asset', assetId: repeated.assetId };
 
   const newDisposals: PlanDisposal[] = revision.disposals.map((disposal) => ({
     ...disposal,
@@ -661,7 +676,7 @@ export interface ClassTrajectoryPoint {
  * config in `targets` never changes point to point, but the scaling factor does whenever the
  * market base does.
  */
-function resolveTargetPct(
+export function resolveTargetPct(
   assetClass: AssetClass,
   targets: AssetAllocationTarget,
   marketBaseEur: number

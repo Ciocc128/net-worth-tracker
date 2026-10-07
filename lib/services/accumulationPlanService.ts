@@ -431,7 +431,13 @@ export async function revisePlan(planId: string, revision: PlanRevisionInput, in
     if (plan.status !== 'active') throw userFacingError('Solo un piano attivo può essere rivisto.');
 
     const result = buildRevisedPlan(plan, revision, assetsById, deps, today);
-    if (!result.ok) throw userFacingError(describeDraftIssue({ code: result.issue }));
+    if (!result.ok) {
+      throw userFacingError(
+        result.issue === 'duplicate_asset'
+          ? describeDraftIssue({ code: 'duplicate_asset', label: assetsById.get(result.assetId)?.name ?? result.assetId })
+          : describeDraftIssue({ code: result.issue })
+      );
+    }
 
     const issues = validateDraftAgainstAssets(
       {
