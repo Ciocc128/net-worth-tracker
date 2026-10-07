@@ -18,7 +18,14 @@ import type { ClassTrajectoryPoint } from '@/lib/utils/accumulationPlanUtils';
 import { ASSET_CLASS_CHART_INDEX, ASSET_CLASS_LABELS, bandForTarget, type RebalanceBand } from '@/lib/utils/allocationUtils';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { CHART_COLORS } from '@/lib/constants/colors';
-import { describeClassDriftChartAriaLabel, describeDriftChartBand, formatSignedPp, trajectoryPointLabel } from '@/lib/utils/accumulationNarrative';
+import {
+  ACCUMULO_DRIFT_CHART_LEGEND,
+  describeClassDriftChartAriaLabel,
+  describeDriftChartBand,
+  describeDriftReading,
+  formatSignedPp,
+  trajectoryPointLabel,
+} from '@/lib/utils/accumulationNarrative';
 import { cn } from '@/lib/utils';
 
 interface ClassDriftChartProps {
@@ -27,6 +34,13 @@ interface ClassDriftChartProps {
   /** Minimum height of the plot; the tile's flex column lets it stretch past it. */
   height?: number;
   className?: string;
+  /**
+   * The month the cursor sits on (RV5, PO15). Absent = no cursor: the chart is the plain plot the
+   * Calendario and the editor already had. Present with `onSelect`, the plot answers the pointer
+   * and the left/right arrows (ONE Tab stop for the whole chart) and a reading row names the month.
+   */
+  selectedIndex?: number;
+  onSelect?: (index: number) => void;
 }
 
 const VIEW_W = 600;
@@ -41,7 +55,7 @@ function pickAxisIndices(count: number, max = MAX_AXIS_LABELS): number[] {
   return Array.from({ length: max }, (_, i) => Math.round(i * step));
 }
 
-export function ClassDriftChart({ points, band, height = 160, className }: ClassDriftChartProps) {
+export function ClassDriftChart({ points, band, height = 160, className, selectedIndex, onSelect }: ClassDriftChartProps) {
   const chartColors = useChartColors();
   const colorOf = (assetClass: AssetClass): string => {
     const idx = ASSET_CLASS_CHART_INDEX[assetClass] ?? 0;
@@ -97,10 +111,58 @@ export function ClassDriftChart({ points, band, height = 160, className }: Class
     })),
   });
 
+  const hasCursor = selectedIndex !== undefined && !!onSelect && points.length > 0;
+  const cursorPosition = hasCursor ? Math.min(Math.max(points.findIndex((point) => point.index === selectedIndex), 0), points.length - 1) : -1;
+  const cursorPoint = cursorPosition >= 0 ? points[cursorPosition] : undefined;
+  const cursorLeftPct = cursorPosition >= 0 ? (points.length > 1 ? (cursorPosition / (points.length - 1)) * 100 : 50) : 0;
+
+  const selectPosition = (position: number) => {
+    const clamped = Math.min(Math.max(position, 0), points.length - 1);
+    onSelect?.(points[clamped].index);
+  };
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!hasCursor) return;
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      selectPosition(cursorPosition + 1);
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      selectPosition(cursorPosition - 1);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      selectPosition(0);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      selectPosition(points.length - 1);
+    }
+  };
+  const handlePointer = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!hasCursor || points.length < 2) return;
+    // A mouse only moves the cursor while it is pressed; a finger drags it.
+    if (event.type === 'pointermove' && event.buttons === 0) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    selectPosition(Math.round(((event.clientX - rect.left) / rect.width) * (points.length - 1)));
+  };
+  const reading = cursorPoint ? describeDriftReading(cursorPoint, band) : null;
+
   return (
     <div className={cn('flex flex-col', className)}>
       {bandInfo && <p className="mb-1 text-[10px] text-muted-foreground">{describeDriftChartBand(bandInfo.pp, bandInfo.label)}</p>}
-      <div className="relative flex-1" style={{ minHeight: height }}>
+      <div
+        className={cn('relative flex-1', hasCursor && 'touch-pan-y rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring')}
+        style={{ minHeight: height }}
+        {...(hasCursor
+          ? {
+              tabIndex: 0,
+              role: 'group',
+              'aria-label': 'Mese del grafico: usa le frecce sinistra e destra',
+              onKeyDown: handleKeyDown,
+              onPointerDown: handlePointer,
+              onPointerMove: handlePointer,
+            }
+          : {})}
+      >
         <svg
           viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
           preserveAspectRatio="none"
@@ -146,6 +208,23 @@ export function ClassDriftChart({ points, band, height = 160, className }: Class
             })}
         </svg>
 
+        {cursorPoint && (
+          <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+            <span className="absolute inset-y-0 w-px bg-foreground/40" style={{ left: `${cursorLeftPct}%` }} />
+            {classes.map((assetClass) => {
+              const entry = cursorPoint.byClass[assetClass];
+              if (!entry) return null;
+              return (
+                <span
+                  key={assetClass}
+                  className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-background"
+                  style={{ left: `${cursorLeftPct}%`, top: `${(sy(entry.driftPp) / VIEW_H) * 100}%`, backgroundColor: colorOf(assetClass) }}
+                />
+              );
+            })}
+          </div>
+        )}
+
         {/* Final labels — «Azioni +1,3» — outside the scaled SVG so the text never stretches. */}
         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
           {classes.map((assetClass) => {
@@ -178,6 +257,21 @@ export function ClassDriftChart({ points, band, height = 160, className }: Class
           </span>
         ))}
       </div>
+
+      {reading && (
+        <>
+          <p className="mt-2 text-[11px] leading-[1.5]" aria-live="polite">
+            <span className="font-mono tabular-nums text-muted-foreground">{reading.when}</span>
+            {reading.items.map((item) => (
+              <span key={item.label} className={cn('font-mono tabular-nums', item.outOfBand ? 'text-warning-foreground' : 'text-muted-foreground')}>
+                {' · '}
+                {item.text}
+              </span>
+            ))}
+          </p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">{ACCUMULO_DRIFT_CHART_LEGEND}</p>
+        </>
+      )}
     </div>
   );
 }

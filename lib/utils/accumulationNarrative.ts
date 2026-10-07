@@ -143,6 +143,9 @@ export function describeDraftIssue(context: DraftIssueContext): string {
 // ─────────────────────────────────────────────────────────────────────────
 
 export const ACCUMULO_TILE_EYEBROW = 'Accumulo';
+export const ACCUMULO_MONTH_TILE_EYEBROW = 'Questo mese';
+export const ACCUMULO_MONTH_TILE_DRAFT_EYEBROW = 'Piano in bozza';
+export const ACCUMULO_MONTH_TILE_DONE_EYEBROW = 'Piano concluso';
 
 export const ACCUMULO_ACTION_CREATE_PLAN = 'Crea piano';
 export const ACCUMULO_ACTION_DELETE_DRAFT = 'Elimina bozza';
@@ -785,3 +788,43 @@ export function describeAccumuloVerdict(input: AccumuloVerdictInput): PageVerdic
   const tone = input.lateCount > 0 ? 'warning' : input.installmentClosed ? 'positive' : 'neutral';
   return { headline, tone, sentence };
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Stato vuoto della scheda Accumulo (RV4) e tile «Classi del piano»
+// ─────────────────────────────────────────────────────────────────────────
+
+export const ACCUMULO_EMPTY_DOES_TITLE = 'Cosa fa';
+export const ACCUMULO_EMPTY_DOES: readonly string[] = [
+  'divide liquidità ed entrate in rate mensili a quote intere',
+  'tiene intatta la riserva che scegli',
+  'vende al primo mese ciò che lasci fuori, anche solo in parte',
+  'riconosce gli acquisti nel Registro e ti chiede solo di confermare',
+  'ricalcola la rata quando i prezzi cambiano, se lo accetti',
+  'mostra mese per mese come si muovono le classi, leva compresa',
+];
+export const ACCUMULO_EMPTY_DOESNT_TITLE = 'Cosa non fa';
+export const ACCUMULO_EMPTY_DOESNT: readonly string[] = [
+  'non vende gli strumenti del piano per ribilanciare (c’è il Ribilancia)',
+  'non manda ordini al broker e non conta le commissioni',
+  'un piano alla volta, al massimo 60 mesi',
+  'non sceglie strumenti che non hai indicato',
+];
+export const ACCUMULO_EMPTY_PREVIEW_TITLE = 'Anteprima sui tuoi numeri';
+export const ACCUMULO_EMPTY_PREVIEW_CLASSES = 'oggi → a fine piano';
+export const ACCUMULO_ACTION_GO_TO_COMPOSITION = 'Vai alla composizione ideale';
+
+/** «12 rate da 3208 € con 10.000 € di riserva, dai pesi di oggi.» — or why there is nothing to show. */
+export function describeAccumuloPreview(preview: { months: number; reserveEur: number; monthlyEur: number } | null): Narrative {
+  if (!preview) {
+    return [{ text: 'Con una riserva di 10.000 € non resta liquidità da spendere, o nessuno strumento è acquistabile: crea il piano per scegliere riserva ed entrate.' }];
+  }
+  return [
+    { text: `${preview.months} rate da ` },
+    { text: cachedFormatCurrencyEUR(preview.monthlyEur, true), mono: true },
+    { text: ' con ' },
+    { text: cachedFormatCurrencyEUR(preview.reserveEur, true), mono: true },
+    { text: ' di riserva, dai pesi di oggi e senza entrate mensili.' },
+  ];
+}
+
+export const ACCUMULO_CLASSES_TILE_EYEBROW = 'Classi del piano';

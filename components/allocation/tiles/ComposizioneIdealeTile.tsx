@@ -20,6 +20,7 @@ import {
   IDEAL_COMPOSITION_TILE_OFF_READING,
   OPTIMIZER_ACTION_CALCULATE,
   OPTIMIZER_ACTION_MODIFY_IN_SETTINGS,
+  OPTIMIZER_OBJECTIVES_HREF,
 } from '@/lib/utils/weightOptimizerNarrative';
 import { Tile } from '@/components/ui/tile';
 import { Button } from '@/components/ui/button';
@@ -56,7 +57,7 @@ export function ComposizioneIdealeTile({
     return (
       <Tile eyebrow={IDEAL_COMPOSITION_TILE_EYEBROW} reading={[{ text: IDEAL_COMPOSITION_TILE_OFF_READING }]}>
         <Link
-          href="/dashboard/settings?tab=allocazione"
+          href={OPTIMIZER_OBJECTIVES_HREF}
           className="mt-3.5 inline-block text-[13px] underline underline-offset-2"
         >
           {OPTIMIZER_ACTION_MODIFY_IN_SETTINGS}

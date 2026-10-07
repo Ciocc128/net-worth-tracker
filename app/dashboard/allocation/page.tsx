@@ -14,14 +14,18 @@
  * the score it qualifies (Alt A of the canvas, chosen on 2026-08-25). The balance score itself is
  * band-INDEPENDENT (`computeBalanceScore`) and never moves with the band.
  *
- *   Desktop (12 col), two independent stacks (fork, 2026-09-25):
- *                     [Bilanciamento · Per classe · Accumulo](5) | [Piano · Composizione ideale ·
- *                     Esposizione · Previdenza (only with a pension fund)](7)
- *                     (Accumulo and Composizione ideale: solo fork)
- *   Mobile (1 col):   Bilanciamento → Piano → Per classe → Accumulo → Composizione ideale →
- *                     Esposizione → Previdenza → Dettaglio
- *   Tablet (2 col):   Bilanciamento → Piano → [Per classe | Esposizione] → Accumulo →
- *                     Composizione ideale → Previdenza (the two half-width tiles share one row)
+ * TWO TABS (fork, 2026-10-07, doc/pac-ottimizzatore § RV1): «Bilanciamento» (the page as upstream
+ * has it, default) and «Accumulo» (`?tab=accumulo`; the fork's plan, the optimizer and its
+ * objectives, `AccumuloTab`). The band is page state shared by both. The verdict follows the tab:
+ * Bilanciamento's carries the accumulation plan's installment in place of Versa when a plan is
+ * active (PO3, `pac` in `buildAllocazioneVerdict`).
+ *
+ *   Bilanciamento, desktop (12 col), two independent stacks (fork, 2026-09-25):
+ *                     [Bilanciamento · Per classe](5) | [Piano · Esposizione ·
+ *                     Previdenza (only with a pension fund)](7)
+ *   Mobile (1 col):   Bilanciamento → Piano → Per classe → Esposizione → Previdenza → Dettaglio
+ *   Tablet (2 col):   the same order (Per classe and Esposizione, the two half-width tiles, share
+ *                     one row)
  *
  * The «Dettaglio» disclosure under the grid holds the two holdings lists the old hero kept in
  * popovers — Non negoziabili (inside the total, untouchable) and Esclusi (outside it).
@@ -43,7 +47,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { SlidersHorizontal } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Scale, SlidersHorizontal, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
@@ -104,6 +109,9 @@ import { Button } from '@/components/ui/button';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { PageVerdict } from '@/components/ui/page-verdict';
+import { PageTabs, type TabDef } from '@/components/layout/PageTabs';
+import { pageTabPanelId } from '@/components/layout/PageTabBar';
+import { TabsContent } from '@/components/ui/tabs';
 import { TILE_CELL_CLASS } from '@/components/ui/tile';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
@@ -111,12 +119,13 @@ import { describeReadFailure } from '@/lib/utils/statesNarrative';
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { BilanciamentoTile } from '@/components/allocation/tiles/BilanciamentoTile';
 import { PianoTile } from '@/components/allocation/tiles/PianoTile';
-import { AccumuloTile } from '@/components/allocation/tiles/AccumuloTile';
-import { ComposizioneIdealeTile } from '@/components/allocation/tiles/ComposizioneIdealeTile';
+import { AccumuloTab } from '@/components/allocation/AccumuloTab';
 import { PerClasseTile } from '@/components/allocation/tiles/PerClasseTile';
 import { EsposizioneTile } from '@/components/allocation/tiles/EsposizioneTile';
 import { PrevidenzaTile } from '@/components/allocation/tiles/PrevidenzaTile';
 import { AllocazioneDettaglio } from '@/components/allocation/AllocazioneDettaglio';
+import { useOpenAccumuloPlan } from '@/lib/hooks/useOpenAccumuloPlan';
+import { summarizePacMonth } from '@/lib/utils/accumuloSummary';
 
 /** The grid's geometry, for the skeleton: the same spans as the tiles below. */
 const SKELETON_CELLS: TileSkeletonCell[] = [
@@ -129,6 +138,16 @@ const SKELETON_CELLS: TileSkeletonCell[] = [
   { span: 12, lines: 4 },
 ];
 
+const ALLOCATION_TABS: TabDef[] = [
+  { value: 'bilanciamento', label: 'Bilanciamento', icon: Scale },
+  { value: 'accumulo', label: 'Accumulo', icon: TrendingUp },
+];
+type AllocationTabId = 'bilanciamento' | 'accumulo';
+
+function getInitialTab(param: string | null): AllocationTabId {
+  return param === 'accumulo' ? 'accumulo' : 'bilanciamento';
+}
+
 /** The Versa/Preleva amount the page opens with: the verdict needs one to name the next money. */
 const DEFAULT_PLAN_AMOUNT_INPUT = '1000';
 
@@ -137,6 +156,13 @@ const EMPTY_HOLDINGS: AllocatableHolding[] = [];
 export default function AllocationPage() {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<AllocationTabId>(() => getInitialTab(searchParams.get('tab')));
+  // The accumulation plan the Bilanciamento verdict names in place of Versa (PO3).
+  const { plan: openPlan, currentIndex: pacMonthIndex } = useOpenAccumuloPlan(ownerId ?? undefined);
+  const pac = useMemo(() => summarizePacMonth(openPlan, pacMonthIndex), [openPlan, pacMonthIndex]);
   const [targets, setTargets] = useState<AssetAllocationTarget | null>(null);
   const [allocation, setAllocation] = useState<AllocationResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -163,6 +189,12 @@ export default function AllocationPage() {
   // The owner's "Allocazione ideale" objectives (Impostazioni → Allocazione) — the PAC editor's
   // Ottimizzato view reads it; `null` before the first load, same as `targets`.
   const [idealAllocation, setIdealAllocation] = useState<IdealAllocationSettings | null>(null);
+
+  const handleTabChange = (value: string) => {
+    const next = getInitialTab(value);
+    setActiveTab(next);
+    router.replace(`${pathname}?tab=${next}`, { scroll: false });
+  };
 
   const loadData = useCallback(async () => {
     if (!user || !ownerId) return;
@@ -349,8 +381,9 @@ export default function AllocationPage() {
         leverage: leverageReading,
         nextMoney,
         orphans: orphanedTargets,
+        pac,
       }),
-    [hasAssets, excludedGroup.total, balanceScore, balanceSummary, band, offTarget, leverageReading, nextMoney, orphanedTargets],
+    [hasAssets, excludedGroup.total, balanceScore, balanceSummary, band, offTarget, leverageReading, nextMoney, orphanedTargets, pac],
   );
 
   const headerDescription = describeAllocazioneHeader({
@@ -433,139 +466,156 @@ export default function AllocationPage() {
     <PageContainer>
       {header}
 
-      <div className="pt-1">
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto sull'allocazione" />
-      </div>
-
-      {/* The band re-classifies the verdict, this page's plan and every chip at once. The region is
-          mounted with the page, before anything changes, so a reader is already watching it when the
-          text is rewritten — one created together with its content announces nothing. */}
-      <p className="sr-only" role="status" aria-live="polite">
-        {describeBandChange({ band, offTargetCount: balanceSummary.offTargetCount, classCount })}
-      </p>
-
-      {/* TWO INDEPENDENT STACKS from `desktop:`, and no full-width row under them (fork,
-          2026-09-25). The Piano's height is not a constant: on the owner's account it runs from
-          381px (Versa) to 1159px (Ribilancia) and grows with the instruments to trade, and Per
-          classe grows when a class opens. A full-width row under two columns has to start below
-          the LONGER one, so every change of mode used to open a 250–580px hole under the shorter
-          column. In two stacks a tile that grows only pushes the tiles under it in its own column:
-          no hole between tiles is possible, only the bottom edge of the page moves. The tiles are
-          dealt by MEASURED height so the two bottoms straddle each other (left ≈ 2100px, right
-          1650–2430px on the owner's account): Bilanciamento, Per classe, Accumulo | Piano,
-          Composizione ideale, Esposizione, Previdenza. AGENTS.md → a tile stretched beside a taller
-          neighbour is cured in the GRID.
-          Below `desktop:` both wrappers are `contents`, so the tiles are grid items again in their
-          own `order-*` and the phone keeps reading Bilanciamento → Piano → Per classe → Accumulo →
-          Composizione ideale → Esposizione → Previdenza. On `tablet:` (two columns, the iPad) Per
-          classe and Esposizione are the only half-width tiles, so `tablet:order-*` pulls Esposizione
-          up beside Per classe: in the phone's order a full-width tile sat between them and each one
-          had an empty half row beside it (fork, 2026-09-27). */}
-      <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
-        <div className="contents desktop:col-span-5 desktop:flex desktop:min-w-0 desktop:flex-col desktop:gap-3 desktop:self-start">
-        <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none')}>
-          <BilanciamentoTile
-            reading={describeBalance({
-              marketValue: bandedAllocation.marketValue,
-              misallocationPct: balanceScore.misallocationPct,
-              leverageGapPp: leverageInPlay ? balanceScore.leverageGapPp : 0,
-              offTargetCount: balanceSummary.offTargetCount,
-              classCount,
-              band,
-              untargeted,
-            })}
-            band={band}
-            onBandChange={setBand}
-            score={balanceScore.score}
-            misallocationPct={balanceScore.misallocationPct}
-            misallocationValue={(balanceScore.misallocationPct / 100) * bandedAllocation.notionalValue}
-            offTargetCount={balanceSummary.offTargetCount}
-            classCount={classCount}
-            offTargetLabels={offTarget.map((gap) => gap.label)}
-            leverage={leverageReading}
-            composition={composition}
-            footer={describeBalanceFooter({
-              frozen: frozenGroup,
-              excluded: excludedGroup,
-              netWorth: bandedAllocation.marketValue + excludedGroup.total,
-            })}
-          />
-        </div>
-
-        <div className={cn(TILE_CELL_CLASS, 'order-3 desktop:order-none')}>
-          <PerClasseTile
-            reading={describeClasses(activeGaps, band)}
-            aside="corrente · target · gap"
-            allocation={{ ...bandedAllocation, bySubCategory: actionableSubCategories }}
-            targets={targets}
-            orphans={orphanedTargets}
-            excludedByClass={excludedByClass}
-          />
-        </div>
-
-        {ownerId && (
-          <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:order-5 tablet:col-span-2 desktop:order-none')}>
-            <AccumuloTile
-              ownerId={ownerId}
-              allAssets={allAssets}
-              targets={targets}
-              band={band}
-              targetLeverageRatio={targetLeverageRatio}
-              idealAllocation={idealAllocation}
-              onAssetsChanged={() => void loadData()}
-            />
+      <PageTabs
+        tabs={ALLOCATION_TABS}
+        value={activeTab}
+        onValueChange={handleTabChange}
+        layoutId="allocation-tab"
+        ariaLabel="Sezioni di Allocazione"
+        renderedPanels={new Set([activeTab])}
+      >
+        {/* Only the active panel is mounted: each carries its own verdict, and two sections with the
+            page-verdict view-transition name would break the page scene. */}
+        {activeTab === 'bilanciamento' && (
+          <TabsContent
+            value="bilanciamento"
+            id={pageTabPanelId('allocation-tab', 'bilanciamento')}
+            aria-label="Bilanciamento"
+            // Radix names a Content after ITS trigger; these triggers are plain buttons, so the
+            // generated reference points at nothing. The name is the label above.
+            aria-labelledby={undefined}
+            className="mt-4 flex flex-col gap-3"
+          >
+          <div className="pt-1">
+            <PageVerdict verdict={verdict} ariaLabel="Verdetto sull'allocazione" />
           </div>
-        )}
-        </div>
 
-        {/* The right stack: what to do (Piano, Composizione ideale), then Esposizione and Previdenza. */}
-        <div className="contents desktop:col-span-7 desktop:flex desktop:min-w-0 desktop:flex-col desktop:gap-3 desktop:self-start">
-        <div className={cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none')}>
-          <PianoTile
-            mode={planMode}
-            onModeChange={setPlanMode}
-            amountInput={amountInput}
-            onAmountInputChange={setAmountInput}
-            reading={describePlan(planView, band, saleTax)}
-            view={planView}
-            footer={describePlanFooter(planMode, !!leverageInputs, saleTax?.tax !== null && saleTax?.tax !== undefined)}
-          />
-        </div>
+          {/* The band re-classifies the verdict, this page's plan and every chip at once. The region is
+              mounted with the page, before anything changes, so a reader is already watching it when the
+              text is rewritten — one created together with its content announces nothing. */}
+          <p className="sr-only" role="status" aria-live="polite">
+            {describeBandChange({ band, offTargetCount: balanceSummary.offTargetCount, classCount })}
+          </p>
 
-        {ownerId && (
-          <div className={cn(TILE_CELL_CLASS, 'order-5 tablet:order-6 tablet:col-span-2 desktop:order-none')}>
-            <ComposizioneIdealeTile
-              ownerId={ownerId}
-              allAssets={allAssets}
-              targets={targets}
-              band={band}
-              targetLeverageRatio={targetLeverageRatio}
-              idealAllocation={idealAllocation}
-              onAssetsChanged={() => void loadData()}
-            />
+          {/* TWO INDEPENDENT STACKS from `desktop:`, and no full-width row under them (fork,
+              2026-09-25). The Piano's height is not a constant: on the owner's account it runs from
+              381px (Versa) to 1159px (Ribilancia) and grows with the instruments to trade, and Per
+              classe grows when a class opens. A full-width row under two columns has to start below
+              the LONGER one, so every change of mode used to open a 250–580px hole under the shorter
+              column. In two stacks a tile that grows only pushes the tiles under it in its own column:
+              no hole between tiles is possible, only the bottom edge of the page moves. AGENTS.md → a
+              tile stretched beside a taller neighbour is cured in the GRID.
+              Since the Accumulo tab took the fork's two tiles away (2026-10-07) the stacks are
+              Bilanciamento, Per classe | Piano, Esposizione, Previdenza: the left one lost the
+              tallest tile it had, so the heights below are NOT re-measured yet — measure them on the
+              owner's account (`mirror:seed`) and move Esposizione across if the left column ends far
+              above the right (doc/pac-ottimizzatore § RV1).
+              Below `desktop:` both wrappers are `contents`, so the tiles are grid items again in their
+              own `order-*` and the phone keeps reading Bilanciamento → Piano → Per classe → Esposizione
+              → Previdenza. Per classe and Esposizione are the only half-width tiles on `tablet:` (two
+              columns, the iPad) and sit next to each other in that order, so they share one row. */}
+          <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
+            <div className="contents desktop:col-span-5 desktop:flex desktop:min-w-0 desktop:flex-col desktop:gap-3 desktop:self-start">
+            <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none')}>
+              <BilanciamentoTile
+                reading={describeBalance({
+                  marketValue: bandedAllocation.marketValue,
+                  misallocationPct: balanceScore.misallocationPct,
+                  leverageGapPp: leverageInPlay ? balanceScore.leverageGapPp : 0,
+                  offTargetCount: balanceSummary.offTargetCount,
+                  classCount,
+                  band,
+                  untargeted,
+                })}
+                band={band}
+                onBandChange={setBand}
+                score={balanceScore.score}
+                misallocationPct={balanceScore.misallocationPct}
+                misallocationValue={(balanceScore.misallocationPct / 100) * bandedAllocation.notionalValue}
+                offTargetCount={balanceSummary.offTargetCount}
+                classCount={classCount}
+                offTargetLabels={offTarget.map((gap) => gap.label)}
+                leverage={leverageReading}
+                composition={composition}
+                footer={describeBalanceFooter({
+                  frozen: frozenGroup,
+                  excluded: excludedGroup,
+                  netWorth: bandedAllocation.marketValue + excludedGroup.total,
+                })}
+              />
+            </div>
+
+            <div className={cn(TILE_CELL_CLASS, 'order-3 desktop:order-none')}>
+              <PerClasseTile
+                reading={describeClasses(activeGaps, band)}
+                aside="corrente · target · gap"
+                allocation={{ ...bandedAllocation, bySubCategory: actionableSubCategories }}
+                targets={targets}
+                orphans={orphanedTargets}
+                excludedByClass={excludedByClass}
+              />
+            </div>
+
+            </div>
+
+            {/* The right stack: what to do (Piano), then Esposizione and Previdenza. */}
+            <div className="contents desktop:col-span-7 desktop:flex desktop:min-w-0 desktop:flex-col desktop:gap-3 desktop:self-start">
+            <div className={cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none')}>
+              <PianoTile
+                mode={planMode}
+                onModeChange={setPlanMode}
+                amountInput={amountInput}
+                onAmountInputChange={setAmountInput}
+                reading={describePlan(planView, band, saleTax)}
+                view={planView}
+                footer={describePlanFooter(planMode, !!leverageInputs, saleTax?.tax !== null && saleTax?.tax !== undefined)}
+              />
+            </div>
+
+            <div className={cn(TILE_CELL_CLASS, 'order-4 desktop:order-none')}>
+              {user && ownerId && <EsposizioneTile userId={ownerId} />}
+            </div>
+
+            {pension && (
+              <div className={cn(TILE_CELL_CLASS, 'order-5 tablet:col-span-2 desktop:order-none')}>
+                <PrevidenzaTile
+                  reading={describePension(pension)}
+                  aside={describePensionAside({ fundNames: pensionFundNames, fundValue: pension.fundValue, allFrozen: pension.allFrozen })}
+                  lookThrough={pension}
+                />
+              </div>
+            )}
+            </div>
+
           </div>
+
+          {mobileAction}
+
+          <AllocazioneDettaglio frozen={frozenGroup} excluded={excludedGroup} />
+          </TabsContent>
         )}
 
-        <div className={cn(TILE_CELL_CLASS, 'order-6 tablet:order-4 desktop:order-none')}>
-          {user && ownerId && <EsposizioneTile userId={ownerId} />}
-        </div>
-
-        {pension && (
-          <div className={cn(TILE_CELL_CLASS, 'order-7 tablet:col-span-2 desktop:order-none')}>
-            <PrevidenzaTile
-              reading={describePension(pension)}
-              aside={describePensionAside({ fundNames: pensionFundNames, fundValue: pension.fundValue, allFrozen: pension.allFrozen })}
-              lookThrough={pension}
-            />
-          </div>
+        {activeTab === 'accumulo' && (
+          <TabsContent
+            value="accumulo"
+            id={pageTabPanelId('allocation-tab', 'accumulo')}
+            aria-label="Accumulo"
+            aria-labelledby={undefined}
+          >
+            {ownerId && (
+              <AccumuloTab
+                ownerId={ownerId}
+                allAssets={allAssets}
+                targets={targets}
+                band={band}
+                targetLeverageRatio={targetLeverageRatio}
+                idealAllocation={idealAllocation}
+                onAssetsChanged={() => void loadData()}
+              />
+            )}
+          </TabsContent>
         )}
-        </div>
-
-      </div>
-
-      {mobileAction}
-
-      <AllocazioneDettaglio frozen={frozenGroup} excluded={excludedGroup} />
+      </PageTabs>
     </PageContainer>
   );
 }
