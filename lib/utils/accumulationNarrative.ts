@@ -547,6 +547,14 @@ export const ACCUMULO_STEP2_ALREADY_SELLING = 'già in vendita';
 export const ACCUMULO_STEP2_FROM_LABEL = 'Parti da';
 export const ACCUMULO_STEP2_FROM_MODEL = 'Portafoglio modello';
 export const ACCUMULO_STEP2_FROM_PLAN = 'Piano attuale';
+/** One line under «Parti da»: what the active source put in the Target column. «Oggi» is the share
+ *  among the plan's instruments, so «Pesi di oggi» reads as target = oggi. */
+export const ACCUMULO_STEP2_FROM_HINT: Record<'plan' | 'model' | 'today' | 'optimizer', string> = {
+  plan: 'I pesi salvati nel piano, com’erano quando l’hai aperto.',
+  model: 'I pesi del portafoglio modello.',
+  today: 'Target = Oggi: i nuovi soldi mantengono le proporzioni di adesso tra gli strumenti del piano.',
+  optimizer: 'I pesi che l’ottimizzatore propone dagli obiettivi.',
+};
 export const ACCUMULO_STEP2_FROM_TODAY = 'Pesi di oggi';
 export const ACCUMULO_STEP2_REDISTRIBUTE = 'Distribuisci il resto';
 export const ACCUMULO_STEP2_FROM_OPTIMIZER = 'Ricalcola';

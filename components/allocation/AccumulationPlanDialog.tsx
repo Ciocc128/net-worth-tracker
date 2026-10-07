@@ -84,6 +84,7 @@ import {
   ACCUMULO_STEP2_FROM_LABEL,
   ACCUMULO_STEP2_FROM_MODEL,
   ACCUMULO_STEP2_FROM_PLAN,
+  ACCUMULO_STEP2_FROM_HINT,
   ACCUMULO_STEP2_FROM_OPTIMIZER,
   ACCUMULO_STEP2_FROM_TODAY,
   ACCUMULO_STEP2_GROUP_HINT,
@@ -378,13 +379,16 @@ export function AccumulationPlanDialog({
   });
   const suggestedInflow = suggestMonthlyInflow(cashflowQuery.data?.annualSavings ?? 0);
 
-  // Step 2's figures, on ONE base B (the positions' value + L): today's share, the target, what to
+  // Step 2's figures: today's share, what to
   // buy (euro, whole shares under it) and the monthly part — the same split the calendar uses.
   const stepTwoFigures = useMemo(() => {
     if (!open || !liquidity) return new Map<string, { todayPct: number; buyEur: number; buyShares: number; monthlyEur: number }>();
     const states = resolvePositionStates(draft.positions, assetsById, DEPS, draft.disposals);
     const totals = computeTotalPurchases(states, liquidity.L);
-    const base = states.reduce((sum, state) => sum + state.currentValueEur, 0) + liquidity.L;
+    // «Oggi» on the same footing as the target and «Pesi di oggi»: the share among the plan's own
+    // instruments (they sum to 100%), without the cash still to invest — so «Pesi di oggi» reads
+    // as target = oggi, and every other source as the shift it asks for.
+    const base = states.reduce((sum, state) => sum + state.currentValueEur, 0);
     const figures = new Map<string, { todayPct: number; buyEur: number; buyShares: number; monthlyEur: number }>();
     for (const state of states) {
       const buyEur = totals[state.positionId] ?? 0;
@@ -813,6 +817,7 @@ export function AccumulationPlanDialog({
                 semantics="radio"
                 optionClassName="min-h-11 desktop:min-h-0"
               />
+              {weightsFrom && <p className="mt-1.5 text-[12px] text-muted-foreground">{ACCUMULO_STEP2_FROM_HINT[weightsFrom]}</p>}
             </div>
 
             {showOptimizer ? (
