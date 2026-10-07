@@ -4,7 +4,7 @@
  * Everything here routes through semantic tokens so it holds across themes and modes: raw
  * `text-red-600 / bg-amber-50 / text-emerald-400` classes diverged from the theme's
  * `--destructive` / `--positive` on the named themes. The verdict labels are the chips of the
- * Obiettivi and Milestone tiles; the words of the page live in `lib/utils/goalsNarrative.ts`.
+ * Obiettivi tile; the words of the page live in `lib/utils/goalsNarrative.ts`.
  */
 
 import { GoalVerdict } from '@/lib/utils/goalTrajectory';

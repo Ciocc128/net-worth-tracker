@@ -3,7 +3,7 @@
  *
  * The tab computes nothing: `goalTrajectory.ts` does the annuity math, `goalMath.ts` the progress
  * and the goal-derived allocation; this module CHOOSES what each tile shows of them — every goal
- * as one line in urgency order, the selected goal's trajectory with its series, the milestones,
+ * as one line in urgency order, the selected goal's trajectory with its series,
  * the allocation the goals derive beside the one the quotas already hold, and the assignments
  * closed by the free shares — so a figure printed on the page can always be pointed at here and
  * pinned by a test. Words live in `goalsNarrative.ts`.
@@ -251,57 +251,6 @@ export function withUncertainty(view: TrajectoryView, uncertainty: GoalUncertain
     return p ? { ...point, p10: Math.round(p.p10), p50: Math.round(p.p50), p90: Math.round(p.p90), band: [Math.round(p.p10), Math.round(p.p90)] as [number, number] } : point;
   });
   return { ...view, series, uncertainty };
-}
-
-// ─── Milestones ───────────────────────────────────────────────────────────────
-
-export type MilestoneKind = 'reached' | 'dated' | 'never';
-
-export interface MilestoneEntry {
-  goalId: string;
-  name: string;
-  color: string;
-  kind: MilestoneKind;
-  /** The projected arrival, null when reached or never. */
-  date: GoalDate | null;
-  deadline: GoalDate | null;
-  /** How many months after its deadline the goal lands, null when in time or undated. */
-  monthsPastDeadline: number | null;
-}
-
-/**
- * The order in which the goals with a target will be reached at today's pace: the reached ones
- * first, then the projected arrivals in order, then the goals the pace never reaches. A goal
- * that lands after its deadline keeps its PROJECTED date and carries the lateness — the deadline
- * is never shown as if it were an arrival (The Narrative Honesty Rule). Open goals have nothing
- * to reach and are not listed.
- */
-export function buildMilestones(rows: GoalRow[]): MilestoneEntry[] {
-  const entry = (row: GoalRow, kind: MilestoneKind, date: GoalDate | null, monthsPastDeadline: number | null): MilestoneEntry => ({
-    goalId: row.goal.id,
-    name: row.goal.name,
-    color: row.goal.color,
-    kind,
-    date,
-    deadline: row.goal.targetDate ? goalDateFromIso(row.goal.targetDate) : null,
-    monthsPastDeadline,
-  });
-
-  const reached = rows.filter((r) => r.trajectory.verdict === 'reached').map((r) => entry(r, 'reached', null, null));
-  const pending = rows.filter((r) => r.trajectory.verdict !== 'reached' && r.trajectory.verdict !== 'noTarget');
-
-  const dated = pending
-    .filter((r) => r.trajectory.projectedDate !== null && r.trajectory.monthsToTarget !== null)
-    .sort((a, b) => a.trajectory.monthsToTarget! - b.trajectory.monthsToTarget!)
-    .map((r) => {
-      const { monthsToTarget, monthsToDeadline } = r.trajectory;
-      const late = monthsToDeadline !== null && monthsToTarget! > monthsToDeadline ? monthsToTarget! - monthsToDeadline : null;
-      return entry(r, 'dated', goalDateFromDate(r.trajectory.projectedDate!), late);
-    });
-
-  const never = pending.filter((r) => r.trajectory.projectedDate === null).map((r) => entry(r, 'never', null, null));
-
-  return [...reached, ...dated, ...never];
 }
 
 // ─── The allocation the goals derive (the Allocazione derivata tile) ─────────
