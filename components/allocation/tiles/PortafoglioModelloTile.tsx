@@ -17,7 +17,7 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
-import type { PlanPosition, OptimizerSnapshot } from '@/types/accumulationPlan';
+import type { PlanPosition, PlanDisposal, OptimizerSnapshot } from '@/types/accumulationPlan';
 import type { ModelPortfolio } from '@/types/modelPortfolio';
 import type { RebalanceBand } from '@/lib/utils/allocationUtils';
 import { calculateAssetValue, getAssetById } from '@/lib/services/assetService';
@@ -94,7 +94,7 @@ export function PortafoglioModelloTile({
   const isDemo = useDemoMode();
   const saveModel = useSaveModelPortfolio(ownerId);
   const [view, setView] = useState<View>('closed');
-  const [pacSeed, setPacSeed] = useState<{ positions: PlanPosition[]; optimizerSnapshot: OptimizerSnapshot } | undefined>(undefined);
+  const [pacSeed, setPacSeed] = useState<{ positions: PlanPosition[]; disposals?: PlanDisposal[]; optimizerSnapshot: OptimizerSnapshot } | undefined>(undefined);
 
   const assetsById = useMemo(() => new Map(allAssets.map((asset) => [asset.id, asset])), [allAssets]);
   const labelOf = (assetId: string): string => {
@@ -233,6 +233,7 @@ export function PortafoglioModelloTile({
           targetLeverageRatio={targetLeverageRatio}
           idealAllocation={idealAllocation}
           seedDraft={pacSeed}
+          model={model}
           onAssetsChanged={onAssetsChanged}
           onSaved={() => setView('closed')}
         />

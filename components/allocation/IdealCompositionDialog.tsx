@@ -19,7 +19,7 @@
 import { useMemo, useState, type MouseEvent } from 'react';
 import Link from 'next/link';
 import type { Asset, AssetAllocationTarget, AssetClass, IdealAllocationSettings } from '@/types/assets';
-import type { PlanPosition, OptimizerSnapshot } from '@/types/accumulationPlan';
+import type { PlanPosition, PlanDisposal, OptimizerSnapshot } from '@/types/accumulationPlan';
 import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
 import {
   buildStandaloneCandidates,
@@ -31,7 +31,7 @@ import {
   type OptimizerResult,
   type OptimizerSaleInput,
 } from '@/lib/utils/weightOptimizer';
-import { weightsToSeedPositions } from '@/lib/utils/accumulationPlanUtils';
+import { weightsToSeedPositions, seedDisposalsFromSale, unitPriceEur } from '@/lib/utils/accumulationPlanUtils';
 import { proposalToModelWeights, describeModelExclusions, MODEL_NO_TRADABLE_INSTRUMENTS } from '@/lib/utils/modelPortfolio';
 import { useSaveModelPortfolio } from '@/lib/hooks/useModelPortfolio';
 import { describeWriteError } from '@/lib/utils/dialogNarrative';
@@ -124,7 +124,7 @@ interface IdealCompositionDialogProps {
   model: ModelPortfolio | null;
   /** "Crea un PAC con questi pesi": hands the caller a fresh draft's seed — the caller opens
    *  `AccumulationPlanDialog` itself (never nested under this one). */
-  onCreatePac: (seed: { positions: PlanPosition[]; optimizerSnapshot: OptimizerSnapshot }) => void;
+  onCreatePac: (seed: { positions: PlanPosition[]; disposals?: PlanDisposal[]; optimizerSnapshot: OptimizerSnapshot }) => void;
 }
 
 export function IdealCompositionDialog({
@@ -249,7 +249,14 @@ export function IdealCompositionDialog({
     // B1: a frozen asset and a liquidity account never become PAC positions (RM2).
     const positions = weightsToSeedPositions(keptWeights);
     if (positions.length === 0) return;
-    onCreatePac({ positions, optimizerSnapshot: buildSnapshot(result) });
+    // RP2: «Con vendite mirate» seeds its sales too (partial for an instrument that stays in the plan).
+    const disposals = seedDisposalsFromSale(
+      result.sale?.perCandidate ?? [],
+      new Set(keptWeights.map((w) => w.key)),
+      assetsById,
+      { valueOf: calculateAssetValue, priceOf: unitPriceEur }
+    );
+    onCreatePac({ positions, disposals, optimizerSnapshot: buildSnapshot(result) });
   };
 
   // RO3: the result becomes the model portfolio (RM2 weights, `origin: 'optimizer'`, the snapshot).

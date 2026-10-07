@@ -87,9 +87,9 @@ export function OptimizerPanel({
   const profilesQuery = useInstrumentProfiles(calcRequested ? ownerId : undefined, memberAssetIds);
 
   const baseEur = useMemo(() => {
-    const states = resolvePositionStates(draft.positions, assetsById, DEPS);
+    const states = resolvePositionStates(draft.positions, assetsById, DEPS, draft.disposals);
     return states.reduce((sum, s) => sum + s.currentValueEur, 0) + liquidityL;
-  }, [draft.positions, assetsById, liquidityL]);
+  }, [draft.positions, draft.disposals, assetsById, liquidityL]);
 
   const { referenceCountries, referenceAreas, referenceEstimatedShare } =
     useOptimizerGeographyReference(idealAllocation);

@@ -46,6 +46,8 @@ const planPositionSchema = z.object({
 
 const planDisposalSchema = z.object({
   assetId: z.string().min(1),
+  quantity: z.number().optional(),
+  monthIndex: z.number().int().optional(),
   estimatedProceedsEur: z.number(),
   status: z.enum(['planned', 'executed', 'skipped']),
   transactionIds: z.array(z.string()).optional(),
@@ -130,6 +132,7 @@ export function validateDraftAgainstAssets(
     }
   }
 
+  const positionMembers = new Set(draft.positions.flatMap((p) => p.memberAssetIds));
   for (const disposal of draft.disposals) {
     const asset = assetsById.get(disposal.assetId);
     if (asset && resolveAllocationRole(asset) !== 'tradable') {
@@ -138,6 +141,23 @@ export function validateDraftAgainstAssets(
         message: describeDraftIssue({ code: 'position_not_tradable', label: labelOf(disposal.assetId, assetsById) }),
         assetId: disposal.assetId,
       });
+    }
+    // RP2: a partial sale of a position's member is allowed; a total one is not.
+    if (disposal.quantity !== undefined && (!Number.isInteger(disposal.quantity) || disposal.quantity <= 0)) {
+      issues.push({
+        code: 'disposal_quantity',
+        message: describeDraftIssue({ code: 'disposal_quantity', label: labelOf(disposal.assetId, assetsById) }),
+        assetId: disposal.assetId,
+      });
+    } else if (positionMembers.has(disposal.assetId)) {
+      const held = asset?.quantity ?? 0;
+      if (disposal.quantity === undefined || disposal.quantity >= held) {
+        issues.push({
+          code: 'disposal_full_on_position',
+          message: describeDraftIssue({ code: 'disposal_full_on_position', label: labelOf(disposal.assetId, assetsById) }),
+          assetId: disposal.assetId,
+        });
+      }
     }
   }
 
@@ -148,8 +168,14 @@ export function validateDraftAgainstAssets(
       seenIn.set(memberId, (seenIn.get(memberId) ?? 0) + 1);
     }
   }
+  // A disposal counts as a second appearance only when it is not a partial sale of a position's member (RP2).
+  const disposalSeen = new Map<string, number>();
   for (const disposal of draft.disposals) {
-    seenIn.set(disposal.assetId, (seenIn.get(disposal.assetId) ?? 0) + 1);
+    disposalSeen.set(disposal.assetId, (disposalSeen.get(disposal.assetId) ?? 0) + 1);
+    if (!positionMembers.has(disposal.assetId)) seenIn.set(disposal.assetId, (seenIn.get(disposal.assetId) ?? 0) + 1);
+  }
+  for (const [assetId, count] of disposalSeen.entries()) {
+    if (count > 1 && positionMembers.has(assetId)) seenIn.set(assetId, 2);
   }
   for (const [assetId, count] of seenIn.entries()) {
     if (count > 1) {

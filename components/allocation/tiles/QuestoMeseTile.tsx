@@ -21,12 +21,18 @@
 import { useMemo, useRef, useState } from 'react';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { AccumulationPlan } from '@/types/accumulationPlan';
+import type { ModelPortfolio } from '@/types/modelPortfolio';
 import type { RebalanceBand } from '@/lib/utils/allocationUtils';
 import {
   computeUsableLiquidity,
   summarizeReserve,
+  buildRegisteredLinePatch,
+  findFirstIntactInstallment,
   projectPlanOutcome,
+  recalibrateInstallment,
+  recalibrationQuantities,
   resolvePositionStates,
+  shouldProposeRecalibration,
 } from '@/lib/utils/accumulationPlanUtils';
 import type { LineMatch, LineUiState } from '@/lib/utils/accumulationPlanMatching';
 import { isPlanDone } from '@/lib/utils/accumuloSummary';
@@ -34,6 +40,8 @@ import { compareAllocations } from '@/lib/services/assetAllocationService';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import {
   useActivatePlan,
+  useApplyRecalibration,
+  useDismissRecalibration,
   useClosePlan,
   useDeleteDraftPlan,
   useSetDisposal,
@@ -49,7 +57,7 @@ import { Input } from '@/components/ui/input';
 import { NarrativeText } from '@/components/ui/narrative-text';
 import { AccumulationPlanDialog } from '@/components/allocation/AccumulationPlanDialog';
 import { AccumulationCalendarDialog } from '@/components/allocation/AccumulationCalendarDialog';
-import { AccumulationRecalibrateDialog } from '@/components/allocation/AccumulationRecalibrateDialog';
+import { TransactionDialog } from '@/components/assets/TransactionDialog';
 import { DEPS, DraftBox, ROW_ACTION_CLASS, ROW_UNDO_CLASS, TILE_ACTION_CLASS, effectiveLineState } from '@/components/allocation/tiles/accumuloShared';
 import { cachedFormatCurrencyEUR, formatNumberIt } from '@/lib/utils/formatters';
 import { armedActionLabel, describeWriteError } from '@/lib/utils/dialogNarrative';
@@ -65,7 +73,10 @@ import {
   ACCUMULO_ACTION_EDIT,
   ACCUMULO_ACTION_IGNORE_MATCH,
   ACCUMULO_ACTION_MARK_EXECUTED,
-  ACCUMULO_ACTION_RECALIBRATE,
+  ACCUMULO_ACTION_APPLY,
+  ACCUMULO_ACTION_KEEP_AS_IS,
+  ACCUMULO_ACTION_REGISTER,
+  ACCUMULO_ACTION_REVISE,
   ACCUMULO_ACTION_REVIEW,
   ACCUMULO_ACTION_SAVE,
   ACCUMULO_ACTION_SKIP,
@@ -89,6 +100,9 @@ import {
   ACCUMULO_MONTH_TILE_EYEBROW,
   describeAccumulationOutcomeFooter,
   describeMonthsBarCaption,
+  describeRecalibration,
+  describeRegisterNote,
+  describeRegisterSaleNote,
   describeReserveWarning,
 } from '@/lib/utils/accumulationNarrative';
 
@@ -107,6 +121,8 @@ interface QuestoMeseTileProps {
   currentIndex: number;
   /** The ledger matching of the plan, computed once by the tab (its verdict reads the same states). */
   matchResult: { matches: LineMatch[]; lineStates: Record<string, LineUiState> };
+  /** The model portfolio: the editor's «Parti da» offers it (RP1). */
+  model?: ModelPortfolio | null;
   onAssetsChanged: () => void;
 }
 
@@ -120,14 +136,18 @@ export function QuestoMeseTile({
   idealAllocation,
   currentIndex,
   matchResult,
+  model = null,
   onAssetsChanged,
 }: QuestoMeseTileProps) {
   const isDemo = useDemoMode();
 
   const [planDialogOpen, setPlanDialogOpen] = useState(false);
+  const [reviseOpen, setReviseOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarFocusIndex, setCalendarFocusIndex] = useState<number | undefined>(undefined);
-  const [recalibrateIndex, setRecalibrateIndex] = useState<number | null>(null);
+  const [registerTarget, setRegisterTarget] = useState<
+    { kind: 'line'; installmentIndex: number; positionId: string } | { kind: 'disposal'; assetId: string } | null
+  >(null);
   const [manualLine, setManualLine] = useState<{ installmentIndex: number; positionId: string; qty: string; amount: string } | null>(null);
   const [manualDisposal, setManualDisposal] = useState<{ assetId: string; amount: string } | null>(null);
   const [ignoredMatches, setIgnoredMatches] = useState<Set<string>>(new Set());
@@ -140,6 +160,8 @@ export function QuestoMeseTile({
   const activateMutation = useActivatePlan(ownerId);
   const setLineMutation = useSetInstallmentLine(ownerId);
   const setDisposalMutation = useSetDisposal(ownerId);
+  const applyRecalibrationMutation = useApplyRecalibration(ownerId);
+  const dismissRecalibrationMutation = useDismissRecalibration(ownerId);
 
   const deleteDraftArmed = useArmedDelete(deleteDraftRef, () => {
     void deleteDraftMutation.mutateAsync(plan.id);
@@ -229,6 +251,77 @@ export function QuestoMeseTile({
     setCalendarOpen(true);
   };
 
+  /** RP5: the «Registra» dialog's prefill for the targeted line or sale, and what it links when the trade is saved. */
+  const registerSubject = (() => {
+    if (!registerTarget) return null;
+    if (registerTarget.kind === 'line') {
+      const installment = plan.installments.find((i) => i.index === registerTarget.installmentIndex);
+      const line = installment?.lines.find((l) => l.positionId === registerTarget.positionId);
+      const asset = line ? assetsById.get(line.assetId) : undefined;
+      if (!installment || !line || !asset) return null;
+      const sources = plan.liquidity.sourceCashAssetIds.map((id) => assetsById.get(id)).filter((a): a is Asset => !!a);
+      const source = sources.find((a) => DEPS.valueOf(a) >= line.plannedAmountEur) ?? sources[0];
+      return {
+        asset,
+        prefill: {
+          type: 'buy' as const,
+          quantity: line.plannedQuantity,
+          linkedCashAssetId: source?.id,
+          note: describeRegisterNote(plan.name, installment.index, plan.months),
+        },
+      };
+    }
+    const disposal = plan.disposals.find((d) => d.assetId === registerTarget.assetId);
+    const asset = assetsById.get(registerTarget.assetId);
+    if (!disposal || !asset) return null;
+    const sources = plan.liquidity.sourceCashAssetIds.map((id) => assetsById.get(id)).filter((a): a is Asset => !!a);
+    return {
+      asset,
+      prefill: {
+        type: 'sell' as const,
+        quantity: disposal.quantity ?? asset.quantity,
+        linkedCashAssetId: sources[0]?.id,
+        note: describeRegisterSaleNote(plan.name),
+      },
+    };
+  })();
+
+  const handleRegistered = async (result: { transactionId: string }, data: { quantity: number }, priceEur: number) => {
+    if (!registerTarget) return;
+    const amount = data.quantity * priceEur;
+    try {
+      if (registerTarget.kind === 'line') {
+        const installmentIndex = registerTarget.installmentIndex;
+        await setLineMutation.mutateAsync({
+          planId: plan.id,
+          index: installmentIndex,
+          positionId: registerTarget.positionId,
+          patch: buildRegisteredLinePatch(result.transactionId, data.quantity, priceEur),
+          measurementInput,
+        });
+      } else {
+        await setDisposalMutation.mutateAsync({
+          planId: plan.id,
+          assetId: registerTarget.assetId,
+          patch: { status: 'executed', transactionIds: [result.transactionId], executedAmountEur: amount },
+        });
+      }
+    } catch (error) {
+      // The trade is saved; only the link failed — the matching proposes it again from the ledger.
+      toast.error(describeWriteError(error));
+    }
+  };
+
+  const registerDialog = registerSubject && (
+    <TransactionDialog
+      open
+      onClose={() => setRegisterTarget(null)}
+      asset={registerSubject.asset}
+      prefill={registerSubject.prefill}
+      onCreated={(result, data, priceEur) => void handleRegistered(result, data, priceEur)}
+    />
+  );
+
   const planDialog = planDialogOpen && (
     <AccumulationPlanDialog
       open={planDialogOpen}
@@ -240,8 +333,27 @@ export function QuestoMeseTile({
       band={band}
       targetLeverageRatio={targetLeverageRatio}
       idealAllocation={idealAllocation}
+      model={model}
       onAssetsChanged={onAssetsChanged}
       onSaved={() => setPlanDialogOpen(false)}
+    />
+  );
+
+  const reviseDialog = reviseOpen && (
+    <AccumulationPlanDialog
+      open={reviseOpen}
+      onClose={() => setReviseOpen(false)}
+      ownerId={ownerId}
+      plan={plan}
+      revise
+      allAssets={allAssets}
+      targets={targets}
+      band={band}
+      targetLeverageRatio={targetLeverageRatio}
+      idealAllocation={idealAllocation}
+      model={model}
+      onAssetsChanged={onAssetsChanged}
+      onSaved={() => setReviseOpen(false)}
     />
   );
 
@@ -309,7 +421,7 @@ export function QuestoMeseTile({
 
   // ── active / done ────────────────────────────────────────────────────────
   const done = isPlanDone(plan, currentIndex);
-  const states = resolvePositionStates(plan.positions, assetsById, DEPS);
+  const states = resolvePositionStates(plan.positions, assetsById, DEPS, plan.disposals);
   const outcome = projectPlanOutcome(states, plan.installments, plan.residualEur ?? 0, assetsById, plan.positions, DEPS);
 
   if (done) {
@@ -365,6 +477,46 @@ export function QuestoMeseTile({
     totalMonths: plan.months,
   });
 
+  // RP3: the open installment's recalibration, proposed in the tile whenever the figures move.
+  const recalibration = currentInstallment ? recalibrateInstallment(plan, currentIndex, assetsById, DEPS) : null;
+  const proposal =
+    currentInstallment && recalibration && shouldProposeRecalibration(recalibration, currentInstallment.recalibrationDismissed)
+      ? {
+          result: recalibration,
+          reading: describeRecalibration({
+            lines: recalibration.lines.map((line) => ({
+              label: plan.positions.find((p) => p.id === line.positionId)?.label ?? line.positionId,
+              plannedQuantity: line.plannedQuantity,
+              suggestedQuantity: line.suggestedQuantity,
+            })),
+            plannedTotalEur: recalibration.plannedTotalEur,
+            suggestedTotalEur: recalibration.suggestedTotalEur,
+          }),
+        }
+      : null;
+
+  const applyProposal = async () => {
+    if (!proposal) return;
+    try {
+      await applyRecalibrationMutation.mutateAsync({ planId: plan.id, index: currentIndex, lines: proposal.result.lines });
+    } catch (error) {
+      toast.error(describeWriteError(error));
+    }
+  };
+
+  const dismissProposal = async () => {
+    if (!proposal) return;
+    try {
+      await dismissRecalibrationMutation.mutateAsync({
+        planId: plan.id,
+        index: currentIndex,
+        quantities: recalibrationQuantities(proposal.result),
+      });
+    } catch (error) {
+      toast.error(describeWriteError(error));
+    }
+  };
+
   return (
     <>
       <Tile eyebrow={ACCUMULO_MONTH_TILE_EYEBROW}>
@@ -394,6 +546,22 @@ export function QuestoMeseTile({
           })}
         </div>
         <p className="mt-1.5 font-mono text-[10px] tabular-nums text-muted-foreground">{monthsCaption}</p>
+
+        {proposal && (
+          <div className="mt-3 rounded-lg bg-muted p-3">
+            <NarrativeText segments={proposal.reading} className="text-[12px] leading-[1.5] text-foreground" />
+            {!isDemo && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button className={ROW_ACTION_CLASS} disabled={applyRecalibrationMutation.isPending} onClick={() => void applyProposal()}>
+                  {ACCUMULO_ACTION_APPLY}
+                </Button>
+                <Button variant="outline" className={ROW_ACTION_CLASS} disabled={dismissRecalibrationMutation.isPending} onClick={() => void dismissProposal()}>
+                  {ACCUMULO_ACTION_KEEP_AS_IS}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="mt-3 min-w-0">
         {/* Lines of the current installment, late lines first (§10.2 point 4). */}
@@ -436,6 +604,15 @@ export function QuestoMeseTile({
                           {ACCUMULO_ACTION_IGNORE_MATCH}
                         </Button>
                       </span>
+                    )}
+                    {!isDemo && (status === 'todo' || status === 'late') && (
+                      <Button
+                        variant="outline"
+                        className={ROW_ACTION_CLASS}
+                        onClick={() => setRegisterTarget({ kind: 'line', installmentIndex, positionId: line.positionId })}
+                      >
+                        {ACCUMULO_ACTION_REGISTER}
+                      </Button>
                     )}
                     {!isDemo && status === 'late' && (
                       <span className="flex shrink-0 gap-1.5">
@@ -518,6 +695,7 @@ export function QuestoMeseTile({
                         <span className="line-clamp-2 break-words text-[13px] text-foreground">{asset?.name ?? disposal.assetId}</span>
                         <span className="mt-0.5 block font-mono text-[11px] tabular-nums text-muted-foreground">
                           {asset && `${getAssetDisplayTicker(asset)} · `}
+                          {disposal.quantity !== undefined && `${formatNumberIt(disposal.quantity, 0)} quote · `}
                           {cachedFormatCurrencyEUR(disposal.executedAmountEur ?? disposal.estimatedProceedsEur)}
                         </span>
                       </span>
@@ -536,6 +714,11 @@ export function QuestoMeseTile({
                             {ACCUMULO_ACTION_IGNORE_MATCH}
                           </Button>
                         </span>
+                      )}
+                      {!isDemo && (status === 'todo' || status === 'late') && (
+                        <Button variant="outline" className={ROW_ACTION_CLASS} onClick={() => setRegisterTarget({ kind: 'disposal', assetId: disposal.assetId })}>
+                          {ACCUMULO_ACTION_REGISTER}
+                        </Button>
                       )}
                       {!isDemo && status === 'late' && (
                         <span className="flex shrink-0 gap-1.5">
@@ -599,8 +782,8 @@ export function QuestoMeseTile({
         <div className="mt-auto border-t border-border pt-3.5">
           <NarrativeText segments={describeAccumulationOutcomeFooter({ maxDrift, residualEur: outcome.residualEur })} className="text-[11px] leading-[1.5] text-muted-foreground" />
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <Button variant="outline" className={TILE_ACTION_CLASS} disabled={!currentInstallment} onClick={() => setRecalibrateIndex(currentIndex)}>
-              {ACCUMULO_ACTION_RECALIBRATE}
+            <Button variant="outline" className={TILE_ACTION_CLASS} disabled={isDemo || !findFirstIntactInstallment(plan)} onClick={() => setReviseOpen(true)}>
+              {ACCUMULO_ACTION_REVISE}
             </Button>
             <Button variant="outline" className={TILE_ACTION_CLASS} onClick={() => { setCalendarFocusIndex(undefined); setCalendarOpen(true); }}>
               {ACCUMULO_ACTION_CALENDAR}
@@ -620,17 +803,8 @@ export function QuestoMeseTile({
       </Tile>
 
       {calendarDialog}
-      {recalibrateIndex !== null && (
-        <AccumulationRecalibrateDialog
-          open={recalibrateIndex !== null}
-          onClose={() => setRecalibrateIndex(null)}
-          plan={plan}
-          index={recalibrateIndex}
-          ownerId={ownerId}
-          allAssets={allAssets}
-          onApplied={() => setRecalibrateIndex(null)}
-        />
-      )}
+      {registerDialog}
+      {reviseDialog}
     </>
   );
 }

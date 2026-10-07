@@ -20,11 +20,14 @@ import {
   setInstallmentLine,
   setDisposal,
   applyRecalibration,
+  dismissRecalibration,
+  revisePlan,
   closePlan,
   deleteDraftPlan,
   type ActivatePlanInput,
   type MeasurementInput,
   type SetInstallmentLinePatch,
+  type RevisePlanInput,
 } from '@/lib/services/accumulationPlanService';
 import type {
   AccumulationPlan,
@@ -32,7 +35,7 @@ import type {
   AccumulationPlanStatus,
   InstallmentLineStatus,
 } from '@/types/accumulationPlan';
-import type { RecalibrationLine } from '@/lib/utils/accumulationPlanUtils';
+import type { RecalibrationLine, PlanRevisionInput } from '@/lib/utils/accumulationPlanUtils';
 
 /** All of the owner's accumulation plans. */
 export function useAccumulationPlans(ownerId: string | undefined) {
@@ -119,6 +122,24 @@ export function useApplyRecalibration(ownerId: string) {
   return useMutation({
     mutationFn: ({ planId, index, lines }: { planId: string; index: number; lines: RecalibrationLine[] }) =>
       applyRecalibration(planId, index, lines),
+    onSuccess: () => invalidateAccumulationPlans(queryClient, ownerId),
+  });
+}
+
+export function useDismissRecalibration(ownerId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ planId, index, quantities }: { planId: string; index: number; quantities: Record<string, number> }) =>
+      dismissRecalibration(planId, index, quantities),
+    onSuccess: () => invalidateAccumulationPlans(queryClient, ownerId),
+  });
+}
+
+export function useRevisePlan(ownerId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ planId, revision, input }: { planId: string; revision: PlanRevisionInput; input: RevisePlanInput }) =>
+      revisePlan(planId, revision, input),
     onSuccess: () => invalidateAccumulationPlans(queryClient, ownerId),
   });
 }

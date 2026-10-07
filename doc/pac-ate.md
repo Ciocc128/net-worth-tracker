@@ -1,5 +1,7 @@
 # ATE — Piano di accumulo (PAC) dalla liquidità
 
+> **Nota (A3, 2026-10-07).** D2 (i pesi del piano partono dai pesi di mercato di oggi) e D5 (le vendite sono sempre totali, al mese 1) sono superate da PO1 e PO8 di `doc/pac-ottimizzatore/README.md`: il piano parte dal portafoglio modello e una vendita può essere parziale e collocata in un mese. D1 resta valida per PO3. Vale il dossier.
+
 > **Per chi implementa (agente).** Questo documento è la specifica tecnica vincolante della feature
 > "Accumulo". Le decisioni funzionali sono **chiuse**: non riaprirle, non proporre alternative, non
 > aggiungere funzionalità non scritte qui. Dove questo documento e il codice sembrano in contrasto,

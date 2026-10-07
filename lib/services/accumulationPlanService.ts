@@ -29,9 +29,12 @@ import { db } from '@/lib/firebase/config';
 import { toDate } from '@/lib/utils/dateHelpers';
 import { removeUndefinedDeep } from '@/lib/utils/firestoreData';
 import { userFacingError } from '@/lib/utils/dialogNarrative';
-import { accumulationPlanDraftSchema } from '@/lib/utils/accumulationPlanSchema';
+import { accumulationPlanDraftSchema, validateDraftAgainstAssets } from '@/lib/utils/accumulationPlanSchema';
+import { describeDraftIssue } from '@/lib/utils/accumulationNarrative';
 import {
   resolvePositionStates,
+  proceedsOfDisposal,
+  buildRevisedPlan,
   computeUsableLiquidity,
   computeTotalPurchases,
   scheduleInstallments,
@@ -39,6 +42,7 @@ import {
   type PlanDeps,
   type AllocationCompare,
   type RecalibrationLine,
+  type PlanRevisionInput,
 } from '@/lib/utils/accumulationPlanUtils';
 import type {
   AccumulationPlan,
@@ -53,6 +57,7 @@ import type {
   PlanDisposal,
   PlanLiquidity,
   PlanPosition,
+  PlanRevision,
 } from '@/types/accumulationPlan';
 import type { Asset, AssetAllocationTarget, AssetClass } from '@/types/assets';
 
@@ -79,7 +84,19 @@ function toInstallment(data: Record<string, unknown>): Installment {
     carryInEur: (data.carryInEur ?? {}) as Record<string, number>,
     confirmedAt: data.confirmedAt ? toDate(data.confirmedAt as never) : undefined,
     measurement: toClassMeasurement(data.measurement as Record<string, unknown> | undefined),
+    ...(data.recalibrationDismissed
+      ? { recalibrationDismissed: data.recalibrationDismissed as Installment['recalibrationDismissed'] }
+      : {}),
   };
+}
+
+function toRevisions(data: unknown): PlanRevision[] | undefined {
+  if (!Array.isArray(data)) return undefined;
+  return (data as Record<string, unknown>[]).map((revision) => ({
+    at: toDate(revision.at as never),
+    fromIndex: revision.fromIndex as number,
+    before: revision.before as PlanRevision['before'],
+  }));
 }
 
 function toOptimizerSnapshot(data: Record<string, unknown> | undefined): OptimizerSnapshot | undefined {
@@ -122,6 +139,7 @@ function docToAccumulationPlan(id: string, data: Record<string, unknown>): Accum
     installments: ((data.installments ?? []) as Record<string, unknown>[]).map(toInstallment),
     residualEur: data.residualEur as number | undefined,
     optimizerSnapshot: toOptimizerSnapshot(data.optimizerSnapshot as Record<string, unknown> | undefined),
+    revisions: toRevisions(data.revisions),
     createdAt: toDate(data.createdAt as never),
     updatedAt: toDate(data.updatedAt as never),
     activatedAt: data.activatedAt ? toDate(data.activatedAt as never) : undefined,
@@ -236,11 +254,11 @@ export async function activatePlan(planId: string, input: ActivatePlanInput): Pr
       const asset = assetsById.get(disposal.assetId);
       return {
         ...disposal,
-        estimatedProceedsEur: asset ? deps.valueOf(asset) : disposal.estimatedProceedsEur,
+        estimatedProceedsEur: proceedsOfDisposal(disposal, asset, deps),
       };
     });
 
-    const states = resolvePositionStates(plan.positions, assetsById, deps);
+    const states = resolvePositionStates(plan.positions, assetsById, deps, disposals);
     const liquidity = computeUsableLiquidity(plan.liquidity, assetsById, disposals, plan.months, deps);
     const totals = computeTotalPurchases(states, liquidity.L);
     const { installments, residualEur } = scheduleInstallments(totals, states, plan.months, plan.startMonth);
@@ -380,8 +398,92 @@ export async function applyRecalibration(
         status: 'planned',
       }));
 
-    const updatedInstallment: Installment = { ...installment, lines: [...executedLines, ...suggestedLines] };
+    const updatedInstallment: Installment = {
+      ...installment,
+      lines: [...executedLines, ...suggestedLines],
+      recalibrationDismissed: undefined,
+    };
     const installments = plan.installments.map((i) => (i.index === index ? updatedInstallment : i));
+    tx.update(ref, removeUndefinedDeep({ installments, updatedAt: new Date() }));
+  });
+}
+
+export interface RevisePlanInput {
+  allAssets: Asset[];
+  deps: PlanDeps;
+  today: Date;
+}
+
+/**
+ * RP4 «Rivedi il piano»: re-reads the plan inside the transaction, refuses anything but an `active`
+ * one, validates the revised plan against the live portfolio and writes the new calendar from the
+ * first intact installment on (`buildRevisedPlan`).
+ */
+export async function revisePlan(planId: string, revision: PlanRevisionInput, input: RevisePlanInput): Promise<void> {
+  const { allAssets, deps, today } = input;
+  const ref = doc(db, ACCUMULATION_PLANS_COLLECTION, planId);
+  const assetsById = new Map(allAssets.map((asset) => [asset.id, asset]));
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw userFacingError('Il piano non esiste più.');
+    const plan = docToAccumulationPlan(snap.id, snap.data() as Record<string, unknown>);
+    if (plan.status !== 'active') throw userFacingError('Solo un piano attivo può essere rivisto.');
+
+    const result = buildRevisedPlan(plan, revision, assetsById, deps, today);
+    if (!result.ok) {
+      throw userFacingError(
+        result.issue === 'duplicate_asset'
+          ? describeDraftIssue({ code: 'duplicate_asset', label: assetsById.get(result.assetId)?.name ?? result.assetId })
+          : describeDraftIssue({ code: result.issue })
+      );
+    }
+
+    const issues = validateDraftAgainstAssets(
+      {
+        name: result.plan.name,
+        startMonth: result.plan.startMonth,
+        months: result.plan.months,
+        liquidity: result.plan.liquidity,
+        positions: result.plan.positions,
+        // Executed sales already left the ledger: only the pending ones are checked against the held shares.
+        disposals: result.plan.disposals.filter((d) => d.status !== 'executed'),
+      },
+      assetsById
+    );
+    if (issues.length > 0) throw userFacingError(issues[0].message);
+
+    tx.update(
+      ref,
+      removeUndefinedDeep({
+        months: result.plan.months,
+        liquidity: result.plan.liquidity,
+        positions: result.plan.positions,
+        disposals: result.plan.disposals,
+        installments: result.plan.installments,
+        residualEur: result.plan.residualEur,
+        revisions: result.plan.revisions,
+        updatedAt: today,
+      })
+    );
+  });
+}
+
+/** RP3 «Lascia così»: remembers the suggested quantities so the proposal stays quiet until they change. */
+export async function dismissRecalibration(
+  planId: string,
+  index: number,
+  quantities: Record<string, number>
+): Promise<void> {
+  const ref = doc(db, ACCUMULATION_PLANS_COLLECTION, planId);
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw userFacingError('Il piano non esiste più.');
+    const plan = docToAccumulationPlan(snap.id, snap.data() as Record<string, unknown>);
+    const installments = plan.installments.map((installment) =>
+      installment.index === index ? { ...installment, recalibrationDismissed: { quantities } } : installment
+    );
     tx.update(ref, removeUndefinedDeep({ installments, updatedAt: new Date() }));
   });
 }

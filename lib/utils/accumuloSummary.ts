@@ -10,12 +10,13 @@ import type { AccumulationPlan, Installment } from '@/types/accumulationPlan';
 import type { PageVerdictModel } from './narrative';
 import type { LineUiState } from './accumulationPlanMatching';
 import type { PacVerdictInput } from './allocazioneNarrative';
-import { describeAccumuloVerdict, monthLabelLong } from './accumulationNarrative';
+import { describeAccumuloVerdict, monthLabelLong, type ClosedPlanReadingInput } from './accumulationNarrative';
 import {
   buildDraftPreview,
   computeTotalPurchases,
   computeUsableLiquidity,
   resolvePositionStates,
+  resolveTargetPct,
   toMonthKey,
   weightsToSeedPositions,
   type AllocationCompare,
@@ -23,7 +24,7 @@ import {
 } from './accumulationPlanUtils';
 import { toModelWeights } from './modelPortfolio';
 import type { ModelPortfolioWeight } from '@/types/modelPortfolio';
-import type { RebalanceBand } from './allocationUtils';
+import { ASSET_CLASS_LABELS, type RebalanceBand } from './allocationUtils';
 
 /** Every installment fully closed, `late` lines included — the plan has nothing left to do. */
 export function isPlanDone(plan: AccumulationPlan, currentIndex: number): boolean {
@@ -207,7 +208,7 @@ export function buildAccumuloPreview(input: {
 export function summarizeDraftTotal(plan: AccumulationPlan, allAssets: Asset[], deps: PlanDeps): number {
   const assetsById = new Map(allAssets.map((asset) => [asset.id, asset]));
   const liquidity = computeUsableLiquidity(plan.liquidity, assetsById, plan.disposals, plan.months, deps);
-  const totals = computeTotalPurchases(resolvePositionStates(plan.positions, assetsById, deps), liquidity.L);
+  const totals = computeTotalPurchases(resolvePositionStates(plan.positions, assetsById, deps, plan.disposals), liquidity.L);
   return Object.values(totals).reduce((sum, value) => sum + value, 0);
 }
 
@@ -229,4 +230,55 @@ export function stepTrajectoryCursor(position: number, key: string, length: numb
     default:
       return null;
   }
+}
+
+/**
+ * RP6: one finished plan (`completed` or `cancelled`) as the Piani conclusi row reads it. «Invested» is
+ * Σ `executedAmountEur` of the lines; «planned» is the `L` the plan had at activation
+ * (`max(0, baseline.sourceCashEur − reserve) + Σ sale proceeds + E × N`). The final drift is the
+ * largest class gap |current − target| at the LAST saved measurement, against today's targets.
+ */
+export function summarizeClosedPlan(plan: AccumulationPlan, targets: AssetAllocationTarget | null): ClosedPlanReadingInput {
+  const installments = plan.installments;
+  const closedCount = installments.filter((i) => i.lines.length > 0 && i.lines.every((line) => line.status !== 'planned')).length;
+  const investedEur = installments.reduce(
+    (sum, i) => sum + i.lines.reduce((lineSum, line) => lineSum + (line.executedAmountEur ?? 0), 0),
+    0
+  );
+  const plannedEur =
+    Math.max(0, (plan.baseline?.sourceCashEur ?? 0) - plan.liquidity.reserveEur) +
+    plan.disposals.reduce((sum, d) => sum + d.estimatedProceedsEur, 0) +
+    plan.liquidity.monthlyInflowEur * plan.months;
+
+  const lastMeasured = [...installments].reverse().find((i) => i.measurement);
+  let finalDrift: ClosedPlanReadingInput['finalDrift'] = null;
+  const measurement = lastMeasured?.measurement;
+  if (measurement && targets && measurement.marketBaseEur > 0) {
+    for (const [assetClass, notional] of Object.entries(measurement.classNotionalEur)) {
+      const currentPct = ((notional ?? 0) / measurement.marketBaseEur) * 100;
+      const driftPp = currentPct - resolveTargetPct(assetClass as AssetClass, targets, measurement.marketBaseEur);
+      if (!finalDrift || Math.abs(driftPp) > Math.abs(finalDrift.driftPp)) {
+        finalDrift = { label: ASSET_CLASS_LABELS[assetClass as AssetClass] ?? assetClass, driftPp };
+      }
+    }
+  }
+
+  return {
+    name: plan.name,
+    startMonth: plan.startMonth,
+    endMonth: installments[installments.length - 1]?.month ?? plan.startMonth,
+    closedCount,
+    totalMonths: plan.months,
+    interrupted: plan.status === 'cancelled',
+    investedEur,
+    plannedEur,
+    finalDrift,
+  };
+}
+
+/** The finished plans, newest closure first. */
+export function selectClosedPlans(plans: AccumulationPlan[] | undefined): AccumulationPlan[] {
+  return (plans ?? [])
+    .filter((plan) => plan.status === 'completed' || plan.status === 'cancelled')
+    .sort((a, b) => (b.closedAt?.getTime() ?? 0) - (a.closedAt?.getTime() ?? 0));
 }

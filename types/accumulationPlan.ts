@@ -19,7 +19,11 @@ export interface PlanPosition {
 /** A held tradable instrument left out of the plan: sold in month 1, proceeds into L. */
 export interface PlanDisposal {
   assetId: string;
-  estimatedProceedsEur: number; // market value when the plan is activated
+  /** Shares to sell (integer > 0); absent = every share held at activation (RP2). */
+  quantity?: number;
+  /** Installment index of the sale; absent = 1. A revision (RP4) sets it to the first revised month. */
+  monthIndex?: number;
+  estimatedProceedsEur: number; // quantity × price (or the whole position's value) when the plan is activated
   status: InstallmentLineStatus;
   transactionIds?: string[];    // ledger `sell` ids linked on confirmation
   executedAmountEur?: number;
@@ -57,6 +61,15 @@ export interface Installment {
   carryInEur: Record<string, number>; // positionId → carry entering this month (planning trace)
   confirmedAt?: Date;           // set when every line is executed or skipped
   measurement?: ClassMeasurement;
+  /** The recalibration the reader declined for the current figures (RP3): the proposal comes back only if they change. */
+  recalibrationDismissed?: { quantities: Record<string, number> };
+}
+
+/** One «Rivedi il piano» (RP4): what the plan said before the revision. */
+export interface PlanRevision {
+  at: Date;
+  fromIndex: number;
+  before: { months: number; monthlyInflowEur: number; reserveEur: number };
 }
 
 export interface PlanBaseline {
@@ -98,6 +111,7 @@ export interface AccumulationPlan {
   installments: Installment[];  // empty in 'draft', the S1 calendar from 'active'
   residualEur?: number;         // planned leftover after the last month (< one share)
   optimizerSnapshot?: OptimizerSnapshot;
+  revisions?: PlanRevision[];
   createdAt: Date;
   updatedAt: Date;
   activatedAt?: Date;
