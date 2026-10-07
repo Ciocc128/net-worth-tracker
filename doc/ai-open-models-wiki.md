@@ -668,6 +668,27 @@ voti di F6): la lettura di Claude, email per email, separa gli errori veri sui d
 automatico (quasi tutte somme giuste); il proprietario sceglie vedendo tutto. In un prossimo giro: prima il cancello
 degli errori gravi, poi il voto del proprietario; il costo solo a parità.
 
+### 7.7 La gara sintetica: Sol, DeepSeek, GLM Flash (2026-10-07)
+
+**Perché:** il proprietario ha provato [Optima](https://artificialanalysis.ai/optima) di Artificial Analysis. Il suo agente ha
+riscritto il compito in 47 prompt mensili da circa 500 token, contro i 4.000–10.000 di quello vero. I giudici LLM a
+coppie hanno messo prima **GPT-6.1 Sol (high)** (73% di vittorie), poi GLM 5.3 Flash (66%), DeepSeek V4.1 Flash (38%) e
+GPT-6 Luna (22%). Su prompt così corti nessuno sbaglia le cifre, quindi la prova misura lo stile e non la verità dei dati
+che ha deciso F6b. Il proprietario ha chiesto una gara a tre sul compito vero, con il nostro script e i crediti OpenRouter.
+
+**Ingressi:** 20 bundle **sintetici** (`npm run ai:eval:synth -- --dir <d>`, `scripts/aiEvalSynth.mts` e
+`scripts/aiEvalSynthScenarios.ts`): la richiesta esatta di produzione, con `buildEmailAiPrompt`, il contratto F6b e il
+budget di uscita, costruita su una persona e su dati inventati. Le pagine macro e il digest dei Principi sono inventati e
+resi con il renderer del vault. Sono 8 mensili, 5 trimestrali, 3 semestrali e 4 annuali, e ogni scenario porta 3-4
+trappole scritte (`traps`, mai mandate ai modelli). Nessun dato reale: i bundle possono uscire dalla macchina.
+
+**Rosa:** `--round gara`: GPT-6.1 Sol con effort high (chiuso, eccezione dichiarata come Luna in F2; `estimate` verifica
+che abbia un endpoint ZDR), DeepSeek V4.1 Flash con il ragionamento (in produzione) e GLM 5.3 Flash sugli host
+fp8/bf16/fp16.
+
+**Come si decide:** come in F6b (§ 7.6), prima il cancello degli errori gravi, letti da Claude email per email a partire
+dalle trappole, poi il voto del proprietario; il costo conta solo a parità.
+
 ---
 
 ## 8. File
@@ -680,6 +701,7 @@ degli errori gravi, poi il voto del proprietario; il costo solo a parità.
 | `package.json` | `npm run ai:estimate`; F2: `ai:eval:freeze` (sugli emulatori) e `ai:eval`. |
 | `doc/ai-open-models-wiki.md` | Questa specifica. |
 | `scripts/aiEval.mts` | F2: `freeze` · `estimate` · `run` · `blind` · `score`, tutto in una cartella fuori da git. |
+| `scripts/aiEvalSynth.mts`, `scripts/aiEvalSynthScenarios.ts` | § 7.7: i 20 bundle sintetici (`npm run ai:eval:synth`). |
 | `lib/utils/aiEvalChecks.ts` | F2: i controlli automatici (cifre €/%/p.p. contro il prompt, parole, forma, promesse, italiano). |
 | `lib/utils/aiEvalScore.ts` | F2: aggregati per modello e regola del §7. |
 | `lib/server/weeklyBudgetEmailService.ts` | F2: `buildWeeklyBudgetPrompt` estratto, così l'eval congela il prompt vero. |
