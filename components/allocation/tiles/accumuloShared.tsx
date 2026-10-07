@@ -34,11 +34,11 @@ export function DraftBox({ label, value }: { label: string; value: string }) {
   );
 }
 
-const CHIP_BASE = 'shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px]';
+const CHIP_BASE = 'shrink-0 whitespace-nowrap rounded-full border border-transparent px-2 py-0.5 text-[10.5px]';
 const CHIP_TONE: Partial<Record<LineUiState, string>> = {
   executed: 'bg-accent text-accent-foreground',
-  toConfirm: 'bg-warning/15 text-warning-foreground',
-  late: 'bg-warning/15 text-warning-foreground',
+  toConfirm: 'border border-warning-border bg-warning text-warning-foreground',
+  late: 'border border-warning-border bg-warning text-warning-foreground',
 };
 
 /** A line's state as the render draws it: a pill, filled for done, amber for what asks the reader. */
