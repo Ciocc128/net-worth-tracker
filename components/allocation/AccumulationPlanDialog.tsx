@@ -83,6 +83,7 @@ import {
   ACCUMULO_STEP2_COL_TO_BUY,
   ACCUMULO_STEP2_FROM_LABEL,
   ACCUMULO_STEP2_FROM_MODEL,
+  ACCUMULO_STEP2_FROM_PLAN,
   ACCUMULO_STEP2_FROM_OPTIMIZER,
   ACCUMULO_STEP2_FROM_TODAY,
   ACCUMULO_STEP2_GROUP_HINT,
@@ -270,7 +271,9 @@ export function AccumulationPlanDialog({
   const [groupingBuyAssetId, setGroupingBuyAssetId] = useState<string | null>(null);
   const [newAssetDialogOpen, setNewAssetDialogOpen] = useState(false);
   const [showOptimizer, setShowOptimizer] = useState(false);
-  const [weightsFrom, setWeightsFrom] = useState<'model' | 'today' | 'optimizer' | null>(null);
+  const [weightsFrom, setWeightsFrom] = useState<'plan' | 'model' | 'today' | 'optimizer' | null>(null);
+  // The plan's own weights and sales as the dialog opened on them: «Piano attuale» brings them back.
+  const [planBase, setPlanBase] = useState<{ positions: PlanPosition[]; disposals: PlanDisposal[] } | null>(null);
   const [groupingMode, setGroupingMode] = useState(false);
 
   // Reset on every (open, plan) change, settled during render — AGENTS.md § Dialog Form Reset.
@@ -307,7 +310,9 @@ export function AccumulationPlanDialog({
               seedDraft?.disposals
             )
       );
-      setWeightsFrom(fromModel ? 'model' : seedDraft ? 'optimizer' : plan ? null : 'today');
+      const planDraft = plan ? (revise ? draftForRevision(plan) : draftFromPlan(plan)) : null;
+      setPlanBase(planDraft ? { positions: planDraft.positions, disposals: planDraft.disposals } : null);
+      setWeightsFrom(fromModel ? 'model' : seedDraft ? 'optimizer' : plan ? 'plan' : 'today');
       setShowOptimizer(false);
       setGroupingMode(false);
       setStep(plan && !revise ? 2 : 1);
@@ -397,8 +402,14 @@ export function AccumulationPlanDialog({
   const lockedSaleIds = useMemo(() => new Set(revise && plan ? plan.disposals.map((d) => d.assetId) : []), [revise, plan]);
 
   /** RP1: «Parti da» — the model's weights, or today's market weights, onto the draft's positions. */
-  const startFrom = (source: 'model' | 'today' | 'optimizer') => {
+  const startFrom = (source: 'plan' | 'model' | 'today' | 'optimizer') => {
     setWeightsFrom(source);
+    if (source === 'plan') {
+      setShowOptimizer(false);
+      if (planBase) setDraft((prev) => ({ ...prev, positions: planBase.positions, disposals: planBase.disposals }));
+      setKeptPositions({});
+      return;
+    }
     if (source === 'optimizer') {
       setShowOptimizer(true);
       return;
@@ -790,11 +801,12 @@ export function AccumulationPlanDialog({
               <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_FROM_LABEL}</p>
               <SegmentedPill
                 options={[
+                  ...(planBase ? [{ value: 'plan' as const, label: ACCUMULO_STEP2_FROM_PLAN }] : []),
                   ...(model ? [{ value: 'model' as const, label: ACCUMULO_STEP2_FROM_MODEL }] : []),
                   { value: 'today' as const, label: ACCUMULO_STEP2_FROM_TODAY },
                   { value: 'optimizer' as const, label: ACCUMULO_STEP2_FROM_OPTIMIZER },
                 ]}
-                value={(weightsFrom ?? 'none') as 'model' | 'today' | 'optimizer'}
+                value={(weightsFrom ?? 'none') as 'plan' | 'model' | 'today' | 'optimizer'}
                 onChange={startFrom}
                 layoutId="accumulo-step2-from"
                 ariaLabel={OPTIMIZER_STEP2_ARIA_LABEL}

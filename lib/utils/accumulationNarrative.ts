@@ -546,6 +546,7 @@ export const ACCUMULO_STEP2_SELL_SHARES = 'Vendi quote';
 export const ACCUMULO_STEP2_ALREADY_SELLING = 'già in vendita';
 export const ACCUMULO_STEP2_FROM_LABEL = 'Parti da';
 export const ACCUMULO_STEP2_FROM_MODEL = 'Portafoglio modello';
+export const ACCUMULO_STEP2_FROM_PLAN = 'Piano attuale';
 export const ACCUMULO_STEP2_FROM_TODAY = 'Pesi di oggi';
 export const ACCUMULO_STEP2_REDISTRIBUTE = 'Distribuisci il resto';
 export const ACCUMULO_STEP2_FROM_OPTIMIZER = 'Ricalcola';
