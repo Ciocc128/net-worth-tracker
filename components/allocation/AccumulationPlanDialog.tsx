@@ -59,7 +59,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AssetDialog } from '@/components/assets/AssetDialog';
 import { PlanDraftSidePanel } from '@/components/allocation/PlanDraftSidePanel';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
-import { ClassDriftChart } from '@/components/allocation/ClassDriftChart';
 import { OptimizerPanel } from '@/components/allocation/OptimizerPanel';
 import { SegmentedPill } from '@/components/ui/segmented-pill';
 import {
@@ -140,6 +139,7 @@ import {
   formatSignedPp,
   monthLabelLong,
   monthLabelShort,
+  trajectoryPointLabel,
 } from '@/lib/utils/accumulationNarrative';
 
 interface AccumulationPlanDialogProps {
@@ -614,7 +614,7 @@ export function AccumulationPlanDialog({
       })
     : null;
   // Step 3: today's weight on the Target step's footing (the plan's instruments, Σ 100%), and the
-  // class trajectory without the classes that hold neither weight nor target.
+  // classes of the trajectory without those that hold neither weight nor target.
   const stepThreeTodayPct = useMemo(() => {
     const map = new Map<string, number>();
     if (!preview) return map;
@@ -623,16 +623,13 @@ export function AccumulationPlanDialog({
     for (const state of states) map.set(state.positionId, base > 0 ? (state.currentValueEur / base) * 100 : 0);
     return map;
   }, [preview, draft.positions, draft.disposals, assetsById]);
-  const stepThreeTrajectory = useMemo(() => {
+  const stepThreeClasses = useMemo(() => {
     if (!preview) return [];
     const live = new Set<string>();
     for (const point of preview.trajectory)
       for (const [assetClass, entry] of Object.entries(point.byClass))
         if (entry && (Math.abs(entry.currentPct) >= 0.05 || Math.abs(entry.targetPct) >= 0.05)) live.add(assetClass);
-    return preview.trajectory.map((point) => ({
-      ...point,
-      byClass: Object.fromEntries(Object.entries(point.byClass).filter(([assetClass]) => live.has(assetClass))) as typeof point.byClass,
-    }));
+    return Object.keys(preview.trajectory[0]?.byClass ?? {}).filter((assetClass) => live.has(assetClass));
   }, [preview]);
   const modalStatus = describeModalStatus(status, {
     idle: firstIssue
@@ -1267,9 +1264,58 @@ export function AccumulationPlanDialog({
               </div>
             </div>
 
-            <div className="max-w-[560px]">
+            {/* The classes as a table: the chart lives in the Target step's panel and, once the plan
+                is active, in «Classi del piano» — here it would only scale badly. Weight on top,
+                drift in pp under it, amber out of band; classes with no weight nor target left out. */}
+            <div>
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_SECTION_CLASSES}</p>
-              <ClassDriftChart points={stepThreeTrajectory} band={band} height={140} />
+              <div className="overflow-x-auto">
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="border-b border-border text-left">
+                      <th scope="col" className="py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_COL_MONTH}</th>
+                      {stepThreeClasses.map((assetClass) => {
+                        const idx = ASSET_CLASS_CHART_INDEX[assetClass] ?? 0;
+                        return (
+                          <th
+                            key={assetClass}
+                            scope="col"
+                            className="py-1.5 pl-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em]"
+                            style={{ color: chartColors[idx] ?? CHART_COLORS[idx] ?? CHART_COLORS[0] }}
+                          >
+                            {ASSET_CLASS_LABELS[assetClass] ?? assetClass}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[0, 1, 3, 6, 9, draft.months]
+                      .filter((i, idx, arr) => i <= draft.months && arr.indexOf(i) === idx)
+                      .map((index) => {
+                        const point = preview.trajectory.find((p) => p.index === index);
+                        if (!point) return null;
+                        return (
+                          <tr key={index} className="border-b border-border last:border-0">
+                            <th scope="row" className="whitespace-nowrap py-2 pr-2 text-left font-normal text-foreground">{trajectoryPointLabel(point.month)}</th>
+                            {stepThreeClasses.map((assetClass) => {
+                              const data = point.byClass[assetClass as keyof typeof point.byClass];
+                              if (!data) return <td key={assetClass} className="py-2 pl-2 text-right text-muted-foreground">—</td>;
+                              return (
+                                <td key={assetClass} className="py-2 pl-2 text-right">
+                                  <div className={`font-mono tabular-nums ${data.outOfBand ? 'text-warning-foreground' : 'text-foreground'}`}>
+                                    {formatPercentageIt(data.currentPct, 1)}
+                                  </div>
+                                  <div className="font-mono text-[11px] tabular-nums text-muted-foreground">{formatSignedPp(data.driftPp)}</div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
