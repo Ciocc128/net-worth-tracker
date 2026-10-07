@@ -104,7 +104,7 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
   const reentry = useMemo(() => describeBandReentry(trajectory, clampedIndex, band), [trajectory, clampedIndex, band]);
 
   const sourceCashEur = useMemo(
-    () => allAssets.filter((asset) => asset.assetClass === 'cash').reduce((sum, asset) => sum + calculateAssetValue(asset), 0),
+    () => allAssets.filter((asset) => asset.assetClass === 'cash' && asset.type === 'cash').reduce((sum, asset) => sum + calculateAssetValue(asset), 0),
     [allAssets],
   );
   const draftTotalEur = useMemo(() => (plan?.status === 'draft' ? summarizeDraftTotal(plan, allAssets, DEPS) : 0), [plan, allAssets]);

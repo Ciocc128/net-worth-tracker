@@ -195,7 +195,7 @@ export function PortafoglioModelloTile({
           <Button className={TILE_ACTION_CLASS} onClick={() => setView('composition')} disabled={!targets || !objectivesOn}>
             {MODEL_ACTION_RECALCULATE}
           </Button>
-          <Button variant="outline" className={TILE_ACTION_CLASS} onClick={() => setView('edit')} disabled={isDemo || !model}>
+          <Button variant="outline" className={TILE_ACTION_CLASS} onClick={() => setView('edit')} disabled={isDemo || readFailed}>
             {MODEL_ACTION_EDIT}
           </Button>
           <Button variant="outline" className={TILE_ACTION_CLASS} onClick={() => setView('candidate')} disabled={isDemo || !model}>
@@ -239,7 +239,7 @@ export function PortafoglioModelloTile({
         />
       )}
 
-      {view === 'edit' && model && (
+      {view === 'edit' && (
         <ModelEditDialog open onClose={() => setView('closed')} ownerId={ownerId} model={model} allAssets={allAssets} labelOf={labelOf} />
       )}
 

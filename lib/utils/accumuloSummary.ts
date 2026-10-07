@@ -132,6 +132,8 @@ export interface AccumuloPreview {
   reserveEur: number;
   /** Σ of the purchases over the plan divided by the months — what a month would move. */
   monthlyEur: number;
+  /** The monthly inflow the preview assumed (RP7's suggestion, 0 when none). */
+  inflowEur: number;
   /** Where the classes would stand today and at the end of the plan, on today's prices. */
   classes: { assetClass: AssetClass; currentPct: number; targetPct: number; finalPct: number }[];
   /** The saved model portfolio when there is one, else today's holdings (RV4). */
@@ -152,8 +154,11 @@ export function buildAccumuloPreview(input: {
   today: Date;
   /** The saved model's weights: the preview starts from them instead of today's holdings. */
   model?: ModelPortfolioWeight[] | null;
+  /** RV4: the entry RP7 suggests; 0 or absent = no inflow. */
+  monthlyInflowEur?: number;
 }): AccumuloPreview | null {
   const { allAssets, targets, band, compare, deps, today, model } = input;
+  const inflowEur = Math.max(0, input.monthlyInflowEur ?? 0);
   const cashIds = allAssets.filter((asset) => asset.assetClass === 'cash' && asset.type === 'cash').map((asset) => asset.id);
   const cashEur = allAssets.filter((asset) => cashIds.includes(asset.id)).reduce((sum, asset) => sum + deps.valueOf(asset), 0);
   if (cashEur <= PREVIEW_RESERVE_EUR) return null;
@@ -179,7 +184,7 @@ export function buildAccumuloPreview(input: {
       name: 'Anteprima',
       startMonth: toMonthKey(today),
       months: PREVIEW_MONTHS,
-      liquidity: { sourceCashAssetIds: cashIds, reserveEur: PREVIEW_RESERVE_EUR, monthlyInflowEur: 0 },
+      liquidity: { sourceCashAssetIds: cashIds, reserveEur: PREVIEW_RESERVE_EUR, monthlyInflowEur: inflowEur },
       positions,
       disposals: [],
     },
@@ -201,7 +206,7 @@ export function buildAccumuloPreview(input: {
     if (Math.abs(entry.currentPct) < 0.05 && Math.abs(entry.targetPct) < 0.05 && Math.abs(final.currentPct) < 0.05) return [];
     return [{ assetClass: assetClass as AssetClass, currentPct: entry.currentPct, targetPct: entry.targetPct, finalPct: final.currentPct }];
   });
-  return { months: PREVIEW_MONTHS, reserveEur: PREVIEW_RESERVE_EUR, monthlyEur: totalEur / PREVIEW_MONTHS, classes, weightsFrom: useModel ? 'model' : 'today' };
+  return { months: PREVIEW_MONTHS, reserveEur: PREVIEW_RESERVE_EUR, monthlyEur: totalEur / PREVIEW_MONTHS, inflowEur, classes, weightsFrom: useModel ? 'model' : 'today' };
 }
 
 /** Σ of the purchases a draft would make over its whole length (the verdict's «12 rate da X €»). */

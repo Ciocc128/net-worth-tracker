@@ -13,7 +13,7 @@ import type { Asset } from '@/types/assets';
 import type { ModelPortfolio, ModelPortfolioWeight } from '@/types/modelPortfolio';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { useSaveModelPortfolio } from '@/lib/hooks/useModelPortfolio';
-import { clearHeldCandidates, MODEL_WEIGHT_SUM_TOLERANCE } from '@/lib/utils/modelPortfolio';
+import { clearHeldCandidates, MODEL_WEIGHT_SUM_TOLERANCE, seedModelFromToday } from '@/lib/utils/modelPortfolio';
 import { describeWriteError } from '@/lib/utils/dialogNarrative';
 import { formatPercentageIt } from '@/lib/utils/formatters';
 import {
@@ -38,7 +38,8 @@ interface ModelEditDialogProps {
   open: boolean;
   onClose: () => void;
   ownerId: string;
-  model: ModelPortfolio;
+  /** `null` = no model saved yet: the rows start from today's market weights (PO1, RO3). */
+  model: ModelPortfolio | null;
   allAssets: Asset[];
   labelOf: (assetId: string) => string;
 }
@@ -51,7 +52,11 @@ function parseWeight(text: string): number {
 export function ModelEditDialog({ open, onClose, ownerId, model, allAssets, labelOf }: ModelEditDialogProps) {
   const saveModel = useSaveModelPortfolio(ownerId);
   const [rows, setRows] = useState<Array<{ assetId: string; text: string; candidate: boolean }>>(() =>
-    model.weights.map((weight) => ({ assetId: weight.assetId, text: String(weight.targetPercentage).replace('.', ','), candidate: !!weight.candidate })),
+    (model?.weights ?? seedModelFromToday(allAssets, calculateAssetValue)).map((weight) => ({
+      assetId: weight.assetId,
+      text: String(weight.targetPercentage).replace('.', ','),
+      candidate: !!weight.candidate,
+    })),
   );
 
   const total = useMemo(() => rows.reduce((sum, row) => sum + parseWeight(row.text), 0), [rows]);
@@ -80,7 +85,7 @@ export function ModelEditDialog({ open, onClose, ownerId, model, allAssets, labe
         input: {
           weights: clearHeldCandidates(weights, assetsById, (asset) => asset.quantity),
           origin: 'manual',
-          optimizerSnapshot: model.optimizerSnapshot,
+          optimizerSnapshot: model?.optimizerSnapshot,
         },
         allAssets,
       });

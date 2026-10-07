@@ -9,6 +9,8 @@
  * the second action, «Apri il portafoglio modello», jumps to the model portfolio's tile.
  */
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getAnnualCashflowData } from '@/lib/services/fireService';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { ModelPortfolio } from '@/types/modelPortfolio';
 import type { RebalanceBand } from '@/lib/utils/allocationUtils';
@@ -34,6 +36,7 @@ import {
   ACCUMULO_EMPTY_PREVIEW_TITLE,
   ACCUMULO_TILE_EYEBROW,
   describeAccumuloPreview,
+  suggestMonthlyInflow,
 } from '@/lib/utils/accumulationNarrative';
 
 /** The anchor `AccumuloTab` puts on the model portfolio's cell. */
@@ -56,9 +59,21 @@ export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLev
   const isDemo = useDemoMode();
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  // RV4 / RP7: the entry the editor would suggest, so the preview matches what «Crea piano» proposes.
+  const cashflowQuery = useQuery({
+    queryKey: ['annualCashflowData', ownerId],
+    queryFn: () => getAnnualCashflowData(ownerId),
+    enabled: !!ownerId,
+    staleTime: 300000,
+  });
+  const suggestedInflow = suggestMonthlyInflow(cashflowQuery.data?.annualSavings ?? 0);
+
   const preview = useMemo(
-    () => (targets ? buildAccumuloPreview({ allAssets, targets, band, compare: compareAllocations, deps: DEPS, today, model: model?.weights }) : null),
-    [allAssets, targets, band, today, model],
+    () =>
+      targets
+        ? buildAccumuloPreview({ allAssets, targets, band, compare: compareAllocations, deps: DEPS, today, model: model?.weights, monthlyInflowEur: suggestedInflow })
+        : null,
+    [allAssets, targets, band, today, model, suggestedInflow],
   );
 
   const goToComposition = () => {

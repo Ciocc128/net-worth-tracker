@@ -862,7 +862,7 @@ export const ACCUMULO_ACTION_OPEN_MODEL = 'Apri il portafoglio modello';
 
 /** «12 rate da 3208 € con 10.000 € di riserva, dai pesi di oggi.» — or why there is nothing to show. */
 export function describeAccumuloPreview(
-  preview: { months: number; reserveEur: number; monthlyEur: number; weightsFrom?: 'today' | 'model' } | null,
+  preview: { months: number; reserveEur: number; monthlyEur: number; inflowEur?: number; weightsFrom?: 'today' | 'model' } | null,
 ): Narrative {
   if (!preview) {
     return [{ text: 'Con una riserva di 10.000 € non resta liquidità da spendere, o nessuno strumento è acquistabile: crea il piano per scegliere riserva ed entrate.' }];
@@ -872,7 +872,10 @@ export function describeAccumuloPreview(
     { text: cachedFormatCurrencyEUR(preview.monthlyEur, true), mono: true },
     { text: ' con ' },
     { text: cachedFormatCurrencyEUR(preview.reserveEur, true), mono: true },
-    { text: ` di riserva, ${preview.weightsFrom === 'model' ? 'dal portafoglio modello' : 'dai pesi di oggi'} e senza entrate mensili.` },
+    { text: ` di riserva, ${preview.weightsFrom === 'model' ? 'dal portafoglio modello' : 'dai pesi di oggi'}` },
+    ...((preview.inflowEur ?? 0) > 0
+      ? ([{ text: ' e ' }, { text: cachedFormatCurrencyEUR(preview.inflowEur as number, true), mono: true }, { text: ' al mese di entrate.' }] as Narrative)
+      : ([{ text: ' e senza entrate mensili.' }] as Narrative)),
   ];
 }
 
