@@ -677,13 +677,16 @@ export function describeMonthReading(openCount: number, openAmountEur: number): 
  */
 export function describePriceChangeNotice(input: RecalibrationReadingInput): Narrative {
   const totalDeltaEur = input.suggestedTotalEur - input.plannedTotalEur;
-  const parts = input.lines
+  const changed = input.lines
     .filter((line) => line.suggestedQuantity !== line.plannedQuantity)
-    .map((line) =>
-      line.suggestedQuantity < line.plannedQuantity
-        ? `${line.suggestedQuantity} ${line.label} invece di ${line.plannedQuantity}`
-        : `${line.suggestedQuantity - line.plannedQuantity} ${line.label} in più`,
-    );
+    // The biggest moves first; the notice names at most three, the rest is counted.
+    .sort((a, b) => Math.abs(b.suggestedQuantity - b.plannedQuantity) - Math.abs(a.suggestedQuantity - a.plannedQuantity));
+  const parts = changed.slice(0, 3).map((line) =>
+    line.suggestedQuantity < line.plannedQuantity
+      ? `${line.suggestedQuantity} ${line.label} invece di ${line.plannedQuantity}`
+      : `${line.suggestedQuantity - line.plannedQuantity} ${line.label} in più`,
+  );
+  if (changed.length > 3) parts.push(`altre ${changed.length - 3} righe che cambiano`);
   if (parts.length === 0) return [{ text: 'La rata resta come pianificata.' }];
   const joined = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} e ${parts[parts.length - 1]}`;
   return [

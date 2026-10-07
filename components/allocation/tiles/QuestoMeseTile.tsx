@@ -488,7 +488,12 @@ export function QuestoMeseTile({
           result: recalibration,
           reading: describePriceChangeNotice({
             lines: recalibration.lines.map((line) => ({
-              label: plan.positions.find((p) => p.id === line.positionId)?.label ?? line.positionId,
+              // The notice names instruments by ticker, as the render does («9 VWCE invece di 10»).
+              label: (() => {
+                const position = plan.positions.find((p) => p.id === line.positionId);
+                const buyAsset = position ? assetsById.get(position.buyAssetId) : undefined;
+                return buyAsset ? getAssetDisplayTicker(buyAsset) : (position?.label ?? line.positionId);
+              })(),
               plannedQuantity: line.plannedQuantity,
               suggestedQuantity: line.suggestedQuantity,
             })),
