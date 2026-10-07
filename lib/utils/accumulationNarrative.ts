@@ -17,7 +17,9 @@
  */
 import type { MonthKey } from '@/types/accumulationPlan';
 import type { LineUiState } from './accumulationPlanMatching';
-import type { Narrative } from './narrative';
+import type { Narrative, PageVerdictModel } from './narrative';
+import type { ClassTrajectoryPoint } from './accumulationPlanUtils';
+import { ASSET_CLASS_LABELS, bandForTarget, type RebalanceBand } from './allocationUtils';
 import { cachedFormatCurrencyEUR, formatDate, formatNumberIt, formatPercentageIt } from './formatters';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -620,4 +622,166 @@ export function describeRecalibration(input: RecalibrationReadingInput): Narrati
     { text: formatSignedCurrency(Math.abs(totalDeltaEur)), mono: true },
     { text: '.' },
   ];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Traiettoria mese per mese e rientro in banda (doc/pac-ottimizzatore § RV5, PO15)
+// ─────────────────────────────────────────────────────────────────────────
+
+export const ACCUMULO_DRIFT_CHART_LEGEND = 'misurato · previsto a prezzi di oggi · banda';
+
+const BAND_REENTRY_SUFFIX = 'se i prezzi restano quelli di oggi';
+
+function reentryLabel(point: ClassTrajectoryPoint, draft: boolean): string {
+  if (draft || point.month === 'baseline') return `mese ${point.index}`;
+  return monthLabelLong(point.month, false);
+}
+
+/**
+ * «Nella banda: Liquidità da gennaio, Obbligazioni da marzo. Da marzo tutto il piano è in banda,
+ * se i prezzi restano quelli di oggi.» For every class outside the band at `fromIndex`, the first
+ * later point where its drift is back inside `bandForTarget`. A class that never comes back is
+ * named apart («Obbligazioni resta fuori banda fino alla fine del piano.»); a plan with every
+ * class already inside says so. `draft` names a month by its number («dal mese 6»): a draft has
+ * no calendar the reader has seen yet.
+ */
+export function describeBandReentry(
+  trajectory: ClassTrajectoryPoint[],
+  fromIndex: number,
+  band: RebalanceBand,
+  options: { draft?: boolean } = {},
+): string {
+  const draft = options.draft ?? false;
+  const from = trajectory.find((point) => point.index === fromIndex);
+  if (!from) return '';
+  const inBand = (entry: { driftPp: number; targetPct: number }) => Math.abs(entry.driftPp) <= bandForTarget(band, entry.targetPct) + 1e-9;
+
+  const back: { label: string; point: ClassTrajectoryPoint }[] = [];
+  const never: string[] = [];
+  for (const [assetClass, entry] of Object.entries(from.byClass)) {
+    if (!entry || inBand(entry)) continue;
+    const label = ASSET_CLASS_LABELS[assetClass] ?? assetClass;
+    const reentry = trajectory.find((point) => {
+      if (point.index <= fromIndex) return false;
+      const later = point.byClass[assetClass as keyof typeof point.byClass];
+      return !!later && inBand(later);
+    });
+    if (reentry) back.push({ label, point: reentry });
+    else never.push(label);
+  }
+  if (back.length === 0 && never.length === 0) return 'Tutte le classi sono già in banda.';
+
+  back.sort((a, b) => a.point.index - b.point.index);
+  const parts: string[] = [];
+  if (back.length > 0) {
+    parts.push(`Nella banda: ${back.map((item) => `${item.label} ${draft ? 'dal' : 'da'} ${reentryLabel(item.point, draft)}`).join(', ')}.`);
+  }
+  if (never.length > 0) {
+    parts.push(
+      never.length === 1
+        ? `${never[0]} resta fuori banda fino alla fine del piano.`
+        : `${listInItalian(never)} restano fuori banda fino alla fine del piano.`,
+    );
+  } else {
+    const last = back[back.length - 1];
+    parts.push(`${draft ? 'Dal' : 'Da'} ${reentryLabel(last.point, draft)} tutto il piano è in banda, ${BAND_REENTRY_SUFFIX}.`);
+  }
+  return parts.join(' ');
+}
+
+/** The chart's reading row: «ottobre 2026 · Azioni −1,8 pp · Obbligazioni +0,4 pp». */
+export function describeDriftReading(
+  point: ClassTrajectoryPoint,
+  band: RebalanceBand,
+): { when: string; items: { label: string; text: string; outOfBand: boolean }[] } {
+  const when = point.month === 'baseline' ? 'oggi' : `${monthLabelLong(point.month)}${point.source === 'measured' ? '' : ' · previsto'}`;
+  const items = Object.entries(point.byClass).flatMap(([assetClass, entry]) => {
+    if (!entry) return [];
+    const label = ASSET_CLASS_LABELS[assetClass] ?? assetClass;
+    const outOfBand = Math.abs(entry.driftPp) > bandForTarget(band, entry.targetPct) + 1e-9;
+    return [{ label, text: `${label} ${formatSignedPp(entry.driftPp)}`, outOfBand }];
+  });
+  return { when, items };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Verdetto della scheda Accumulo (RV3)
+// ─────────────────────────────────────────────────────────────────────────
+
+export type AccumuloVerdictInput =
+  | { state: 'none'; sourceCashEur: number; hasModel: boolean }
+  | { state: 'draft'; months: number; monthlyEur: number; startMonth: MonthKey }
+  | {
+      state: 'active';
+      monthKey: MonthKey;
+      installmentTotalEur: number;
+      lineCount: number;
+      executedCount: number;
+      toConfirmCount: number;
+      lateCount: number;
+      /** Every line of the open installment is closed (executed or skipped). */
+      installmentClosed: boolean;
+      installmentIndex: number;
+      months: number;
+      investedEur: number;
+      planTotalEur: number;
+      /** `describeBandReentry`, or empty when there is no trajectory. */
+      reentry: string;
+    }
+  | { state: 'done'; investedEur: number; totalEur: number };
+
+const mono = (text: string) => ({ text, mono: true });
+
+/** The Accumulo tab's verdict: one headline, one sentence, a tone (RV3). */
+export function describeAccumuloVerdict(input: AccumuloVerdictInput): PageVerdictModel {
+  if (input.state === 'none') {
+    const target = input.hasModel ? 'verso il portafoglio modello' : 'verso i pesi che scegli';
+    const sentence: Narrative =
+      input.sourceCashEur <= 0.005
+        ? [{ text: `Non hai liquidità nei conti: un piano la spende in rate mensili ${target}.` }]
+        : [
+            { text: 'Nei conti di liquidità hai ' },
+            mono(cachedFormatCurrencyEUR(input.sourceCashEur, true)),
+            { text: `: un piano li spende in rate mensili ${target}.` },
+          ];
+    return { headline: 'Nessun piano di accumulo aperto.', tone: 'neutral', sentence };
+  }
+
+  if (input.state === 'draft') {
+    return {
+      headline: `Bozza pronta: ${input.months} ${input.months === 1 ? 'rata' : 'rate'} da ${cachedFormatCurrencyEUR(input.monthlyEur, true)} da ${monthLabelLong(input.startMonth, false)}.`,
+      tone: 'neutral',
+      sentence: [{ text: 'Attivala per fissare il calendario.' }],
+    };
+  }
+
+  if (input.state === 'done') {
+    return {
+      headline: `Piano concluso: investiti ${cachedFormatCurrencyEUR(input.investedEur, true)} su ${cachedFormatCurrencyEUR(input.totalEur, true)}.`,
+      tone: 'positive',
+      sentence: [{ text: 'Chiudilo per aprirne un altro.' }],
+    };
+  }
+
+  const parts: string[] = [];
+  if (input.lineCount > 0 && input.executedCount === input.lineCount) {
+    parts.push('tutti registrati');
+  } else {
+    if (input.executedCount > 0) parts.push(`${input.executedCount} ${input.executedCount === 1 ? 'registrato' : 'registrati'}`);
+    if (input.toConfirmCount > 0) parts.push(`${input.toConfirmCount} da confermare`);
+  }
+  let headline = `${capitalize(monthLabelLong(input.monthKey, false))}: ${cachedFormatCurrencyEUR(input.installmentTotalEur, true)} in ${input.lineCount} ${input.lineCount === 1 ? 'acquisto' : 'acquisti'}`;
+  if (parts.length > 0) headline += `, ${parts.length === 2 ? `${parts[0]} e ${parts[1]}` : parts[0]}`;
+  if (input.lateCount > 0) headline += `, ${input.lateCount} in ritardo`;
+  headline += '.';
+
+  const sentence: Narrative = [
+    { text: `Rata ${input.installmentIndex} di ${input.months}, investiti finora ` },
+    mono(cachedFormatCurrencyEUR(input.investedEur, true)),
+    { text: ' su ' },
+    mono(cachedFormatCurrencyEUR(input.planTotalEur, true)),
+    { text: input.reentry ? `. ${input.reentry}` : '.' },
+  ];
+  const tone = input.lateCount > 0 ? 'warning' : input.installmentClosed ? 'positive' : 'neutral';
+  return { headline, tone, sentence };
 }

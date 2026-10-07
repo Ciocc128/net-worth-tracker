@@ -139,6 +139,24 @@ export interface AllocazioneVerdictInput {
   /** The Versa answer at the Piano's amount; null when the page has no amount. */
   nextMoney: NextMoney | null;
   orphans: OrphanedTarget[];
+  /**
+   * The active accumulation plan's open installment (PO3, doc/pac-ottimizzatore § RV2). When
+   * present it takes the place of the Versa clause: «il piano di accumulo compra questo mese
+   * 3134 € in 4 strumenti» — one answer to «cosa faccio con i prossimi soldi?», never two.
+   * `null` (no active plan) leaves the sentence exactly as it was.
+   */
+  pac?: PacVerdictInput | null;
+}
+
+export interface PacVerdictInput {
+  /** Σ `plannedAmountEur` of the open installment's lines that are not skipped. */
+  monthTotalEur: number;
+  /** The distinct positions on those lines. */
+  instrumentCount: number;
+  /** The month's name in lowercase, «ottobre». */
+  monthLabel: string;
+  /** Every line of the open installment is closed. */
+  allClosed: boolean;
 }
 
 /**
@@ -162,6 +180,16 @@ function nextMoneyClause(nextMoney: NextMoney | null): Narrative {
   if (!nextMoney || nextMoney.amount <= 0 || nextMoney.slices.length === 0) return [];
   const slices = nextMoney.slices.map((slice) => [amount(slice.amount), prose(` di ${sliceObject(slice)}`)]);
   return [prose('con '), amount(nextMoney.amount), prose(' in più compreresti '), ...joinList(slices)];
+}
+
+/** «il piano di accumulo compra questo mese 3134 € in 4 strumenti» / «la rata di ottobre del piano di accumulo è chiusa» */
+function pacClause(pac: PacVerdictInput): Narrative {
+  if (pac.allClosed) return [prose(`la rata di ${pac.monthLabel} del piano di accumulo è chiusa`)];
+  return [
+    prose('il piano di accumulo compra questo mese '),
+    amount(pac.monthTotalEur),
+    prose(pac.instrumentCount === 1 ? ' in 1 strumento' : ` in ${pac.instrumentCount} strumenti`),
+  ];
 }
 
 function leverageClause(leverage: { current: number; target: number } | null): Narrative {
@@ -210,7 +238,7 @@ export function buildAllocazioneVerdict(input: AllocazioneVerdictInput): PageVer
   }
   const leverage = leverageClause(input.leverage);
   if (leverage.length > 0) clauses.push(leverage);
-  const next = nextMoneyClause(input.nextMoney);
+  const next = input.pac ? pacClause(input.pac) : nextMoneyClause(input.nextMoney);
   if (next.length > 0) clauses.push(next);
 
   const sentence: Narrative = clauses.flatMap((clause, i) => (i === 0 ? clause : [prose('; '), ...clause]));
