@@ -2,8 +2,8 @@
  * Weight optimizer — proposes market weights for the PAC's Target step from the owner's ideal
  * allocation objectives (Impostazioni → Allocazione → "Allocazione ideale", `doc/weight-optimizer-ate.md`).
  *
- * Convex QP, same family as `leverageAwareAllocationUtils.ts`'s planner (projected gradient
- * descent with backtracking, `projectOntoBudgetBox` shared via `./boxProjection`): every soft
+ * Convex QP solved by ONE exact active-set method (`./activeSetQP`, doc/pac-ottimizzatore § RO2;
+ * `projectOntoBudgetBox` of `./boxProjection` only seeds its start): every soft
  * objective (class / leverage / factor / geography / group cap) is a linear row `r_k(w)` in
  * percentage points, penalised quadratically and weighted by its priority; a small regularisation
  * term (`EPSILON`) against the candidates' current market weight makes the optimum unique. Hard
@@ -17,7 +17,7 @@
  * Third mode, `'targeted'` («Con vendite mirate», doc/weight-optimizer-targeted-ate.md): the same
  * `J(w)` under a tax cap in euro plus per-instrument «Non vendere» locks. Where the cap does not
  * bind (or is 0) it runs the Ideale / Raggiungibile pipeline itself — same `solveQP`, same bits —
- * and only where it binds the exact active-set solver of `./activeSetQP` (§5, `solveTargeted`).
+ * and only where it binds the tax-multiplier search of §5 (`solveTargeted`) on the same solver.
  */
 import type {
   Asset,
@@ -135,7 +135,7 @@ export interface OptimizerSaleReport {
   perCandidate: Array<{ key: string; soldEur: number; taxEur: number }>;
 }
 
-/** Injectable only from tests (§10), to force `not_converged` without waiting out 8000 iterations. */
+/** Injectable only from tests (§10), to force `not_converged` by capping the active set's steps. */
 export interface SolverOptions {
   maxIterations?: number;
 }
@@ -519,14 +519,6 @@ export function findSecondLevelGaps(
 
 const LAMBDA: Record<ObjectivePriority, number> = { essential: 1000, high: 100, medium: 10, low: 1 };
 const EPSILON = 0.01;
-/**
- * Raised from the ATE's original 3000 (owner's call, PR review, 2026-09-19): the leva+geografia
- * fixture of §10 — the flagship combination of objectives — needed 3112 iterations to converge and
- * was hitting the old cap on every run (`not_converged` warned routinely on realistic input, even
- * though the rounded weights at iteration 3000 already matched the converged ones). n ≤ 40
- * candidates keeps even 20000 iterations under 100ms, so the extra headroom is free.
- */
-const MAX_ITERATIONS_DEFAULT = 8000;
 
 interface ObjectiveRow {
   id: string;
@@ -773,96 +765,28 @@ function buildObjective(rows: ObjectiveRow[], wRef: number[], n: number): (x: nu
   };
 }
 
-function buildGradient(rows: ObjectiveRow[], wRef: number[], n: number): (x: number[]) => number[] {
-  return (x: number[]): number[] => {
-    const g = new Array(n).fill(0);
-    for (const row of rows) {
-      const raw = dot(row.coeffs, x) - row.constant;
-      if (row.hinge && raw <= 0) continue; // inactive hinge: no contribution
-      const factor = 2 * LAMBDA[row.priority] * raw;
-      for (let i = 0; i < n; i++) g[i] += factor * row.coeffs[i];
-    }
-    for (let i = 0; i < n; i++) g[i] += 2 * EPSILON * 100 * 100 * (x[i] - wRef[i]);
-    return g;
-  };
-}
-
 interface SolveResult {
   x: number[];
   iterations: number;
   converged: boolean;
 }
 
+/**
+ * The ONE solver of Ideale, Raggiungibile and Con vendite mirate (doc/pac-ottimizzatore § RO2, PO11):
+ * the exact active-set method of `./activeSetQP` at tax multiplier 0 — no kink, so a plain QP over
+ * the budget and the box. `maxIterations` (tests only) is the active set's step cap.
+ */
 function solveQP(
+  rows: ObjectiveRow[],
   n: number,
   wRef: number[],
   lo: number[],
   hi: number[],
-  objective: (x: number[]) => number,
-  gradient: (x: number[]) => number[],
   solverOptions?: SolverOptions
 ): SolveResult {
-  const maxIterations = solverOptions?.maxIterations ?? MAX_ITERATIONS_DEFAULT;
-
-  let x = projectOntoBudgetBox(wRef, lo, hi, 1);
-  let fx = objective(x);
-  let eta = 1;
-  let plateauCount = 0;
-  let converged = false;
-  let iterations = 0;
-
-  for (let iter = 0; iter < maxIterations; iter++) {
-    iterations = iter + 1;
-    const g = gradient(x);
-    if (Math.sqrt(dot(g, g)) < 1e-10) {
-      converged = true;
-      break;
-    }
-
-    let step = eta * 1.5;
-    let accepted = false;
-    let xCandidate = x;
-    let fCandidate = fx;
-
-    for (let tries = 0; tries < 40; tries++) {
-      const candidate = projectOntoBudgetBox(
-        x.map((xi, i) => xi - step * g[i]),
-        lo,
-        hi,
-        1
-      );
-      const fCand = objective(candidate);
-      if (fCand <= fx - 1e-12 * Math.max(1, Math.abs(fx))) {
-        xCandidate = candidate;
-        fCandidate = fCand;
-        accepted = true;
-        eta = step;
-        break;
-      }
-      step /= 2;
-    }
-
-    if (!accepted) {
-      converged = true;
-      break;
-    }
-
-    const prevFx = fx;
-    x = xCandidate;
-    fx = fCandidate;
-
-    if (Math.abs(prevFx - fx) < 1e-12 * Math.max(1, Math.abs(fx))) {
-      plateauCount += 1;
-      if (plateauCount >= 25) {
-        converged = true;
-        break;
-      }
-    } else {
-      plateauCount = 0;
-    }
-  }
-
-  return { x, iterations, converged };
+  const zeros = new Array<number>(n).fill(0);
+  const solved = solveAtMultiplier(rows, wRef, zeros, zeros, lo, hi, 0, wRef, solverOptions?.maxIterations);
+  return { x: solved.w, iterations: solved.iterations, converged: solved.converged };
 }
 
 // ---------------------------------------------------------------------------
@@ -870,16 +794,15 @@ function solveQP(
 // ---------------------------------------------------------------------------
 
 function applyMinWeightHeuristic(
+  rows: ObjectiveRow[],
   n: number,
   wRef: number[],
   lo: number[],
   hiInit: number[],
-  objective: (x: number[]) => number,
-  gradient: (x: number[]) => number[],
   solverOptions?: SolverOptions
 ): { result: SolveResult; hi: number[] } {
   let hi = [...hiInit];
-  let result = solveQP(n, wRef, lo, hi, objective, gradient, solverOptions);
+  let result = solveQP(rows, n, wRef, lo, hi, solverOptions);
 
   for (let pass = 0; pass < 5; pass++) {
     const small: number[] = [];
@@ -894,7 +817,7 @@ function applyMinWeightHeuristic(
     if (sumHi < 1) break; // undo: keep the previous pass's result
 
     hi = candidateHi;
-    result = solveQP(n, wRef, lo, hi, objective, gradient, solverOptions);
+    result = solveQP(rows, n, wRef, lo, hi, solverOptions);
   }
 
   return { result, hi };
@@ -953,9 +876,7 @@ function computeConflicts(
     if (solveWithout) {
       solvedX = solveWithout(remainingRows);
     } else {
-      const objective = buildObjective(remainingRows, wRef, n);
-      const gradient = buildGradient(remainingRows, wRef, n);
-      solvedX = solveQP(n, wRef, lo, hi, objective, gradient, solverOptions).x;
+      solvedX = solveQP(remainingRows, n, wRef, lo, hi, solverOptions).x;
     }
 
     const improvements: ConflictReport['improvements'] = [];
@@ -1005,10 +926,8 @@ export function optimizeWeights(input: OptimizerInput, solverOptions?: SolverOpt
   const wRef = computeWRef(candidates, mode, baseEur);
 
   const rows = buildObjectiveRows(candidates, targets, settings, targetLeverageRatio, referenceAreas, baseEur, warnings);
-  const objective = buildObjective(rows, wRef, n);
-  const gradient = buildGradient(rows, wRef, n);
 
-  const { result, hi } = applyMinWeightHeuristic(n, wRef, lo, hiInit, objective, gradient, solverOptions);
+  const { result, hi } = applyMinWeightHeuristic(rows, n, wRef, lo, hiInit, solverOptions);
   if (!result.converged) warnings.push({ code: 'not_converged' });
 
   const roundedPct = roundToHalfPoints(result.x, hi);
@@ -1199,7 +1118,8 @@ function solveAtMultiplier(
   lo: number[],
   hi: number[],
   mu: number,
-  start: number[]
+  start: number[],
+  maxIterations?: number
 ): TargetedSolve {
   const n = cur.length;
   const { G, q, hingeRows } = buildQuadratic(rows, wRef, n);
@@ -1217,7 +1137,7 @@ function solveAtMultiplier(
       ...new Array<null>(hingeRows.length).fill(null),
     ],
   };
-  const solved = solvePiecewiseQP(problem, [...w0, ...t0]);
+  const solved = solvePiecewiseQP(problem, [...w0, ...t0], maxIterations);
   return { w: solved.x.slice(0, n), iterations: solved.iterations, converged: solved.converged };
 }
 
@@ -1421,13 +1341,12 @@ function solveTargetedCore(input: OptimizerInput, solverOptions?: SolverOptions)
 
   const rows = buildObjectiveRows(candidates, targets, settings, targetLeverageRatio, referenceAreas, baseEur, warnings);
   const objective = buildObjective(rows, wRef, n);
-  const gradient = buildGradient(rows, wRef, n);
 
   const minTaxEur = minimumTaxEur(cur, lo, hiInit, rate, baseEur);
   const capEur = Math.max(taxCapEur, minTaxEur);
 
   // Path 1 — μ = 0: Ideale's own pipeline with these bounds. If it fits, it IS Ideale (T6).
-  const ideal = applyMinWeightHeuristic(n, wRef, lo, hiInit, objective, gradient, solverOptions);
+  const ideal = applyMinWeightHeuristic(rows, n, wRef, lo, hiInit, solverOptions);
   const idealTaxEur = taxOf(ideal.result.x);
 
   let x: number[];
@@ -1441,7 +1360,7 @@ function solveTargetedCore(input: OptimizerInput, solverOptions?: SolverOptions)
   const untaxedPipeline = () => {
     // No taxed sale at all: Raggiungibile's pipeline, every taxed candidate held at least at its weight.
     const loUntaxed = lo.map((l, i) => (rate[i] > 0 ? Math.max(l, cur[i]) : l));
-    const untaxed = applyMinWeightHeuristic(n, wRef, loUntaxed, hiInit, objective, gradient, solverOptions);
+    const untaxed = applyMinWeightHeuristic(rows, n, wRef, loUntaxed, hiInit, solverOptions);
     return { untaxed, loUntaxed };
   };
 

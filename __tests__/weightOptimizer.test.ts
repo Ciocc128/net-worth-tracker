@@ -662,7 +662,7 @@ describe('optimizeWeights — conflicts', () => {
 // ---------------------------------------------------------------------------
 
 describe('optimizeWeights — not_converged', () => {
-  it('reports not converged when maxIterations is forced to 1', () => {
+  it('reports not converged when the active set is capped before its first step', () => {
     const candidates = [
       candidate({ key: 'eq', exposurePerEuro: { equity: 1 }, currentValueEur: 900 }),
       candidate({ key: 'bd', exposurePerEuro: { bonds: 1 }, currentValueEur: 100 }),
@@ -677,7 +677,7 @@ describe('optimizeWeights — not_converged', () => {
         targets,
         settings: makeSettings({ classPriority: 'essential', leveragePriority: 'off' }),
       }),
-      { maxIterations: 1 }
+      { maxIterations: 0 }
     );
     expect(result.converged).toBe(false);
     expect(result.warnings).toContainEqual({ code: 'not_converged' });
