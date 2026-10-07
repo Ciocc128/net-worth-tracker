@@ -246,6 +246,16 @@ immutabile in update). **Il deploy delle regole NON avviene con Vercel**: va fat
 Firebase (Firestore → Regole → incolla il contenuto di `firestore.rules` → Pubblica) prima di poter
 creare un piano in produzione — nessuna pipeline di questo repo lo fa per conto dell'utente.
 
+## Difetti chiusi (A0, doc/pac-ottimizzatore/README.md § B1–B5)
+
+- **B1** «Crea un PAC con questi pesi» passa da `toModelWeights` (`lib/utils/modelPortfolio.ts`, RM2): un `frozen`,
+  un `excluded` e un conto di liquidità (`type: 'cash'`) restano fuori, i pesi rimasti si riscalano a 100 e il modale
+  dice cosa è rimasto fuori e perché.
+- **B2** l'avviso di riserva del tile attivo somma i soli conti sorgente del piano (`summarizeReserve`).
+- **B3** il Calendario mostra l'errore di scrittura (`describeWriteError`) in una riga `role="alert"` del modale.
+- **B4** i bottoni dei modali del PAC e dell'ottimizzatore sono `h-11 desktop:h-8` (44 px a 390).
+- **B5** il riquadro della bozza si chiama «Liquidità da spendere» e mostra `availableNowEur`.
+
 ## Limiti noti
 
 - **Un asset creato a quantità 0 (D7) è visibile in Patrimonio prima ancora del primo acquisto**: non

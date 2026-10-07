@@ -156,7 +156,7 @@ export const ACCUMULO_ACTION_CLOSE_VERB = 'chiudere il piano';
 export const ACCUMULO_ACTION_SAVE = 'Salva';
 export const ACCUMULO_ACTION_CANCEL = 'Annulla';
 
-export const ACCUMULO_DRAFT_BOX_LIQUIDITY = 'Liquidità oggi';
+export const ACCUMULO_DRAFT_BOX_LIQUIDITY = 'Liquidità da spendere';
 export const ACCUMULO_DRAFT_BOX_DISPOSALS = 'Vendite fuori piano';
 export const ACCUMULO_DRAFT_BOX_INFLOWS = 'Entrate stimate';
 export const ACCUMULO_DRAFT_BOX_POSITIONS = 'Posizioni';

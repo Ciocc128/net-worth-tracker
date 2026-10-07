@@ -701,10 +701,10 @@ export function AccumulationPlanDialog({
 
 
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" className="h-8 text-[12px]" disabled={selectedForGroup.size < 2} onClick={() => setGroupingBuyAssetId(selectedForGroup.values().next().value ?? null)}>
+              <Button variant="outline" className="h-11 text-[12px] desktop:h-8" disabled={selectedForGroup.size < 2} onClick={() => setGroupingBuyAssetId(selectedForGroup.values().next().value ?? null)}>
                 {ACCUMULO_ACTION_GROUP_PROXY}
               </Button>
-              <Button variant="outline" className="h-8 text-[12px]" onClick={() => setNewAssetDialogOpen(true)}>
+              <Button variant="outline" className="h-11 text-[12px] desktop:h-8" onClick={() => setNewAssetDialogOpen(true)}>
                 {ACCUMULO_ACTION_NEW_ASSET}
               </Button>
             </div>
@@ -729,7 +729,7 @@ export function AccumulationPlanDialog({
                     );
                   })}
                 </div>
-                <Button className="mt-2.5 h-8 text-[12px]" onClick={confirmGroup}>
+                <Button className="mt-2.5 h-11 text-[12px] desktop:h-8" onClick={confirmGroup}>
                   {ACCUMULO_STEP2_BUY_ASSET_CONFIRM}
                 </Button>
               </div>

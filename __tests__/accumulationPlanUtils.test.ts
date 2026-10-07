@@ -19,6 +19,7 @@ import {
   selectClassStripRows,
   type ClassTrajectoryPoint,
   type PlanDeps,
+  summarizeReserve,
 } from '@/lib/utils/accumulationPlanUtils';
 import type { AccumulationPlan, PlanPosition, PlanLiquidity, PlanDisposal } from '@/types/accumulationPlan';
 
@@ -448,5 +449,24 @@ describe('selectClassStripRows', () => {
 
   it('returns nothing when the index has no point', () => {
     expect(selectClassStripRows(trajectory, 9)).toEqual([]);
+  });
+});
+
+describe('summarizeReserve (B2, B5)', () => {
+  const accountA = makeAsset({ id: 'accA', assetClass: 'cash', type: 'cash', quantity: 1, currentPrice: 5000 });
+  const accountB = makeAsset({ id: 'accB', assetClass: 'cash', type: 'cash', quantity: 1, currentPrice: 40000 });
+
+  it('PA2: counts only the source accounts, so 5.000 € against a 10.000 € reserve is below it', () => {
+    const r = summarizeReserve({ sourceCashAssetIds: ['accA'], reserveEur: 10000, monthlyInflowEur: 0 }, byId(accountA, accountB), deps);
+    expect(r.sourceCashEur).toBeCloseTo(5000, 2);
+    expect(r.availableNowEur).toBe(0);
+    expect(r.belowReserve).toBe(true);
+  });
+
+  it('PA5: a 30.000 € source with a 10.000 € reserve leaves 20.000 € to spend', () => {
+    const source = makeAsset({ id: 'src', assetClass: 'cash', type: 'cash', quantity: 1, currentPrice: 30000 });
+    const r = summarizeReserve({ sourceCashAssetIds: ['src'], reserveEur: 10000, monthlyInflowEur: 0 }, byId(source), deps);
+    expect(r.availableNowEur).toBeCloseTo(20000, 2);
+    expect(r.belowReserve).toBe(false);
   });
 });

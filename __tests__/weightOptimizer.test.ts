@@ -806,6 +806,13 @@ describe('buildStandaloneCandidates', () => {
     expect(fixBounds(candidate({ key: frozen.id, buyAssetId: frozen.id }))).toEqual({ lowerPct: 50, upperPct: 50 });
   });
 
+  it('leaves a liquidity account out, tradable or not (RO1, B1)', () => {
+    const etf = makeAsset({ quantity: 10, currentPrice: 100 });
+    const account = makeAsset({ type: 'cash', assetClass: 'cash', quantity: 1, currentPrice: 5000 });
+    const { positions } = buildStandaloneCandidates([etf, account], 6000, valueOf);
+    expect(positions.map((p) => p.key)).toEqual([etf.id]);
+  });
+
   it('leaves an excluded asset out entirely', () => {
     const excluded = makeAsset({ quantity: 10, currentPrice: 100, allocationRole: 'excluded' });
     const { positions } = buildStandaloneCandidates([excluded], 1000, valueOf);

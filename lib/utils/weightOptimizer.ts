@@ -1686,7 +1686,8 @@ export function buildStandaloneCandidates(
 ): StandaloneCandidates {
   const scoped = assets.filter((a) => {
     const role = resolveAllocationRole(a);
-    return (role === 'tradable' || role === 'frozen') && valueOf(a) > 0;
+    // A liquidity account is never a candidate (RO1, B1): it is where the money comes from.
+    return (role === 'tradable' || role === 'frozen') && a.type !== 'cash' && valueOf(a) > 0;
   });
   const frozenValueById = new Map(
     scoped.filter((a) => resolveAllocationRole(a) === 'frozen').map((a) => [a.id, valueOf(a)])
