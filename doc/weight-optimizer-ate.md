@@ -9,6 +9,10 @@
 >
 > Lingua: conversazione in italiano; codice, identificatori e commenti in inglese; UI in italiano.
 
+> **Nota (2026-10-07, A2):** superata da `doc/pac-ottimizzatore/README.md` per PO1 (il risultato diventa il portafoglio
+> modello salvato), PO10 (strumenti da valutare a 0 quote) e PO11 (un solo solver: l'active set al posto della discesa
+> proiettata di §6.3, `MAX_ITERATIONS_DEFAULT` e `solveQP` a gradiente non esistono più). Il resto resta vincolante.
+
 ---
 
 ## 0. Letture obbligatorie

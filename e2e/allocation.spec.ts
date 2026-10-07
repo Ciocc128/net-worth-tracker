@@ -37,11 +37,11 @@ async function openAllocazione(page: Page) {
   await expect(page.locator('section[aria-label="Allocazione per classe"]')).toBeVisible({ timeout: 30_000 });
 }
 
-/** La scheda «Accumulo» (A1, doc/pac-ottimizzatore § RV1): Accumulo, Composizione ideale e Obiettivi vivono qui. */
+/** La scheda «Accumulo» (A1, doc/pac-ottimizzatore § RV1): Accumulo, Portafoglio modello e Obiettivi vivono qui. */
 async function openAccumulo(page: Page) {
   await page.goto('/dashboard/allocation?tab=accumulo', { waitUntil: 'load' });
   await expect(page.getByRole('region', { name: 'Verdetto sul piano di accumulo' })).toBeVisible({ timeout: 60_000 });
-  await expect(page.locator('section[aria-label="Composizione ideale"]')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('section[aria-label="Portafoglio modello"]')).toBeVisible({ timeout: 30_000 });
 }
 
 /** Ogni nodo interattivo raggiungibile con Tab, in ordine, fino a un tetto. */
@@ -229,7 +229,7 @@ test('due pile indipendenti: fra due tessere della stessa colonna 12px, in ogni 
       }
     }
     const names = columns.map((column) => column.map((tile) => tile.name));
-    // Dal 2026-10-07 Accumulo e Composizione ideale stanno nella scheda «Accumulo» (A1).
+    // Dal 2026-10-07 Accumulo e il portafoglio modello (ex Composizione ideale) stanno nella scheda «Accumulo» (A1).
     expect(names[0].slice(0, 2)).toEqual(["Bilanciamento dell'allocazione", 'Allocazione per classe']);
     expect(names[1].slice(0, 2)).toEqual(['Piano', 'Esposizione del portafoglio']);
   }
@@ -298,8 +298,8 @@ test.describe('Composizione ideale › Con vendite mirate', () => {
 
   test('cap 0 sells nothing taxed; «Non vendere» takes a row out of sale', async ({ page }) => {
     await openAccumulo(page);
-    const tile = page.locator('section[aria-label="Composizione ideale"]');
-    await tile.getByRole('button', { name: 'Calcola' }).click();
+    const tile = page.locator('section[aria-label="Portafoglio modello"]');
+    await tile.getByRole('button', { name: 'Ricalcola' }).click();
     const dialog = page.getByRole('dialog', { name: 'Composizione ideale' });
     await expect(dialog).toBeVisible();
 
