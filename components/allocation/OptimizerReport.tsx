@@ -58,9 +58,7 @@ export function ObjectiveBars({ objectives }: { objectives: ObjectiveReport[] })
         <div className="flex items-baseline justify-between gap-3">
           <span className="min-w-0 text-[13px] text-foreground">
             Classi
-            <span className="ml-1.5 rounded-full bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground">
-              {OBJECTIVE_PRIORITY_LABELS[classSummary.priority]}
-            </span>
+            <PriorityChip priority={classSummary.priority} />
           </span>
           <span className="shrink-0 font-mono text-[12px] tabular-nums text-muted-foreground">scarto max {formatNumberIt(classSummary.maxGapPp, 1)} pp</span>
         </div>
@@ -78,9 +76,7 @@ export function ObjectiveBars({ objectives }: { objectives: ObjectiveReport[] })
             <div className="flex items-baseline justify-between gap-3">
               <span className="min-w-0 text-[13px] text-foreground">
                 {objective.label}
-                <span className="ml-1.5 rounded-full bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground">
-                  {OBJECTIVE_PRIORITY_LABELS[objective.priority]}
-                </span>
+                <PriorityChip priority={objective.priority} />
               </span>
               <span className="shrink-0 font-mono text-[12px] tabular-nums text-muted-foreground">
                 {target} → <span className="font-semibold text-foreground">{achieved}</span> ({formatObjectiveGap(objective)})
@@ -92,6 +88,27 @@ export function ObjectiveBars({ objectives }: { objectives: ObjectiveReport[] })
       })}
       {firstClassIndex > 0 && renderClassRow()}
     </ul>
+  );
+}
+
+/**
+ * How much an objective weighs, as a chip in ink intensity (A4, the owner's pick): Essenziale a solid
+ * dark pill, Alta an outlined dark one, Media a grey fill, Bassa a faint one. Theme neutrals only, so
+ * the scale reads the same in every theme and never collides with the sign colours or an accent.
+ */
+const PRIORITY_CHIP_CLASS: Record<ObjectiveReport['priority'], string> = {
+  essential: 'bg-foreground text-background',
+  high: 'border border-foreground text-foreground',
+  medium: 'bg-muted text-foreground',
+  low: 'bg-muted/50 text-muted-foreground',
+};
+
+function PriorityChip({ priority }: { priority: ObjectiveReport['priority'] }) {
+  const label = OBJECTIVE_PRIORITY_LABELS[priority];
+  return (
+    <span className={`ml-1.5 rounded-full px-1.5 py-px text-[10px] font-medium ${PRIORITY_CHIP_CLASS[priority]}`}>
+      {label.charAt(0).toUpperCase() + label.slice(1)}
+    </span>
   );
 }
 
