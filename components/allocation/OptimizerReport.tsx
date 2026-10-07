@@ -12,7 +12,7 @@
  */
 import type { ObjectiveReport, OptimizerResult } from '@/lib/utils/weightOptimizer';
 import { OBJECTIVE_PRIORITY_LABELS } from '@/lib/utils/settingsNarrative';
-import { formatPercentageIt } from '@/lib/utils/formatters';
+import { formatNumberIt, formatPercentageIt } from '@/lib/utils/formatters';
 import { ACCUMULO_ACTION_CANCEL } from '@/lib/utils/accumulationNarrative';
 import {
   describeConflict,
@@ -32,7 +32,6 @@ import {
   OPTIMIZER_WARNINGS_TITLE,
 } from '@/lib/utils/weightOptimizerNarrative';
 import { Button } from '@/components/ui/button';
-import { TargetTick } from '@/components/allocation/TargetTick';
 
 /**
  * RO4 — the objectives as rows: name, priority chip, «target → raggiunto» in mono and a `TargetTick`
@@ -40,9 +39,36 @@ import { TargetTick } from '@/components/allocation/TargetTick';
  * tool, the PAC's Target step, the objectives' modal and the Obiettivi tile (from a saved snapshot).
  */
 export function ObjectiveBars({ objectives }: { objectives: ObjectiveReport[] }) {
+  // The class objectives are ONE row without a track (A4, render): the per-class figures are already
+  // in the «Classi del piano» tile and in the weights table; here only the worst gap is said.
+  const classRows = objectives.filter((objective) => objective.kind === 'class');
+  const classSummary =
+    classRows.length > 0
+      ? {
+          priority: classRows[0].priority,
+          maxGapPp: Math.max(...classRows.map((objective) => Math.abs(objective.gapPp))),
+        }
+      : null;
+  const others = objectives.filter((objective) => objective.kind !== 'class');
+  const firstClassIndex = objectives.findIndex((objective) => objective.kind === 'class');
+
+  const renderClassRow = () =>
+    classSummary && (
+      <li key="classes">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="min-w-0 text-[13px] text-foreground">
+            Classi
+            <PriorityChip priority={classSummary.priority} />
+          </span>
+          <span className="shrink-0 font-mono text-[12px] tabular-nums text-muted-foreground">scarto max {formatNumberIt(classSummary.maxGapPp, 1)} pp</span>
+        </div>
+      </li>
+    );
+
   return (
     <ul className="space-y-2.5">
-      {objectives.map((objective) => {
+      {firstClassIndex === 0 && renderClassRow()}
+      {others.map((objective) => {
         const target = formatObjectiveTarget(objective);
         const achieved = formatObjectiveAchieved(objective);
         return (
@@ -50,24 +76,62 @@ export function ObjectiveBars({ objectives }: { objectives: ObjectiveReport[] })
             <div className="flex items-baseline justify-between gap-3">
               <span className="min-w-0 text-[13px] text-foreground">
                 {objective.label}
-                <span className="ml-1.5 rounded-full bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground">
-                  {OBJECTIVE_PRIORITY_LABELS[objective.priority]}
-                </span>
+                <PriorityChip priority={objective.priority} />
               </span>
               <span className="shrink-0 font-mono text-[12px] tabular-nums text-muted-foreground">
                 {target} → <span className="font-semibold text-foreground">{achieved}</span> ({formatObjectiveGap(objective)})
               </span>
             </div>
-            <TargetTick
-              className="mt-1"
-              currentPercentage={objective.achievedValue}
-              targetPercentage={objective.targetValue}
-              ariaLabel={`${objective.label}: obiettivo ${target}, raggiunto ${achieved}`}
-            />
+            <ObjectiveTrack achieved={objective.achievedValue} target={objective.targetValue} ariaLabel={`${objective.label}: obiettivo ${target}, raggiunto ${achieved}`} />
           </li>
         );
       })}
+      {firstClassIndex > 0 && renderClassRow()}
     </ul>
+  );
+}
+
+/**
+ * How much an objective weighs, as a chip in ink intensity (A4, the owner's pick): Essenziale a solid
+ * dark pill, Alta an outlined dark one, Media a grey fill, Bassa a faint one. Theme neutrals only, so
+ * the scale reads the same in every theme and never collides with the sign colours or an accent.
+ */
+const PRIORITY_CHIP_CLASS: Record<ObjectiveReport['priority'], string> = {
+  essential: 'bg-foreground text-background',
+  high: 'border border-foreground text-foreground',
+  medium: 'bg-muted text-foreground',
+  low: 'bg-muted/50 text-muted-foreground',
+};
+
+function PriorityChip({ priority }: { priority: ObjectiveReport['priority'] }) {
+  const label = OBJECTIVE_PRIORITY_LABELS[priority];
+  return (
+    <span className={`ml-1.5 rounded-full px-1.5 py-px text-[10px] font-medium ${PRIORITY_CHIP_CLASS[priority]}`}>
+      {label.charAt(0).toUpperCase() + label.slice(1)}
+    </span>
+  );
+}
+
+/**
+ * The objective's track: a 4px track filled with `--hero-series` (the colour of Storico's net-worth
+ * trend chart) in ONE flat colour — no warming gradient, the hairline already says where the
+ * target is.
+ */
+function ObjectiveTrack({ achieved, target, ariaLabel }: { achieved: number; target: number; ariaLabel: string }) {
+  const scaleMax = Math.max(achieved, target, 1) * 1.12;
+  const fillWidth = Math.min((achieved / scaleMax) * 100, 100);
+  const targetPosition = Math.min((target / scaleMax) * 100, 100);
+  const progress = target > 0 ? Math.min(100, Math.max(0, Math.round((achieved / target) * 100))) : 100;
+  return (
+    <div className="relative mt-1 h-[10px] w-full" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label={ariaLabel}>
+      <div className="absolute inset-x-0 top-[3px] h-1 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${fillWidth}%`, backgroundColor: 'var(--hero-series)' }}
+        />
+      </div>
+      <div className="absolute inset-y-0 w-px -translate-x-1/2 bg-foreground/70" style={{ left: `${targetPosition}%` }} aria-hidden="true" />
+    </div>
   );
 }
 

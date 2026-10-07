@@ -9,6 +9,8 @@
  * the second action, «Apri il portafoglio modello», jumps to the model portfolio's tile.
  */
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getAnnualCashflowData } from '@/lib/services/fireService';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { ModelPortfolio } from '@/types/modelPortfolio';
 import type { RebalanceBand } from '@/lib/utils/allocationUtils';
@@ -19,6 +21,7 @@ import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { formatPercentageIt } from '@/lib/utils/formatters';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { NarrativeText } from '@/components/ui/narrative-text';
 import { Button } from '@/components/ui/button';
 import { AccumulationPlanDialog } from '@/components/allocation/AccumulationPlanDialog';
 import { TargetTick } from '@/components/allocation/TargetTick';
@@ -30,10 +33,11 @@ import {
   ACCUMULO_EMPTY_DOESNT_TITLE,
   ACCUMULO_EMPTY_DOES,
   ACCUMULO_EMPTY_DOES_TITLE,
-  ACCUMULO_EMPTY_PREVIEW_CLASSES,
-  ACCUMULO_EMPTY_PREVIEW_TITLE,
+  ACCUMULO_EMPTY_ASIDE,
   ACCUMULO_TILE_EYEBROW,
-  describeAccumuloPreview,
+  describeAccumuloIntro,
+  describeAccumuloPreviewLead,
+  suggestMonthlyInflow,
 } from '@/lib/utils/accumulationNarrative';
 
 /** The anchor `AccumuloTab` puts on the model portfolio's cell. */
@@ -56,9 +60,21 @@ export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLev
   const isDemo = useDemoMode();
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  // RV4 / RP7: the entry the editor would suggest, so the preview matches what «Crea piano» proposes.
+  const cashflowQuery = useQuery({
+    queryKey: ['annualCashflowData', ownerId],
+    queryFn: () => getAnnualCashflowData(ownerId),
+    enabled: !!ownerId,
+    staleTime: 300000,
+  });
+  const suggestedInflow = suggestMonthlyInflow(cashflowQuery.data?.annualSavings ?? 0);
+
   const preview = useMemo(
-    () => (targets ? buildAccumuloPreview({ allAssets, targets, band, compare: compareAllocations, deps: DEPS, today, model: model?.weights }) : null),
-    [allAssets, targets, band, today, model],
+    () =>
+      targets
+        ? buildAccumuloPreview({ allAssets, targets, band, compare: compareAllocations, deps: DEPS, today, model: model?.weights, monthlyInflowEur: suggestedInflow })
+        : null,
+    [allAssets, targets, band, today, model, suggestedInflow],
   );
 
   const goToComposition = () => {
@@ -67,18 +83,19 @@ export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLev
 
   return (
     <>
-      <Tile eyebrow={ACCUMULO_TILE_EYEBROW} aside={ACCUMULO_EMPTY_PREVIEW_TITLE} reading={describeAccumuloPreview(preview)}>
+      <Tile eyebrow={ACCUMULO_TILE_EYEBROW} aside={ACCUMULO_EMPTY_ASIDE} reading={describeAccumuloIntro(preview)}>
         {preview && preview.classes.length > 0 && (
-          <div className="mt-3 max-w-[640px]">
-            <p className={TILE_SUB_EYEBROW_CLASS}>{ACCUMULO_EMPTY_PREVIEW_CLASSES}</p>
-            <ul className="mt-2 grid grid-cols-1 gap-x-8 gap-y-3 tablet:grid-cols-2">
+          <div className="mt-3 rounded-lg bg-muted p-4">
+            <NarrativeText className="text-[13px] leading-[1.5] text-foreground" figureClassName="font-normal" segments={describeAccumuloPreviewLead(preview)} />
+            <ul className="mt-3 space-y-3">
               {preview.classes.map((row) => (
                 <li key={row.assetClass}>
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="min-w-0 text-[13px] text-foreground">{ASSET_CLASS_LABELS[row.assetClass] ?? row.assetClass}</span>
                     <span className="shrink-0 font-mono text-[12px] tabular-nums">
-                      <span className="font-semibold text-foreground">{formatPercentageIt(row.currentPct, 1)}</span>
-                      <span className="ml-1.5 text-muted-foreground">→ {formatPercentageIt(row.finalPct, 1)}</span>
+                      <span className="text-foreground">{formatPercentageIt(row.currentPct, 1)}</span>
+                      <span className="font-semibold text-foreground"> → {formatPercentageIt(row.finalPct, 1)}</span>
+                      <span className="ml-1.5 text-muted-foreground">target {formatPercentageIt(row.targetPct, 1)}</span>
                     </span>
                   </div>
                   <TargetTick
@@ -97,7 +114,7 @@ export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLev
         <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-4 border-t border-border pt-3.5 tablet:grid-cols-2">
           <div>
             <p className={TILE_SUB_EYEBROW_CLASS}>{ACCUMULO_EMPTY_DOES_TITLE}</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-[12px] leading-[1.5] text-foreground marker:text-muted-foreground">
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-[13px] leading-[1.5] text-foreground marker:text-muted-foreground">
               {ACCUMULO_EMPTY_DOES.map((line) => (
                 <li key={line}>{line}</li>
               ))}
@@ -105,7 +122,7 @@ export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLev
           </div>
           <div>
             <p className={TILE_SUB_EYEBROW_CLASS}>{ACCUMULO_EMPTY_DOESNT_TITLE}</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-[12px] leading-[1.5] text-muted-foreground marker:text-muted-foreground">
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-[13px] leading-[1.5] text-foreground marker:text-muted-foreground">
               {ACCUMULO_EMPTY_DOESNT.map((line) => (
                 <li key={line}>{line}</li>
               ))}

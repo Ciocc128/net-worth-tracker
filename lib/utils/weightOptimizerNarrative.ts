@@ -13,7 +13,7 @@ import type { GeoArea } from '@/lib/constants/geoAreas';
 import type { ConflictReport, ObjectiveReport, OptimizerMode, OptimizerSaleReport, OptimizerWarning, SecondLevelGap } from './weightOptimizer';
 import { ASSET_CLASS_LABELS } from './allocationUtils';
 import { GEO_AREA_LABELS } from '@/lib/constants/geoAreas';
-import { formatCurrency, formatNumberIt, formatPercentageIt } from './formatters';
+import { cachedFormatCurrencyEUR, formatCurrency, formatNumberIt, formatPercentageIt } from './formatters';
 import { formatSignedCurrency } from './accumulationNarrative';
 
 const SECOND_LEVEL_GAP_NAME_LIMIT = 5;
@@ -112,6 +112,19 @@ export function describeConflict(conflict: ConflictReport, objectives: Objective
     .filter((text): text is string => text !== null);
 
   return `Senza l'obiettivo «${removedLabel}»: ${parts.join('; ')}.`;
+}
+
+/** The tile's reading of a conflict, as in the render: «Leva e Stati Uniti nell'azionario tirano in
+ *  direzioni opposte: senza «Leva», Stati Uniti nell'azionario passerebbe da 66,1% a 62,0%.» */
+export function describeConflictReading(conflict: ConflictReport, objectives: ObjectiveReport[]): string {
+  const removed = objectives.find((o) => o.id === conflict.removedObjectiveId);
+  const removedLabel = removed?.label ?? conflict.removedObjectiveId;
+  const labels = conflict.improvements
+    .map((improvement) => objectives.find((o) => o.id === improvement.objectiveId)?.label)
+    .filter((label): label is string => !!label);
+  const detail = describeConflict(conflict, objectives).replace(/^Senza l'obiettivo «[^»]*»: /, '').replace(/ da /g, ' passerebbe da ');
+  const pull = labels.length === 0 ? removedLabel : `${removedLabel} e ${labels.join(', ')}`;
+  return `${pull} tirano in direzioni opposte: senza «${removedLabel}», ${detail}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -331,6 +344,9 @@ export function formatOptimizerWeightDiffEur(currentPct: number, proposedPct: nu
 // ---------------------------------------------------------------------------
 
 export const OBJECTIVES_TILE_EYEBROW = 'Obiettivi';
+export const OBJECTIVES_TILE_ASIDE = 'target · raggiunto dal modello';
+export const OBJECTIVES_TILE_PLAN_ASIDE = 'target · raggiunto dal piano';
+export const OBJECTIVES_TILE_PLAN_NOTE = 'A fine piano, ai prezzi di oggi: le barre sono quanto raggiunge il PAC aperto.';
 export const OBJECTIVES_DIALOG_TITLE = "Obiettivi dell'allocazione ideale";
 export const OBJECTIVES_ACTION_EDIT = 'Modifica obiettivi';
 export const OBJECTIVES_ACTION_TRY = 'Prova';
@@ -366,10 +382,38 @@ export const MODEL_OUTSIDE_LABEL = 'Fuori dal modello';
 export const MODEL_TARGETED_HINT =
   'Per avvicinarti al modello vendendo poco, «Ricalcola» ha la modalità «Con vendite mirate», con un tetto di tasse.';
 
-/** «Calcolato dall'ottimizzatore il 07/10/2026» / «Scritto a mano il 07/10/2026». */
-export function describeModelOrigin(origin: 'manual' | 'optimizer', updatedAt: Date): string {
-  const day = `${String(updatedAt.getDate()).padStart(2, '0')}/${String(updatedAt.getMonth() + 1).padStart(2, '0')}/${updatedAt.getFullYear()}`;
-  return origin === 'optimizer' ? `Calcolato dall'ottimizzatore il ${day}.` : `Scritto a mano il ${day}.`;
+function formatModelDay(updatedAt: Date): string {
+  return `${String(updatedAt.getDate()).padStart(2, '0')}/${String(updatedAt.getMonth() + 1).padStart(2, '0')}/${updatedAt.getFullYear()}`;
+}
+
+/**
+ * «Calcolato dall'ottimizzatore il 07/10/2026» / «Scritto a mano il 07/10/2026». With the snapshot of
+ * the calculation the model started from, the mode is named too (render, view 1): «Proposto
+ * dall'ottimizzatore il 02/10/2026 (Raggiungibile)», then «, poi cambiato a mano» when the origin is manual.
+ */
+export function describeModelOrigin(origin: 'manual' | 'optimizer', updatedAt: Date, snapshot?: { computedAt: Date; mode: OptimizerMode }): string {
+  if (!snapshot) {
+    const day = formatModelDay(updatedAt);
+    return origin === 'optimizer' ? `Calcolato dall'ottimizzatore il ${day}.` : `Scritto a mano il ${day}.`;
+  }
+  const proposed = `Proposto dall'ottimizzatore il ${formatModelDay(snapshot.computedAt)} (${OPTIMIZER_MODE_LABELS[snapshot.mode]})`;
+  return origin === 'optimizer' ? `${proposed}.` : `${proposed}, poi cambiato a mano.`;
+}
+
+/** The tile's aside: «pesi di mercato · base 182.000 €». */
+export function describeModelTileAside(baseEur: number): string {
+  return `pesi di mercato · base ${cachedFormatCurrencyEUR(baseEur, true)}`;
+}
+
+/**
+ * The tile's foot (render, view 1): who stays above the model without selling, then where the sale
+ * is — a calculation the reader asks for in «Ricalcola», never run here.
+ */
+export function describeModelSalesHint(overweightLabels: string[]): string {
+  if (overweightLabels.length === 0) return MODEL_TARGETED_HINT;
+  const names = overweightLabels.length === 1 ? overweightLabels[0] : `${overweightLabels.slice(0, -1).join(', ')} e ${overweightLabels[overweightLabels.length - 1]}`;
+  const verb = overweightLabels.length === 1 ? 'resta sopra' : 'restano sopra';
+  return `Senza vendere, ${names} ${verb} il modello. ${MODEL_TARGETED_HINT}`;
 }
 
 export const MODEL_SAVE_ACTION = 'Salva come portafoglio modello';

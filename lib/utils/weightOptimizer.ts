@@ -1586,6 +1586,46 @@ export function runOptimizer(input: {
   });
 }
 
+/**
+ * What a GIVEN set of weights reaches against the objectives (A4: the Obiettivi tile with an active
+ * plan shows the plan's end state, not a calculation). Same candidates and rows as `runOptimizer`,
+ * no solver: `weightsPctByKey` is the market weight of each position at the end of the plan, as a
+ * percentage of the base, and is rescaled to Σ = 100.
+ */
+export function evaluateObjectivesAt(input: {
+  positions: Array<{ key: string; label: string; memberAssetIds: string[]; buyAssetId: string }>;
+  assetsById: Map<string, Asset>;
+  profilesByTicker: Map<string, InstrumentProfile>;
+  referenceCountries: Array<{ key: string; weight: number }> | null;
+  settings: IdealAllocationSettings;
+  baseEur: number;
+  valueOf: (a: Asset) => number;
+  targets: AssetAllocationTarget;
+  referenceAreas: Record<GeoArea, number> | null;
+  referenceEstimatedShare: number;
+  targetLeverageRatio: number;
+  weightsPctByKey: Record<string, number>;
+}): ObjectiveReport[] {
+  const { candidates } = buildOptimizerCandidates({
+    positions: input.positions,
+    assetsById: input.assetsById,
+    profilesByTicker: input.profilesByTicker,
+    referenceCountries: input.referenceCountries,
+    settings: input.settings,
+    mode: 'reachable',
+    baseEur: input.baseEur,
+    valueOf: input.valueOf,
+  });
+  if (candidates.length === 0) return [];
+  const raw = candidates.map((c) => Math.max(0, input.weightsPctByKey[c.key] ?? 0));
+  const total = raw.reduce((sum, v) => sum + v, 0);
+  if (total <= 0) return [];
+  const pct = raw.map((v) => (v / total) * 100);
+  const warnings: OptimizerWarning[] = [];
+  const rows = buildObjectiveRows(candidates, input.targets, input.settings, input.targetLeverageRatio, input.referenceAreas, input.baseEur, warnings);
+  return reportObjectives(rows, candidates, pct, input.referenceEstimatedShare, warnings).objectives;
+}
+
 // ---------------------------------------------------------------------------
 // §4.2 — Allocazione's standalone tool (`IdealCompositionDialog`): one candidate per instrument,
 // never a proxy group. A `frozen` asset is fixed to its current share (`fixBounds`, §4.2's own

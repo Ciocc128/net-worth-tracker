@@ -1096,3 +1096,30 @@ export function modelWeightMap(model: ModelPortfolio): Record<string, number> {
   for (const weight of model.weights) if (weight.targetPercentage > 0) map[weight.assetId] = weight.targetPercentage;
   return map;
 }
+
+/**
+ * «Ridistribuisci il resto»: brings the weights to 100,0% by sharing the gap across the positions
+ * that already carry a weight, in proportion to it (equally when none does). One decimal; the
+ * largest position absorbs the rounding so the sum is exactly 100,0%. A weight never goes below 0.
+ */
+export function redistributeRemainder(positions: PlanPosition[]): PlanPosition[] {
+  if (positions.length === 0) return positions;
+  const sum = positions.reduce((acc, position) => acc + position.targetPercentage, 0);
+  const weighted = positions.filter((position) => position.targetPercentage > 0);
+  const base = weighted.length > 0 ? weighted : positions;
+  const baseSum = base.reduce((acc, position) => acc + position.targetPercentage, 0);
+  const gap = 100 - sum;
+  const next = positions.map((position) => {
+    if (!base.includes(position)) return position;
+    const share = baseSum > 0 ? position.targetPercentage / baseSum : 1 / base.length;
+    const target = Math.max(0, Math.round((position.targetPercentage + gap * share) * 10) / 10);
+    return { ...position, targetPercentage: target };
+  });
+  const rounded = next.reduce((acc, position) => acc + position.targetPercentage, 0);
+  const residue = Math.round((100 - rounded) * 10) / 10;
+  if (residue !== 0) {
+    const largest = next.reduce((best, position, index) => (position.targetPercentage > next[best].targetPercentage ? index : best), 0);
+    next[largest] = { ...next[largest], targetPercentage: Math.max(0, Math.round((next[largest].targetPercentage + residue) * 10) / 10) };
+  }
+  return next;
+}

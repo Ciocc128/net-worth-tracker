@@ -358,3 +358,21 @@ stessa console, ora con anche `match /modelPortfolios/{ownerId}`).
   come una classe cash sotto target (drift negativo) a fine piano, mai come un conflitto esplicito
   fra i due numeri: non è un bug della proiezione (§5.9 la calcola correttamente contro il saldo
   REALE che risulterebbe), è che i due concetti non si parlano.
+
+## A4 «aderenza al render» (2026-10-07)
+
+`doc/pac-ottimizzatore/confronto-spec-implementazione.md` § 1–2 chiuso contro `render-accumulo.html`:
+
+- **Passo Target**: `PlanDraftSidePanel` accanto alla tabella (rata, composizione di `L`, «Pesi a 100,0%», classi a fine piano, leva, grafico con cursore); il ricalcolo parte 300 ms dopo l'ultimo tasto (`settledDraft`). Il raggruppamento non ha caselle: in modalità «Raggruppa» il nome è un bottone `aria-pressed`. La riga in vendita dice il ricavo al mese 1.
+- **Portafoglio modello creabile a mano**: «Modifica a mano» è attivo senza modello e parte dai pesi di oggi (`seedModelFromToday`: strumenti acquistabili con valore). «Aggiungi strumento da valutare» resta legato a un modello salvato. La frase sulle vendite mirate è dinamica solo nella prima metà (chi resta sopra il modello): il tetto di tasse e l'importo venduto si calcolano in «Ricalcola», mai nel tile.
+- **Anteprima dello stato vuoto** con l'entrata suggerita da RP7 (`monthlyInflowEur`); il verdetto senza piano conta solo i conti di liquidità.
+- **Scheda**: due pile indipendenti (Questo mese + Modello · Classi + Obiettivi); testo accanto ai titoli; il rientro in banda sta solo nel verdetto; chip di stato (Registrato · Da confermare · Da fare), Registra e Conferma pieni, ordine Ignora · Conferma; proposta, righe, barra dei mesi; footer Calendario · Rivedi · Interrompi con «riserva intatta»; Piani conclusi in tabella.
+- **Obiettivi**: con un piano aperto le barre sono il suo stato a fine piano (`evaluateObjectivesAt`, profili letti dal tile). Gli obiettivi di classe sono UNA riga senza barra («Classi · scarto max X pp»: il resto è nel tile Classi del piano); le altre barre sono piene in `--hero-series` (il colore del patrimonio di Storico) su 4px, con la tacca del target, mai il colore delle classi. Sotto le barre, in un riquadro, il primo conflitto del modello salvato (`describeConflictReading`), anche con un piano aperto.
+
+### Collaudo guidato di A4 (2026-10-07)
+
+- **Editor, passo 1**: «Nome del piano» (bloccato in revisione: la revisione non lo salva), «Seleziona tutti / Nessuno» sui conti; i campi numerici si possono svuotare (`DraftNumberInput`: vuoto = valore di riserva, al blur torna la cifra).
+- **Editor, passo 2**: «Parti da» ha sempre una voce attiva e una riga che dice da dove vengono i target. «Piano attuale» (solo su un piano esistente) riporta pesi e vendite di quando l'hai aperto; senza modello né piano si parte dai «Pesi di oggi» applicati davvero. «Oggi» è il peso tra i soli strumenti del piano (Σ 100%, senza la liquidità da investire): con «Pesi di oggi» Target = Oggi. Tieni → Vendi → Tieni ridà la riga col suo peso (`keptPositions`) e la riga non cambia posto (`rowOrder`); Vendi attivo nel colore VENDI, Tieni nel colore COMPRA. «Distribuisci il resto» (`redistributeRemainder`) porta la somma a 100,0% in proporzione ai pesi. Sotto i 640px «Al mese» sparisce.
+- **Editor, passo 3**: la lettura del dialogo è la sintesi («N rate da circa X € · copre il Y% · leva Z×»); pesi a fine piano in tabella (oggi → fine · target · scarto, ambra oltre 0,5 pp); calendario coi ticker; classi mese per mese come tabella (solo le classi con peso o target) — il grafico sta già nel pannello del passo 2 e in Classi del piano. I passi 1 e 2 hanno una frase propria al posto del titolo ripetuto.
+- **Stato vuoto**: lettura sulla liquidità dei conti, anteprima in un riquadro («Con una riserva di X e Y al mese, N rate da Z porterebbero:», classi su una colonna con il target scritto), «Cosa fa / Cosa non fa» in frasi.
+- Restano fuori: M8 (link «vedi Accumulo» in Bilanciamento); il verdino di campi e pulsanti secondari in Lime Frost chiaro è del tema (scheda Todoist a parte).

@@ -119,6 +119,20 @@ export function proposalToModelWeights(
   return { ...fit, portfolioWeights };
 }
 
+/**
+ * PO1 — a model written by hand from nothing starts from what is held: the tradable instruments with
+ * value, at today's market weights (Σ = 100, 0,01 step). Empty when nothing tradable is held.
+ */
+export function seedModelFromToday(allAssets: Asset[], valueOf: (asset: Asset) => number): ModelPortfolioWeight[] {
+  const held = allAssets
+    .map((asset) => ({ assetId: asset.id, pct: Math.max(0, valueOf(asset)) }))
+    .filter((entry, i) => entry.pct > 0 && exclusionReason(allAssets[i]) === null);
+  return toModelWeights(held, new Map(allAssets.map((asset) => [asset.id, asset]))).weights.map((weight) => ({
+    assetId: weight.assetId,
+    targetPercentage: weight.pct,
+  }));
+}
+
 /** Adds an instrument to evaluate (RM3): weight 0, `candidate`; a no-op when it is already there. */
 export function addModelCandidate(weights: ModelPortfolioWeight[], assetId: string): ModelPortfolioWeight[] {
   if (weights.some((weight) => weight.assetId === assetId)) return weights;

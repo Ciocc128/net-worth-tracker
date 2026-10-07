@@ -186,14 +186,22 @@ export const ACCUMULO_DONE_BOX_DRIFT = 'Scostamento medio';
 
 /** A line's status as the tile shows it — the matching engine's `LineUiState` (§9). */
 export const ACCUMULO_LINE_STATUS_LABEL: Record<LineUiState, string> = {
-  todo: 'Da eseguire',
+  todo: 'Da fare',
   toConfirm: 'Da confermare',
-  executed: 'Eseguita',
+  executed: 'Registrato',
   late: 'In ritardo',
   skipped: 'Saltata',
   lostLink: 'Collegamento perso',
 };
 
+/** Questo mese's header aside: «ottobre 2026 · rata 3 di 12» (render, view 1). */
+export function describeMonthTileAside(month: MonthKey, installmentIndex: number, totalMonths: number): string {
+  return `${monthLabelLong(month)} · rata ${installmentIndex} di ${totalMonths}`;
+}
+/** «Trovato nel Registro: 24 quote, 3134 €» under a line waiting for the reader's confirmation. */
+export function describeMatchNote(quantity: number, amountEur: number): string {
+  return `Trovato nel Registro: ${formatNumberIt(quantity, 0)} quote, ${cachedFormatCurrencyEUR(amountEur)}`;
+}
 export const ACCUMULO_ACTION_MARK_EXECUTED = 'Segna eseguita';
 export const ACCUMULO_ACTION_SKIP = 'Salta';
 export const ACCUMULO_ACTION_UNDO_EXECUTED = 'Segna da rifare';
@@ -422,6 +430,8 @@ export function describeClassStripItem(input: ClassStripItemInput): ClassStripIt
 export interface AccumulationOutcomeFooterInput {
   maxDrift: { label: string; deltaPp: number } | null;
   residualEur: number;
+  /** M6: the reserve the plan keeps; named as intact only when the accounts still cover it. */
+  reserve?: { eur: number; intact: boolean };
 }
 
 /** The tile's pinned footer: the plan's worst projected drift and what is left unspent. */
@@ -440,6 +450,9 @@ export function describeAccumulationOutcomeFooter(input: AccumulationOutcomeFoot
     { text: ' · liquidità residua ' },
     { text: cachedFormatCurrencyEUR(input.residualEur), mono: true },
   );
+  if (input.reserve && input.reserve.eur > 0 && input.reserve.intact) {
+    segments.push({ text: ' · riserva di ' }, { text: cachedFormatCurrencyEUR(input.reserve.eur, true), mono: true }, { text: ' intatta' });
+  }
   return segments;
 }
 
@@ -493,6 +506,25 @@ export const ACCUMULO_STEP1_REMAINING_MONTHS = 'Mesi restanti';
 export const ACCUMULO_ACTION_SAVE_REVISION = 'Salva la revisione';
 export const ACCUMULO_STEP1_REVISE_NOTE = 'Le rate già eseguite, saltate o collegate restano com’erano: la revisione riscrive dalla prima rata intatta.';
 
+/** The dialog's reading under each step's title (it no longer repeats the title). */
+export const ACCUMULO_STEP_READINGS: Record<1 | 2, string> = {
+  1: 'Scegli i conti da cui prendere i soldi, la riserva da non toccare e quanto aggiungi ogni mese.',
+  2: 'Scegli dove deve arrivare ogni strumento a fine piano: il pannello mostra dove porta.',
+};
+
+/** Step 3's reading, the plan in one line: «5 rate da circa 5905 € · copre il 98% del piano · leva a fine piano 1,27×». */
+export function describeStep3Summary(input: { months: number; averageEur: number; coveragePct: number | null; leverageRatio: number }): Narrative {
+  const parts: Narrative = [
+    { text: `${input.months} ${input.months === 1 ? 'rata' : 'rate'} da circa ` },
+    { text: cachedFormatCurrencyEUR(input.averageEur, true), mono: true },
+  ];
+  if (input.coveragePct !== null) parts.push({ text: ` · copre il ${formatPercentageIt(input.coveragePct, 0)} del piano` });
+  if (input.leverageRatio > 1.01) parts.push({ text: ` · leva a fine piano ${formatNumberIt(input.leverageRatio, 2)}×` });
+  return parts;
+}
+
+export const ACCUMULO_STEP3_WEIGHTS_COLUMNS: readonly string[] = ['Strumento', 'Oggi → fine piano', 'Target', 'Scarto'];
+
 export const ACCUMULO_STEP_TITLES: Record<1 | 2 | 3, string> = {
   1: 'Da dove arriva la liquidità',
   2: 'Dove deve arrivare il portafoglio',
@@ -505,6 +537,9 @@ export const ACCUMULO_ACTION_SAVE_DRAFT = 'Salva bozza';
 
 // Step 1 — Liquidità
 export const ACCUMULO_STEP1_SOURCE_ACCOUNTS = 'Conti sorgente';
+export const ACCUMULO_STEP1_NAME = 'Nome del piano';
+export const ACCUMULO_STEP1_SELECT_ALL = 'Seleziona tutti';
+export const ACCUMULO_STEP1_SELECT_NONE = 'Nessuno';
 export const ACCUMULO_STEP1_NO_CASH_ACCOUNTS = 'Nessun conto di liquidità disponibile come fonte.';
 export const ACCUMULO_STEP1_RESERVE = 'Riserva da non toccare (€)';
 export const ACCUMULO_STEP1_INFLOW = 'Entrata mensile stimata (€)';
@@ -533,10 +568,22 @@ export const ACCUMULO_STEP2_SELL_SHARES = 'Vendi quote';
 export const ACCUMULO_STEP2_ALREADY_SELLING = 'già in vendita';
 export const ACCUMULO_STEP2_FROM_LABEL = 'Parti da';
 export const ACCUMULO_STEP2_FROM_MODEL = 'Portafoglio modello';
+export const ACCUMULO_STEP2_FROM_PLAN = 'Piano attuale';
+/** One line under «Parti da»: what the active source put in the Target column. «Oggi» is the share
+ *  among the plan's instruments, so «Pesi di oggi» reads as target = oggi. */
+export const ACCUMULO_STEP2_FROM_HINT: Record<'plan' | 'model' | 'today' | 'optimizer', string> = {
+  plan: 'I pesi salvati nel piano, com’erano quando l’hai aperto.',
+  model: 'I pesi del portafoglio modello.',
+  today: 'Target = Oggi: i nuovi soldi mantengono le proporzioni di adesso tra gli strumenti del piano.',
+  optimizer: 'I pesi che l’ottimizzatore propone dagli obiettivi.',
+};
 export const ACCUMULO_STEP2_FROM_TODAY = 'Pesi di oggi';
+export const ACCUMULO_STEP2_REDISTRIBUTE = 'Distribuisci il resto';
 export const ACCUMULO_STEP2_FROM_OPTIMIZER = 'Ricalcola';
 export const ACCUMULO_ACTION_GROUP_PROXY = 'Raggruppa due strumenti';
 export const ACCUMULO_ACTION_GROUP_CANCEL = 'Annulla raggruppamento';
+export const ACCUMULO_STEP2_GROUP_NO_BUY = 'non riceve acquisti';
+export const ACCUMULO_STEP2_SALE_PROCEEDS = 'ricavo al mese 1';
 export const ACCUMULO_STEP2_GROUP_HINT = 'Scegli gli strumenti da raggruppare: dividono un solo peso e si compra solo uno dei due.';
 export function describeStep2Shares(quantity: number): string {
   return `${formatNumberIt(quantity, 0)} quote`;
@@ -636,6 +683,49 @@ export interface RecalibrationReadingInput {
   lines: RecalibrationLineReading[];
   plannedTotalEur: number;
   suggestedTotalEur: number;
+}
+
+const COUNT_WORDS = ['zero', 'un', 'due', 'tre', 'quattro', 'cinque', 'sei', 'sette', 'otto', 'nove', 'dieci', 'undici', 'dodici'];
+
+/**
+ * Questo mese's reading (render, view 1): what the open month asks, and that registering from here
+ * closes the line. «Quattro acquisti per 3134 €. Registrali da qui: l'operazione va nel Registro e la
+ * riga si chiude da sola.» `null` when no line of the month is open.
+ */
+export function describeMonthReading(openCount: number, openAmountEur: number): Narrative | null {
+  if (openCount <= 0) return null;
+  const count = COUNT_WORDS[openCount] ?? String(openCount);
+  const one = openCount === 1;
+  return [
+    { text: `${capitalize(count)} acquist${one ? 'o' : 'i'} per ` },
+    { text: cachedFormatCurrencyEUR(openAmountEur, true), mono: true },
+    { text: `. Registrali da qui: l'operazione va nel Registro e la riga si chiude da sola.`.replace('Registrali', one ? 'Registralo' : 'Registrali') },
+  ];
+}
+
+/**
+ * The recalibration notice (render, PO6): «I prezzi sono cambiati dall'attivazione: con quelli di oggi
+ * la rata compra 9 VWCE invece di 10 e 2 AVWS in più (−95,20 €).»
+ */
+export function describePriceChangeNotice(input: RecalibrationReadingInput): Narrative {
+  const totalDeltaEur = input.suggestedTotalEur - input.plannedTotalEur;
+  const changed = input.lines
+    .filter((line) => line.suggestedQuantity !== line.plannedQuantity)
+    // The biggest moves first; the notice names at most three, the rest is counted.
+    .sort((a, b) => Math.abs(b.suggestedQuantity - b.plannedQuantity) - Math.abs(a.suggestedQuantity - a.plannedQuantity));
+  const parts = changed.slice(0, 3).map((line) =>
+    line.suggestedQuantity < line.plannedQuantity
+      ? `${line.suggestedQuantity} ${line.label} invece di ${line.plannedQuantity}`
+      : `${line.suggestedQuantity - line.plannedQuantity} ${line.label} in più`,
+  );
+  if (changed.length > 3) parts.push(`altre ${changed.length - 3} righe che cambiano`);
+  if (parts.length === 0) return [{ text: 'La rata resta come pianificata.' }];
+  const joined = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} e ${parts[parts.length - 1]}`;
+  return [
+    { text: `I prezzi sono cambiati dall'attivazione: con quelli di oggi la rata compra ${joined} (` },
+    { text: formatSignedCurrency(totalDeltaEur), mono: true },
+    { text: ').' },
+  ];
 }
 
 /** The recalibrate modal's reading: what moved, or why the rata shrank without a mover. */
@@ -840,27 +930,28 @@ export function describeAccumuloVerdict(input: AccumuloVerdictInput): PageVerdic
 
 export const ACCUMULO_EMPTY_DOES_TITLE = 'Cosa fa';
 export const ACCUMULO_EMPTY_DOES: readonly string[] = [
-  'divide liquidità ed entrate in rate mensili a quote intere',
-  'tiene intatta la riserva che scegli',
-  'vende al primo mese ciò che lasci fuori, anche solo in parte',
-  'riconosce gli acquisti nel Registro e ti chiede solo di confermare',
-  'ricalcola la rata quando i prezzi cambiano, se lo accetti',
-  'mostra mese per mese come si muovono le classi, leva compresa',
+  'Divide liquidità ed entrate in rate mensili, a quote intere.',
+  'Tiene intatta la riserva che scegli.',
+  'Vende al primo mese gli strumenti che lasci fuori, anche solo in parte.',
+  'Riconosce gli acquisti nel Registro e ti chiede solo di confermare.',
+  'Ricalcola la rata quando i prezzi cambiano, se lo accetti.',
+  'Mostra mese per mese come si muovono le classi, leva compresa.',
 ];
 export const ACCUMULO_EMPTY_DOESNT_TITLE = 'Cosa non fa';
 export const ACCUMULO_EMPTY_DOESNT: readonly string[] = [
-  'non vende gli strumenti del piano per ribilanciare (c’è il Ribilancia)',
-  'non manda ordini al broker e non conta le commissioni',
-  'un piano alla volta, al massimo 60 mesi',
-  'non sceglie strumenti che non hai indicato',
+  'Non vende gli strumenti del piano per ribilanciare: per quello c’è Ribilancia.',
+  'Non manda ordini al broker e non conta le commissioni.',
+  'Un piano alla volta, al massimo 60 mesi.',
+  'Non sceglie strumenti che non hai indicato: puoi aggiungerli da valutare.',
 ];
 export const ACCUMULO_EMPTY_PREVIEW_TITLE = 'Anteprima sui tuoi numeri';
+export const ACCUMULO_EMPTY_ASIDE = 'nessun piano aperto';
 export const ACCUMULO_EMPTY_PREVIEW_CLASSES = 'oggi → a fine piano';
 export const ACCUMULO_ACTION_OPEN_MODEL = 'Apri il portafoglio modello';
 
 /** «12 rate da 3208 € con 10.000 € di riserva, dai pesi di oggi.» — or why there is nothing to show. */
 export function describeAccumuloPreview(
-  preview: { months: number; reserveEur: number; monthlyEur: number; weightsFrom?: 'today' | 'model' } | null,
+  preview: { months: number; reserveEur: number; monthlyEur: number; inflowEur?: number; weightsFrom?: 'today' | 'model' } | null,
 ): Narrative {
   if (!preview) {
     return [{ text: 'Con una riserva di 10.000 € non resta liquidità da spendere, o nessuno strumento è acquistabile: crea il piano per scegliere riserva ed entrate.' }];
@@ -870,17 +961,54 @@ export function describeAccumuloPreview(
     { text: cachedFormatCurrencyEUR(preview.monthlyEur, true), mono: true },
     { text: ' con ' },
     { text: cachedFormatCurrencyEUR(preview.reserveEur, true), mono: true },
-    { text: ` di riserva, ${preview.weightsFrom === 'model' ? 'dal portafoglio modello' : 'dai pesi di oggi'} e senza entrate mensili.` },
+    { text: ` di riserva, ${preview.weightsFrom === 'model' ? 'dal portafoglio modello' : 'dai pesi di oggi'}` },
+    ...((preview.inflowEur ?? 0) > 0
+      ? ([{ text: ' e ' }, { text: cachedFormatCurrencyEUR(preview.inflowEur as number, true), mono: true }, { text: ' al mese di entrate.' }] as Narrative)
+      : ([{ text: ' e senza entrate mensili.' }] as Narrative)),
+  ];
+}
+
+/** The empty tile's reading (render RV4): «Nei conti di liquidità hai 36.500 €. Un piano di accumulo li
+ *  spende in rate mensili verso il portafoglio modello, a quote intere, e ti dice ogni mese cosa comprare.» */
+export function describeAccumuloIntro(preview: { cashEur: number; weightsFrom?: 'today' | 'model' } | null): Narrative {
+  if (!preview) return describeAccumuloPreview(null);
+  return [
+    { text: 'Nei conti di liquidità hai ' },
+    { text: cachedFormatCurrencyEUR(preview.cashEur, true), mono: true },
+    {
+      text: `. Un piano di accumulo li spende in rate mensili verso ${preview.weightsFrom === 'model' ? 'il portafoglio modello' : 'i pesi di oggi'}, a quote intere, e ti dice ogni mese cosa comprare.`,
+    },
+  ];
+}
+
+/** The preview box's lead: «Con una riserva di 10.000 € e 1000 € al mese, 12 rate da 3208 € porterebbero:» */
+export function describeAccumuloPreviewLead(preview: { months: number; reserveEur: number; monthlyEur: number; inflowEur?: number }): Narrative {
+  const inflow = preview.inflowEur ?? 0;
+  return [
+    { text: 'Con una riserva di ' },
+    { text: cachedFormatCurrencyEUR(preview.reserveEur, true), mono: true },
+    ...(inflow > 0
+      ? ([{ text: ' e ' }, { text: cachedFormatCurrencyEUR(inflow, true), mono: true }, { text: ' al mese' }] as Narrative)
+      : ([{ text: ' e senza entrate mensili' }] as Narrative)),
+    { text: `, ${preview.months} rate da ` },
+    { text: cachedFormatCurrencyEUR(preview.monthlyEur, true), mono: true },
+    { text: ' porterebbero:' },
   ];
 }
 
 export const ACCUMULO_CLASSES_TILE_EYEBROW = 'Classi del piano';
+export const ACCUMULO_CLASSES_TILE_ASIDE = 'scostamento dal target, mese per mese';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Piani conclusi (RP6) and the suggested monthly inflow (RP7)
 // ─────────────────────────────────────────────────────────────────────────
 
 export const ACCUMULO_CLOSED_PLANS_EYEBROW = 'Piani conclusi';
+export const ACCUMULO_CLOSED_PLANS_COLUMNS: readonly string[] = ['Piano', 'Periodo', 'Rate', 'Investito', 'Scostamento finale'];
+/** «2 piani» / «1 piano» beside the tile's eyebrow. */
+export function describeClosedPlansAside(count: number): string {
+  return `${count} ${count === 1 ? 'piano' : 'piani'}`;
+}
 
 export interface ClosedPlanReadingInput {
   name: string;

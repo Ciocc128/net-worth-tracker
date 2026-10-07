@@ -11,6 +11,7 @@ import {
   areasFromCountries,
   buildOptimizerCandidates,
   buildStandaloneCandidates,
+  evaluateObjectivesAt,
   findSecondLevelGaps,
   hasSpecificAssetTargets,
   optimizeWeights,
@@ -872,5 +873,46 @@ describe('buildStandaloneCandidates', () => {
     const frozen = makeAsset({ quantity: 10, currentPrice: 100, allocationRole: 'frozen' });
     const { fixBounds } = buildStandaloneCandidates([frozen], 0, valueOf);
     expect(fixBounds(candidate({ key: frozen.id, buyAssetId: frozen.id }))).toEqual({});
+  });
+});
+
+// ---------------------------------------------------------------------------
+// evaluateObjectivesAt (A4) — what given weights reach, no solver
+// ---------------------------------------------------------------------------
+
+describe('evaluateObjectivesAt', () => {
+  const equity = makeAsset({ id: 'eq', assetClass: 'equity', quantity: 1, currentPrice: 1000 });
+  const bonds = makeAsset({ id: 'bd', assetClass: 'bonds', quantity: 1, currentPrice: 1000 });
+  const base = {
+    positions: [
+      { key: 'eq', label: 'EQ', memberAssetIds: ['eq'], buyAssetId: 'eq' },
+      { key: 'bd', label: 'BD', memberAssetIds: ['bd'], buyAssetId: 'bd' },
+    ],
+    assetsById: new Map([
+      [equity.id, equity],
+      [bonds.id, bonds],
+    ]),
+    profilesByTicker: new Map<string, InstrumentProfile>(),
+    referenceCountries: null,
+    settings: makeSettings({ classPriority: 'essential', leveragePriority: 'off' }),
+    baseEur: 2000,
+    valueOf: (a: Asset) => a.quantity * a.currentPrice,
+    targets: { equity: { targetPercentage: 60 }, bonds: { targetPercentage: 40 } } as AssetAllocationTarget,
+    referenceAreas: null,
+    referenceEstimatedShare: 0,
+    targetLeverageRatio: 1,
+  };
+
+  it('reports no class gap on the target weights and a gap on others', () => {
+    const onTarget = evaluateObjectivesAt({ ...base, weightsPctByKey: { eq: 60, bd: 40 } });
+    const off = evaluateObjectivesAt({ ...base, weightsPctByKey: { eq: 80, bd: 20 } });
+    expect(onTarget.find((o) => o.kind === 'class')?.gapPp ?? 0).toBeCloseTo(0, 6);
+    expect(off.find((o) => o.kind === 'class')?.gapPp ?? 0).toBeGreaterThan(10);
+  });
+
+  it('rescales weights that do not add up to 100 and is empty without any weight', () => {
+    const scaled = evaluateObjectivesAt({ ...base, weightsPctByKey: { eq: 30, bd: 20 } });
+    expect(scaled.find((o) => o.kind === 'class')?.gapPp ?? 0).toBeCloseTo(0, 6);
+    expect(evaluateObjectivesAt({ ...base, weightsPctByKey: {} })).toEqual([]);
   });
 });

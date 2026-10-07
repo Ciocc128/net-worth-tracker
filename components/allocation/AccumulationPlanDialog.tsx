@@ -14,7 +14,7 @@
  * `validateDraftAgainstAssets` on every render so the status line can name the FIRST domain issue
  * before the write is even attempted (§6, §10.3: "uno alla volta, il primo").
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { ModelPortfolio } from '@/types/modelPortfolio';
@@ -25,16 +25,18 @@ import type {
   PlanDisposal,
   PlanPosition,
 } from '@/types/accumulationPlan';
-import { ASSET_CLASS_CHART_INDEX, ASSET_CLASS_LABELS, resolveAllocationRole, type RebalanceBand } from '@/lib/utils/allocationUtils';
+import { ACTION_CHIP_FILL_PCT, ASSET_CLASS_CHART_INDEX, ASSET_CLASS_LABELS, resolveAllocationRole, type RebalanceBand } from '@/lib/utils/allocationUtils';
 import {
   addMonths,
   applyWeightsToPositions,
+  redistributeRemainder,
   buildDraftPreview,
   computeTotalPurchases,
   computeUsableLiquidity,
   findFirstIntactInstallment,
   marketWeights,
   modelWeightMap,
+  proceedsOfDisposal,
   resolvePositionStates,
   toMonthKey,
   unitPriceEur,
@@ -45,6 +47,7 @@ import { compareAllocations } from '@/lib/services/assetAllocationService';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { useCreateDraftPlan, useUpdateDraftPlan, useActivatePlan, useRevisePlan } from '@/lib/hooks/useAccumulationPlan';
 import { getAnnualCashflowData } from '@/lib/services/fireService';
+import { useActionColors } from '@/lib/hooks/useActionColors';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { CHART_COLORS } from '@/lib/constants/colors';
@@ -54,7 +57,8 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AssetDialog } from '@/components/assets/AssetDialog';
-import { ClassDriftChart } from '@/components/allocation/ClassDriftChart';
+import { PlanDraftSidePanel } from '@/components/allocation/PlanDraftSidePanel';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { OptimizerPanel } from '@/components/allocation/OptimizerPanel';
 import { SegmentedPill } from '@/components/ui/segmented-pill';
 import {
@@ -78,10 +82,15 @@ import {
   ACCUMULO_STEP2_COL_TO_BUY,
   ACCUMULO_STEP2_FROM_LABEL,
   ACCUMULO_STEP2_FROM_MODEL,
+  ACCUMULO_STEP2_FROM_PLAN,
+  ACCUMULO_STEP2_FROM_HINT,
   ACCUMULO_STEP2_FROM_OPTIMIZER,
   ACCUMULO_STEP2_FROM_TODAY,
   ACCUMULO_STEP2_GROUP_HINT,
+  ACCUMULO_STEP2_GROUP_NO_BUY,
+  ACCUMULO_STEP2_SALE_PROCEEDS,
   ACCUMULO_STEP2_SELL_SHARES,
+  ACCUMULO_STEP2_REDISTRIBUTE,
   ACCUMULO_USE_SUGGESTED_INFLOW,
   describeStep1InflowsLabel,
   describeStep2Shares,
@@ -102,6 +111,9 @@ import {
   ACCUMULO_STEP1_NO_CASH_ACCOUNTS,
   ACCUMULO_STEP1_RESERVE,
   ACCUMULO_STEP1_SOURCE_ACCOUNTS,
+  ACCUMULO_STEP1_NAME,
+  ACCUMULO_STEP1_SELECT_ALL,
+  ACCUMULO_STEP1_SELECT_NONE,
   ACCUMULO_STEP1_START_MONTH,
   ACCUMULO_STEP2_BUY_ASSET_CONFIRM,
   ACCUMULO_STEP2_BUY_ASSET_PROMPT,
@@ -120,7 +132,9 @@ import {
   ACCUMULO_STEP3_SECTION_EXPOSURE,
   ACCUMULO_STEP3_SECTION_WEIGHTS,
   ACCUMULO_STEP_TITLES,
-  describeAboveTargetWarning,
+  describeStep3Summary,
+  ACCUMULO_STEP_READINGS,
+  ACCUMULO_STEP3_WEIGHTS_COLUMNS,
   describeAccumuloDialogEyebrow,
   describeInsufficientLiquidityWarning,
   describeUnpricedWarning,
@@ -161,7 +175,6 @@ interface AccumulationPlanDialogProps {
 
 const DEPS: PlanDeps = { valueOf: calculateAssetValue, priceOf: unitPriceEur };
 const MAX_CALENDAR_ROWS = 8;
-const TRAJECTORY_SAMPLE_INDICES = [0, 1, 3, 6, 9];
 
 function emptyDraft(
   startMonth: string,
@@ -252,6 +265,9 @@ export function AccumulationPlanDialog({
 }: AccumulationPlanDialogProps) {
   const isDemo = useDemoMode();
   const chartColors = useChartColors();
+  const [rowOrder, setRowOrder] = useState<string[]>([]);
+  // The position a Vendi took away, so Tieni gives it back with its weight.
+  const [keptPositions, setKeptPositions] = useState<Record<string, PlanPosition>>({});
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [draft, setDraft] = useState<AccumulationPlanDraft>(() => emptyDraft(addMonths(toMonthKey(new Date()), 1)));
   const [status, setStatus] = useState<ModalStatus>({ phase: 'idle' });
@@ -259,7 +275,9 @@ export function AccumulationPlanDialog({
   const [groupingBuyAssetId, setGroupingBuyAssetId] = useState<string | null>(null);
   const [newAssetDialogOpen, setNewAssetDialogOpen] = useState(false);
   const [showOptimizer, setShowOptimizer] = useState(false);
-  const [weightsFrom, setWeightsFrom] = useState<'model' | 'today' | 'optimizer' | null>(null);
+  const [weightsFrom, setWeightsFrom] = useState<'plan' | 'model' | 'today' | 'optimizer' | null>(null);
+  // The plan's own weights and sales as the dialog opened on them: «Piano attuale» brings them back.
+  const [planBase, setPlanBase] = useState<{ positions: PlanPosition[]; disposals: PlanDisposal[] } | null>(null);
   const [groupingMode, setGroupingMode] = useState(false);
 
   // Reset on every (open, plan) change, settled during render — AGENTS.md § Dialog Form Reset.
@@ -283,12 +301,22 @@ export function AccumulationPlanDialog({
                       new Set(),
                       (id) => allAssets.find((a) => a.id === id)?.name ?? id
                     )
-                  : seedPositionsFromAssets(allAssets)),
+                  : applyWeightsToPositions(
+                      seedPositionsFromAssets(allAssets),
+                      marketWeights(
+                        seedPositionsFromAssets(allAssets).flatMap((position) => position.memberAssetIds).map((id) => allAssets.find((a) => a.id === id)).filter((a): a is Asset => !!a),
+                        DEPS
+                      ),
+                      new Set(),
+                      (id) => allAssets.find((a) => a.id === id)?.name ?? id
+                    )),
               seedDraft?.optimizerSnapshot ?? (fromModel ? model?.optimizerSnapshot : undefined),
               seedDraft?.disposals
             )
       );
-      setWeightsFrom(fromModel ? 'model' : seedDraft ? 'optimizer' : null);
+      const planDraft = plan ? (revise ? draftForRevision(plan) : draftFromPlan(plan)) : null;
+      setPlanBase(planDraft ? { positions: planDraft.positions, disposals: planDraft.disposals } : null);
+      setWeightsFrom(fromModel ? 'model' : seedDraft ? 'optimizer' : plan ? 'plan' : 'today');
       setShowOptimizer(false);
       setGroupingMode(false);
       setStep(plan && !revise ? 2 : 1);
@@ -309,6 +337,12 @@ export function AccumulationPlanDialog({
     for (const disposal of draft.disposals) ids.add(disposal.assetId);
     return ids;
   }, [draft.positions, draft.disposals]);
+
+  // Step 2 row order, fixed at first appearance, so a row flipping Tieni ↔ Vendi stays where it is
+  // (state adjusted during render, guarded: it settles in one extra pass).
+  const draftAssetIds = [...draft.positions.flatMap((position) => position.memberAssetIds), ...draft.disposals.map((disposal) => disposal.assetId)];
+  const missingFromOrder = draftAssetIds.filter((id, index) => !rowOrder.includes(id) && draftAssetIds.indexOf(id) === index);
+  if (open && missingFromOrder.length > 0) setRowOrder([...rowOrder, ...missingFromOrder]);
 
   // Same rilievo 6 exclusion as the seeder above: a cash account never appears as a step 2 row.
   const candidateAssets = useMemo(
@@ -348,13 +382,16 @@ export function AccumulationPlanDialog({
   });
   const suggestedInflow = suggestMonthlyInflow(cashflowQuery.data?.annualSavings ?? 0);
 
-  // Step 2's figures, on ONE base B (the positions' value + L): today's share, the target, what to
+  // Step 2's figures: today's share, what to
   // buy (euro, whole shares under it) and the monthly part — the same split the calendar uses.
   const stepTwoFigures = useMemo(() => {
     if (!open || !liquidity) return new Map<string, { todayPct: number; buyEur: number; buyShares: number; monthlyEur: number }>();
     const states = resolvePositionStates(draft.positions, assetsById, DEPS, draft.disposals);
     const totals = computeTotalPurchases(states, liquidity.L);
-    const base = states.reduce((sum, state) => sum + state.currentValueEur, 0) + liquidity.L;
+    // «Oggi» on the same footing as the target and «Pesi di oggi»: the share among the plan's own
+    // instruments (they sum to 100%), without the cash still to invest — so «Pesi di oggi» reads
+    // as target = oggi, and every other source as the shift it asks for.
+    const base = states.reduce((sum, state) => sum + state.currentValueEur, 0);
     const figures = new Map<string, { todayPct: number; buyEur: number; buyShares: number; monthlyEur: number }>();
     for (const state of states) {
       const buyEur = totals[state.positionId] ?? 0;
@@ -372,14 +409,23 @@ export function AccumulationPlanDialog({
   const lockedSaleIds = useMemo(() => new Set(revise && plan ? plan.disposals.map((d) => d.assetId) : []), [revise, plan]);
 
   /** RP1: «Parti da» — the model's weights, or today's market weights, onto the draft's positions. */
-  const startFrom = (source: 'model' | 'today' | 'optimizer') => {
+  const startFrom = (source: 'plan' | 'model' | 'today' | 'optimizer') => {
     setWeightsFrom(source);
+    if (source === 'plan') {
+      setShowOptimizer(false);
+      if (planBase) setDraft((prev) => ({ ...prev, positions: planBase.positions, disposals: planBase.disposals }));
+      setKeptPositions({});
+      return;
+    }
     if (source === 'optimizer') {
       setShowOptimizer(true);
       return;
     }
     setShowOptimizer(false);
-    const sold = new Set(draft.disposals.filter((d) => d.quantity === undefined).map((d) => d.assetId));
+    // Picking a source goes back to its initial setup: every whole-instrument sale taken back to
+    // Tieni (the ones the plan already carries stay), then the source's weights.
+    const givenBack = draft.disposals.filter((d) => d.quantity === undefined && !lockedSaleIds.has(d.assetId) && keptPositions[d.assetId]);
+    const sold = new Set(draft.disposals.filter((d) => d.quantity === undefined && !givenBack.includes(d)).map((d) => d.assetId));
     const weights =
       source === 'model' && model
         ? modelWeightMap(model)
@@ -389,7 +435,8 @@ export function AccumulationPlanDialog({
           );
     setDraft((prev) => ({
       ...prev,
-      positions: applyWeightsToPositions(prev.positions, weights, sold, labelOfAsset),
+      positions: applyWeightsToPositions([...prev.positions, ...givenBack.map((d) => keptPositions[d.assetId])], weights, sold, labelOfAsset),
+      disposals: prev.disposals.filter((d) => !givenBack.includes(d)),
       optimizerSnapshot: source === 'model' ? model?.optimizerSnapshot ?? prev.optimizerSnapshot : prev.optimizerSnapshot,
     }));
   };
@@ -414,7 +461,9 @@ export function AccumulationPlanDialog({
   const updateDisposals = (disposals: PlanDisposal[]) => setDraft((prev) => ({ ...prev, disposals }));
 
   const moveAssetToDisposal = (asset: Asset) => {
-    updatePositions(draft.positions.filter((position) => !(position.memberAssetIds.length === 1 && position.memberAssetIds[0] === asset.id)));
+    const leaving = draft.positions.find((position) => position.memberAssetIds.length === 1 && position.memberAssetIds[0] === asset.id);
+    if (leaving) setKeptPositions((prev) => ({ ...prev, [asset.id]: leaving }));
+    updatePositions(draft.positions.filter((position) => position !== leaving));
     updateDisposals([
       ...draft.disposals.filter((disposal) => disposal.assetId !== asset.id),
       { assetId: asset.id, estimatedProceedsEur: calculateAssetValue(asset), status: 'planned' },
@@ -425,7 +474,7 @@ export function AccumulationPlanDialog({
     updateDisposals(draft.disposals.filter((disposal) => disposal.assetId !== asset.id));
     updatePositions([
       ...draft.positions,
-      { id: crypto.randomUUID(), label: asset.name, targetPercentage: 0, memberAssetIds: [asset.id], buyAssetId: asset.id },
+      keptPositions[asset.id] ?? { id: crypto.randomUUID(), label: asset.name, targetPercentage: 0, memberAssetIds: [asset.id], buyAssetId: asset.id },
     ]);
   };
 
@@ -541,26 +590,75 @@ export function AccumulationPlanDialog({
   };
 
   const canProceedFromStep2 = Math.abs(weightsSum - 100) <= 0.01 && draft.positions.length > 0;
-  const modalStatus = describeModalStatus(status, {
-    idle: [{ text: firstIssue ?? (step === 2 && weightsMessage ? weightsMessage : ACCUMULO_STEP_TITLES[step]) }],
-    submitting: 'Salvataggio in corso…',
-  });
-
   const preview = useMemo(
     () => (step === 3 ? buildDraftPreview({ draft, allAssets, targets, band, compare: compareAllocations, deps: DEPS }) : null),
     [step, draft, allAssets, targets, band],
   );
-  // The trajectory's own class set (stable across points — all come from the same `targets`),
-  // read once for the "Classi mese per mese" table's header and column order below.
-  const classKeys = useMemo(() => Object.keys(preview?.trajectory[0]?.byClass ?? {}), [preview]);
-  // Same class → color mapping as the exposure bar above and `ClassDriftChart`'s own line/label
-  // colors — the table's header leans on it instead of (or as well as) the text label, so a
-  // column reads at a glance against the chart right above it.
-  const classColor = (assetClass: string) => {
-    const idx = ASSET_CLASS_CHART_INDEX[assetClass] ?? 0;
-    return chartColors[idx] ?? CHART_COLORS[idx] ?? CHART_COLORS[0];
-  };
+  // Coverage (D9/§5.5): `preview.totals` always SUMS to L (splitTowardTarget redistributes whatever
+  // is available), so a shortfall shows only by comparing L against the IDEAL deficit —
+  // Σ max(0, target%×B − currentValue) — computed the same way `computeTotalPurchases` does.
+  const coveragePct = useMemo(() => {
+    if (!preview) return null;
+    const states = resolvePositionStates(draft.positions, assetsById, DEPS, draft.disposals);
+    const B = states.reduce((sum, s) => sum + s.currentValueEur, 0) + preview.liquidity.L;
+    const totalDeficit = states.filter((s) => !s.unpriced).reduce((sum, s) => sum + Math.max(0, (s.targetPercentage / 100) * B - s.currentValueEur), 0);
+    if (totalDeficit <= 0.5) return null;
+    const pct = Math.min(100, (preview.liquidity.L / totalDeficit) * 100);
+    return pct >= 99.5 ? null : pct;
+  }, [preview, draft.positions, draft.disposals, assetsById]);
+  const step3Summary = preview
+    ? describeStep3Summary({
+        months: preview.schedule.installments.length,
+        averageEur:
+          preview.schedule.installments.reduce((sum, i) => sum + i.lines.reduce((acc, line) => acc + line.plannedAmountEur, 0), 0) /
+          Math.max(1, preview.schedule.installments.length),
+        coveragePct,
+        leverageRatio: preview.outcome.leverageRatio,
+      })
+    : null;
+  // Step 3: today's weight on the Target step's footing (the plan's instruments, Σ 100%), and the
+  // classes of the trajectory without those that hold neither weight nor target.
+  const stepThreeTodayPct = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!preview) return map;
+    const states = resolvePositionStates(draft.positions, assetsById, DEPS, draft.disposals);
+    const base = states.reduce((sum, state) => sum + state.currentValueEur, 0);
+    for (const state of states) map.set(state.positionId, base > 0 ? (state.currentValueEur / base) * 100 : 0);
+    return map;
+  }, [preview, draft.positions, draft.disposals, assetsById]);
+  const stepThreeClasses = useMemo(() => {
+    if (!preview) return [];
+    const live = new Set<string>();
+    for (const point of preview.trajectory)
+      for (const [assetClass, entry] of Object.entries(point.byClass))
+        if (entry && (Math.abs(entry.currentPct) >= 0.05 || Math.abs(entry.targetPct) >= 0.05)) live.add(assetClass);
+    return Object.keys(preview.trajectory[0]?.byClass ?? {}).filter((assetClass) => live.has(assetClass));
+  }, [preview]);
+  const modalStatus = describeModalStatus(status, {
+    idle: firstIssue
+      ? [{ text: firstIssue }]
+      : step === 2 && weightsMessage
+        ? [{ text: weightsMessage }]
+        : step === 3
+          ? (step3Summary ?? [{ text: ACCUMULO_STEP_TITLES[3] }])
+          : [{ text: ACCUMULO_STEP_READINGS[step as 1 | 2] }],
+    submitting: 'Salvataggio in corso…',
+  });
 
+  // PO15: the Target step's side panel recomputes 300 ms after the last keystroke, not on each one.
+  const [settledDraft, setSettledDraft] = useState(draft);
+  useEffect(() => {
+    if (step !== 2) return;
+    const timer = setTimeout(() => setSettledDraft(draft), 300);
+    return () => clearTimeout(timer);
+  }, [step, draft]);
+  const settledPreview = useMemo(
+    () =>
+      step === 2 && settledDraft.positions.length > 0
+        ? buildDraftPreview({ draft: settledDraft, allAssets, targets, band, compare: compareAllocations, deps: DEPS })
+        : null,
+    [step, settledDraft, allAssets, targets, band],
+  );
   return (
     <>
       <ResponsiveModal
@@ -601,8 +699,39 @@ export function AccumulationPlanDialog({
         {step === 1 && (
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-4">
+              {/* The name the plan carries in Piani conclusi; a revision keeps the plan's own. */}
+              <label className="block text-[13px] text-foreground">
+                {ACCUMULO_STEP1_NAME}
+                <Input
+                  value={draft.name}
+                  disabled={revise}
+                  maxLength={60}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
+                  onBlur={() => setDraft((prev) => (prev.name.trim() ? prev : { ...prev, name: 'Piano di accumulo' }))}
+                  className="mt-1"
+                />
+              </label>
               <div>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP1_SOURCE_ACCOUNTS}</p>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP1_SOURCE_ACCOUNTS}</p>
+                  {!revise && cashAccounts.length > 1 && (() => {
+                    const allSelected = cashAccounts.every((account) => draft.liquidity.sourceCashAssetIds.includes(account.id));
+                    return (
+                      <Button
+                        variant="ghost"
+                        className="h-11 px-2 text-[12px] desktop:h-7"
+                        onClick={() =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            liquidity: { ...prev.liquidity, sourceCashAssetIds: allSelected ? [] : cashAccounts.map((account) => account.id) },
+                          }))
+                        }
+                      >
+                        {allSelected ? ACCUMULO_STEP1_SELECT_NONE : ACCUMULO_STEP1_SELECT_ALL}
+                      </Button>
+                    );
+                  })()}
+                </div>
                 {cashAccounts.length === 0 ? (
                   <p className="text-[13px] text-muted-foreground">{ACCUMULO_STEP1_NO_CASH_ACCOUNTS}</p>
                 ) : (
@@ -640,22 +769,22 @@ export function AccumulationPlanDialog({
 
               <label className="block text-[13px] text-foreground">
                 {ACCUMULO_STEP1_RESERVE}
-                <Input
-                  type="number"
+                <DraftNumberInput
                   min={0}
                   value={draft.liquidity.reserveEur}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, liquidity: { ...prev.liquidity, reserveEur: Number(event.target.value) || 0 } }))}
+                  fallback={0}
+                  onValue={(reserveEur) => setDraft((prev) => ({ ...prev, liquidity: { ...prev.liquidity, reserveEur } }))}
                   className="mt-1 font-mono"
                 />
               </label>
 
               <label className="block text-[13px] text-foreground">
                 {ACCUMULO_STEP1_INFLOW}
-                <Input
-                  type="number"
+                <DraftNumberInput
                   min={0}
                   value={draft.liquidity.monthlyInflowEur}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, liquidity: { ...prev.liquidity, monthlyInflowEur: Number(event.target.value) || 0 } }))}
+                  fallback={0}
+                  onValue={(monthlyInflowEur) => setDraft((prev) => ({ ...prev, liquidity: { ...prev.liquidity, monthlyInflowEur } }))}
                   className="mt-1 font-mono"
                 />
               </label>
@@ -675,12 +804,12 @@ export function AccumulationPlanDialog({
 
               <label className="block text-[13px] text-foreground">
                 {revise ? ACCUMULO_STEP1_REMAINING_MONTHS : ACCUMULO_STEP1_MONTHS}
-                <Input
-                  type="number"
+                <DraftNumberInput
                   min={1}
                   max={60}
                   value={draft.months}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, months: Math.round(Number(event.target.value)) || 1 }))}
+                  fallback={1}
+                  onValue={(months) => setDraft((prev) => ({ ...prev, months: Math.round(months) || 1 }))}
                   className="mt-1 font-mono"
                 />
               </label>
@@ -739,22 +868,25 @@ export function AccumulationPlanDialog({
         )}
 
         {step === 2 && (
-          <div className="space-y-4">
+          <div className="grid gap-4 desktop:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="min-w-0 space-y-4">
             <div>
               <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_FROM_LABEL}</p>
               <SegmentedPill
                 options={[
+                  ...(planBase ? [{ value: 'plan' as const, label: ACCUMULO_STEP2_FROM_PLAN }] : []),
                   ...(model ? [{ value: 'model' as const, label: ACCUMULO_STEP2_FROM_MODEL }] : []),
                   { value: 'today' as const, label: ACCUMULO_STEP2_FROM_TODAY },
                   { value: 'optimizer' as const, label: ACCUMULO_STEP2_FROM_OPTIMIZER },
                 ]}
-                value={(weightsFrom ?? 'none') as 'model' | 'today' | 'optimizer'}
+                value={(weightsFrom ?? 'none') as 'plan' | 'model' | 'today' | 'optimizer'}
                 onChange={startFrom}
                 layoutId="accumulo-step2-from"
                 ariaLabel={OPTIMIZER_STEP2_ARIA_LABEL}
                 semantics="radio"
                 optionClassName="min-h-11 desktop:min-h-0"
               />
+              {weightsFrom && <p className="mt-1.5 text-[12px] text-muted-foreground">{ACCUMULO_STEP2_FROM_HINT[weightsFrom]}</p>}
             </div>
 
             {showOptimizer ? (
@@ -792,7 +924,7 @@ export function AccumulationPlanDialog({
                     <th scope="col" className="py-1.5 pr-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_CURRENT_WEIGHT}</th>
                     <th scope="col" className="py-1.5 pr-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_TARGET}</th>
                     <th scope="col" className="py-1.5 pr-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_TO_BUY}</th>
-                    <th scope="col" className="py-1.5 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_PER_MONTH}</th>
+                    <th scope="col" className="hidden py-1.5 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground sm:table-cell">{ACCUMULO_STEP2_COL_PER_MONTH}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -813,22 +945,28 @@ export function AccumulationPlanDialog({
                         rows.push(
                           <tr key={assetId} className="border-b border-border last:border-0 align-top">
                             <th scope="row" className={`py-1.5 pr-2 text-left font-normal text-foreground ${grouped && !isHead ? 'pl-5' : ''}`}>
-                              {groupingMode && !grouped && (
-                                <Checkbox
-                                  className="mr-2 inline-flex align-middle"
-                                  aria-label={asset.name}
-                                  checked={selectedForGroup.has(assetId)}
-                                  onCheckedChange={(value) =>
+                              {groupingMode && !grouped ? (
+                                <button
+                                  type="button"
+                                  aria-pressed={selectedForGroup.has(assetId)}
+                                  className={`-mx-1.5 rounded-md px-1.5 py-1 text-left transition-colors ${selectedForGroup.has(assetId) ? 'bg-muted font-medium ring-1 ring-border' : 'hover:bg-muted/60'}`}
+                                  onClick={() =>
                                     setSelectedForGroup((prev) => {
                                       const next = new Set(prev);
-                                      if (value) next.add(assetId);
-                                      else next.delete(assetId);
+                                      if (next.has(assetId)) next.delete(assetId);
+                                      else next.add(assetId);
                                       return next;
                                     })
                                   }
-                                />
+                                >
+                                  {asset.name}
+                                </button>
+                              ) : (
+                                asset.name
                               )}
-                              {asset.name}
+                              <span className="block text-[11px] text-muted-foreground">
+                                {grouped && !isHead ? ACCUMULO_STEP2_GROUP_NO_BUY : getAssetDisplayTicker(asset)}
+                              </span>
                               {grouped && isHead && !revise && (
                                 <Button variant="ghost" className="ml-2 h-6 px-1.5 text-[11px]" onClick={() => ungroup(position.id)}>
                                   {ACCUMULO_ACTION_UNGROUP}
@@ -860,7 +998,7 @@ export function AccumulationPlanDialog({
                                         max={Math.max(0, Math.ceil(asset.quantity) - 1)}
                                         value={partial?.quantity ?? ''}
                                         onChange={(event) => setPartialSale(asset, Number(event.target.value))}
-                                        className="h-11 w-16 text-right font-mono desktop:h-7"
+                                        className="h-11 w-20 px-2 text-right font-mono tabular-nums desktop:h-7 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                       />
                                     </label>
                                   )}
@@ -872,12 +1010,12 @@ export function AccumulationPlanDialog({
                             </td>
                             <td className="py-1.5 pr-2 text-right">
                               {isHead ? (
-                                <Input
-                                  type="number"
+                                <DraftNumberInput
                                   min={0}
                                   value={position.targetPercentage}
-                                  onChange={(event) => setPositionTarget(position.id, Number(event.target.value) || 0)}
-                                  className="h-11 w-20 text-right font-mono desktop:h-8"
+                                  fallback={0}
+                                  onValue={(target) => setPositionTarget(position.id, target)}
+                                  className="h-11 w-20 px-2 text-right sm:w-24 font-mono tabular-nums desktop:h-8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                 />
                               ) : (
                                 <span className="text-muted-foreground">—</span>
@@ -893,7 +1031,8 @@ export function AccumulationPlanDialog({
                                 '—'
                               )}
                             </td>
-                            <td className="py-1.5 text-right font-mono tabular-nums text-muted-foreground">
+                            {/* «Al mese» is «Da comprare» ÷ the months: below 640px it gives way so Target fits. */}
+                            <td className="hidden py-1.5 text-right font-mono tabular-nums text-muted-foreground sm:table-cell">
                               {isHead && figures ? cachedFormatCurrencyEUR(figures.monthlyEur) : '—'}
                             </td>
                           </tr>,
@@ -918,13 +1057,21 @@ export function AccumulationPlanDialog({
                           </td>
                           <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-muted-foreground">—</td>
                           <td className="py-1.5 pr-2 text-right text-muted-foreground">—</td>
-                          <td className="py-1.5 pr-2 text-right text-muted-foreground">—</td>
-                          <td className="py-1.5 text-right text-muted-foreground">—</td>
+                          <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-foreground">
+                            {cachedFormatCurrencyEUR(proceedsOfDisposal(disposal, asset, DEPS))}
+                            <span className="block text-[11px] text-muted-foreground">{ACCUMULO_STEP2_SALE_PROCEEDS}</span>
+                          </td>
+                          <td className="hidden py-1.5 text-right text-muted-foreground sm:table-cell">—</td>
                         </tr>,
                       );
                     }
 
-                    return rows;
+                    // A row keeps its place when it flips Tieni ↔ Vendi: order by first appearance.
+                    const rank = (node: React.ReactNode) => {
+                      const index = rowOrder.indexOf(String((node as React.ReactElement).key));
+                      return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+                    };
+                    return [...rows].sort((a, b) => rank(a) - rank(b));
                   })()}
                 </tbody>
               </table>
@@ -950,6 +1097,14 @@ export function AccumulationPlanDialog({
                   {ACCUMULO_STEP2_BUY_ASSET_CONFIRM}…
                 </Button>
               )}
+              <Button
+                variant="outline"
+                className="h-11 text-[12px] desktop:h-8"
+                disabled={draft.positions.length === 0 || Math.abs(weightsSum - 100) < 0.05}
+                onClick={() => updatePositions(redistributeRemainder(draft.positions))}
+              >
+                {ACCUMULO_STEP2_REDISTRIBUTE}
+              </Button>
               <Button variant="outline" className="h-11 text-[12px] desktop:h-8" onClick={() => setNewAssetDialogOpen(true)}>
                 {ACCUMULO_ACTION_NEW_ASSET}
               </Button>
@@ -999,27 +1154,26 @@ export function AccumulationPlanDialog({
             {weightsMessage && <p className="text-[12px] text-destructive">{weightsMessage}</p>}
             <p className="text-[11px] text-muted-foreground">{ACCUMULO_STEP2_FOOTNOTE}</p>
           </div>
+          <PlanDraftSidePanel
+            preview={settledPreview}
+            months={draft.months}
+            band={band}
+            weightsSum={weightsSum}
+            targetLeverageRatio={targetLeverageRatio}
+          />
+          </div>
         )}
 
         {step === 3 && preview && (
           <div className="space-y-6">
-            {(() => {
-              // Coverage warning (D9/§5.5): `preview.totals` always SUMS to L (splitTowardTarget
-              // redistributes whatever is available), so a shortfall shows only by comparing L
-              // against the IDEAL deficit — Σ max(0, target%×B − currentValue) — computed here the
-              // same way `computeTotalPurchases` does internally.
-              const states = resolvePositionStates(draft.positions, assetsById, DEPS, draft.disposals);
-              const priced = states.filter((s) => !s.unpriced);
-              const B = states.reduce((sum, s) => sum + s.currentValueEur, 0) + preview.liquidity.L;
-              const totalDeficit = priced.reduce((sum, s) => sum + Math.max(0, (s.targetPercentage / 100) * B - s.currentValueEur), 0);
-              if (totalDeficit <= 0.5) return null;
-              const coveragePct = Math.min(100, (preview.liquidity.L / totalDeficit) * 100);
-              if (coveragePct >= 99.5) return null;
-              return <p className="text-[12px] text-warning-foreground">{describeInsufficientLiquidityWarning(coveragePct)}</p>;
-            })()}
+            {/* The plan in one line is the dialog's reading (describeStep3Summary); here the
+                warnings, then where it lands, the calendar and the classes month by month. */}
+            {coveragePct !== null && (
+              <p className="rounded-lg border border-warning-border bg-warning p-3 text-[12px] text-warning-foreground">{describeInsufficientLiquidityWarning(coveragePct)}</p>
+            )}
 
             {preview.unpricedPositionIds.length > 0 && (
-              <p className="text-[12px] text-warning-foreground">
+              <p className="rounded-lg border border-warning-border bg-warning p-3 text-[12px] text-warning-foreground">
                 {describeUnpricedWarning(
                   preview.unpricedPositionIds.map((id) => draft.positions.find((p) => p.id === id)?.label ?? id),
                 )}
@@ -1033,17 +1187,77 @@ export function AccumulationPlanDialog({
             )}
 
             <div>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_SECTION_WEIGHTS}</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="border-b border-border text-left">
+                      {ACCUMULO_STEP3_WEIGHTS_COLUMNS.map((column, index) => (
+                        <th
+                          key={column}
+                          scope="col"
+                          className={`py-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground ${index === 0 ? 'pr-3' : 'px-2 text-right'}`}
+                        >
+                          {column}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.outcome.positions.map((position) => {
+                      const source = draft.positions.find((p) => p.id === position.positionId);
+                      const asset = source ? assetsById.get(source.buyAssetId) : undefined;
+                      const today = stepThreeTodayPct.get(position.positionId);
+                      const off = Math.abs(position.driftPp) > 0.5;
+                      return (
+                        <tr key={position.positionId} className="border-b border-border last:border-0">
+                          <th scope="row" className="py-2 pr-3 text-left font-normal text-foreground">
+                            {position.label}
+                            {asset && <span className="block text-[11px] text-muted-foreground">{getAssetDisplayTicker(asset)}</span>}
+                          </th>
+                          <td className="whitespace-nowrap px-2 py-2 text-right font-mono tabular-nums">
+                            <span className="text-muted-foreground">{today === undefined ? '—' : formatPercentageIt(today, 1)}</span>
+                            <span className="text-foreground"> → {formatPercentageIt(position.finalWeightPct, 1)}</span>
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2 text-right font-mono tabular-nums text-muted-foreground">{formatPercentageIt(position.targetPercentage, 1)}</td>
+                          <td className={`whitespace-nowrap py-2 pl-2 text-right font-mono tabular-nums ${off ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
+                            {formatSignedPp(position.driftPp)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-3">
+                <p className="mb-1.5 text-[11px] text-muted-foreground">
+                  {ACCUMULO_STEP3_SECTION_EXPOSURE} {preview.outcome.leverageRatio > 1.01 && `· leva ${formatNumberIt(preview.outcome.leverageRatio, 2)}×`}
+                </p>
+                <div className="flex h-2 overflow-hidden rounded-full">
+                  {Object.entries(preview.outcome.implicitClassPct).map(([assetClass, pct]) => {
+                    const idx = ASSET_CLASS_CHART_INDEX[assetClass] ?? 0;
+                    const color = chartColors[idx] ?? CHART_COLORS[idx] ?? CHART_COLORS[0];
+                    return <div key={assetClass} style={{ width: `${Math.max(0, pct)}%`, backgroundColor: color }} title={`${ASSET_CLASS_LABELS[assetClass] ?? assetClass} ${formatPercentageIt(pct, 1)}`} />;
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div>
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Calendario</p>
               <div className="overflow-x-auto">
-                <table className="w-full text-[12px]">
+                <table className="w-full text-[13px]">
                   <thead>
                     <tr className="border-b border-border text-left">
                       <th scope="col" className="py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_COL_MONTH}</th>
-                      {draft.positions.map((position) => (
-                        <th key={position.id} scope="col" className="py-1.5 px-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                          {position.label}
-                        </th>
-                      ))}
+                      {draft.positions.map((position) => {
+                        const asset = assetsById.get(position.buyAssetId);
+                        return (
+                          <th key={position.id} scope="col" title={position.label} className="px-2 py-1.5 text-right text-[10px] font-semibold tracking-[0.04em] text-muted-foreground">
+                            {asset ? getAssetDisplayTicker(asset) : position.label}
+                          </th>
+                        );
+                      })}
                       <th scope="col" className="py-1.5 pl-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_COL_TOTAL}</th>
                     </tr>
                   </thead>
@@ -1065,16 +1279,16 @@ export function AccumulationPlanDialog({
                         const total = installment.lines.reduce((sum, line) => sum + line.plannedAmountEur, 0);
                         return (
                           <tr key={installment.index} className="border-b border-border last:border-0">
-                            <th scope="row" className="py-1.5 pr-2 text-left font-normal text-foreground">{monthLabelShort(installment.month)}</th>
+                            <th scope="row" className="whitespace-nowrap py-2 pr-2 text-left font-normal text-foreground">{monthLabelShort(installment.month)}</th>
                             {draft.positions.map((position) => {
                               const line = installment.lines.find((l) => l.positionId === position.id);
                               return (
-                                <td key={position.id} className="py-1.5 px-2 text-right font-mono tabular-nums text-muted-foreground">
+                                <td key={position.id} className="px-2 py-2 text-right font-mono tabular-nums text-muted-foreground">
                                   {line ? formatNumberIt(line.plannedQuantity, 0) : '—'}
                                 </td>
                               );
                             })}
-                            <td className="py-1.5 pl-2 text-right font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(total)}</td>
+                            <td className="whitespace-nowrap py-2 pl-2 text-right font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(total)}</td>
                           </tr>
                         );
                       });
@@ -1084,89 +1298,55 @@ export function AccumulationPlanDialog({
               </div>
             </div>
 
-            <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_SECTION_WEIGHTS}</p>
-              <ul className="space-y-2">
-                {preview.outcome.positions.map((position) => {
-                  const overTarget = position.finalWeightPct > position.targetPercentage + 0.5;
-                  return (
-                    <li key={position.positionId}>
-                      <div className="flex items-center justify-between text-[12px]">
-                        <span className="text-foreground">{position.label}</span>
-                        <span className="font-mono tabular-nums text-muted-foreground">
-                          {formatPercentageIt(position.finalWeightPct, 1)} · target {formatPercentageIt(position.targetPercentage, 1)} · {formatSignedPp(position.driftPp)}
-                        </span>
-                      </div>
-                      <div className="relative mt-1 h-[3px] rounded-full bg-muted">
-                        <div className="absolute inset-y-0 left-0 rounded-full bg-foreground" style={{ width: `${Math.min(100, position.finalWeightPct)}%` }} />
-                        <div className="absolute inset-y-[-3px] w-px bg-foreground/70" style={{ left: `${Math.min(100, position.targetPercentage)}%` }} />
-                      </div>
-                      {overTarget && <p className="mt-0.5 text-[11px] text-muted-foreground">{describeAboveTargetWarning([position.label])}</p>}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-
-            <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                {ACCUMULO_STEP3_SECTION_EXPOSURE} {preview.outcome.leverageRatio > 1.01 && `· leva ${formatNumberIt(preview.outcome.leverageRatio, 2)}×`}
-              </p>
-              <div className="flex h-3 overflow-hidden rounded-full">
-                {Object.entries(preview.outcome.implicitClassPct).map(([assetClass, pct]) => {
-                  const idx = ASSET_CLASS_CHART_INDEX[assetClass] ?? 0;
-                  const color = chartColors[idx] ?? CHART_COLORS[idx] ?? CHART_COLORS[0];
-                  return <div key={assetClass} style={{ width: `${Math.max(0, pct)}%`, backgroundColor: color }} title={`${ASSET_CLASS_LABELS[assetClass] ?? assetClass} ${formatPercentageIt(pct, 1)}`} />;
-                })}
-              </div>
-            </div>
-
+            {/* The classes as a table: the chart lives in the Target step's panel and, once the plan
+                is active, in «Classi del piano» — here it would only scale badly. Weight on top,
+                drift in pp under it, amber out of band; classes with no weight nor target left out. */}
             <div>
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_SECTION_CLASSES}</p>
-              <ClassDriftChart points={preview.trajectory} band={band} height={160} />
-              {/* Peso assoluto per classe (primario) sopra lo scostamento in pp (secondario, muted) —
-                  stesso ordine dell'assoluto-poi-delta della striscia classi del tile attivo
-                  (decisione del proprietario, 2026-09-20). Intestazioni come la tabella Calendario
-                  sopra: prima non c'era modo di sapere quale colonna fosse quale classe. */}
-              <div className="mt-2 overflow-x-auto">
-                <table className="w-full text-[11px]">
+              <div className="overflow-x-auto">
+                <table className="w-full text-[13px]">
                   <thead>
                     <tr className="border-b border-border text-left">
                       <th scope="col" className="py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_COL_MONTH}</th>
-                      {classKeys.map((assetClass) => (
-                        <th
-                          key={assetClass}
-                          scope="col"
-                          className="py-1.5 pl-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em]"
-                          style={{ color: classColor(assetClass) }}
-                        >
-                          {ASSET_CLASS_LABELS[assetClass] ?? assetClass}
-                        </th>
-                      ))}
+                      {stepThreeClasses.map((assetClass) => {
+                        const idx = ASSET_CLASS_CHART_INDEX[assetClass] ?? 0;
+                        return (
+                          <th
+                            key={assetClass}
+                            scope="col"
+                            className="py-1.5 pl-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em]"
+                            style={{ color: chartColors[idx] ?? CHART_COLORS[idx] ?? CHART_COLORS[0] }}
+                          >
+                            {ASSET_CLASS_LABELS[assetClass] ?? assetClass}
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody>
-                    {TRAJECTORY_SAMPLE_INDICES.concat(draft.months).filter((i, idx, arr) => i <= draft.months && arr.indexOf(i) === idx).map((index) => {
-                      const point = preview.trajectory.find((p) => p.index === index);
-                      if (!point) return null;
-                      return (
-                        <tr key={index} className="border-b border-border last:border-0">
-                          <th scope="row" className="py-1 pr-2 text-left font-normal text-muted-foreground">{trajectoryPointLabel(point.month)}</th>
-                          {classKeys.map((assetClass) => {
-                            const data = point.byClass[assetClass as keyof typeof point.byClass];
-                            if (!data) return <td key={assetClass} className="py-1 pl-2 text-right text-muted-foreground">—</td>;
-                            return (
-                              <td key={assetClass} className="py-1 pl-2 text-right">
-                                <div className={`font-mono tabular-nums ${data.outOfBand ? 'text-warning-foreground' : 'text-foreground'}`}>
-                                  {formatPercentageIt(data.currentPct, 1)}
-                                </div>
-                                <div className="font-mono text-[10px] tabular-nums text-muted-foreground">{formatSignedPp(data.driftPp)}</div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
+                    {[0, 1, 3, 6, 9, draft.months]
+                      .filter((i, idx, arr) => i <= draft.months && arr.indexOf(i) === idx)
+                      .map((index) => {
+                        const point = preview.trajectory.find((p) => p.index === index);
+                        if (!point) return null;
+                        return (
+                          <tr key={index} className="border-b border-border last:border-0">
+                            <th scope="row" className="whitespace-nowrap py-2 pr-2 text-left font-normal text-foreground">{trajectoryPointLabel(point.month)}</th>
+                            {stepThreeClasses.map((assetClass) => {
+                              const data = point.byClass[assetClass as keyof typeof point.byClass];
+                              if (!data) return <td key={assetClass} className="py-2 pl-2 text-right text-muted-foreground">—</td>;
+                              return (
+                                <td key={assetClass} className="py-2 pl-2 text-right">
+                                  <div className={`font-mono tabular-nums ${data.outOfBand ? 'text-warning-foreground' : 'text-foreground'}`}>
+                                    {formatPercentageIt(data.currentPct, 1)}
+                                  </div>
+                                  <div className="font-mono text-[11px] tabular-nums text-muted-foreground">{formatSignedPp(data.driftPp)}</div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
@@ -1196,15 +1376,64 @@ export function AccumulationPlanDialog({
 
 /** «Tieni | Vendi» — a two-state switch with its own heading in the column (RP8), never a link that renames itself. */
 function KeepSellToggle({ sell, disabled, onKeep, onSell }: { sell: boolean; disabled?: boolean; onKeep: () => void; onSell: () => void }) {
-  const base = 'min-h-11 min-w-14 rounded-md px-2 text-[12px] desktop:min-h-7 disabled:opacity-50';
+  const actionColors = useActionColors();
+  const base = 'min-h-11 min-w-14 rounded-md border px-2 text-[12px] font-medium desktop:min-h-7 disabled:opacity-50';
+  const idle = 'border-transparent text-muted-foreground';
+  // The active choice wears the Allocazione colours: Tieni = COMPRA's, Vendi = VENDI's.
+  const active = (color: string) => ({
+    color,
+    backgroundColor: `color-mix(in srgb, ${color} ${ACTION_CHIP_FILL_PCT}%, transparent)`,
+    borderColor: `color-mix(in srgb, ${color} 34%, transparent)`,
+  });
   return (
     <div role="group" aria-label={ACCUMULO_STEP2_COL_KEEP_OR_SELL} className="inline-flex gap-0.5 rounded-lg bg-muted p-0.5">
-      <button type="button" aria-pressed={!sell} disabled={disabled} className={`${base} ${!sell ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`} onClick={onKeep}>
+      <button type="button" aria-pressed={!sell} disabled={disabled} className={`${base} ${!sell ? '' : idle}`} style={!sell ? active(actionColors.COMPRA) : undefined} onClick={onKeep}>
         {ACCUMULO_STEP2_TOGGLE_IN_PLAN}
       </button>
-      <button type="button" aria-pressed={sell} disabled={disabled} className={`${base} ${sell ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`} onClick={onSell}>
+      <button type="button" aria-pressed={sell} disabled={disabled} className={`${base} ${sell ? '' : idle}`} style={sell ? active(actionColors.VENDI) : undefined} onClick={onSell}>
         {ACCUMULO_STEP2_TOGGLE_SELL}
       </button>
     </div>
+  );
+}
+
+/**
+ * A number field that can be emptied while typing: the text is the field's own, the draft gets
+ * the number (`fallback` while the field is blank), and leaving a blank field shows the draft's
+ * value again; focusing selects the figure, so typing replaces it. A `value` changed from outside (a «Parti da», «Distribuisci il resto») replaces
+ * the text.
+ */
+function DraftNumberInput({
+  value,
+  fallback,
+  onValue,
+  ...props
+}: Omit<React.ComponentProps<typeof Input>, 'value' | 'onChange' | 'type'> & { value: number; fallback: number; onValue: (value: number) => void }) {
+  const [text, setText] = useState(String(value));
+  const [seen, setSeen] = useState(value);
+  if (value !== seen) {
+    setSeen(value);
+    if (text === '' ? value !== fallback : Number(text) !== value) setText(String(value));
+  }
+  return (
+    <Input
+      {...props}
+      type="number"
+      value={text}
+      onChange={(event) => {
+        const raw = event.target.value;
+        setText(raw);
+        const parsed = Number(raw);
+        onValue(raw === '' || !Number.isFinite(parsed) ? fallback : parsed);
+      }}
+      onFocus={(event) => {
+        event.target.select();
+        props.onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        if (text === '') setText(String(value));
+        props.onBlur?.(event);
+      }}
+    />
   );
 }

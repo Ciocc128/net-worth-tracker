@@ -104,7 +104,7 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
   const reentry = useMemo(() => describeBandReentry(trajectory, clampedIndex, band), [trajectory, clampedIndex, band]);
 
   const sourceCashEur = useMemo(
-    () => allAssets.filter((asset) => asset.assetClass === 'cash').reduce((sum, asset) => sum + calculateAssetValue(asset), 0),
+    () => allAssets.filter((asset) => asset.assetClass === 'cash' && asset.type === 'cash').reduce((sum, asset) => sum + calculateAssetValue(asset), 0),
     [allAssets],
   );
   const draftTotalEur = useMemo(() => (plan?.status === 'draft' ? summarizeDraftTotal(plan, allAssets, DEPS) : 0), [plan, allAssets]);
@@ -168,53 +168,63 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
           </div>
         )}
 
-        {plan && targets && (
-          <div className={cn(TILE_CELL_CLASS, showTrajectory ? 'desktop:col-span-7' : 'desktop:col-span-12')}>
-            <QuestoMeseTile
+        {/* Two independent stacks (render, view 1): the left one carries the month and the model, the
+            right one the classes and the objectives, so a shorter tile leaves no hole in the other. */}
+        <div className="flex flex-col gap-3 desktop:col-span-7">
+          {plan && targets && (
+            <div className={TILE_CELL_CLASS}>
+              <QuestoMeseTile
+                ownerId={ownerId}
+                plan={plan}
+                allAssets={allAssets}
+                targets={targets}
+                band={band}
+                targetLeverageRatio={targetLeverageRatio}
+                idealAllocation={idealAllocation}
+                currentIndex={currentIndex}
+                matchResult={matchResult}
+                model={model}
+                onAssetsChanged={onAssetsChanged}
+              />
+            </div>
+          )}
+
+          <div id={COMPOSITION_ANCHOR_ID} className={cn(TILE_CELL_CLASS, 'scroll-mt-4')}>
+            <PortafoglioModelloTile
               ownerId={ownerId}
-              plan={plan}
               allAssets={allAssets}
               targets={targets}
               band={band}
               targetLeverageRatio={targetLeverageRatio}
               idealAllocation={idealAllocation}
-              currentIndex={currentIndex}
-              matchResult={matchResult}
               model={model}
+              readFailed={modelQuery.isError}
               onAssetsChanged={onAssetsChanged}
             />
           </div>
-        )}
-
-        {plan && showTrajectory && (
-          <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-5')}>
-            <ClassiDelPianoTile plan={plan} trajectory={trajectory} currentIndex={currentIndex} band={band} reentry={reentry} />
-          </div>
-        )}
-
-        <div id={COMPOSITION_ANCHOR_ID} className={cn(TILE_CELL_CLASS, 'scroll-mt-4 desktop:col-span-7')}>
-          <PortafoglioModelloTile
-            ownerId={ownerId}
-            allAssets={allAssets}
-            targets={targets}
-            band={band}
-            targetLeverageRatio={targetLeverageRatio}
-            idealAllocation={idealAllocation}
-            model={model}
-            readFailed={modelQuery.isError}
-            onAssetsChanged={onAssetsChanged}
-          />
         </div>
 
-        <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-5')}>
-          <ObiettiviTile
-            idealAllocation={idealAllocation}
-            targetLeverageRatio={targetLeverageRatio}
-            snapshot={model?.optimizerSnapshot}
-            editRef={editRef}
-            disabled={!targets}
-            onEdit={() => setObjectivesOpen(true)}
-          />
+        <div className="flex flex-col gap-3 desktop:col-span-5">
+          {plan && showTrajectory && (
+            <div className={TILE_CELL_CLASS}>
+              <ClassiDelPianoTile plan={plan} trajectory={trajectory} currentIndex={currentIndex} band={band} />
+            </div>
+          )}
+
+          <div className={TILE_CELL_CLASS}>
+            <ObiettiviTile
+              idealAllocation={idealAllocation}
+              targetLeverageRatio={targetLeverageRatio}
+              snapshot={model?.optimizerSnapshot}
+              editRef={editRef}
+              disabled={!targets}
+              plan={isActive && !done ? plan : null}
+              ownerId={ownerId}
+              allAssets={allAssets}
+              targets={targets}
+              onEdit={() => setObjectivesOpen(true)}
+            />
+          </div>
         </div>
 
         {closedPlans.length > 0 && (

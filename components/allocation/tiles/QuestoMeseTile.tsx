@@ -58,7 +58,7 @@ import { NarrativeText } from '@/components/ui/narrative-text';
 import { AccumulationPlanDialog } from '@/components/allocation/AccumulationPlanDialog';
 import { AccumulationCalendarDialog } from '@/components/allocation/AccumulationCalendarDialog';
 import { TransactionDialog } from '@/components/assets/TransactionDialog';
-import { DEPS, DraftBox, ROW_ACTION_CLASS, ROW_UNDO_CLASS, TILE_ACTION_CLASS, effectiveLineState } from '@/components/allocation/tiles/accumuloShared';
+import { DEPS, DraftBox, ROW_ACTION_CLASS, ROW_UNDO_CLASS, LineStateChip, TILE_ACTION_CLASS, effectiveLineState } from '@/components/allocation/tiles/accumuloShared';
 import { cachedFormatCurrencyEUR, formatNumberIt } from '@/lib/utils/formatters';
 import { armedActionLabel, describeWriteError } from '@/lib/utils/dialogNarrative';
 import {
@@ -93,6 +93,8 @@ import {
   ACCUMULO_DRAFT_BOX_LIQUIDITY,
   ACCUMULO_DRAFT_BOX_POSITIONS,
   ACCUMULO_LINE_STATUS_LABEL,
+  describeMatchNote,
+  describeMonthTileAside,
   ACCUMULO_MANUAL_AMOUNT_LABEL,
   ACCUMULO_MANUAL_QUANTITY_LABEL,
   ACCUMULO_MONTH_TILE_DONE_EYEBROW,
@@ -100,7 +102,8 @@ import {
   ACCUMULO_MONTH_TILE_EYEBROW,
   describeAccumulationOutcomeFooter,
   describeMonthsBarCaption,
-  describeRecalibration,
+  describeMonthReading,
+  describePriceChangeNotice,
   describeRegisterNote,
   describeRegisterSaleNote,
   describeReserveWarning,
@@ -483,9 +486,14 @@ export function QuestoMeseTile({
     currentInstallment && recalibration && shouldProposeRecalibration(recalibration, currentInstallment.recalibrationDismissed)
       ? {
           result: recalibration,
-          reading: describeRecalibration({
+          reading: describePriceChangeNotice({
             lines: recalibration.lines.map((line) => ({
-              label: plan.positions.find((p) => p.id === line.positionId)?.label ?? line.positionId,
+              // The notice names instruments by ticker, as the render does («9 VWCE invece di 10»).
+              label: (() => {
+                const position = plan.positions.find((p) => p.id === line.positionId);
+                const buyAsset = position ? assetsById.get(position.buyAssetId) : undefined;
+                return buyAsset ? getAssetDisplayTicker(buyAsset) : (position?.label ?? line.positionId);
+              })(),
               plannedQuantity: line.plannedQuantity,
               suggestedQuantity: line.suggestedQuantity,
             })),
@@ -517,9 +525,23 @@ export function QuestoMeseTile({
     }
   };
 
+  // The month's own reading: the lines of the open installment still waiting to be registered.
+  const openMonthLines = currentLines.filter((line) => {
+    const state = effectiveLineState(matchResult.lineStates[`${currentIndex}:${line.positionId}`] ?? 'todo', `${currentIndex}:${line.positionId}`, ignoredMatches, false);
+    return state === 'todo' || state === 'toConfirm' || state === 'late';
+  });
+  const monthReading = describeMonthReading(
+    openMonthLines.length,
+    openMonthLines.reduce((sum, line) => sum + line.plannedAmountEur, 0),
+  );
+
   return (
     <>
-      <Tile eyebrow={ACCUMULO_MONTH_TILE_EYEBROW}>
+      <Tile
+        eyebrow={ACCUMULO_MONTH_TILE_EYEBROW}
+        reading={monthReading}
+        aside={describeMonthTileAside(currentInstallment?.month ?? plan.startMonth, Math.min(Math.max(currentIndex, 1), plan.months), plan.months)}
+      >
         {belowReserve && (
           <p className="mt-2 text-[12px] text-warning-foreground">
             <NarrativeText
@@ -529,27 +551,9 @@ export function QuestoMeseTile({
           </p>
         )}
 
-        {/* Months bar (§10.2 point 3): one 3px segment per month. A closed month takes the theme's
-            progress fill (`--progress-fill`, the foreground by default, mid slate in Lime Frost —
-            «no near-black bar anywhere», doc/guide/fork-scelte-ui.md § 2). */}
-        <div className="mt-3 flex gap-[3px]" role="img" aria-label={monthsCaption}>
-          {plan.installments.map((installment) => {
-            const hasLate = installment.index < currentIndex && installment.lines.some((line) => line.status === 'planned');
-            const closed = installment.lines.every((line) => line.status !== 'planned');
-            const isCurrent = installment.index === currentIndex;
-            return (
-              <div
-                key={installment.index}
-                className={`h-[3px] flex-1 rounded-full ${hasLate ? 'bg-destructive' : closed ? 'bg-[var(--progress-fill)]' : isCurrent ? 'bg-muted-foreground/60' : 'bg-muted'}`}
-              />
-            );
-          })}
-        </div>
-        <p className="mt-1.5 font-mono text-[10px] tabular-nums text-muted-foreground">{monthsCaption}</p>
-
         {proposal && (
-          <div className="mt-3 rounded-lg bg-muted p-3">
-            <NarrativeText segments={proposal.reading} className="text-[12px] leading-[1.5] text-foreground" />
+          <div className="mt-3 rounded-lg border border-warning-border bg-warning p-3">
+            <NarrativeText segments={proposal.reading} className="text-[12px] leading-[1.5] text-warning-foreground" />
             {!isDemo && (
               <div className="mt-2 flex flex-wrap gap-2">
                 <Button className={ROW_ACTION_CLASS} disabled={applyRecalibrationMutation.isPending} onClick={() => void applyProposal()}>
@@ -590,12 +594,9 @@ export function QuestoMeseTile({
                       </span>
                     </span>
                     <div className="flex shrink-0 flex-col items-end gap-1 desktop:flex-row desktop:items-center desktop:gap-3">
-                    <span className="shrink-0 text-[11px] text-muted-foreground">{ACCUMULO_LINE_STATUS_LABEL[status]}</span>
+                    <LineStateChip state={status} label={ACCUMULO_LINE_STATUS_LABEL[status]} />
                     {!isDemo && status === 'toConfirm' && match && (
                       <span className="flex shrink-0 gap-1.5">
-                        <Button variant="outline" className={ROW_ACTION_CLASS} onClick={() => void confirmMatch(installmentIndex, line.positionId, match)}>
-                          {ACCUMULO_ACTION_CONFIRM}
-                        </Button>
                         <Button
                           variant="outline"
                           className={ROW_ACTION_CLASS}
@@ -603,11 +604,13 @@ export function QuestoMeseTile({
                         >
                           {ACCUMULO_ACTION_IGNORE_MATCH}
                         </Button>
+                        <Button className={ROW_ACTION_CLASS} onClick={() => void confirmMatch(installmentIndex, line.positionId, match)}>
+                          {ACCUMULO_ACTION_CONFIRM}
+                        </Button>
                       </span>
                     )}
                     {!isDemo && (status === 'todo' || status === 'late') && (
                       <Button
-                        variant="outline"
                         className={ROW_ACTION_CLASS}
                         onClick={() => setRegisterTarget({ kind: 'line', installmentIndex, positionId: line.positionId })}
                       >
@@ -652,6 +655,9 @@ export function QuestoMeseTile({
                     )}
                   </div>
                   </div>
+                  {status === 'toConfirm' && match && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">{describeMatchNote(match.quantity, match.amountEur)}</p>
+                  )}
                   {isManual && (
                     <div className="mt-1.5 flex items-end gap-2 rounded-lg bg-muted p-2.5">
                       <label className="flex-1 text-[11px] text-muted-foreground">
@@ -700,12 +706,9 @@ export function QuestoMeseTile({
                         </span>
                       </span>
                       <div className="flex shrink-0 flex-col items-end gap-1 desktop:flex-row desktop:items-center desktop:gap-3">
-                      <span className="shrink-0 text-[11px] text-muted-foreground">{ACCUMULO_LINE_STATUS_LABEL[status]}</span>
+                      <LineStateChip state={status} label={ACCUMULO_LINE_STATUS_LABEL[status]} />
                       {!isDemo && status === 'toConfirm' && match && (
                         <span className="flex shrink-0 gap-1.5">
-                          <Button variant="outline" className={ROW_ACTION_CLASS} onClick={() => void confirmDisposalMatch(disposal.assetId, match)}>
-                            {ACCUMULO_ACTION_CONFIRM}
-                          </Button>
                           <Button
                             variant="outline"
                             className={ROW_ACTION_CLASS}
@@ -713,10 +716,13 @@ export function QuestoMeseTile({
                           >
                             {ACCUMULO_ACTION_IGNORE_MATCH}
                           </Button>
+                          <Button className={ROW_ACTION_CLASS} onClick={() => void confirmDisposalMatch(disposal.assetId, match)}>
+                            {ACCUMULO_ACTION_CONFIRM}
+                          </Button>
                         </span>
                       )}
                       {!isDemo && (status === 'todo' || status === 'late') && (
-                        <Button variant="outline" className={ROW_ACTION_CLASS} onClick={() => setRegisterTarget({ kind: 'disposal', assetId: disposal.assetId })}>
+                        <Button className={ROW_ACTION_CLASS} onClick={() => setRegisterTarget({ kind: 'disposal', assetId: disposal.assetId })}>
                           {ACCUMULO_ACTION_REGISTER}
                         </Button>
                       )}
@@ -752,6 +758,9 @@ export function QuestoMeseTile({
                       )}
                     </div>
                     </div>
+                    {status === 'toConfirm' && match && (
+                      <p className="mt-1 text-[11px] text-muted-foreground">{describeMatchNote(match.quantity, match.amountEur)}</p>
+                    )}
                     {isManual && (
                       <div className="mt-1.5 flex items-end gap-2 rounded-lg bg-muted p-2.5">
                         <label className="flex-1 text-[11px] text-muted-foreground">
@@ -779,14 +788,33 @@ export function QuestoMeseTile({
         )}
         </div>
 
+        {/* Months bar (§10.2 point 3): one 3px segment per month. A closed month takes the theme's
+            progress fill (`--progress-fill`, the foreground by default, mid slate in Lime Frost —
+            «no near-black bar anywhere», doc/guide/fork-scelte-ui.md § 2). */}
+        <div className="mt-3 flex gap-[3px]" role="img" aria-label={monthsCaption}>
+          {plan.installments.map((installment) => {
+            const hasLate = installment.index < currentIndex && installment.lines.some((line) => line.status === 'planned');
+            const closed = installment.lines.every((line) => line.status !== 'planned');
+            const isCurrent = installment.index === currentIndex;
+            return (
+              <div
+                key={installment.index}
+                className={`h-[3px] flex-1 rounded-full ${hasLate ? 'bg-destructive' : closed ? 'bg-[var(--progress-fill)]' : isCurrent ? 'bg-muted-foreground/60' : 'bg-muted'}`}
+              />
+            );
+          })}
+        </div>
+        <p className="mt-1.5 font-mono text-[10px] tabular-nums text-muted-foreground">{monthsCaption}</p>
+
+
         <div className="mt-auto border-t border-border pt-3.5">
-          <NarrativeText segments={describeAccumulationOutcomeFooter({ maxDrift, residualEur: outcome.residualEur })} className="text-[11px] leading-[1.5] text-muted-foreground" />
+          <NarrativeText segments={describeAccumulationOutcomeFooter({ maxDrift, residualEur: outcome.residualEur, reserve: { eur: plan.liquidity.reserveEur, intact: !belowReserve } })} className="text-[11px] leading-[1.5] text-muted-foreground" />
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <Button variant="outline" className={TILE_ACTION_CLASS} disabled={isDemo || !findFirstIntactInstallment(plan)} onClick={() => setReviseOpen(true)}>
-              {ACCUMULO_ACTION_REVISE}
-            </Button>
             <Button variant="outline" className={TILE_ACTION_CLASS} onClick={() => { setCalendarFocusIndex(undefined); setCalendarOpen(true); }}>
               {ACCUMULO_ACTION_CALENDAR}
+            </Button>
+            <Button variant="outline" className={TILE_ACTION_CLASS} disabled={isDemo || !findFirstIntactInstallment(plan)} onClick={() => setReviseOpen(true)}>
+              {ACCUMULO_ACTION_REVISE}
             </Button>
             <Button
               ref={stopRef}
