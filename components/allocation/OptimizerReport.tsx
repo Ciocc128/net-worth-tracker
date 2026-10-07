@@ -135,16 +135,16 @@ export function OptimizerReport({
         <div className="rounded-lg bg-muted p-3">
           <p className="text-[12px] text-foreground">{OPTIMIZER_IDEAL_BELOW_HELD_CONFIRM}</p>
           <div className="mt-2 flex gap-2">
-            <Button variant="outline" className="h-8 text-[12px]" onClick={onCancelConfirm}>
+            <Button variant="outline" className="h-11 text-[12px] desktop:h-8" onClick={onCancelConfirm}>
               {ACCUMULO_ACTION_CANCEL}
             </Button>
-            <Button className="h-8 text-[12px]" onClick={onConfirmApply}>
+            <Button className="h-11 text-[12px] desktop:h-8" onClick={onConfirmApply}>
               {OPTIMIZER_ACTION_APPLY}
             </Button>
           </div>
         </div>
       ) : (
-        <Button className="h-8 text-[12px]" onClick={onApplyClick}>
+        <Button className="h-11 text-[12px] desktop:h-8" onClick={onApplyClick}>
           {OPTIMIZER_ACTION_APPLY}
         </Button>
       )}

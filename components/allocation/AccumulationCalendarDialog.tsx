@@ -71,6 +71,7 @@ export function AccumulationCalendarDialog({ open, onClose, plan, ownerId, allAs
   const isDemo = useDemoMode();
   const [expandedIndex, setExpandedIndex] = useState<number | null>(initialExpandedIndex ?? null);
   const [manualLine, setManualLine] = useState<{ index: number; positionId: string; qty: string; amount: string } | null>(null);
+  const [writeError, setWriteError] = useState<string | null>(null);
   const setLineMutation = useSetInstallmentLine(ownerId);
 
   const currentIndex = monthIndexOf(plan, toMonthKey(new Date()));
@@ -94,10 +95,11 @@ export function AccumulationCalendarDialog({ open, onClose, plan, ownerId, allAs
   const measurementInput = { allAssets, targets, compare: compareAllocations, today: new Date() };
 
   const setStatus = async (index: number, positionId: string, status: 'skipped' | 'planned') => {
+    setWriteError(null);
     try {
       await setLineMutation.mutateAsync({ planId: plan.id, index, positionId, patch: { status }, measurementInput });
     } catch (error) {
-      console.error('Errore nell’aggiornamento della riga:', error);
+      setWriteError(describeWriteError(error));
     }
   };
 
@@ -106,6 +108,7 @@ export function AccumulationCalendarDialog({ open, onClose, plan, ownerId, allAs
     const executedQuantity = Number(manualLine.qty);
     const executedAmountEur = Number(manualLine.amount);
     if (!Number.isFinite(executedQuantity) || !Number.isFinite(executedAmountEur)) return;
+    setWriteError(null);
     try {
       await setLineMutation.mutateAsync({
         planId: plan.id,
@@ -116,7 +119,7 @@ export function AccumulationCalendarDialog({ open, onClose, plan, ownerId, allAs
       });
       setManualLine(null);
     } catch (error) {
-      console.error(describeWriteError(error));
+      setWriteError(describeWriteError(error));
     }
   };
 
@@ -129,6 +132,11 @@ export function AccumulationCalendarDialog({ open, onClose, plan, ownerId, allAs
       title={ACCUMULO_CALENDAR_TITLE}
     >
       <div className="space-y-5">
+        {writeError && (
+          <p role="alert" className="text-[12px] text-destructive">
+            {writeError}
+          </p>
+        )}
         <ClassDriftChart points={trajectory} band={band} height={180} />
 
         <ul className="divide-y divide-border" aria-label={ACCUMULO_CALENDAR_TITLE}>

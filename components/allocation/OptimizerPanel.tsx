@@ -215,7 +215,7 @@ export function OptimizerPanel({
       )}
 
       {!calcRequested && (
-        <Button className="h-8 text-[12px]" onClick={() => setCalcRequested(true)} disabled={memberAssetIds.length === 0}>
+        <Button className="h-11 text-[12px] desktop:h-8" onClick={() => setCalcRequested(true)} disabled={memberAssetIds.length === 0}>
           {OPTIMIZER_ACTION_CALCULATE}
         </Button>
       )}

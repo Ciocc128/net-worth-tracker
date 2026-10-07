@@ -203,6 +203,12 @@ comportamento di prima. La route `GET /api/portfolio/instrument-profiles` (deleg
 modello di `/api/asset-transactions`) è l'unica a passarla, per i membri di TUTTE le posizioni della
 bozza — non ha una cache propria: il resolver ha già la cache di 30 giorni per ticker.
 
+## Candidati dello strumento a sé (A0, RO1)
+
+`buildStandaloneCandidates` prende gli strumenti `tradable` o `frozen` con valore > 0 e **mai un conto di liquidità**
+(`type !== 'cash'`): un conto è da dove arrivano i soldi, non un candidato. I `frozen` restano fissati al peso attuale
+dentro il calcolo e `toModelWeights` li toglie quando i pesi diventano un PAC.
+
 ## Limiti noti
 
 - **I gruppi proxy assumono la stessa esposizione per euro del buy asset per tutti i membri** (§5.1

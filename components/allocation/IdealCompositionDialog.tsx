@@ -32,6 +32,7 @@ import {
   type OptimizerSaleInput,
 } from '@/lib/utils/weightOptimizer';
 import { weightsToSeedPositions } from '@/lib/utils/accumulationPlanUtils';
+import { toModelWeights, describeModelExclusions, MODEL_NO_TRADABLE_INSTRUMENTS } from '@/lib/utils/modelPortfolio';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { useInstrumentProfiles } from '@/lib/hooks/useInstrumentProfiles';
 import { useOptimizerGeographyReference } from '@/lib/hooks/useOptimizerGeographyReference';
@@ -210,9 +211,16 @@ export function IdealCompositionDialog({
   );
   const showSpecificAssetsNote = hasSpecificAssetTargets(targets, Object.keys(targets) as AssetClass[]);
 
+  // RM2 on the proposed weights: what «Crea un PAC» can keep, rescaled to 100, and what it leaves out.
+  const modelFit = result && result.status === 'ok' ? toModelWeights(result.weights.map((w) => ({ assetId: w.key, pct: w.proposedPct })), assetsById) : null;
+  const keptWeights = (modelFit?.weights ?? []).map((w) => ({ key: w.assetId, label: labelOf(w.assetId), proposedPct: w.pct }));
+  const exclusionNote = modelFit ? describeModelExclusions(modelFit.excluded, labelOf) : '';
+
   const handleCreatePac = () => {
     if (!result || result.status !== 'ok' || openPlan) return;
-    const positions = weightsToSeedPositions(result.weights);
+    // B1: a frozen asset and a liquidity account never become PAC positions (RM2).
+    const positions = weightsToSeedPositions(keptWeights);
+    if (positions.length === 0) return;
     const snapshot: OptimizerSnapshot = {
       computedAt: new Date(),
       mode: effectiveMode,
@@ -403,7 +411,7 @@ export function IdealCompositionDialog({
         {isTargeted && tableRows.length > 0 && weightsTable}
 
         {!calcRequested && (
-          <Button className="h-8 text-[12px]" onClick={() => setCalcRequested(true)} disabled={standalone.positions.length === 0}>
+          <Button className="h-11 text-[12px] desktop:h-8" onClick={() => setCalcRequested(true)} disabled={standalone.positions.length === 0}>
             {OPTIMIZER_ACTION_CALCULATE}
           </Button>
         )}
@@ -437,9 +445,11 @@ export function IdealCompositionDialog({
                 <OptimizerObjectivesReport result={result} labelOf={labelOf} />
 
                 <div>
-                  <Button className="h-8 text-[12px]" onClick={handleCreatePac} disabled={!!openPlan}>
+                  <Button className="h-11 text-[12px] desktop:h-8" onClick={handleCreatePac} disabled={!!openPlan || keptWeights.length === 0}>
                     {IDEAL_COMPOSITION_ACTION_CREATE_PAC}
                   </Button>
+                  {exclusionNote && <p className="mt-1.5 text-[11px] text-muted-foreground">{exclusionNote}</p>}
+                  {keptWeights.length === 0 && <p className="mt-1.5 text-[11px] text-muted-foreground">{MODEL_NO_TRADABLE_INSTRUMENTS}</p>}
                   {openPlan && <p className="mt-1.5 text-[11px] text-muted-foreground">{IDEAL_COMPOSITION_PLAN_ALREADY_OPEN}</p>}
                 </div>
               </>

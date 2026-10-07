@@ -163,6 +163,23 @@ export function computeUsableLiquidity(
   };
 }
 
+/**
+ * The reserve reading of the tile and the draft box (B2, B5): only the plan's SOURCE accounts count,
+ * never every cash-class asset. `availableNowEur` is what the draft can spend today.
+ */
+export function summarizeReserve(
+  liquidity: PlanLiquidity,
+  assetsById: Map<string, Asset>,
+  deps: PlanDeps
+): { sourceCashEur: number; availableNowEur: number; belowReserve: boolean } {
+  const usable = computeUsableLiquidity(liquidity, assetsById, [], 0, deps);
+  return {
+    sourceCashEur: usable.sourceCashEur,
+    availableNowEur: usable.availableNowEur,
+    belowReserve: liquidity.reserveEur > 0 && usable.sourceCashEur < liquidity.reserveEur,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // 5.5 computeTotalPurchases (Passo 1)
 // ---------------------------------------------------------------------------

@@ -28,6 +28,7 @@ import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import {
   computeTotalPurchases,
   computeUsableLiquidity,
+  summarizeReserve,
   monthIndexOf,
   projectPlanOutcome,
   projectClassTrajectory,
@@ -387,7 +388,7 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
       <>
         <Tile eyebrow={ACCUMULO_TILE_EYEBROW} reading={describeAccumulationDraft({ totalEur, months: plan.months, startMonth: plan.startMonth })}>
           <div className="mt-3 grid grid-cols-2 gap-3 tablet:grid-cols-4">
-            <DraftBox label={ACCUMULO_DRAFT_BOX_LIQUIDITY} value={cachedFormatCurrencyEUR(liquidity.sourceCashEur)} />
+            <DraftBox label={ACCUMULO_DRAFT_BOX_LIQUIDITY} value={cachedFormatCurrencyEUR(liquidity.availableNowEur)} />
             <DraftBox label={ACCUMULO_DRAFT_BOX_DISPOSALS} value={cachedFormatCurrencyEUR(liquidity.disposalProceedsEur)} />
             <DraftBox label={ACCUMULO_DRAFT_BOX_INFLOWS} value={cachedFormatCurrencyEUR(liquidity.inflowTotalEur)} />
             <DraftBox label={ACCUMULO_DRAFT_BOX_POSITIONS} value={`${plan.positions.length}`} />
@@ -534,7 +535,7 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
     null,
   );
 
-  const belowReserve = plan.liquidity.reserveEur > 0 && sourceCashEur < plan.liquidity.reserveEur;
+  const { sourceCashEur: planSourceCashEur, belowReserve } = summarizeReserve(plan.liquidity, assetsById, DEPS);
 
   const maxDrift = outcome.maxDriftPositionId
     ? { label: outcome.positions.find((p) => p.positionId === outcome.maxDriftPositionId)?.label ?? '', deltaPp: outcome.maxAbsDriftPp }
@@ -558,7 +559,7 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
         {belowReserve && (
           <p className="mt-2 text-[12px] text-warning-foreground">
             <NarrativeText
-              segments={describeReserveWarning({ sourceCashEur, reserveEur: plan.liquidity.reserveEur, belowReserve: true }) ?? []}
+              segments={describeReserveWarning({ sourceCashEur: planSourceCashEur, reserveEur: plan.liquidity.reserveEur, belowReserve: true }) ?? []}
               className="inline"
             />
           </p>
