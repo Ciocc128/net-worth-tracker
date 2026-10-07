@@ -26,7 +26,7 @@ import { articleForPercent, atThePercent, monthWithPrepositionA, ofThePercent } 
 import type { Narrative, NarrativeSegment, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
 import type { GoalContributionSlice } from '@/lib/utils/goalTrajectory';
 import type { GoalMethod } from '@/lib/utils/goalUncertainty';
-import type { AssignmentsView, DerivedAllocationView, GoalDate, GoalLine, GoalsOverview, MilestoneEntry, TrajectoryView } from '@/lib/utils/goalsSummary';
+import type { AssignmentsView, DerivedAllocationView, GoalDate, GoalLine, GoalsOverview, TrajectoryView } from '@/lib/utils/goalsSummary';
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -257,12 +257,33 @@ export function describeGoalCaption(goal: GoalLine): Narrative {
   return out;
 }
 
+/**
+ * Where a late goal lands at today's pace: «arriva a settembre 2030, 15 mesi dopo la scadenza», or
+ * «mai, al ritmo attuale» when the pace never reaches it. The PROJECTED date, never the deadline
+ * dressed as an arrival (The Narrative Honesty Rule). Null when the goal has no projection to
+ * speak of (no deadline to be late against).
+ */
+function lateArrival(goal: GoalLine): string | null {
+  if (goal.projectedDate === null || goal.monthsToTarget === null) return 'mai, al ritmo attuale';
+  const past = goal.monthsToDeadline !== null && goal.monthsToTarget > goal.monthsToDeadline ? goal.monthsToTarget - goal.monthsToDeadline : null;
+  const arrives = `arriva ${atDate(goal.projectedDate)}`;
+  return past !== null ? `${arrives}, ${past} ${plural(past, 'mese', 'mesi')} dopo la scadenza` : arrives;
+}
+
 /** The words after the verdict chip of a row; null when the chip says it all (reached). */
 export function describeGoalStatus(goal: GoalLine): Narrative | null {
   switch (goal.verdict) {
-    case 'offTrack':
-      if (goal.monthsToDeadline === 0) return [prose('scadenza superata')];
-      return [prose('richiede '), amount(goal.requiredMonthly ?? 0), prose(' al mese, '), ...(goal.plannedMonthly > 0 ? [prose('ne versi '), amount(goal.plannedMonthly)] : [prose('oggi non versi nulla')])];
+    case 'offTrack': {
+      const arrival = lateArrival(goal);
+      if (goal.monthsToDeadline === 0) return [prose('scadenza superata'), ...(arrival ? [prose(` · ${arrival}`)] : [])];
+      return [
+        prose('richiede '),
+        amount(goal.requiredMonthly ?? 0),
+        prose(' al mese, '),
+        ...(goal.plannedMonthly > 0 ? [prose('ne versi '), amount(goal.plannedMonthly)] : [prose('oggi non versi nulla')]),
+        ...(arrival ? [prose(` · ${arrival}`)] : []),
+      ];
+    }
     case 'onTrack':
       return [
         prose(goal.projectedDate ? `arriva ${atDate(goal.projectedDate)}` : 'arriva in tempo'),
@@ -427,46 +448,6 @@ export function describeIncertezza(t: TrajectoryView, dateOf: (months: number) =
     else lines.push([prose('In 9 casi su 10 '), prose(reading.value === 0 ? 'non serve versare nulla' : 'bastano '), ...(reading.value === 0 ? [] : [amount(reading.value), prose(' al mese')]), ...today, prose('.')]);
   }
   return lines;
-}
-
-// ─── Milestone ────────────────────────────────────────────────────────────────
-
-export const MILESTONE_ASIDE = 'al ritmo attuale';
-
-export const MILESTONE_FOOTER: Narrative = [prose('Date proiettate ai versamenti e ai rendimenti attesi di oggi; un obiettivo senza versamenti né rendimento non ha una data.')];
-
-/** «Il prossimo traguardo è Auto a gennaio 2028; Casa arriva a settembre 2030, 15 mesi oltre la scadenza.» */
-export function describeMilestone(entries: MilestoneEntry[]): Narrative {
-  if (entries.length === 0) return [prose('Nessun obiettivo con un importo da raggiungere.')];
-  const dated = entries.filter((e) => e.kind === 'dated' && e.date);
-  if (dated.length === 0) {
-    return [prose(entries.some((e) => e.kind === 'never') ? 'Nessun obiettivo ha una data al ritmo attuale.' : 'Ogni obiettivo con un importo è già raggiunto.')];
-  }
-
-  const next = dated[0];
-  const late = dated.find((e) => e.monthsPastDeadline !== null);
-  const out: Narrative = [prose(`Il prossimo traguardo è ${next.name} ${atDate(next.date!)}`)];
-
-  if (late && late === next) {
-    out.push(prose(', '), count(late.monthsPastDeadline!), prose(` ${plural(late.monthsPastDeadline!, 'mese', 'mesi')} oltre la scadenza.`));
-  } else if (late) {
-    out.push(prose(`; ${late.name} arriva ${atDate(late.date!)}, `), count(late.monthsPastDeadline!), prose(` ${plural(late.monthsPastDeadline!, 'mese', 'mesi')} oltre la scadenza.`));
-  } else if (dated.length > 1) {
-    const last = dated[dated.length - 1];
-    out.push(prose(`; l'ultimo ${last.name} ${atDate(last.date!)}.`));
-  } else {
-    out.push(prose('.'));
-  }
-  return out;
-}
-
-/** The note under a milestone row: the lateness, or the absence of a date. Null when in time. */
-export function describeMilestoneNote(entry: MilestoneEntry): string | null {
-  if (entry.kind === 'never') return 'mai, al ritmo attuale';
-  if (entry.monthsPastDeadline !== null && entry.deadline) {
-    return `${entry.monthsPastDeadline} ${plural(entry.monthsPastDeadline, 'mese', 'mesi')} dopo la scadenza di ${formatGoalDate(entry.deadline)}`;
-  }
-  return null;
 }
 
 // ─── Allocazione derivata ─────────────────────────────────────────────────────

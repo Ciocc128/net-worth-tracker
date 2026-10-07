@@ -18,7 +18,7 @@ vi.mock('@/lib/services/assetService', () => ({
 }));
 
 import { narrativeToText, type Narrative } from '@/lib/utils/narrative';
-import type { GoalLine, GoalsOverview, MilestoneEntry, TrajectoryView, DerivedAllocationView, AssignmentsView } from '@/lib/utils/goalsSummary';
+import type { GoalLine, GoalsOverview, TrajectoryView, DerivedAllocationView, AssignmentsView } from '@/lib/utils/goalsSummary';
 import {
   ALLOCAZIONE_DERIVATA_ASIDE,
   EXPLAINER,
@@ -33,8 +33,6 @@ import {
   describeGoalStatus,
   describeIncertezza,
   describeIncertezzaMetodo,
-  describeMilestone,
-  describeMilestoneNote,
   describeObiettivi,
   describeObiettiviFooter,
   describeTraiettoria,
@@ -231,8 +229,13 @@ describe('describeGoalCaption', () => {
 
 describe('describeGoalStatus', () => {
   it('late: the required pace against the planned one', () => {
-    expect(plain(describeGoalStatus(CASA))).toBe('richiede 970 € al mese, ne versi 700 €');
-    expect(plain(describeGoalStatus({ ...CASA, plannedMonthly: 0 }))).toBe('richiede 970 € al mese, oggi non versi nulla');
+    expect(plain(describeGoalStatus(CASA))).toBe('richiede 970 € al mese, ne versi 700 € · arriva a settembre 2030, 15 mesi dopo la scadenza');
+    expect(plain(describeGoalStatus({ ...CASA, plannedMonthly: 0 }))).toBe('richiede 970 € al mese, oggi non versi nulla · arriva a settembre 2030, 15 mesi dopo la scadenza');
+  });
+
+  it('late: the singular month, and the pace that never arrives', () => {
+    expect(plain(describeGoalStatus({ ...CASA, monthsToTarget: 35 }))).toContain('1 mese dopo la scadenza');
+    expect(plain(describeGoalStatus({ ...CASA, projectedDate: null, monthsToTarget: null }))).toBe('richiede 970 € al mese, ne versi 700 € · mai, al ritmo attuale');
   });
 
   it('on track: the arrival with the pace', () => {
@@ -254,7 +257,8 @@ describe('describeGoalStatus', () => {
   });
 
   it('late and past the deadline', () => {
-    expect(plain(describeGoalStatus({ ...CASA, monthsToDeadline: 0 }))).toBe('scadenza superata');
+    expect(plain(describeGoalStatus({ ...CASA, monthsToDeadline: 0 }))).toBe('scadenza superata · arriva a settembre 2030, 49 mesi dopo la scadenza');
+    expect(plain(describeGoalStatus({ ...CASA, monthsToDeadline: 0, projectedDate: null, monthsToTarget: null }))).toBe('scadenza superata · mai, al ritmo attuale');
   });
 });
 
@@ -375,38 +379,6 @@ describe('describeTraiettoriaFooter', () => {
 
   it('without a usable allocation the target portfolio\'s Base return is named, and without a deadline the vertical line is not', () => {
     expect(plain(describeTraiettoriaFooter(trajectory({ allocation: [], returnOrigin: 'portfolio', annualReturn: 4, deadline: null })))).toBe('Rendimento nominale del 4% l\'anno, quello dello scenario Base del portafoglio target, perché l\'obiettivo non ha un\'allocazione consigliata utilizzabile: una stima, non un consiglio. Tratteggiata orizzontale: il target.');
-  });
-});
-
-// ─── Milestone ────────────────────────────────────────────────────────────────
-
-const MILESTONES: MilestoneEntry[] = [
-  { goalId: 'emergenza', name: 'Fondo emergenza', color: '#EF4444', kind: 'reached', date: null, deadline: null, monthsPastDeadline: null },
-  { goalId: 'auto', name: 'Auto', color: '#F97316', kind: 'dated', date: { year: 2028, month: 1 }, deadline: { year: 2028, month: 3 }, monthsPastDeadline: null },
-  { goalId: 'casa', name: 'Casa', color: '#3B82F6', kind: 'dated', date: { year: 2030, month: 9 }, deadline: { year: 2029, month: 6 }, monthsPastDeadline: 15 },
-  { goalId: 'studi', name: 'Studi figli', color: '#8B5CF6', kind: 'dated', date: { year: 2034, month: 8 }, deadline: { year: 2034, month: 9 }, monthsPastDeadline: null },
-];
-
-describe('describeMilestone', () => {
-  it('names the next goal and the late one', () => {
-    expect(plain(describeMilestone(MILESTONES))).toBe('Il prossimo traguardo è Auto a gennaio 2028; Casa arriva a settembre 2030, 15 mesi oltre la scadenza.');
-  });
-
-  it('no late goal: the next and the last', () => {
-    expect(plain(describeMilestone(MILESTONES.filter((m) => m.goalId !== 'casa')))).toBe('Il prossimo traguardo è Auto a gennaio 2028; l\'ultimo Studi figli ad agosto 2034.');
-  });
-
-  it('every goal reached, or nothing datable', () => {
-    expect(plain(describeMilestone([MILESTONES[0]]))).toBe('Ogni obiettivo con un importo è già raggiunto.');
-    expect(plain(describeMilestone([{ ...MILESTONES[1], kind: 'never', date: null }]))).toBe('Nessun obiettivo ha una data al ritmo attuale.');
-    expect(plain(describeMilestone([]))).toBe('Nessun obiettivo con un importo da raggiungere.');
-  });
-
-  it('the notes under a row: the lateness, or the absence of a date', () => {
-    expect(describeMilestoneNote(MILESTONES[2])).toBe('15 mesi dopo la scadenza di giugno 2029');
-    expect(describeMilestoneNote({ ...MILESTONES[2], monthsPastDeadline: 1 })).toBe('1 mese dopo la scadenza di giugno 2029');
-    expect(describeMilestoneNote({ ...MILESTONES[1], kind: 'never', date: null })).toBe('mai, al ritmo attuale');
-    expect(describeMilestoneNote(MILESTONES[1])).toBeNull();
   });
 });
 

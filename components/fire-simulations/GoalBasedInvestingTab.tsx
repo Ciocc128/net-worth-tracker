@@ -9,12 +9,11 @@
  * tiles that each answer one question with a reading line above their figures.
  *
  *   Desktop (12 col): Obiettivi(5, 2 rows) | Traiettoria(7)
- *                                          | Milestone(4) | Allocazione derivata(3)
+ *                                          | Allocazione derivata(7)
  *                     Assegnazioni(12)
- *   Mobile (1 col):   Obiettivi → Traiettoria → Milestone → Allocazione derivata → Assegnazioni
+ *   Mobile (1 col):   Obiettivi → Traiettoria → Allocazione derivata → Assegnazioni
  *
- * Without goal-driven allocation the Allocazione derivata tile is absent and Milestone takes its
- * columns. A «Dettaglio» disclosure below the grid holds the next contribution's split and the
+ * Without goal-driven allocation the Allocazione derivata tile is absent. A «Dettaglio» disclosure below the grid holds the next contribution's split and the
  * explainer. The page has NO period axis — a goal is read today — and its one selection, the goal
  * the Traiettoria draws, is a row of the Obiettivi tile (`aria-current`).
  *
@@ -27,7 +26,7 @@
  * 1. Settings query  → is the feature enabled, is the allocation goal-driven
  * 2. Assets query    → portfolio data (independent)
  * 3. Goal data query → goals + assignments (independent)
- * 4. Pure layer      → rows, overview, trajectory, milestones, allocation, assignments
+ * 4. Pure layer      → rows, overview, trajectory, allocation, assignments
  */
 
 import { useMemo, useState } from 'react';
@@ -51,7 +50,7 @@ import { useWhatIfBaseline } from '@/lib/hooks/useWhatIfBaseline';
 import { goalFireEffect, goalFireNarrative } from '@/lib/utils/goalFire';
 import { assetInsideShare } from '@/lib/utils/datedFlows';
 import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
-import { buildMilestones, summarizeAssignments, summarizeDerivedAllocation, summarizeGoals, summarizeTrajectory, sumAssetValues, goalDateFromDate, withUncertainty } from '@/lib/utils/goalsSummary';
+import { summarizeAssignments, summarizeDerivedAllocation, summarizeGoals, summarizeTrajectory, sumAssetValues, goalDateFromDate, withUncertainty } from '@/lib/utils/goalsSummary';
 import {
   ALLOCAZIONE_DERIVATA_ASIDE,
   ALLOCAZIONE_DERIVATA_FOOTER,
@@ -65,15 +64,11 @@ import {
   describeGoalProbability,
   describeIncertezza,
   describeGoalStatus,
-  describeMilestone,
-  describeMilestoneNote,
   describeObiettivi,
   describeObiettiviFooter,
   describeTraiettoria,
   describeTraiettoriaFooter,
   DETTAGLIO_DESCRIPTION,
-  MILESTONE_ASIDE,
-  MILESTONE_FOOTER,
   resolveTraiettoriaHero,
 } from '@/lib/utils/goalsNarrative';
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
@@ -85,7 +80,6 @@ import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
 import { ObiettiviTile } from '@/components/goals/tiles/ObiettiviTile';
 import { TraiettoriaTile } from '@/components/goals/tiles/TraiettoriaTile';
-import { MilestoneTile } from '@/components/goals/tiles/MilestoneTile';
 import { AllocazioneDerivataTile } from '@/components/goals/tiles/AllocazioneDerivataTile';
 import { AssegnazioniTile } from '@/components/goals/tiles/AssegnazioniTile';
 import { GoalProjectionChart } from '@/components/goals/GoalProjectionChart';
@@ -97,8 +91,7 @@ import { AssetAssignmentDialog } from '@/components/goals/AssetAssignmentDialog'
 const SKELETON_CELLS: TileSkeletonCell[] = [
   { span: 5, rows: 2, lines: 14 },
   { span: 7, lines: 10 },
-  { span: 4, lines: 6 },
-  { span: 3, lines: 5 },
+  { span: 7, lines: 6 },
   { span: 12, lines: 8 },
 ];
 
@@ -268,7 +261,6 @@ export function GoalBasedInvestingTab() {
     return effect ? { effect, text: goalFireNarrative(effect) } : null;
   }, [selectedRow, isEnabled, assets, cleanedAssignments, fireBaseline, hasFirePlan, fireAssumptions, fireYear, fbLoadS, fbLoadA, fbLoadC, fbLoadF, fbErrS, fbErrA, fbErrC]);
 
-  const milestones = useMemo(() => buildMilestones(goalRows), [goalRows]);
   const orderedGoals = useMemo(() => overview.goals.map((line) => goals.find((g) => g.id === line.id)).filter((g): g is InvestmentGoal => g != null), [overview.goals, goals]);
   const derivedAllocation = useMemo(() => (isGoalDriven ? summarizeDerivedAllocation(orderedGoals, cleanedAssignments, assets) : null), [isGoalDriven, orderedGoals, cleanedAssignments, assets]);
   const assignmentsView = useMemo(() => summarizeAssignments(orderedGoals, cleanedAssignments, assets), [orderedGoals, cleanedAssignments, assets]);
@@ -276,7 +268,6 @@ export function GoalBasedInvestingTab() {
   // ─── The words ───────────────────────────────────────────────────────────────
   const verdict = useMemo(() => buildGoalsVerdict({ enabled: isEnabled, overview: isEnabled ? overview : null }), [isEnabled, overview]);
   const obiettiviRows = useMemo(() => overview.goals.map((line) => ({ line, caption: describeGoalCaption(line), status: describeGoalStatus(line), probability: describeGoalProbability(line) })), [overview.goals]);
-  const milestoneRows = useMemo(() => milestones.map((entry) => ({ entry, note: describeMilestoneNote(entry) })), [milestones]);
 
   // ─── Goal CRUD ───────────────────────────────────────────────────────────────
   const handleCreateGoal = () => {
@@ -441,20 +432,14 @@ export function GoalBasedInvestingTab() {
           </div>
         )}
 
-        {hasGoals && (
-          <div className={cn(TILE_CELL_CLASS, 'order-3 tablet:col-span-2 desktop:order-none', derivedAllocation ? 'desktop:col-span-4' : 'desktop:col-span-7')}>
-            <MilestoneTile reading={describeMilestone(milestones)} aside={MILESTONE_ASIDE} rows={milestoneRows} footer={MILESTONE_FOOTER} />
-          </div>
-        )}
-
         {hasGoals && derivedAllocation && (
-          <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none desktop:col-span-3')}>
+          <div className={cn(TILE_CELL_CLASS, 'order-3 tablet:col-span-2 desktop:order-none desktop:col-span-7')}>
             <AllocazioneDerivataTile reading={describeAllocazioneDerivata(derivedAllocation)} aside={ALLOCAZIONE_DERIVATA_ASIDE} rows={derivedAllocation.rows} footer={ALLOCAZIONE_DERIVATA_FOOTER} />
           </div>
         )}
 
         {hasGoals && (
-          <div className={cn(TILE_CELL_CLASS, 'order-5 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
+          <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
             <AssegnazioniTile
               reading={describeAssegnazioni(assignmentsView)}
               aside={describeAssegnazioniAside(assignmentsView)}

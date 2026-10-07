@@ -1,6 +1,6 @@
 /**
  * Tests for lib/utils/goalsSummary.ts — the numbers of FIRE › Obiettivi: every goal as one line in
- * urgency order, the selected goal's trajectory, the milestones, the allocation the goals derive
+ * urgency order, the selected goal's trajectory, the allocation the goals derive
  * beside the one already assigned, and the assignments closed by the free shares.
  *
  * `calculateAssetValue` is mocked as quantity × price (the goalMath tests' mock), so every euro
@@ -20,7 +20,6 @@ import type { GoalAssetAssignment, InvestmentGoal } from '@/types/goals';
 import { computeGoalTrajectory, type GoalRow, type GoalTrajectory } from '@/lib/utils/goalTrajectory';
 import { calculateGoalProgress } from '@/lib/utils/goalMath';
 import {
-  buildMilestones,
   goalDateFromIso,
   summarizeAssignments,
   summarizeDerivedAllocation,
@@ -212,39 +211,6 @@ describe('summarizeTrajectory', () => {
     expect(view.series).toEqual([]);
     expect(view.allocation).toEqual([]);
     expect(view.requiredMonthly).toBeNull();
-  });
-});
-
-describe('buildMilestones', () => {
-  it('lists the reached goals first, then the dated ones in order, then the ones never reached', () => {
-    const rows: GoalRow[] = [
-      row(CASA, 78_000, { verdict: 'offTrack', monthsToDeadline: 34, monthsToTarget: 49, projectedDate: new Date('2030-09-26T12:00:00') }),
-      row(goal('pensione', 'Pensione', { targetAmount: 250_000 }), 38_000, { verdict: 'noDeadline', monthsToTarget: null, projectedDate: null }),
-      row(EMERGENZA, 15_000, { verdict: 'reached', monthsToTarget: 0 }),
-      row(AUTO, 11_500, { verdict: 'onTrack', monthsToDeadline: 19, monthsToTarget: 17, projectedDate: new Date('2028-01-26T12:00:00') }),
-      row(goal('figli', 'Figli'), 4_000, { verdict: 'noTarget' }),
-    ];
-    const entries = buildMilestones(rows);
-
-    expect(entries.map((e) => [e.name, e.kind])).toEqual([
-      ['Fondo emergenza', 'reached'],
-      ['Auto', 'dated'],
-      ['Casa', 'dated'],
-      ['Pensione', 'never'],
-    ]);
-  });
-
-  it('measures how far past its deadline a late goal lands, in months', () => {
-    const rows: GoalRow[] = [row(CASA, 78_000, { verdict: 'offTrack', monthsToDeadline: 34, monthsToTarget: 49, projectedDate: new Date('2030-09-26T12:00:00') })];
-    const [casa] = buildMilestones(rows);
-    expect(casa.date).toEqual({ year: 2030, month: 9 });
-    expect(casa.monthsPastDeadline).toBe(15);
-    expect(casa.deadline).toEqual({ year: 2029, month: 6 });
-  });
-
-  it('a goal that lands before its deadline carries no lateness', () => {
-    const rows: GoalRow[] = [row(AUTO, 11_500, { verdict: 'onTrack', monthsToDeadline: 19, monthsToTarget: 17, projectedDate: new Date('2028-01-26T12:00:00') })];
-    expect(buildMilestones(rows)[0].monthsPastDeadline).toBeNull();
   });
 });
 

@@ -2841,3 +2841,20 @@ thread sul computer del proprietario.
 
 Implementato come da §§ 17.5–17.9: `fireService` (`walkYears`/`inflowAtHorizon` dalla camminata, quattro campi nuovi in `CoastFIREMetrics`), `coastFireView` (`CoastStage`, `describeCoastRegimeMethod`, eventi `datedIn`/`datedOut` con `sign`, verdetto su `Y_T`, didascalia, piede RCO7), tessere Traguardo (striscia, impilata sotto i 640px) e Afflussi (occhiello, sei eventi e «+N»), griglia RCO8, Dettaglio su `S_H`. Test: `__tests__/coastStages.test.ts` (CO1–CO11, i valori di § 17.8 a ± 0,01 €) e `coastFireView.test.ts` aggiornato (didascalia). Verificato: `tsc` e `eslint` puliti; Vitest sotto `Europe/Rome` tutto verde tranne `weightOptimizer` (timeout di 5 s nel container, rosso anche su `main`). **Non eseguite**: le spec Playwright `e2e/coast*.spec.ts` e il giro visivo (restano sul Mac di Giorgio).
 
+
+## 18. Obiettivi — la tessera Milestone esce (passo 8 del riallineamento, task OM1)
+
+La card «togliere o fondere la tessera Milestone negli Obiettivi» (Tour del 05/10, «Dove interverrei» punto 5) lascia aperta
+la forma. Verificato nel codice (07/10/2026): le righe di Obiettivi dicono già scadenza e, per i goal in rotta e senza
+scadenza, la data d'arrivo; Milestone aggiungeva solo la data d'arrivo di un goal in ritardo con i mesi oltre la scadenza,
+il «mai, al ritmo attuale» e l'ordine per data d'arrivo.
+
+| ID | Decisione | Alternative scartate | Motivo |
+| --- | --- | --- | --- |
+| D-M1 | La tessera esce; la riga di un goal in ritardo aggiunge «arriva a settembre 2030, 15 mesi dopo la scadenza» (o «mai, al ritmo attuale»). | Fondere ordinando Obiettivi per data d'arrivo; lasciare com'è. | Resta l'ordine per urgenza, che sceglie il goal in grande e la Traiettoria; si perde solo la lista duplicata. |
+| D-M2 | La regola «mai una scadenza come arrivo» (Narrative Honesty Rule) passa alla riga: sempre la data proiettata. | — | Stessa regola, un posto solo. |
+
+Layout: Allocazione derivata prende 7 colonne sotto la Traiettoria (assente senza allocazione guidata dagli obiettivi);
+telefono: Obiettivi → Traiettoria → Allocazione derivata → Assegnazioni. Nessuna regola di calcolo cambia.
+Codice: `describeGoalStatus` (`lateArrival`) in `lib/utils/goalsNarrative.ts`; via `MilestoneTile`, `buildMilestones`,
+`describeMilestone*`. Guida: `doc/guide/fire-obiettivi.md`.
