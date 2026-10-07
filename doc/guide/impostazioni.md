@@ -96,8 +96,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `AssetAllocationSettings`, `getSettings`'s `idealAllocation: data.idealAllocation`, the `targets` branch's
   `serializeIdealAllocation`/`delete docData.idealAllocation`, the merge branch's `'idealAllocation' in settings` guard
   with `deleteField()`, the page's state/load/save/dirty-snapshot in the Allocazione tab, `IdealAllocationTile.tsx`'s
-  own controls, `describeIdealAllocation` for the reading, the `STORED_SETTINGS` fixture. **A SIXTH consumer outside
-  Impostazioni reads it without going through `getSettings` at all**: `AccumuloTile`/`AccumulationPlanDialog`/
+  own controls (since A1, 2026-10-07, EDITED in Allocazione › Accumulo — `ObiettiviDialog` writes `{ idealAllocation }` alone; Impostazioni › Allocazione keeps `IdealAllocationSummary`, read-only with a link, and its «Salva» still writes back the value it read), `describeIdealAllocation` for the reading, the `STORED_SETTINGS` fixture. **A SIXTH consumer outside
+  Impostazioni reads it without going through `getSettings` at all**: `AccumuloTab`/`AccumulationPlanDialog`/
   `OptimizerPanel` (the PAC's Ottimizzato view) receive it as a prop from `app/dashboard/allocation/page.tsx`'s own
   `getSettings` call — a second independent load, same shape as the dashboard-overview/email sixth-and-seventh places
   above, because the Allocazione page already loads `settings` for `targets` and would otherwise fetch it twice.

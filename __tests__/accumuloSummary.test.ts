@@ -4,7 +4,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { narrativeToText } from '@/lib/utils/narrative';
-import { buildAccumuloVerdict, summarizePacMonth } from '@/lib/utils/accumuloSummary';
+import { buildAccumuloVerdict, stepTrajectoryCursor, summarizePacMonth } from '@/lib/utils/accumuloSummary';
 import type { AccumulationPlan, InstallmentLine } from '@/types/accumulationPlan';
 
 const flat = (text: string) => text.replace(/[\u00a0\u202f]/g, ' ');
@@ -113,5 +113,20 @@ describe('summarizePacMonth', () => {
   it('is null without an active plan', () => {
     expect(summarizePacMonth(undefined, 3)).toBeNull();
     expect(summarizePacMonth(plan({ status: 'draft' }), 1)).toBeNull();
+  });
+});
+
+describe('stepTrajectoryCursor (PT6)', () => {
+  it('moves one month with the arrows and stops at 0 and N', () => {
+    expect(stepTrajectoryCursor(3, 'ArrowRight', 13)).toBe(4);
+    expect(stepTrajectoryCursor(3, 'ArrowLeft', 13)).toBe(2);
+    expect(stepTrajectoryCursor(0, 'ArrowLeft', 13)).toBe(0);
+    expect(stepTrajectoryCursor(12, 'ArrowRight', 13)).toBe(12);
+    expect(stepTrajectoryCursor(5, 'Home', 13)).toBe(0);
+    expect(stepTrajectoryCursor(5, 'End', 13)).toBe(12);
+  });
+
+  it('ignores any other key', () => {
+    expect(stepTrajectoryCursor(3, 'a', 13)).toBeNull();
   });
 });

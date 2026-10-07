@@ -1,6 +1,6 @@
 # Allocazione › Accumulo (PAC)
 
-> **Quando aprire questa guida** — chi tocca `components/allocation/tiles/AccumuloTile.tsx`,
+> **Quando aprire questa guida** — chi tocca `components/allocation/AccumuloTab.tsx`, `components/allocation/tiles/{QuestoMese,ClassiDelPiano,AccumuloVuoto,Obiettivi}Tile.tsx`,
 > `components/allocation/Accumulation{PlanDialog,CalendarDialog,RecalibrateDialog}.tsx`,
 > `components/allocation/ClassDriftChart.tsx`, `lib/utils/accumulationPlan{Utils,Schema,Matching}.ts`,
 > `lib/utils/accumulationNarrative.ts` o `lib/services/accumulationPlanService.ts`. La specifica
@@ -33,7 +33,7 @@ Firebase: ogni dipendenza dal portafoglio vivo è iniettata (`PlanDeps.valueOf`/
 
 | # | Regola | Dove vive |
 | --- | --- | --- |
-| D1 | Feature autonoma: tile separato da Piano, fuori da `PlanMode`/`buildPlanView`/dal verdetto della pagina. | `AccumuloTile.tsx` montato accanto, non dentro, `PianoTile` |
+| D1 | Feature autonoma: tile separato da Piano, fuori da `PlanMode`/`buildPlanView`/dal verdetto della pagina. | il tile (oggi `QuestoMeseTile.tsx`, dentro la scheda Accumulo) montato accanto, non dentro, `PianoTile` |
 | D2 | Target del piano PER STRUMENTO, indipendenti dai target di Impostazioni. | `PlanPosition.targetPercentage` |
 | D3 | La liquidità è sempre `excluded`: B = valore posizioni + L. | `computeTotalPurchases` |
 | D4 | L = max(0, Σconti−riserva) + vendite fuori piano + E×N; la riserva non si tocca mai. | `computeUsableLiquidity` |
@@ -102,7 +102,7 @@ Firebase: ogni dipendenza dal portafoglio vivo è iniettata (`PlanDeps.valueOf`/
   a riga secondaria, più piccola e sempre muted. Prima era il contrario: l'UNICA cifra stampata
   era il delta, il peso reale della classe non compariva mai nel tile. `describeClassStripItem`
   ritorna `{ label, primary, secondary, note?, outOfBandNow }` invece del vecchio `{ text, note?,
-  outOfBandNow }`; `AccumuloTile.tsx` legge `item.label` per il calcolo di `furthestDrift` (prima
+  outOfBandNow }`; `ClassiDelPianoTile.tsx` (ex `AccumuloTile.tsx`) legge `item.label` per il calcolo di `furthestDrift` (prima
   lo estraeva spezzando la stringa `text` — fragile). doc/pac-ate.md §10.2 punto 5.
 - **La tabella «Classi mese per mese» del passo 3 (anteprima) segue la stessa regola** (decisione
   del proprietario, 2026-09-20): prima ogni cella portava solo lo scostamento in pp, senza
@@ -245,6 +245,36 @@ stesso schema di `pensionContributions`: lettura/scrittura per chi accede all'ac
 immutabile in update). **Il deploy delle regole NON avviene con Vercel**: va fatto a mano dalla console
 Firebase (Firestore → Regole → incolla il contenuto di `firestore.rules` → Pubblica) prima di poter
 creare un piano in produzione — nessuna pipeline di questo repo lo fa per conto dell'utente.
+
+## La scheda «Accumulo» (A1, doc/pac-ottimizzatore/README.md § RV1–RV6)
+
+- **Dov'è.** `app/dashboard/allocation/page.tsx` ha due schede (`PageTabs`, `?tab=`): «Bilanciamento» (predefinita) e
+  «Accumulo» (`AccumuloTab`). Il vecchio `AccumuloTile` è diviso in `QuestoMeseTile` (bozza · rate · concluso, con le
+  righe e le vendite fuori piano), `ClassiDelPianoTile` (grafico mese per mese + barre oggi → fine piano) e
+  `AccumuloVuotoTile` (stato vuoto, RV4); `AccumuloTab` possiede la lettura del piano (`useOpenAccumuloPlan`), l'abbinamento
+  col Registro, la traiettoria e il verdetto, così verdetto e tile non possono contare cose diverse. Gli stati
+  loading/failed sono della scheda, non dei tile.
+- **Verdetto** (`buildAccumuloVerdict`, `lib/utils/accumuloSummary.ts`; le parole in `accumulationNarrative.ts`): cinque stati
+  (nessun piano · bozza · attivo · concluso, più «in ritardo» nel titolo). Importi interi, senza decimali. Con la riga di
+  rientro in banda (RV5) in coda alla frase del piano attivo.
+- **Clausola del PAC nel verdetto di Bilanciamento (PO3).** `AllocazioneVerdictInput.pac` (da `summarizePacMonth`): con un
+  piano ATTIVO e non concluso, al posto della frase di Versa: «il piano di accumulo compra questo mese 3134 € in 4
+  strumenti» / «la rata di ottobre del piano di accumulo è chiusa». Senza piano la frase è identica a prima. Il Piano ›
+  Versa non cambia. Una bozza non propone niente: non entra nel verdetto.
+- **Traiettoria (PO15).** `ClassDriftChart` prende `selectedIndex` + `onSelect`: cursore con puntatore e frecce
+  (`stepTrajectoryCursor`, un solo Tab per il grafico), riga di lettura sotto, legenda. Senza quei due prop è il grafico di
+  prima (Calendario, passo Anteprima). `describeBandReentry` dice quando ogni classe rientra in banda **a prezzi di oggi**:
+  «dal mese N» nelle bozze, il mese in lettere nel piano attivo.
+- **Stato vuoto (RV4).** L'anteprima è su «pesi di oggi» (`buildAccumuloPreview`: strumenti acquistabili pesati per valore,
+  riserva 10.000 €, 12 rate, nessuna entrata). Il portafoglio modello arriva con A2: fino ad allora «Vai alla composizione
+  ideale» fa scorrere fino a quel tile (`COMPOSITION_ANCHOR_ID`).
+- **Obiettivi (RV6, D-A6).** Si modificano in `ObiettiviDialog` (aperto dal tile o da `?obiettivi=1`, che `AccumuloTab` legge e
+  toglie): la bozza è locale, «Prova» gira `runOptimizer` in modo Ideale e non scrive, «Salva gli obiettivi» scrive
+  `{ idealAllocation }` con `setSettings` **senza `targets`**, cioè con la catena a merge: nient'altro del documento
+  cambia (`settingsRoundTrip.test.ts`). Il modulo è `IdealAllocationTile` in modalità `bare`; i suoi dati di contorno (classi
+  con sottocategorie, lacune del secondo livello, strumenti acquistabili) vengono dai target SALVATI
+  (`lib/utils/idealAllocationEditor.ts`), non più dal modulo dei target di Impostazioni. Mancano ancora le barre target →
+  raggiunto e la prima frase dei conflitti: leggono lo snapshot del portafoglio modello (A2).
 
 ## Difetti chiusi (A0, doc/pac-ottimizzatore/README.md § B1–B5)
 

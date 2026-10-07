@@ -26,6 +26,7 @@ import {
   formatSignedPp,
   trajectoryPointLabel,
 } from '@/lib/utils/accumulationNarrative';
+import { stepTrajectoryCursor } from '@/lib/utils/accumuloSummary';
 import { cn } from '@/lib/utils';
 
 interface ClassDriftChartProps {
@@ -122,19 +123,10 @@ export function ClassDriftChart({ points, band, height = 160, className, selecte
   };
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (!hasCursor) return;
-    if (event.key === 'ArrowRight') {
-      event.preventDefault();
-      selectPosition(cursorPosition + 1);
-    } else if (event.key === 'ArrowLeft') {
-      event.preventDefault();
-      selectPosition(cursorPosition - 1);
-    } else if (event.key === 'Home') {
-      event.preventDefault();
-      selectPosition(0);
-    } else if (event.key === 'End') {
-      event.preventDefault();
-      selectPosition(points.length - 1);
-    }
+    const next = stepTrajectoryCursor(cursorPosition, event.key, points.length);
+    if (next === null) return;
+    event.preventDefault();
+    selectPosition(next);
   };
   const handlePointer = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!hasCursor || points.length < 2) return;

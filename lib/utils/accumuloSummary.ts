@@ -204,3 +204,23 @@ export function summarizeDraftTotal(plan: AccumulationPlan, allAssets: Asset[], 
   const totals = computeTotalPurchases(resolvePositionStates(plan.positions, assetsById, deps), liquidity.L);
   return Object.values(totals).reduce((sum, value) => sum + value, 0);
 }
+
+/**
+ * RV5's cursor: where a key sends the month cursor (a position in the trajectory, 0..length−1),
+ * stopping at both ends. `null` for a key the chart does not answer to.
+ */
+export function stepTrajectoryCursor(position: number, key: string, length: number): number | null {
+  const last = Math.max(0, length - 1);
+  switch (key) {
+    case 'ArrowRight':
+      return Math.min(position + 1, last);
+    case 'ArrowLeft':
+      return Math.max(position - 1, 0);
+    case 'Home':
+      return 0;
+    case 'End':
+      return last;
+    default:
+      return null;
+  }
+}
