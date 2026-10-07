@@ -700,22 +700,22 @@ export function AccumulationPlanDialog({
 
               <label className="block text-[13px] text-foreground">
                 {ACCUMULO_STEP1_RESERVE}
-                <Input
-                  type="number"
+                <DraftNumberInput
                   min={0}
                   value={draft.liquidity.reserveEur}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, liquidity: { ...prev.liquidity, reserveEur: Number(event.target.value) || 0 } }))}
+                  fallback={0}
+                  onValue={(reserveEur) => setDraft((prev) => ({ ...prev, liquidity: { ...prev.liquidity, reserveEur } }))}
                   className="mt-1 font-mono"
                 />
               </label>
 
               <label className="block text-[13px] text-foreground">
                 {ACCUMULO_STEP1_INFLOW}
-                <Input
-                  type="number"
+                <DraftNumberInput
                   min={0}
                   value={draft.liquidity.monthlyInflowEur}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, liquidity: { ...prev.liquidity, monthlyInflowEur: Number(event.target.value) || 0 } }))}
+                  fallback={0}
+                  onValue={(monthlyInflowEur) => setDraft((prev) => ({ ...prev, liquidity: { ...prev.liquidity, monthlyInflowEur } }))}
                   className="mt-1 font-mono"
                 />
               </label>
@@ -735,12 +735,12 @@ export function AccumulationPlanDialog({
 
               <label className="block text-[13px] text-foreground">
                 {revise ? ACCUMULO_STEP1_REMAINING_MONTHS : ACCUMULO_STEP1_MONTHS}
-                <Input
-                  type="number"
+                <DraftNumberInput
                   min={1}
                   max={60}
                   value={draft.months}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, months: Math.round(Number(event.target.value)) || 1 }))}
+                  fallback={1}
+                  onValue={(months) => setDraft((prev) => ({ ...prev, months: Math.round(months) || 1 }))}
                   className="mt-1 font-mono"
                 />
               </label>
@@ -941,11 +941,11 @@ export function AccumulationPlanDialog({
                             </td>
                             <td className="py-1.5 pr-2 text-right">
                               {isHead ? (
-                                <Input
-                                  type="number"
+                                <DraftNumberInput
                                   min={0}
                                   value={position.targetPercentage}
-                                  onChange={(event) => setPositionTarget(position.id, Number(event.target.value) || 0)}
+                                  fallback={0}
+                                  onValue={(target) => setPositionTarget(position.id, target)}
                                   className="h-11 w-20 px-2 text-right sm:w-24 font-mono tabular-nums desktop:h-8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                 />
                               ) : (
@@ -1308,5 +1308,46 @@ function KeepSellToggle({ sell, disabled, onKeep, onSell }: { sell: boolean; dis
         {ACCUMULO_STEP2_TOGGLE_SELL}
       </button>
     </div>
+  );
+}
+
+/**
+ * A number field that can be emptied while typing: the text is the field's own, the draft gets
+ * the number (`fallback` while the field is blank), and leaving a blank field shows the draft's
+ * value again; focusing selects the figure, so typing replaces it. A `value` changed from outside (a «Parti da», «Distribuisci il resto») replaces
+ * the text.
+ */
+function DraftNumberInput({
+  value,
+  fallback,
+  onValue,
+  ...props
+}: Omit<React.ComponentProps<typeof Input>, 'value' | 'onChange' | 'type'> & { value: number; fallback: number; onValue: (value: number) => void }) {
+  const [text, setText] = useState(String(value));
+  const [seen, setSeen] = useState(value);
+  if (value !== seen) {
+    setSeen(value);
+    if (text === '' ? value !== fallback : Number(text) !== value) setText(String(value));
+  }
+  return (
+    <Input
+      {...props}
+      type="number"
+      value={text}
+      onChange={(event) => {
+        const raw = event.target.value;
+        setText(raw);
+        const parsed = Number(raw);
+        onValue(raw === '' || !Number.isFinite(parsed) ? fallback : parsed);
+      }}
+      onFocus={(event) => {
+        event.target.select();
+        props.onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        if (text === '') setText(String(value));
+        props.onBlur?.(event);
+      }}
+    />
   );
 }
