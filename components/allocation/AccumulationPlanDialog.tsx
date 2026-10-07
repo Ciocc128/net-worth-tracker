@@ -29,6 +29,7 @@ import { ACTION_CHIP_FILL_PCT, ASSET_CLASS_CHART_INDEX, ASSET_CLASS_LABELS, reso
 import {
   addMonths,
   applyWeightsToPositions,
+  redistributeRemainder,
   buildDraftPreview,
   computeTotalPurchases,
   computeUsableLiquidity,
@@ -88,6 +89,7 @@ import {
   ACCUMULO_STEP2_GROUP_NO_BUY,
   ACCUMULO_STEP2_SALE_PROCEEDS,
   ACCUMULO_STEP2_SELL_SHARES,
+  ACCUMULO_STEP2_REDISTRIBUTE,
   ACCUMULO_USE_SUGGESTED_INFLOW,
   describeStep1InflowsLabel,
   describeStep2Shares,
@@ -259,6 +261,8 @@ export function AccumulationPlanDialog({
   const isDemo = useDemoMode();
   const chartColors = useChartColors();
   const [rowOrder, setRowOrder] = useState<string[]>([]);
+  // The position a Vendi took away, so Tieni gives it back with its weight.
+  const [keptPositions, setKeptPositions] = useState<Record<string, PlanPosition>>({});
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [draft, setDraft] = useState<AccumulationPlanDraft>(() => emptyDraft(addMonths(toMonthKey(new Date()), 1)));
   const [status, setStatus] = useState<ModalStatus>({ phase: 'idle' });
@@ -290,7 +294,15 @@ export function AccumulationPlanDialog({
                       new Set(),
                       (id) => allAssets.find((a) => a.id === id)?.name ?? id
                     )
-                  : seedPositionsFromAssets(allAssets)),
+                  : applyWeightsToPositions(
+                      seedPositionsFromAssets(allAssets),
+                      marketWeights(
+                        seedPositionsFromAssets(allAssets).flatMap((position) => position.memberAssetIds).map((id) => allAssets.find((a) => a.id === id)).filter((a): a is Asset => !!a),
+                        DEPS
+                      ),
+                      new Set(),
+                      (id) => allAssets.find((a) => a.id === id)?.name ?? id
+                    )),
               seedDraft?.optimizerSnapshot ?? (fromModel ? model?.optimizerSnapshot : undefined),
               seedDraft?.disposals
             )
@@ -392,7 +404,10 @@ export function AccumulationPlanDialog({
       return;
     }
     setShowOptimizer(false);
-    const sold = new Set(draft.disposals.filter((d) => d.quantity === undefined).map((d) => d.assetId));
+    // Picking a source goes back to its initial setup: every whole-instrument sale taken back to
+    // Tieni (the ones the plan already carries stay), then the source's weights.
+    const givenBack = draft.disposals.filter((d) => d.quantity === undefined && !lockedSaleIds.has(d.assetId) && keptPositions[d.assetId]);
+    const sold = new Set(draft.disposals.filter((d) => d.quantity === undefined && !givenBack.includes(d)).map((d) => d.assetId));
     const weights =
       source === 'model' && model
         ? modelWeightMap(model)
@@ -402,7 +417,8 @@ export function AccumulationPlanDialog({
           );
     setDraft((prev) => ({
       ...prev,
-      positions: applyWeightsToPositions(prev.positions, weights, sold, labelOfAsset),
+      positions: applyWeightsToPositions([...prev.positions, ...givenBack.map((d) => keptPositions[d.assetId])], weights, sold, labelOfAsset),
+      disposals: prev.disposals.filter((d) => !givenBack.includes(d)),
       optimizerSnapshot: source === 'model' ? model?.optimizerSnapshot ?? prev.optimizerSnapshot : prev.optimizerSnapshot,
     }));
   };
@@ -427,7 +443,9 @@ export function AccumulationPlanDialog({
   const updateDisposals = (disposals: PlanDisposal[]) => setDraft((prev) => ({ ...prev, disposals }));
 
   const moveAssetToDisposal = (asset: Asset) => {
-    updatePositions(draft.positions.filter((position) => !(position.memberAssetIds.length === 1 && position.memberAssetIds[0] === asset.id)));
+    const leaving = draft.positions.find((position) => position.memberAssetIds.length === 1 && position.memberAssetIds[0] === asset.id);
+    if (leaving) setKeptPositions((prev) => ({ ...prev, [asset.id]: leaving }));
+    updatePositions(draft.positions.filter((position) => position !== leaving));
     updateDisposals([
       ...draft.disposals.filter((disposal) => disposal.assetId !== asset.id),
       { assetId: asset.id, estimatedProceedsEur: calculateAssetValue(asset), status: 'planned' },
@@ -438,7 +456,7 @@ export function AccumulationPlanDialog({
     updateDisposals(draft.disposals.filter((disposal) => disposal.assetId !== asset.id));
     updatePositions([
       ...draft.positions,
-      { id: crypto.randomUUID(), label: asset.name, targetPercentage: 0, memberAssetIds: [asset.id], buyAssetId: asset.id },
+      keptPositions[asset.id] ?? { id: crypto.randomUUID(), label: asset.name, targetPercentage: 0, memberAssetIds: [asset.id], buyAssetId: asset.id },
     ]);
   };
 
@@ -992,6 +1010,14 @@ export function AccumulationPlanDialog({
                   {ACCUMULO_STEP2_BUY_ASSET_CONFIRM}…
                 </Button>
               )}
+              <Button
+                variant="outline"
+                className="h-11 text-[12px] desktop:h-8"
+                disabled={draft.positions.length === 0 || Math.abs(weightsSum - 100) < 0.05}
+                onClick={() => updatePositions(redistributeRemainder(draft.positions))}
+              >
+                {ACCUMULO_STEP2_REDISTRIBUTE}
+              </Button>
               <Button variant="outline" className="h-11 text-[12px] desktop:h-8" onClick={() => setNewAssetDialogOpen(true)}>
                 {ACCUMULO_ACTION_NEW_ASSET}
               </Button>

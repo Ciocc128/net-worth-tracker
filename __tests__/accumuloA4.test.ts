@@ -5,6 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { Asset } from '@/types/assets';
+import { redistributeRemainder } from '@/lib/utils/accumulationPlanUtils';
 import { seedModelFromToday } from '@/lib/utils/modelPortfolio';
 import { describeModelOrigin, describeModelSalesHint, MODEL_TARGETED_HINT } from '@/lib/utils/weightOptimizerNarrative';
 import {
@@ -116,5 +117,23 @@ describe('Questo mese reading and price notice', () => {
       ),
     );
     expect(text).toMatch(/^I prezzi sono cambiati dall'attivazione: con quelli di oggi la rata compra 2 AVWS in più e 9 VWCE invece di 10 \(.*95,20 €\)\.$/);
+  });
+});
+
+describe('redistributeRemainder', () => {
+  const pos = (id: string, pct: number) => ({ id, label: id, targetPercentage: pct, memberAssetIds: [id], buyAssetId: id });
+  it('shares the gap in proportion and lands on exactly 100,0', () => {
+    const out = redistributeRemainder([pos('a', 50), pos('b', 30), pos('c', 0)]);
+    expect(out.reduce((s, p) => s + p.targetPercentage, 0)).toBeCloseTo(100, 5);
+    expect(out[2].targetPercentage).toBe(0);
+    expect(out[0].targetPercentage).toBeGreaterThan(out[1].targetPercentage);
+  });
+  it('shares equally when every weight is 0', () => {
+    const out = redistributeRemainder([pos('a', 0), pos('b', 0), pos('c', 0)]);
+    expect(out.reduce((s, p) => s + p.targetPercentage, 0)).toBeCloseTo(100, 5);
+  });
+  it('takes weight back when the sum is above 100', () => {
+    const out = redistributeRemainder([pos('a', 80), pos('b', 40)]);
+    expect(out.reduce((s, p) => s + p.targetPercentage, 0)).toBeCloseTo(100, 5);
   });
 });
