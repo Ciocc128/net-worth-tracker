@@ -113,7 +113,7 @@ function PriorityChip({ priority }: { priority: ObjectiveReport['priority'] }) {
 }
 
 /**
- * The objective's track: a 3px track filled with `--hero-series` (the colour of Storico's net-worth
+ * The objective's track: a 4px track filled with `--hero-series` (the colour of Storico's net-worth
  * trend chart) in ONE flat colour — no warming gradient, the hairline already says where the
  * target is.
  */
@@ -123,8 +123,8 @@ function ObjectiveTrack({ achieved, target, ariaLabel }: { achieved: number; tar
   const targetPosition = Math.min((target / scaleMax) * 100, 100);
   const progress = target > 0 ? Math.min(100, Math.max(0, Math.round((achieved / target) * 100))) : 100;
   return (
-    <div className="relative mt-1 h-[9px] w-full" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label={ariaLabel}>
-      <div className="absolute inset-x-0 top-[3px] h-[3px] overflow-hidden rounded-full bg-muted">
+    <div className="relative mt-1 h-[10px] w-full" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label={ariaLabel}>
+      <div className="absolute inset-x-0 top-[3px] h-1 overflow-hidden rounded-full bg-muted">
         <div
           className="h-full rounded-full"
           style={{ width: `${fillWidth}%`, backgroundColor: 'var(--hero-series)' }}
