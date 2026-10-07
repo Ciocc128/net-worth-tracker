@@ -115,6 +115,6 @@ describe('Questo mese reading and price notice', () => {
         }),
       ),
     );
-    expect(text).toMatch(/^I prezzi sono cambiati dall'attivazione: con quelli di oggi la rata compra 9 VWCE invece di 10 e 2 AVWS in più \(.*95,20 €\)\.$/);
+    expect(text).toMatch(/^I prezzi sono cambiati dall'attivazione: con quelli di oggi la rata compra 2 AVWS in più e 9 VWCE invece di 10 \(.*95,20 €\)\.$/);
   });
 });
