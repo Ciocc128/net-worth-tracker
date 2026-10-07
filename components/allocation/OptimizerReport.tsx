@@ -12,7 +12,7 @@
  */
 import type { ObjectiveReport, OptimizerResult } from '@/lib/utils/weightOptimizer';
 import { OBJECTIVE_PRIORITY_LABELS } from '@/lib/utils/settingsNarrative';
-import { formatPercentageIt } from '@/lib/utils/formatters';
+import { formatNumberIt, formatPercentageIt } from '@/lib/utils/formatters';
 import { ACCUMULO_ACTION_CANCEL } from '@/lib/utils/accumulationNarrative';
 import {
   describeConflict,
@@ -32,7 +32,6 @@ import {
   OPTIMIZER_WARNINGS_TITLE,
 } from '@/lib/utils/weightOptimizerNarrative';
 import { Button } from '@/components/ui/button';
-import { TargetTick } from '@/components/allocation/TargetTick';
 
 /**
  * RO4 — the objectives as rows: name, priority chip, «target → raggiunto» in mono and a `TargetTick`
@@ -40,9 +39,38 @@ import { TargetTick } from '@/components/allocation/TargetTick';
  * tool, the PAC's Target step, the objectives' modal and the Obiettivi tile (from a saved snapshot).
  */
 export function ObjectiveBars({ objectives }: { objectives: ObjectiveReport[] }) {
+  // The class objectives are ONE row without a track (A4, render): the per-class figures are already
+  // in the «Classi del piano» tile and in the weights table; here only the worst gap is said.
+  const classRows = objectives.filter((objective) => objective.kind === 'class');
+  const classSummary =
+    classRows.length > 0
+      ? {
+          priority: classRows[0].priority,
+          maxGapPp: Math.max(...classRows.map((objective) => Math.abs(objective.gapPp))),
+        }
+      : null;
+  const others = objectives.filter((objective) => objective.kind !== 'class');
+  const firstClassIndex = objectives.findIndex((objective) => objective.kind === 'class');
+
+  const renderClassRow = () =>
+    classSummary && (
+      <li key="classes">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="min-w-0 text-[13px] text-foreground">
+            Classi
+            <span className="ml-1.5 rounded-full bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground">
+              {OBJECTIVE_PRIORITY_LABELS[classSummary.priority]}
+            </span>
+          </span>
+          <span className="shrink-0 font-mono text-[12px] tabular-nums text-muted-foreground">scarto max {formatNumberIt(classSummary.maxGapPp, 1)} pp</span>
+        </div>
+      </li>
+    );
+
   return (
     <ul className="space-y-2.5">
-      {objectives.map((objective) => {
+      {firstClassIndex === 0 && renderClassRow()}
+      {others.map((objective) => {
         const target = formatObjectiveTarget(objective);
         const achieved = formatObjectiveAchieved(objective);
         return (
@@ -58,16 +86,38 @@ export function ObjectiveBars({ objectives }: { objectives: ObjectiveReport[] })
                 {target} → <span className="font-semibold text-foreground">{achieved}</span> ({formatObjectiveGap(objective)})
               </span>
             </div>
-            <TargetTick
-              className="mt-1"
-              currentPercentage={objective.achievedValue}
-              targetPercentage={objective.targetValue}
-              ariaLabel={`${objective.label}: obiettivo ${target}, raggiunto ${achieved}`}
-            />
+            <ObjectiveTrack achieved={objective.achievedValue} target={objective.targetValue} ariaLabel={`${objective.label}: obiettivo ${target}, raggiunto ${achieved}`} />
           </li>
         );
       })}
+      {firstClassIndex > 0 && renderClassRow()}
     </ul>
+  );
+}
+
+/**
+ * The objective's track, in the form of Storico's milestones (RaddoppiTile): a 3px track whose fill
+ * warms from `--milestone-far` toward `--milestone-near` as the achieved value closes in on the
+ * target, the target a hairline over it. No theme-blue «allocation» colour: these are goals.
+ */
+function ObjectiveTrack({ achieved, target, ariaLabel }: { achieved: number; target: number; ariaLabel: string }) {
+  const scaleMax = Math.max(achieved, target, 1) * 1.12;
+  const fillWidth = Math.min((achieved / scaleMax) * 100, 100);
+  const targetPosition = Math.min((target / scaleMax) * 100, 100);
+  const progress = target > 0 ? Math.min(100, Math.max(0, Math.round((achieved / target) * 100))) : 100;
+  return (
+    <div className="relative mt-1 h-[9px] w-full" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label={ariaLabel}>
+      <div className="absolute inset-x-0 top-[3px] h-[3px] overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full"
+          style={{
+            width: `${fillWidth}%`,
+            background: `linear-gradient(to right, var(--milestone-far), color-mix(in oklch, var(--milestone-near) ${progress}%, var(--milestone-far)))`,
+          }}
+        />
+      </div>
+      <div className="absolute inset-y-0 w-px -translate-x-1/2 bg-foreground/70" style={{ left: `${targetPosition}%` }} aria-hidden="true" />
+    </div>
   );
 }
 
