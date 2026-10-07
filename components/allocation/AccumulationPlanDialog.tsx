@@ -14,7 +14,7 @@
  * `validateDraftAgainstAssets` on every render so the status line can name the FIRST domain issue
  * before the write is even attempted (§6, §10.3: "uno alla volta, il primo").
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { ModelPortfolio } from '@/types/modelPortfolio';
@@ -35,6 +35,7 @@ import {
   findFirstIntactInstallment,
   marketWeights,
   modelWeightMap,
+  proceedsOfDisposal,
   resolvePositionStates,
   toMonthKey,
   unitPriceEur,
@@ -54,6 +55,8 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AssetDialog } from '@/components/assets/AssetDialog';
+import { PlanDraftSidePanel } from '@/components/allocation/PlanDraftSidePanel';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { ClassDriftChart } from '@/components/allocation/ClassDriftChart';
 import { OptimizerPanel } from '@/components/allocation/OptimizerPanel';
 import { SegmentedPill } from '@/components/ui/segmented-pill';
@@ -81,6 +84,8 @@ import {
   ACCUMULO_STEP2_FROM_OPTIMIZER,
   ACCUMULO_STEP2_FROM_TODAY,
   ACCUMULO_STEP2_GROUP_HINT,
+  ACCUMULO_STEP2_GROUP_NO_BUY,
+  ACCUMULO_STEP2_SALE_PROCEEDS,
   ACCUMULO_STEP2_SELL_SHARES,
   ACCUMULO_USE_SUGGESTED_INFLOW,
   describeStep1InflowsLabel,
@@ -550,6 +555,20 @@ export function AccumulationPlanDialog({
     () => (step === 3 ? buildDraftPreview({ draft, allAssets, targets, band, compare: compareAllocations, deps: DEPS }) : null),
     [step, draft, allAssets, targets, band],
   );
+  // PO15: the Target step's side panel recomputes 300 ms after the last keystroke, not on each one.
+  const [settledDraft, setSettledDraft] = useState(draft);
+  useEffect(() => {
+    if (step !== 2) return;
+    const timer = setTimeout(() => setSettledDraft(draft), 300);
+    return () => clearTimeout(timer);
+  }, [step, draft]);
+  const settledPreview = useMemo(
+    () =>
+      step === 2 && settledDraft.positions.length > 0
+        ? buildDraftPreview({ draft: settledDraft, allAssets, targets, band, compare: compareAllocations, deps: DEPS })
+        : null,
+    [step, settledDraft, allAssets, targets, band],
+  );
   // The trajectory's own class set (stable across points — all come from the same `targets`),
   // read once for the "Classi mese per mese" table's header and column order below.
   const classKeys = useMemo(() => Object.keys(preview?.trajectory[0]?.byClass ?? {}), [preview]);
@@ -739,7 +758,8 @@ export function AccumulationPlanDialog({
         )}
 
         {step === 2 && (
-          <div className="space-y-4">
+          <div className="grid gap-4 desktop:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="min-w-0 space-y-4">
             <div>
               <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_FROM_LABEL}</p>
               <SegmentedPill
@@ -813,22 +833,28 @@ export function AccumulationPlanDialog({
                         rows.push(
                           <tr key={assetId} className="border-b border-border last:border-0 align-top">
                             <th scope="row" className={`py-1.5 pr-2 text-left font-normal text-foreground ${grouped && !isHead ? 'pl-5' : ''}`}>
-                              {groupingMode && !grouped && (
-                                <Checkbox
-                                  className="mr-2 inline-flex align-middle"
-                                  aria-label={asset.name}
-                                  checked={selectedForGroup.has(assetId)}
-                                  onCheckedChange={(value) =>
+                              {groupingMode && !grouped ? (
+                                <button
+                                  type="button"
+                                  aria-pressed={selectedForGroup.has(assetId)}
+                                  className={`-mx-1.5 rounded-md px-1.5 py-1 text-left transition-colors ${selectedForGroup.has(assetId) ? 'bg-muted font-medium ring-1 ring-border' : 'hover:bg-muted/60'}`}
+                                  onClick={() =>
                                     setSelectedForGroup((prev) => {
                                       const next = new Set(prev);
-                                      if (value) next.add(assetId);
-                                      else next.delete(assetId);
+                                      if (next.has(assetId)) next.delete(assetId);
+                                      else next.add(assetId);
                                       return next;
                                     })
                                   }
-                                />
+                                >
+                                  {asset.name}
+                                </button>
+                              ) : (
+                                asset.name
                               )}
-                              {asset.name}
+                              <span className="block text-[11px] text-muted-foreground">
+                                {grouped && !isHead ? ACCUMULO_STEP2_GROUP_NO_BUY : getAssetDisplayTicker(asset)}
+                              </span>
                               {grouped && isHead && !revise && (
                                 <Button variant="ghost" className="ml-2 h-6 px-1.5 text-[11px]" onClick={() => ungroup(position.id)}>
                                   {ACCUMULO_ACTION_UNGROUP}
@@ -918,7 +944,10 @@ export function AccumulationPlanDialog({
                           </td>
                           <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-muted-foreground">—</td>
                           <td className="py-1.5 pr-2 text-right text-muted-foreground">—</td>
-                          <td className="py-1.5 pr-2 text-right text-muted-foreground">—</td>
+                          <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-foreground">
+                            {cachedFormatCurrencyEUR(proceedsOfDisposal(disposal, asset, DEPS))}
+                            <span className="block text-[11px] text-muted-foreground">{ACCUMULO_STEP2_SALE_PROCEEDS}</span>
+                          </td>
                           <td className="py-1.5 text-right text-muted-foreground">—</td>
                         </tr>,
                       );
@@ -998,6 +1027,14 @@ export function AccumulationPlanDialog({
             </div>
             {weightsMessage && <p className="text-[12px] text-destructive">{weightsMessage}</p>}
             <p className="text-[11px] text-muted-foreground">{ACCUMULO_STEP2_FOOTNOTE}</p>
+          </div>
+          <PlanDraftSidePanel
+            preview={settledPreview}
+            months={draft.months}
+            band={band}
+            weightsSum={weightsSum}
+            targetLeverageRatio={targetLeverageRatio}
+          />
           </div>
         )}
 

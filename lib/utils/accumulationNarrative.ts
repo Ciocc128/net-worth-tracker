@@ -537,6 +537,8 @@ export const ACCUMULO_STEP2_FROM_TODAY = 'Pesi di oggi';
 export const ACCUMULO_STEP2_FROM_OPTIMIZER = 'Ricalcola';
 export const ACCUMULO_ACTION_GROUP_PROXY = 'Raggruppa due strumenti';
 export const ACCUMULO_ACTION_GROUP_CANCEL = 'Annulla raggruppamento';
+export const ACCUMULO_STEP2_GROUP_NO_BUY = 'non riceve acquisti';
+export const ACCUMULO_STEP2_SALE_PROCEEDS = 'ricavo al mese 1';
 export const ACCUMULO_STEP2_GROUP_HINT = 'Scegli gli strumenti da raggruppare: dividono un solo peso e si compra solo uno dei due.';
 export function describeStep2Shares(quantity: number): string {
   return `${formatNumberIt(quantity, 0)} quote`;
