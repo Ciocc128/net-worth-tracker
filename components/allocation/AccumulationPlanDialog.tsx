@@ -929,7 +929,7 @@ export function AccumulationPlanDialog({
                                         max={Math.max(0, Math.ceil(asset.quantity) - 1)}
                                         value={partial?.quantity ?? ''}
                                         onChange={(event) => setPartialSale(asset, Number(event.target.value))}
-                                        className="h-11 w-16 text-right font-mono desktop:h-7"
+                                        className="h-11 w-20 px-2 text-right font-mono tabular-nums desktop:h-7 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                       />
                                     </label>
                                   )}
@@ -946,7 +946,7 @@ export function AccumulationPlanDialog({
                                   min={0}
                                   value={position.targetPercentage}
                                   onChange={(event) => setPositionTarget(position.id, Number(event.target.value) || 0)}
-                                  className="h-11 w-20 text-right font-mono desktop:h-8"
+                                  className="h-11 w-24 px-2 text-right font-mono tabular-nums desktop:h-8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                 />
                               ) : (
                                 <span className="text-muted-foreground">—</span>
