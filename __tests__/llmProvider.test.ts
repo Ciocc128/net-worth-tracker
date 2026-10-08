@@ -140,9 +140,10 @@ describe('generateText on OpenRouter', () => {
       { role: 'user', content: 'Commenta il mese.' },
     ]);
     expect(body.max_tokens).toBe(6000);
-    // DeepSeek since F6b: no quantization allow-list (GLM's fp4 filter stays on the weekly email).
+    // Sol since 2026-10-07: no quantization allow-list (GLM's fp4 filter stays on the weekly email),
+    // and an effort level in place of the reasoning ceiling.
     expect(body.provider).toEqual({ data_collection: 'deny', zdr: true });
-    expect(body.reasoning).toEqual({ exclude: true });
+    expect(body.reasoning).toEqual({ exclude: true, effort: 'high' });
     expect(body.response_format).toBeUndefined();
   });
 
@@ -166,7 +167,7 @@ describe('generateText on OpenRouter', () => {
     fetchMock.mockResolvedValue(
       completion('Testo.', { usage: { prompt_tokens: 6492, completion_tokens: 5450, cost: 0.0037, completion_tokens_details: { reasoning_tokens: 4520 } } as never })
     );
-    const result = await generateText('EMAIL_PERIODIC', { ...REQUEST, ...outputBudget({ wordLimit: 500, reasoningTokens: 4000 }) });
+    const result = await generateText('EMAIL_WEEKLY_BUDGET', { ...REQUEST, ...outputBudget({ wordLimit: 500, reasoningTokens: 4000 }) });
     const body = sentBody();
     expect(body.max_tokens).toBe(5800);
     expect(body.reasoning).toEqual({ exclude: true, max_tokens: 4000 });

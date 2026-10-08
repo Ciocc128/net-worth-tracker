@@ -82,11 +82,14 @@ export function createOpenRouterAdapter({
       ...rest,
       // Reasoning tokens still count against max_tokens, but their text stays out of `content`;
       // a ceiling of their own keeps them from eating the text's share (`outputBudget`). A route
-      // whose model ignores the ceiling switches the reasoning off instead (`AiModelRoute`).
+      // whose model ignores the ceiling switches the reasoning off instead, and a route with an
+      // effort level sends that in its place: OpenRouter takes one or the other (`AiModelRoute`).
       reasoning:
         options.reasoning === 'off'
           ? { enabled: false }
-          : { exclude: true, ...(typeof reasoningMaxTokens === 'number' ? { max_tokens: reasoningMaxTokens } : {}) },
+          : options.reasoningEffort
+            ? { exclude: true, effort: options.reasoningEffort }
+            : { exclude: true, ...(typeof reasoningMaxTokens === 'number' ? { max_tokens: reasoningMaxTokens } : {}) },
       provider: {
         data_collection: 'deny',
         zdr: true,

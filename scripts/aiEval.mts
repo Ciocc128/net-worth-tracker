@@ -27,6 +27,9 @@
  * the blinded data block, freshly frozen; `--round f6` reads F6's roster (with the references
  * written through the subscription), `--round f2` F2's.
  *
+ * Gara (§ 7.7) — `--round gara` on the synthetic bundles of `npm run ai:eval:synth -- --dir <d>`:
+ *   Sol (high), DeepSeek V4.1 Flash and GLM 5.3 Flash; the bundles carry no real data.
+ *
  * F6 (the second round, § 7.4) — `--round f6`:
  *
  *   npm run ai:eval:freeze -- --dir <d> --periods monthly-2026-09,quarterly-2026-09 --wiki --write
@@ -102,6 +105,18 @@ const F6_CANDIDATES: Candidate[] = [
  */
 const F6B_CANDIDATES: Candidate[] = F6_CANDIDATES.filter((candidate) => !candidate.subscription);
 
+/**
+ * The synthetic race (owner, 2026-10-07, § 7.7): the two leaders of the Optima pairwise round —
+ * GPT-6.1 Sol at effort high (closed, a declared exception like Luna) and GLM 5.3 Flash as
+ * production served it — against the production model, DeepSeek V4.1 Flash with its reasoning.
+ * Run on the bundles of `npm run ai:eval:synth`.
+ */
+const GARA_CANDIDATES: Candidate[] = [
+  { id: 'openai/gpt-6.1-sol', label: 'GPT-6.1 Sol (high)', role: 'candidate', reasoningEffort: 'high' },
+  { id: 'deepseek/deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash', role: 'candidate' },
+  { id: 'z-ai/glm-5.3-flash', label: 'GLM 5.3 Flash', role: 'candidate', quantizations: GLM_QUANTIZATIONS },
+];
+
 const F2_CANDIDATES: Candidate[] = [
   { id: 'z-ai/glm-5.3-flash', label: 'GLM 5.3 Flash', role: 'candidate' },
   { id: 'minimax/minimax-m3', label: 'MiniMax-M3', role: 'candidate' },
@@ -152,7 +167,8 @@ const DIR = resolve(flag('dir') ?? process.env.AI_EVAL_DIR ?? 'scratchpad/ai-eva
 const BUNDLES_DIR = join(DIR, 'bundles');
 const RESULTS = join(DIR, 'results.jsonl');
 const ROUND = flag('round') ?? 'f6b';
-const CANDIDATES = ROUND === 'f2' ? F2_CANDIDATES : ROUND === 'f6' ? F6_CANDIDATES : F6B_CANDIDATES;
+const CANDIDATES =
+  ROUND === 'f2' ? F2_CANDIDATES : ROUND === 'f6' ? F6_CANDIDATES : ROUND === 'gara' ? GARA_CANDIDATES : F6B_CANDIDATES;
 const REPEAT = Number(flag('repeat') ?? 1);
 
 function loadBundles(): FrozenBundle[] {

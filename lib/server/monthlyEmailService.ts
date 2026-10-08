@@ -984,6 +984,9 @@ const EMAIL_AI_REASONING_TOKENS: Record<EmailPeriodType, number> = {
   // reasoning on a quarter capped at 6.000, 95% of max_tokens), so the figure that protects the
   // text is the total it feeds into. Sized to `EMAIL_AI_TIMEOUT_MS` at ~100 tokens a second, the
   // rate measured in F6b; the money is not the limit (a full yearly ≈ 0,02 $), the wall clock is.
+  // Since 2026-10-07 the route is GPT-6.1 Sol at effort high: the effort replaces this ceiling in
+  // the request, and only the total `max_tokens` it feeds into still applies. In the race Sol
+  // used ~2.600 tokens of output on average (1.650 of them reasoning), well inside every total.
   monthly: 6000,
   quarterly: 10000,
   semiannual: 10000,
@@ -1004,7 +1007,7 @@ export function emailAiOutputBudget(periodType: EmailPeriodType): OutputBudget {
 
 /**
  * Generates the AI comment for the period via a dedicated, email-specific prompt, through the
- * provider layer (`lib/server/llm`, surface `EMAIL_PERIODIC` — an open model on OpenRouter).
+ * provider layer (`lib/server/llm`, surface `EMAIL_PERIODIC` — GPT-6.1 Sol on OpenRouter since 2026-10-07).
  *
  * The comment interprets the same exhaustive bundle the in-app assistant reads, plus the
  * deterministic email-only sections (Driver, return, allocation, class moves, trades,

@@ -73,7 +73,7 @@ export interface AdapterResponse<V> {
 }
 
 /** The route's per-provider options (OpenRouter reads them; the Anthropic adapter has none). */
-export type RouteOptions = Pick<AiModelRoute, 'reasoning' | 'quantizations'>;
+export type RouteOptions = Pick<AiModelRoute, 'reasoning' | 'reasoningEffort' | 'quantizations'>;
 
 export interface LlmAdapter {
   generateText(model: string, request: GenerateTextRequest, apiKey: string, options?: RouteOptions): Promise<AdapterResponse<string>>;

@@ -1884,11 +1884,11 @@ describe('buildAndSendForPeriod — AI comment through the provider layer', () =
     );
     expect(await buildAndSendForPeriod('user-1', ['a@b.com'], 'monthly', 2025, 3)).toBe(true);
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    // 6000 of reasoning + 500 words × 1,8 × 2 of text (lib/server/llm/budget.ts): DeepSeek ignores the
-    // reasoning ceiling, so the total is what protects the text (F6b).
+    // 6000 of reasoning + 500 words × 1,8 × 2 of text (lib/server/llm/budget.ts): the total is the
+    // cap; Sol's effort level takes the place of the reasoning ceiling (2026-10-07, spec § 7.7).
     expect(body.max_tokens).toBe(7800);
-    expect(body.reasoning).toEqual({ exclude: true, max_tokens: 6000 });
-    expect(body.model).toBe('deepseek/deepseek-v4.1-flash');
+    expect(body.reasoning).toEqual({ exclude: true, effort: 'high' });
+    expect(body.model).toBe('openai/gpt-6.1-sol');
     expect(body.messages[0].role).toBe('system');
     expect(htmlSent()).toContain('Commento AI');
     expect(htmlSent()).toContain('fenicottero');

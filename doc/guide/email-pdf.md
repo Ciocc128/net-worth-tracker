@@ -94,10 +94,13 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **The email AI comment goes through the provider layer** (`lib/server/llm`, since 2026-09-28 — F1 of
   doc/ai-open-models-wiki.md), not the assistant pipeline: `generateText('EMAIL_PERIODIC' | 'EMAIL_WEEKLY_BUDGET', …)`,
   and `lib/constants/aiModels.ts` says which provider and model answer — today an OPEN model on OpenRouter
-  (`OPENROUTER_API_KEY`): **DeepSeek V4.1 Flash with its reasoning on** for the periodic comment — the owner's definitive
-  choice after F6b (2026-10-06, doc/ai-open-models-wiki.md § 7.6) — and GLM 5.3 Flash for the weekly budget email (F2,
-  served only by fp8/bf16/fp16 hosts: the fp4 hosts answered thin in the TheBull probe). **DeepSeek ignores the reasoning
-  ceiling** (6.784 tokens on a quarter capped at 6.000), so the total `max_tokens` is what protects the text: 7.800 ·
+  (`OPENROUTER_API_KEY`): **GPT-6.1 Sol at effort high** for the periodic comment — the owner's choice after the
+  race of 2026-10-07 (doc/ai-open-models-wiki.md § 7.7: 1 grave error in 20 synthetic letters, DeepSeek V4.1 Flash 15,
+  GLM 5.3 Flash 25; a closed model, a declared exception, still on ZDR endpoints only; ≈ 0,04 $ a letter) — and GLM
+  5.3 Flash for the weekly budget email (F2, served only by fp8/bf16/fp16 hosts: the fp4 hosts answered thin in the
+  TheBull probe). The route sends an **effort level** (`reasoningEffort`) in place of the reasoning ceiling. Before it,
+  DeepSeek ignored that ceiling (6.784 tokens on a quarter capped at 6.000) and once spent a whole yearly budget
+  reasoning, leaving no text, so the total `max_tokens` is what protects the text: 7.800 ·
   12.340 · 12.340 · 13.880 per period, sized to the comment's own timeout (`EMAIL_AI_TIMEOUT_MS`, 150 s, at the ~100
   tokens/s measured in F6b) — the wall clock is the limit, not the money (a full yearly ≈ 0,02 $). **The four period
   emails run side by side in the cron** (phases 2-5, `maxDuration` 300): on December 31, in a row, a reasoning model
