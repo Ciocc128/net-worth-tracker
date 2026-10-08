@@ -14,7 +14,7 @@
  *
  * WARNING (Checklist Comment): these routes are not all the same provider nor the same
  * generation, and that is a fact rather than an intention — the performance analysis runs on
- * Sonnet 4.6, the assistant on Sonnet 5, the emails on an open model. Changing one is a product
+ * Sonnet 4.6, the assistant on Sonnet 5, the emails on OpenRouter. Changing one is a product
  * decision (cost and output change with it), so they are listed separately rather than collapsed
  * into one constant that would hide the divergence.
  */
@@ -32,6 +32,12 @@ export interface AiModelRoute {
    */
   reasoning?: 'off';
   /**
+   * OpenRouter only: an effort level in place of the reasoning's token ceiling
+   * (`reasoning: { exclude: true, effort }`; OpenRouter takes one or the other). GPT-6.1 Sol is
+   * called this way, as in the race of 2026-10-07 (doc/ai-open-models-wiki.md § 7.7).
+   */
+  reasoningEffort?: 'low' | 'medium' | 'high';
+  /**
    * OpenRouter only: the quantizations a provider may serve the model at (`provider.quantizations`,
    * an allow-list — an endpoint that declares none is left out too). GLM's fp4 hosts answered with
    * a handful of items and broken quotes in the probe of 2026-09-30.
@@ -46,17 +52,19 @@ const GLM_QUANTIZATIONS = ['fp8', 'bf16', 'fp16'] as const;
  * Every AI surface of the app. The first three go through `lib/server/llm`; the last three call
  * the Anthropic SDK directly and read only their `model` (the SDK is their provider by code).
  *
- * The periodic emails run on DeepSeek V4.1 Flash WITH its reasoning, the owner's definitive choice
- * after F6b (2026-10-06, doc/ai-open-models-wiki.md § 7.6): one grave error in six letters against
- * three for GLM 5.3 Flash and nine for GLM-5.3. It ignores the reasoning ceiling, so the real cap
- * is `max_tokens` (`EMAIL_AI_REASONING_TOKENS`, sized to the email timeout). The weekly budget
+ * The periodic emails run on GPT-6.1 Sol at effort high, the owner's choice after the race of
+ * 2026-10-07 (doc/ai-open-models-wiki.md § 7.7): one grave error in twenty synthetic letters against
+ * fifteen for DeepSeek V4.1 Flash (in production since F6b, § 7.6) and twenty-five for GLM 5.3
+ * Flash. A closed model, a declared exception to the open-model rule; the provider filter still
+ * asks for ZDR endpoints. `max_tokens` (`EMAIL_AI_REASONING_TOKENS` + the text's room) stays the
+ * cap: DeepSeek's reasoning once ate a whole yearly budget and the comment came back empty. The weekly budget
  * email stays on GLM 5.3 Flash on fp8/bf16/fp16 hosts (F2): the owner does not use it, and its
  * 1.500-token budget would not hold DeepSeek's reasoning. TheBull's compilation on DeepSeek V4.1
  * Flash with the reasoning OFF (§ 7.3), confirmed by F6.
  */
 export const AI_MODELS = {
   /** The comment of the periodic emails (monthly, quarterly, semiannual, yearly). */
-  EMAIL_PERIODIC: { provider: 'openrouter', model: 'deepseek/deepseek-v4.1-flash' },
+  EMAIL_PERIODIC: { provider: 'openrouter', model: 'openai/gpt-6.1-sol', reasoningEffort: 'high' },
   /** The two sentences of the weekly budget email. */
   EMAIL_WEEKLY_BUDGET: { provider: 'openrouter', model: 'z-ai/glm-5.3-flash', quantizations: GLM_QUANTIZATIONS },
   /** TheBull's weekly macro page (F3): structured extraction, every item with its quote. */

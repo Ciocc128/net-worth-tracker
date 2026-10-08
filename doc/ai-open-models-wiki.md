@@ -34,7 +34,7 @@ nessuno storico di consumo. Non si migra: si sceglie con che cosa accenderle.
 | D5 | La newsletter domenicale di **TheBull** arriva con un **Google Apps Script** nell'account Gmail del proprietario: niente OAuth nell'app. |
 | D6 | La pagina settimanale macro la compila **il server con un modello open**. Le pagine **Principi** si compilano **in sessione Claude Code**. |
 | D7 | I dati dell'app arrivano al vault per **export markdown** (§6.1); un **server MCP in sola lettura** è una fase facoltativa successiva (§6.3). |
-| D8 | Gateway: **OpenRouter**, costo contato a parte (§4.3). I candidati si **preselezionano su Artificial Analysis** (§7.1) e li decide l'eval. Rosa di F2, riletta il 2026-09-28 (§7.1): candidati **GLM 5.3 Flash**, **MiniMax-M3**, **MiMo-V2.6-Pro**; controlli dichiarati **MiMo-V2.6-Flash** e **DeepSeek V4.1 Flash**; riferimenti **Sonnet 5 `medium`** e **Haiku 4.5** (serviti anche da OpenRouter: una sola chiave). **Qwen3.8-Flash-Next** escluso: nessun endpoint ZDR. Dopo i voti, su richiesta del proprietario, **GPT-5.6 Luna** e **GPT-6 Luna** (chiusi, con ZDR). **Esito di F2: GLM 5.3 Flash** (§7.2). **TheBull dal 2026-10-05: DeepSeek V4.1 Flash** con il ragionamento spento, dopo la sonda (§7.3). **Email periodiche dal 2026-10-06: DeepSeek V4.1 Flash con il ragionamento**, dopo F6b (§7.6). |
+| D8 | Gateway: **OpenRouter**, costo contato a parte (§4.3). I candidati si **preselezionano su Artificial Analysis** (§7.1) e li decide l'eval. Rosa di F2, riletta il 2026-09-28 (§7.1): candidati **GLM 5.3 Flash**, **MiniMax-M3**, **MiMo-V2.6-Pro**; controlli dichiarati **MiMo-V2.6-Flash** e **DeepSeek V4.1 Flash**; riferimenti **Sonnet 5 `medium`** e **Haiku 4.5** (serviti anche da OpenRouter: una sola chiave). **Qwen3.8-Flash-Next** escluso: nessun endpoint ZDR. Dopo i voti, su richiesta del proprietario, **GPT-5.6 Luna** e **GPT-6 Luna** (chiusi, con ZDR). **Esito di F2: GLM 5.3 Flash** (§7.2). **TheBull dal 2026-10-05: DeepSeek V4.1 Flash** con il ragionamento spento, dopo la sonda (§7.3). **Email periodiche dal 2026-10-06: DeepSeek V4.1 Flash con il ragionamento**, dopo F6b (§7.6); **dal 2026-10-08 GPT-6.1 Sol (high)**, chiuso con ZDR, dopo la gara sintetica (§7.7). |
 
 Fuori perimetro: più utenti sulla Wiki (è del solo proprietario; account condiviso e demo non la
 vedono), database vettoriali ed embedding, self-hosting dei modelli, ridistribuzione dei contenuti di
@@ -640,7 +640,7 @@ A = accuratezza sui dati, P = «ti prende», C = collegamenti, U = utilità.
 - **Il ragionamento conta**: lo stesso DeepSeek fa 1 errore grave ragionando e 8 senza. Il tetto di ragionamento però
   non lo governa: lo ignora (6.784 token sul Q3 con un tetto di 6.000, 95% di `max_tokens`).
 
-**Scelta del proprietario:** `EMAIL_PERIODIC` → **DeepSeek V4.1 Flash con il ragionamento acceso**, definitivo; la
+**Scelta del proprietario:** `EMAIL_PERIODIC` → **DeepSeek V4.1 Flash con il ragionamento acceso**, definitivo (superata il 2026-10-08 da GPT-6.1 Sol, § 7.7); la
 mensile torna a **500 parole**; il budget si alza «tanto è economico» — il limite vero è il tempo, non il costo:
 `max_tokens` 7.800 · 12.340 · 12.340 · 13.880, un timeout di 150 s per il commento (`EMAIL_AI_TIMEOUT_MS`, a ~100 token/s)
 e le quattro email periodiche in parallelo nel cron. `EMAIL_WEEKLY_BUDGET` resta su GLM 5.3 Flash (il proprietario non la
@@ -688,6 +688,30 @@ fp8/bf16/fp16.
 
 **Come si decide:** come in F6b (§ 7.6), prima il cancello degli errori gravi, letti da Claude email per email a partire
 dalle trappole, poi il voto del proprietario; il costo conta solo a parità.
+
+**Risultati (2026-10-07, una ripetizione, 60 chiamate, 0,88 $):**
+
+| Modello | Email | Errori gravi | Trappole cadute | $ / email | Latenza |
+| --- | --- | --- | --- | --- | --- |
+| GPT-6.1 Sol (high) | 20/20 | **1** | 9, quasi tutte omissioni | 0,038 | 45 s |
+| DeepSeek V4.1 Flash | 19/20 | 15 | 13 | 0,004 | 20 s |
+| GLM 5.3 Flash | 20/20 | 25 | 18 | 0,0014 | 25 s |
+
+- **Sol**: l'unico errore grave è un evento macro (i dazi USA) citato in un semestre senza Wiki; le trappole cadute sono
+  omissioni (Hall of Fame, divisione di coppia, tesi di TheBull). Il racconto è più asciutto.
+- **DeepSeek**: il racconto migliore, ma cifre e confronti sbagliati circa una email su due (una percentuale delle
+  entrate al posto di un'altra, una classifica che non c'è, il mercato dato per «la prima volta» sopra il risparmio).
+  **L'annuale con 19 strumenti è uscita vuota**: 3.096 token di ragionamento su 3.097 di uscita.
+- **GLM 5.3 Flash**: il più economico e il meno affidabile sui numeri: confronti invertiti (mercato e risparmio),
+  periodi diversi messi a confronto, percentuali sbagliate.
+- I controlli automatici di `score` (4 · 18 · 16 esecuzioni con difetti) sottostimano la distanza: non vedono gli errori
+  di significato.
+
+**Scelta (proprietario, 2026-10-08):** il commento periodico passa a **GPT-6.1 Sol con effort high**
+(`AI_MODELS.EMAIL_PERIODIC`, `reasoningEffort: 'high'` → `reasoning: { exclude: true, effort: 'high' }`, gli stessi
+`max_tokens` di F6b come tetto). Circa 19 email l'anno ≈ 0,75 $. È un modello chiuso: eccezione dichiarata alla regola
+dei modelli aperti, come Luna in F2; il filtro `zdr: true` resta e Sol ha 3 endpoint ZDR. Limiti della prova: una sola
+ripetizione e dati sintetici; il voto sullo stile resta del proprietario, che ha letto le email affiancate.
 
 ---
 

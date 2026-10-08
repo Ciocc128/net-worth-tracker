@@ -90,6 +90,7 @@ async function run<V, R>(
   try {
     response = await call(ADAPTERS[route.provider], route.model, apiKey, {
       ...(route.reasoning ? { reasoning: route.reasoning } : {}),
+      ...(route.reasoningEffort ? { reasoningEffort: route.reasoningEffort } : {}),
       ...(route.quantizations ? { quantizations: route.quantizations } : {}),
     });
   } catch (error) {
