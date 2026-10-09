@@ -35,6 +35,10 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { useFirePlan } from '@/lib/hooks/useFirePlan';
+import { MAX_DATED_FLOWS } from '@/lib/utils/datedFlowValidation';
+import { eventToDatedFlows } from '@/lib/utils/whatIfToPlan';
 import { resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import type { IncomeSourceCategory } from '@/lib/services/fireService';
 import { calculateWhatIfImpact, maxEventYear, parseWhenYear, WHAT_IF_HORIZON_YEARS } from '@/lib/services/whatIfService';
@@ -193,6 +197,25 @@ export function WhatIfAnalysisTab() {
     }
   }, [eventType, form, whenYear, hasIncomeSources, selectedAnnualIncome]);
 
+  // «Aggiungi al piano» (§ 22): the event becomes the plan's dated flows (the draft of «Il mio piano», saved there), and the
+  // event is cleared: the baseline now carries the flows, so keeping it would count the event twice.
+  const plan = useFirePlan();
+  const planFlows = plan?.form.datedFlows;
+  const planFull = (planFlows?.length ?? 0) >= MAX_DATED_FLOWS;
+  const addToPlan = useCallback(() => {
+    if (!plan || !hasBaseline) return;
+    const added = eventToDatedFlows(baseline, scenario, whenYear ?? currentYear);
+    if (added.length === 0) return;
+    const next = [...plan.form.datedFlows, ...added];
+    if (next.length > MAX_DATED_FLOWS) {
+      toast.error(`Il piano ha già ${MAX_DATED_FLOWS} flussi.`);
+      return;
+    }
+    plan.onFormChange({ datedFlows: next });
+    setForm(EMPTY_FORM);
+    toast.success(added.length === 1 ? 'Evento aggiunto a Il mio piano: salvalo lì per tenerlo.' : 'Eventi aggiunti a Il mio piano: salvali lì per tenerli.');
+  }, [plan, hasBaseline, baseline, scenario, whenYear, currentYear]);
+
   // ─── The numbers (pure layer over the service) ───────────────────────────────
   const impact = useMemo(() => (hasBaseline ? calculateWhatIfImpact(baseline, scenario) : null), [hasBaseline, baseline, scenario]);
   const event = useMemo(() => (impact ? summarizeWhatIfEvent(scenario, baseline, impact.adjusted) : null), [impact, scenario, baseline]);
@@ -282,6 +305,7 @@ export function WhatIfAnalysisTab() {
             annualSavings={annualSavings}
             annualExpenses={annualExpenses}
             footer={describeEventFooter(eventFooterInput)}
+            addToPlan={plan ? { onAdd: addToPlan, disabledReason: planFull ? `Il piano ha già ${MAX_DATED_FLOWS} flussi.` : null } : undefined}
           />
         </div>
 

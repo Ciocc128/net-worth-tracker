@@ -24,6 +24,7 @@ import type { WhatIfEvent } from '@/lib/utils/whatIfSummary';
 import type { WhatIfEventType } from '@/types/whatIf';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -81,6 +82,8 @@ interface EventoTileProps {
   annualExpenses: number;
   /** `describeEventFooter(...)`. */
   footer: Narrative;
+  /** «Aggiungi al piano» (§ 22): absent outside the FIRE page (no plan to write to). */
+  addToPlan?: { onAdd: () => void; disabledReason: string | null };
   className?: string;
 }
 
@@ -154,7 +157,7 @@ function AmountField({ id, label, value, onChange, placeholder, step, hint, min 
   );
 }
 
-export function EventoTile({ reading, event, eventType, onEventTypeChange, form, onFormChange, incomeSelection, currentYear, maxYear, annualSavings, annualExpenses, footer, className }: EventoTileProps) {
+export function EventoTile({ reading, event, eventType, onEventTypeChange, form, onFormChange, incomeSelection, currentYear, maxYear, annualSavings, annualExpenses, footer, addToPlan, className }: EventoTileProps) {
   const later = event.calendarYear !== null;
   const typedYear = Number.parseInt(form.whenYear, 10);
   const whenHint =
@@ -284,6 +287,16 @@ export function EventoTile({ reading, event, eventType, onEventTypeChange, form,
         </div>
       )}
 
+      {addToPlan && (
+        <div className="mt-4">
+          <Button type="button" variant="outline" size="sm" onClick={addToPlan.onAdd} disabled={event.isEmpty || addToPlan.disabledReason !== null} aria-describedby="whatif-add-to-plan-hint">
+            Aggiungi al piano
+          </Button>
+          <p id="whatif-add-to-plan-hint" className="mt-1.5 text-[11px] leading-[1.45] text-muted-foreground">
+            {addToPlan.disabledReason ?? 'Lo scrive in «Flussi nel tempo» di Il mio piano; resta da salvare lì.'}
+          </p>
+        </div>
+      )}
       <p className="mt-auto border-t border-border pt-3.5 text-[11px] leading-[1.45] text-muted-foreground">{footer.map((segment) => segment.text).join('')}</p>
     </Tile>
   );

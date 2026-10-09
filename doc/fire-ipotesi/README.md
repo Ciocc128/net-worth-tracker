@@ -3168,3 +3168,28 @@ verificano nel browser, sul Mac. Scelta di implementazione: l'età obiettivo che
 - **Matrice più lenta**: RE7 non aggiunge camminate (legge la riga `T` delle 20 già fatte).
 - **Fixture E2E**: la fixture Coast della revisione ha l'uscita più grande del portafoglio; le spec che leggono «ne
   avrai» cambiano.
+
+## 22. «Aggiungi al piano» nel What If (task F3-bis)
+
+Dalla revisione 09/10/2026 (riga F3, scelte accettate). Il What If prova un evento; un tocco lo scrive nei «Flussi nel
+tempo» di Il mio piano. Nessuna formula cambia: i flussi salvati li leggono già tutte le schede (§ 12).
+
+### 22.1 Regole
+
+- **WP1 — Lump**: Perdita di lavoro (`reddito perso × mesi / 12`), Acquisto importante, Entrata straordinaria → UN flusso una tantum (`lumpOut`/`lumpIn`), `indexed: true`, ancorato all'anno di «Quando» (vuoto = quest'anno).
+- **WP2 — Risparmio e spese**: fino a DUE flussi ricorrenti, indicizzati, per sempre, `inCashflowToday: false` dall'anno dell'evento: una variazione del risparmio > 0 è un'entrata, < 0 una spesa della stessa cifra (σ); una variazione delle spese è una spesa (può essere negativa). Un evento con perturbazione zero non aggiunge nulla (il bottone è spento).
+- **WP3 — Dove**: nella BOZZA di Il mio piano (`datedFlows`), mai su Firestore: si salva con «Salva il piano», si annulla con «Annulla». Oltre 20 flussi il bottone è spento con il motivo.
+- **WP4 — Niente doppio conto**: dopo l'aggiunta il modulo Evento torna ai valori iniziali, perché il piano di «prima» contiene già i flussi (bozza inclusa); il tipo di evento resta.
+- **WP5 — Fuori dalla pagina FIRE** (nessun piano a cui scrivere) il bottone non c'è.
+
+### 22.2 Criteri di accettazione
+
+| # | Caso | Atteso |
+| --- | --- | --- |
+| WP-A | Acquisto 25.000 € nel 2029, «Aggiungi al piano» | in Il mio piano compare «Acquisto importante · 25.000 € · 2029», piano da salvare; l'Evento si svuota |
+| WP-B | Prima e dopo salvare | «Prima» del What If conta il flusso (bozza o salvato) |
+| WP-C | Perdita di lavoro 6 mesi su 60.000 € | una tantum 30.000 € |
+| WP-D | Evento a zero | bottone spento |
+| WP-E | Piano con 20 flussi | bottone spento, motivo scritto |
+
+Test: `__tests__/whatIfToPlan.test.ts` (WP1–WP4); la parte visiva va nel collaudo sul Mac.
