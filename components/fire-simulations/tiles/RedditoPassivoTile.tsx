@@ -57,7 +57,6 @@ export function RedditoPassivoTile({ reading, income, className }: RedditoPassiv
 
       <div className="mt-2.5 flex flex-col divide-y divide-border">
         <Row label="Al mese" value={cachedFormatCurrencyEUR(income.monthly, true)} />
-        <Row label="Al giorno" value={formatCurrency(income.daily)} />
         {/* The liquid/illiquid split is the row's caption, not part of the value: inline it widened
             the value cell until the label wrapped under it («Anni di spesa / coperti», 2026-09-22). */}
         <Row

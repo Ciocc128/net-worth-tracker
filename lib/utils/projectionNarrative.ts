@@ -167,10 +167,10 @@ export function describeProjectionScenari(summary: ProjectionSummary): Narrative
   return out;
 }
 
-/** «411.000 € · 22%» — the row's note. */
+/** «22% sopra la soglia» — the row's note; the median sits on the row already, so only the probability is said. */
 export function describeProjectionScenarioNote(figures: ProjectionFigures, hasThreshold: boolean): Narrative {
-  const out: Narrative = [amount(figures.p50)];
-  if (hasThreshold && figures.probabilityAtLeast !== null) out.push(prose(' · '), figure(`${ratePct(figures.probabilityAtLeast)} sopra la soglia`));
+  const out: Narrative = [];
+  if (hasThreshold && figures.probabilityAtLeast !== null) out.push(figure(`${ratePct(figures.probabilityAtLeast)} sopra la soglia`));
   return out;
 }
 
@@ -257,9 +257,9 @@ export function describeSavingsSource(source: { year: number; annualized: boolea
 export const PROJECTION_THRESHOLD_HINT_FIRE = 'il numero FIRE del Calcolatore, anno per anno, in euro di oggi: non segue il capitale e il versamento scritti qui';
 export const PROJECTION_THRESHOLD_HINT_FIXED = 'una cifra fissa in euro di oggi';
 export const PROJECTION_THRESHOLD_HINT_EMPTY = 'scrivi una soglia in euro di oggi per vedere la probabilità';
-/** The seed's placeholder in the empty field: «oggi 606.961 €, poi anno per anno». */
+/** The seed's placeholder in the empty field: «oggi 606.961 €». */
 export function describeFireThresholdPlaceholder(todayFireNumber: number): string {
-  return `oggi ${cachedFormatCurrencyEUR(Math.round(todayFireNumber), true)}, poi anno per anno`;
+  return `oggi ${cachedFormatCurrencyEUR(Math.round(todayFireNumber), true)}`;
 }
 
 // ─── Dettaglio ────────────────────────────────────────────────────────────────

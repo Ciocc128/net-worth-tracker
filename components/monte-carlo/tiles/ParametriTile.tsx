@@ -79,6 +79,8 @@ interface ParametriTileProps {
     fireCapital: number | null;
   };
   onRun: () => void;
+  /** «Riporta al piano»: puts the saved plan's values back in every field. */
+  onReset?: () => void;
   canRun: boolean;
   isRunning: boolean;
   footer: Narrative;
@@ -110,6 +112,7 @@ export function ParametriTile({
   flowsNote,
   start,
   onRun,
+  onReset,
   canRun,
   isRunning,
   footer,
@@ -238,6 +241,11 @@ export function ParametriTile({
         <Button type="button" onClick={onRun} disabled={!canRun || isRunning} className="h-9 w-full sm:w-auto">
           {isRunning ? 'Simulazione in corso…' : 'Prova'}
         </Button>
+        {onReset && (
+          <Button type="button" variant="outline" onClick={onReset} disabled={isRunning} className="h-9 w-full sm:w-auto">
+            Riporta al piano
+          </Button>
+        )}
         <NarrativeText segments={footer} className={cn('text-[11px] leading-[1.4] sm:ml-auto sm:text-right', stale ? 'text-warning-foreground' : 'text-muted-foreground')} figureClassName="font-medium" />
       </div>
     </Tile>

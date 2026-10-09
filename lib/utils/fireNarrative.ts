@@ -961,9 +961,12 @@ export function describeTargetAgeMethod(): string[] {
  * The line under the SWR field (D-S4, RS5): the personal rate, in words. It is proposed, never
  * imposed — «Usa» is the tile's button, the number the Calcolatore runs on changes only with it.
  */
-export function describePersonalSwr(swr: PersonalSwr): Narrative {
+export function describePersonalSwr(swr: PersonalSwr, leverage = 1): Narrative {
   if (swr.rate === null) {
-    return [prose('SWR personale: con questa leva nessun prelievo arriva al 90%, perché in più di una simulazione su dieci la leva azzera il capitale da sola.')];
+    // The SWR runs on a pure plan (capital 1, no flows): only leverage, or a market that cannot sustain any rate, leaves it empty.
+    return [prose(leverage > 1.0005
+      ? 'SWR personale: con questa leva nessun prelievo arriva al 90%, perché in più di una simulazione su dieci la leva azzera il capitale da sola.'
+      : 'SWR personale: con questi rendimenti e costi nessun prelievo arriva al 90%.')];
   }
   return [
     prose('SWR personale '),
