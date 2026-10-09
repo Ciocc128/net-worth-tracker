@@ -42,8 +42,8 @@ export const PRINT_COLORS = {
   card: '#ffffff',
   /** `--foreground` · oklch(0.145 0 0) — prose and figures. */
   foreground: '#0a0a0a',
-  /** `--muted-foreground` · oklch(0.556 0 0) — eyebrows, scopes, captions, footers. */
-  mutedForeground: '#737373',
+  /** `--muted-foreground` · oklch(0.54 0 0) — eyebrows, scopes, captions, footers. */
+  mutedForeground: '#6f6f6f',
   /** `--muted` · oklch(0.97 0 0) — sub-tile fills, the AI comment's ground, table zebra. */
   surfaceMuted: '#f5f5f5',
   /** `--border` · oklch(0.922 0 0) — between tiles, under a section eyebrow. */
