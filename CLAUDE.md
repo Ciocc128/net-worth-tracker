@@ -91,10 +91,6 @@ Only what crosses areas; an area's blind spots — the behaviours that look like
 - **`__tests__/monteCarloSeededRegression.test.ts` (S10) is red on the Mac** (2026-10-05): its snapshot pins the seeded run «float for float» and was written in the cloud container (Linux); on the Mac the last digit of a few doubles differs (…9499 → …9494). Red also on the commit that wrote it (16a3afbf): the test is not portable, the engine did not change. Fix with a tolerance (~1e-9 relative) instead of a snapshot.
 - **Three Vitest cases fail under `TZ=UTC`** (`budgetUtils` › crossing day, `pensionSummary` › value age, `tracciamentoSummary` › `isScheduledRow`), on a clean `develop` too (checked in a worktree, 2026-09-20): they read «today» by Italian calendar day against fixtures built in the process timezone. The suite's two timezones are the machine's and `Europe/Rome`; a CI in UTC would see them red.
 - **Every controlled `ResponsiveModal` opened without `returnFocusTo` drops focus on `body` when it closes** (Radix cancels its own restore when there is no `Trigger`; doc/guide/dialog.md). Rendimenti's two and Hall of Fame's two are fixed; the others take the opener when they are next touched.
-- **`--muted-foreground` measures 4,46:1 on `--background` in the default LIGHT theme** (measured in the browser,
-  2026-09-21, on the compact `PageHeader`'s description) — just under the AA floor of 4,5:1, on every page that uses
-  the shell, not on one. It is a theme-token change with a twelve-block blast radius, so it belongs to a
-  `doc/guide/temi.md` session, not to a page's.
 - **Solo fork — la guardia sulla prima operazione ha un rimedio irraggiungibile** (`lib/server/assetTransactionUseCase.ts`):
   il 409 consiglia un'operazione di apertura, ma anche un adjustment è `op: 'set'` con `existing.length === 0` e la
   stessa guardia lo blocca. Sull'account reale: **Berkshire Hathaway** (0,05 quote, zero operazioni). Rimedio

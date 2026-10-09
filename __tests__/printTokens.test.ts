@@ -51,7 +51,7 @@ const GLOBALS_ROOT: Record<string, [number, number, number]> = {
   background: [1, 0, 0],
   card: [1, 0, 0],
   foreground: [0.145, 0, 0],
-  'muted-foreground': [0.556, 0, 0],
+  'muted-foreground': [0.54, 0, 0],
   muted: [0.97, 0, 0],
   border: [0.922, 0, 0],
   positive: [0.482, 0.194, 149.214],

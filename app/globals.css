@@ -105,7 +105,7 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: oklch(0.54 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -867,8 +867,11 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --warning: oklch(0.986 0.022 90);
   --warning-foreground: oklch(0.468 0.098 75);
   --warning-border: oklch(0.855 0.062 85);
-  --border: oklch(0.8900 0.0320 133.0000);
-  --input: oklch(0.8900 0.0320 133.0000);
+  /* Outlines and fields in a neutral slate, not the ground's green: on the white dialogs and tiles a
+     green hairline read as a tint on every field (owner's tour, 2026-10-09). Same L, so the edge
+     weighs the same (1.39:1 on white). */
+  --border: oklch(0.8900 0.0080 257.0000);
+  --input: oklch(0.8900 0.0080 257.0000);
   --ring: oklch(0.5250 0.1490 133.0000);
   --outline-surface: oklch(0.9850 0.0120 133.0000);
   /* A destructive outline button (red «Elimina») sits on a near-neutral, fill AND outline: red on
@@ -1001,7 +1004,7 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --sidebar-accent: oklch(0.9550 0.0220 133.0000);
   --sidebar-accent-foreground: oklch(0.2077 0.0398 265.7549);
   /* One outline for the whole light theme: the sidebar's edge and separators take --border. */
-  --sidebar-border: oklch(0.8900 0.0320 133.0000);
+  --sidebar-border: oklch(0.8900 0.0080 257.0000);
   --sidebar-ring: oklch(0.5250 0.1490 133.0000);
 }
 
