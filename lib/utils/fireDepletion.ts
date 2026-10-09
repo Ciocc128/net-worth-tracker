@@ -11,7 +11,8 @@ import type { ResolvedFlow } from '@/lib/utils/datedFlows';
 export function findDepletion<T extends { calendarYear: number }>(points: readonly T[], key: keyof T & string, startCapital?: number): number | null {
   if (startCapital !== undefined && startCapital <= 0) return null;
   for (const point of points) {
-    if ((point[key] as unknown as number) <= 0) return point.calendarYear;
+    const value = point[key] as unknown;
+    if (typeof value === 'number' && value <= 0) return point.calendarYear;
   }
   return null;
 }
@@ -30,12 +31,27 @@ export function depletionCause(
   return best ? { label: best.label, amount: best.amount } : null;
 }
 
-/** RE3: the series as the charts draw it — 0 in the depletion year, no points after. */
-export function clipAtDepletion<T extends { calendarYear: number }>(value: number, point: T, depletionYear: number | null): number | null {
-  if (depletionYear === null) return value;
-  if (point.calendarYear > depletionYear) return null;
-  if (point.calendarYear === depletionYear) return 0;
-  return value;
+/**
+ * RE3: the rows as the charts draw them. Each listed series is 0 in its depletion year and `null` after it (the line ends); the
+ * other fields are untouched. `depletion` names the year per series (null = never). The walk itself is not changed.
+ */
+export function clipDepletedSeries<T extends { calendarYear: number }, K extends keyof T & string>(
+  rows: readonly T[],
+  keys: readonly K[],
+  startCapital?: Partial<Record<K, number>>
+): { rows: Array<Omit<T, K> & Record<K, number | null>>; depletion: Record<K, number | null> } {
+  const depletion = {} as Record<K, number | null>;
+  for (const key of keys) depletion[key] = findDepletion(rows, key, startCapital?.[key]);
+  const clipped = rows.map((row) => {
+    const next = { ...row } as Record<string, unknown>;
+    for (const key of keys) {
+      const year = depletion[key];
+      if (year === null) continue;
+      next[key] = row.calendarYear > year ? null : row.calendarYear === year ? 0 : row[key];
+    }
+    return next as Omit<T, K> & Record<K, number | null>;
+  });
+  return { rows: clipped, depletion };
 }
 
 /** The years to the target age for § 21 (RE5): null without an age or when the target age is not ahead. */

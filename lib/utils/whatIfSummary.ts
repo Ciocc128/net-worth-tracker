@@ -12,6 +12,7 @@
  * Pure and Firestore-free; `lib/utils/whatIfNarrative.ts` puts these numbers into words.
  */
 
+import { formatQuota } from '@/lib/utils/fireDepletion';
 import type { FIRESensitivityMatrix } from '@/lib/services/fireService';
 import { resolveEventYearsAhead } from '@/lib/services/whatIfService';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
@@ -291,6 +292,8 @@ export interface SensitivityReading {
   lessSpending: { annualExpenses: number; years: number | null } | null;
   /** The column one step above the baseline savings (+25%, or the first positive fallback). */
   moreSaving: { annualSavings: number; label: string; years: number | null } | null;
+  /** § 21 RE7: the same three cells as shares of the FIRE number at the target age (labels like «20%», «100%+»). */
+  quota?: { baseline: string; lessSpending: string | null; moreSaving: string | null };
 }
 
 /** The three cells the reading names: the baseline, spending 10% less, saving one step more. */
@@ -300,7 +303,19 @@ export function summarizeSensitivity(matrix: FIRESensitivityMatrix): Sensitivity
   const lessRow = matrix.rows.find((row) => Math.abs(row.multiplier - 0.9) < 1e-9) ?? null;
   const nextColumn = baselineColumn >= 0 ? (matrix.columns[baselineColumn + 1] ?? null) : null;
 
+  const quotaLabel = (cell: { quotaAtTarget?: number | null; quotaReached?: boolean } | undefined): string | null =>
+    cell && cell.quotaAtTarget !== undefined && cell.quotaAtTarget !== null ? formatQuota(cell.quotaAtTarget, cell.quotaReached) : null;
+  const baselineCell = baselineRow && baselineColumn >= 0 ? baselineRow.cells[baselineColumn] : undefined;
+  const quota =
+    matrix.byQuota && baselineCell && quotaLabel(baselineCell) !== null
+      ? {
+          baseline: quotaLabel(baselineCell) as string,
+          lessSpending: quotaLabel(lessRow && baselineColumn >= 0 ? lessRow.cells[baselineColumn] : undefined),
+          moreSaving: quotaLabel(baselineRow && nextColumn ? baselineRow.cells[baselineColumn + 1] : undefined),
+        }
+      : undefined;
   return {
+    ...(quota ? { quota } : {}),
     baselineExpenses: matrix.baselineAnnualExpenses,
     baselineSavings: matrix.baselineAnnualSavings,
     baselineYears: matrix.baselineYearsToFIRE,

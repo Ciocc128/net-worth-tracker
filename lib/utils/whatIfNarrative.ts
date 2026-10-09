@@ -626,7 +626,18 @@ export const SENSITIVITY_FOOTER: Narrative = [
  * «Con 27.600 € di spese e 22.200 € di risparmio il FIRE arriva in 7 anni; spendendo il 10% in
  * meno ci arrivi in 5, risparmiando il 25% in più in 6.»
  */
-export function describeSensitivity(reading: SensitivityReading, horizonYears = 50): Narrative {
+export function describeSensitivity(reading: SensitivityReading, horizonYears = 50, options?: { quotaMissing?: boolean }): Narrative {
+  if (reading.quota) {
+    const q = reading.quota;
+    const out: Narrative = [prose('Con '), amount(reading.baselineExpenses), prose(' di spese e ')];
+    if (reading.baselineSavings > 0) out.push(amount(reading.baselineSavings), prose(' di risparmio'));
+    else out.push(prose('nessun risparmio'));
+    out.push(prose(` il FIRE non arriva entro ${horizonYears} anni: all’età obiettivo hai il `), figure(q.baseline), prose(' del numero FIRE'));
+    if (q.lessSpending) out.push(prose('; spendendo il 10% in meno il '), figure(q.lessSpending));
+    if (q.moreSaving) out.push(prose(q.lessSpending ? ', risparmiando di più il ' : '; risparmiando di più il '), figure(q.moreSaving));
+    out.push(prose('.'));
+    return out;
+  }
   const out: Narrative = [prose('Con '), amount(reading.baselineExpenses), prose(' di spese e ')];
   if (reading.baselineSavings > 0) out.push(amount(reading.baselineSavings), prose(' di risparmio'));
   else out.push(prose('nessun risparmio'));
@@ -651,5 +662,8 @@ export function describeSensitivity(reading: SensitivityReading, horizonYears = 
   }
   clauses.forEach((clause, index) => out.push(prose(index === 0 ? '; ' : ', '), ...clause));
   out.push(prose('.'));
+  if (options?.quotaMissing && reading.baselineYears === null) {
+    out.push(prose(' Imposta l’età obiettivo in Il mio piano per vedere quanto del numero FIRE avrai a quell’età.'));
+  }
   return out;
 }

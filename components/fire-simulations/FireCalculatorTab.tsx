@@ -73,6 +73,7 @@ import {
 } from '@/lib/services/fireService';
 import { runAccumulationSimulation, type AccumulationSimulationParams } from '@/lib/services/monteCarloService';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
+import { targetYearsOf, findDepletion, depletionCause } from '@/lib/utils/fireDepletion';
 import { summarizeTargetAge, yearsToTargetAge, type FireWalk } from '@/lib/utils/fireTargetAge';
 import { DEFAULT_FIRE_TARGET_AGE } from '@/lib/utils/firePlan';
 import { useFireSettings } from '@/lib/hooks/useFirePlan';
@@ -522,6 +523,8 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   // (not above today's age, past 100) falls back to the saved one. RS7/RS9 re-walk the SAME deterministic
   // projection the verdict names, changing only the saving or the plan's expenses.
   const previewTargetAge = settings?.coastFireRetirementAge ?? DEFAULT_FIRE_TARGET_AGE;
+  // § 21 RE5/RE6: the years to the target age — what the tiles out of the horizon read.
+  const targetYears = useMemo(() => targetYearsOf(previewTargetAge, userAge), [previewTargetAge, userAge]);
   const fireWalk = useCallback<FireWalk>(
     (savings, planExpenses) =>
       calculateFIREProjection(currentNetWorth, planExpenses, savings, previewWithdrawalRate, scenarios, PROJECTION_HORIZON_YEARS, projectionBridge, honest, true, flowsInput).baseYearsToFIRE,
@@ -615,7 +618,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
     [displayedFireMetrics, pensionBridge, honestSummary, requirementToday],
   );
   const timeline = useMemo(() => (projection ? summarizeTimeline(projection, currentYear, userAge, PROJECTION_HORIZON_YEARS) : null), [projection, currentYear, userAge]);
-  const scenarioRows = useMemo(() => (projection ? summarizeScenarios(projection, currentYear) : []), [projection, currentYear]);
+  const scenarioRows = useMemo(() => (projection ? summarizeScenarios(projection, currentYear, targetYears) : []), [projection, currentYear, targetYears]);
   const passiveIncome = useMemo(() => (displayedFireMetrics ? summarizePassiveIncome(displayedFireMetrics) : null), [displayedFireMetrics]);
   const fanVerdict = useMemo(
     () => (fanResult && projection ? resolveFanVerdict(fanResult, projection.baseYearsToFIRE, currentYear) : null),
@@ -648,6 +651,14 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
     : null;
 
   // ─── The words (pure layer) ───────────────────────────────────────────────────
+  // § 21 RE1–RE2: the Base capital runs out before any FIRE year (the walk is untouched; only the reading changes).
+  const depletion = useMemo(() => {
+    if (!projection) return null;
+    const year = findDepletion(projection.yearlyData, 'baseNetWorth', currentNetWorth);
+    if (year === null) return null;
+    if (projection.baseYearsToFIRE !== null && year >= currentYear + projection.baseYearsToFIRE) return null;
+    return { year, cause: depletionCause(flowsInput?.resolved, year, currentYear) };
+  }, [projection, currentNetWorth, currentYear, flowsInput]);
   const verdict = useMemo(
     () =>
       buildFireVerdict({
@@ -659,8 +670,9 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
         monthlyAllowance: passiveIncome?.monthly ?? 0,
         lock,
         honest: honestSummary,
+        depletion,
       }),
-    [currentNetWorth, target, timeline, annualSavings, previewWithdrawalRate, passiveIncome, lock, honestSummary],
+    [currentNetWorth, target, timeline, annualSavings, previewWithdrawalRate, passiveIncome, lock, honestSummary, depletion],
   );
 
   // ─── Sensibilità (arrived from the What If, FEAT FIRE 2026-10-05) ────────────
@@ -671,8 +683,8 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   const sensitivityExpenses = Number.isFinite(parsedSensitivityBaseline) && parsedSensitivityBaseline > 0 ? parsedSensitivityBaseline : projectionAnnualExpenses;
   const sensitivityMatrix = useMemo(() => {
     if (currentNetWorth <= 0 || sensitivityExpenses <= 0 || previewWithdrawalRate <= 0) return null;
-    return calculateFIRESensitivityMatrix(currentNetWorth, sensitivityExpenses, annualSavings, previewWithdrawalRate, scenarios, true, flowsInput, projectionBridge, honest);
-  }, [currentNetWorth, sensitivityExpenses, annualSavings, previewWithdrawalRate, scenarios, flowsInput, projectionBridge, honest]);
+    return calculateFIRESensitivityMatrix(currentNetWorth, sensitivityExpenses, annualSavings, previewWithdrawalRate, scenarios, true, flowsInput, projectionBridge, honest, targetYears ?? undefined);
+  }, [currentNetWorth, sensitivityExpenses, annualSavings, previewWithdrawalRate, scenarios, flowsInput, projectionBridge, honest, targetYears]);
   const sensitivityReading = useMemo(() => (sensitivityMatrix ? summarizeSensitivity(sensitivityMatrix) : null), [sensitivityMatrix]);
 
   // ─── Loading ─────────────────────────────────────────────────────────────────
@@ -866,7 +878,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
         <div className={SCENARI_CELL}>
           {projection ? (
             <ScenariTile
-              reading={describeScenarios(scenarioRows)}
+              reading={describeScenarios(scenarioRows, { quotaMissing: targetYears === null })}
               rows={scenarioRows}
               horizonYears={PROJECTION_HORIZON_YEARS}
               chart={scenariChart}
@@ -900,8 +912,8 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
 
         <div className={SENSIBILITA_CELL}>
           <SensibilitaTile
-            reading={sensitivityReading ? describeSensitivity(sensitivityReading, PROJECTION_HORIZON_YEARS) : [{ text: 'Servono un patrimonio FIRE e spese annue maggiori di zero.' }]}
-            aside={SENSITIVITY_ASIDE}
+            reading={sensitivityReading ? describeSensitivity(sensitivityReading, PROJECTION_HORIZON_YEARS, { quotaMissing: targetYears === null }) : [{ text: 'Servono un patrimonio FIRE e spese annue maggiori di zero.' }]}
+            aside={sensitivityMatrix?.byQuota ? `quota del numero FIRE all’età obiettivo (${Math.round(previewTargetAge)} anni, ${currentYear + (sensitivityMatrix.targetYears ?? 0)}) · scenario base · piano di oggi` : SENSITIVITY_ASIDE}
             baselineInput={sensitivityBaselineInput}
             onBaselineInputChange={setSensitivityBaselineInput}
             actualAnnualExpenses={projectionAnnualExpenses}

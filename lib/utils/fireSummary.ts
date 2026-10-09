@@ -13,6 +13,7 @@
  * Pure and Firestore-free; `lib/utils/fireNarrative.ts` puts these numbers into words.
  */
 
+import { formatQuota, quotaAtTarget } from '@/lib/utils/fireDepletion';
 import type { FIREMetrics } from '@/lib/services/fireService';
 import type { AccumulationSimulationResult } from '@/lib/services/monteCarloService';
 import type { PensionLockState } from '@/lib/utils/pensionUnlock';
@@ -148,12 +149,14 @@ export interface ScenarioRow {
   calendarYear: number | null;
   growthRate: number;
   inflationRate: number;
+  /** § 21 RE8: without a FIRE year and with the target age known, the share of the FIRE number at that age («20%»). */
+  quotaLabel?: string;
 }
 
 const SCENARIO_LABELS: Record<ScenarioKey, ScenarioRow['label']> = { bear: 'Bear', base: 'Base', bull: 'Bull' };
 
 /** The three scenarios as rows, bear · base · bull, each with its year and its parameters. */
-export function summarizeScenarios(projection: FIREProjectionResult, currentYear: number): ScenarioRow[] {
+export function summarizeScenarios(projection: FIREProjectionResult, currentYear: number, targetYears?: number | null): ScenarioRow[] {
   const years: Record<ScenarioKey, number | null> = {
     bear: projection.bearYearsToFIRE,
     base: projection.baseYearsToFIRE,
@@ -166,6 +169,12 @@ export function summarizeScenarios(projection: FIREProjectionResult, currentYear
     calendarYear: years[key] !== null ? currentYear + (years[key] as number) : null,
     growthRate: projection.scenarios[key].growthRate,
     inflationRate: projection.scenarios[key].inflationRate,
+    ...(years[key] === null && targetYears
+      ? (() => {
+          const quota = quotaAtTarget(projection, targetYears, key);
+          return quota === null ? {} : { quotaLabel: formatQuota(quota) };
+        })()
+      : {}),
   }));
 }
 

@@ -103,6 +103,7 @@ import { CoastTraguardoTile } from './coast/tiles/CoastTraguardoTile';
 import { AfflussiTile } from './coast/tiles/AfflussiTile';
 import { CoastScenariTile } from './coast/tiles/CoastScenariTile';
 import { CoastDettaglio } from './coast/CoastDettaglio';
+import { depletionCause, findDepletion } from '@/lib/utils/fireDepletion';
 import { CoastFireProjectionChart } from './CoastFireProjectionChart';
 
 /** The grid's geometry, for the skeleton: the same spans as the tiles below. */
@@ -240,12 +241,17 @@ export function CoastFireTab() {
   const lock = useMemo(() => summarizeLock(pensionLockState, { currentYear, ritaUnlockAge }), [pensionLockState, currentYear, ritaUnlockAge]);
   const isBridge = pensionInflowsToday.length > 0;
 
+  // § 21 RE1–RE2: when the chart's Base series runs out, and the lump that does it.
+  const depletion = useMemo(() => {
+    const year = coastProjection ? findDepletion(coastProjection.projectionData, 'basePortfolioValue', coastProjection.projectionData[0]?.basePortfolioValue) : null;
+    return { year, cause: year === null ? null : depletionCause(resolvedFlows, year, currentYear) };
+  }, [coastProjection, resolvedFlows, currentYear]);
   const target = useMemo(
     () =>
       baseScenario && currentAge !== null
-        ? summarizeCoastTarget(baseScenario, { currentNetWorth, liquidNetWorth, currentAge, retirementAge: resolvedRetirementAge, isBridge, currentYear, withdrawalRate, hasDatedFlows: resolvedFlows.length > 0 })
+        ? summarizeCoastTarget(baseScenario, { currentNetWorth, liquidNetWorth, currentAge, retirementAge: resolvedRetirementAge, isBridge, currentYear, withdrawalRate, hasDatedFlows: resolvedFlows.length > 0, depletion })
         : null,
-    [baseScenario, currentNetWorth, liquidNetWorth, currentAge, resolvedRetirementAge, isBridge, currentYear, withdrawalRate, resolvedFlows.length],
+    [baseScenario, currentNetWorth, liquidNetWorth, currentAge, resolvedRetirementAge, isBridge, currentYear, withdrawalRate, resolvedFlows.length, depletion],
   );
   const annualSavings = cashflowData?.annualSavings;
   const pace = useMemo(

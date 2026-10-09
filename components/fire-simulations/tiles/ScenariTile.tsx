@@ -41,7 +41,8 @@ interface ScenariTileProps {
 
 
 /** «tra 6 anni» / «tra 1 anno» / «già raggiunto» (year 0: the walk tests today before stepping). */
-function distance(years: number | null, horizonYears: number): string {
+function distance(years: number | null, horizonYears: number, quotaLabel?: string): string {
+  if (years === null && quotaLabel) return `all’età obiettivo il ${quotaLabel} del numero FIRE`;
   if (years === null) return `oltre ${horizonYears} anni`;
   if (years === 0) return 'già raggiunto';
   return years === 1 ? 'tra 1 anno' : `tra ${years} anni`;
@@ -75,7 +76,7 @@ export function ScenariTile({ reading, rows, horizonYears, chart, footer, classN
                 <span className={cn('block font-mono text-[14px] tabular-nums text-foreground', isBase && 'font-semibold')}>
                   {row.yearsToFire === 0 ? 'oggi' : (row.calendarYear ?? '—')}
                 </span>
-                <span className="block font-mono text-[11px] tabular-nums text-muted-foreground">{distance(row.yearsToFire, horizonYears)}</span>
+                <span className="block font-mono text-[11px] tabular-nums text-muted-foreground">{distance(row.yearsToFire, horizonYears, row.quotaLabel)}</span>
               </span>
             </li>
           );

@@ -33,11 +33,13 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import type { CoastPace } from '@/lib/utils/coastFireView';
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
+import { clipDepletedSeries } from '@/lib/utils/fireDepletion';
 import { SeriesLegend } from '@/components/ui/series-legend';
 import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -57,7 +59,12 @@ interface CoastFireProjectionChartProps {
 }
 
 /** The plotted row: the projection point plus the pace series' value for that year, when drawn. */
-type CoastPlotPoint = CoastFIREProjectionPoint & { paceValue?: number };
+type CoastPlotPoint = Omit<CoastFIREProjectionPoint, 'bearPortfolioValue' | 'basePortfolioValue' | 'bullPortfolioValue'> & {
+  bearPortfolioValue: number | null;
+  basePortfolioValue: number | null;
+  bullPortfolioValue: number | null;
+  paceValue?: number;
+};
 
 const TARGET_INK = 'var(--muted-foreground)';
 
@@ -68,6 +75,8 @@ interface CoastTooltipProps {
   pensionUnlockCalendarYear?: number | null;
   paceUntilYear?: number | null;
   colors: { bear: string; base: string; bull: string };
+  /** § 21 RE3: the calendar year each series runs out, null = never. */
+  depletion?: { bear: number | null; base: number | null; bull: number | null };
 }
 
 /**
@@ -83,15 +92,16 @@ function CoastTooltip({
   pensionUnlockCalendarYear,
   paceUntilYear,
   colors,
+  depletion,
 }: CoastTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
   const row = payload[0]?.payload;
   if (!row) return null;
 
   const rows = [
-    { name: 'Patrimonio Bear', value: row.bearPortfolioValue, color: colors.bear },
-    { name: 'Patrimonio Base', value: row.basePortfolioValue, color: colors.base },
-    { name: 'Patrimonio Bull', value: row.bullPortfolioValue, color: colors.bull },
+    { name: 'Patrimonio Bear', value: row.bearPortfolioValue, color: colors.bear, depletedIn: depletion?.bear ?? null },
+    { name: 'Patrimonio Base', value: row.basePortfolioValue, color: colors.base, depletedIn: depletion?.base ?? null },
+    { name: 'Patrimonio Bull', value: row.bullPortfolioValue, color: colors.bull, depletedIn: depletion?.bull ?? null },
     ...(row.paceValue !== undefined
       ? [{ name: paceUntilYear !== null && paceUntilYear !== undefined ? `Base con il risparmio fino al ${paceUntilYear}` : 'Base con il risparmio', value: row.paceValue, color: colors.base }]
       : []),
@@ -122,7 +132,9 @@ function CoastTooltip({
             <span className="h-2 w-2 shrink-0 self-center rounded-[2px]" style={{ background: item.color }} aria-hidden="true" />
             <span className="text-muted-foreground">{item.name}</span>
             <span className="ml-auto font-mono font-medium tabular-nums text-foreground">
-              {cachedFormatCurrencyEUR(item.value, true)}
+              {'depletedIn' in item && item.depletedIn !== null && (item.value === null || row.calendarYear === item.depletedIn)
+                ? `esaurito nel ${item.depletedIn}`
+                : cachedFormatCurrencyEUR(item.value ?? 0, true)}
             </span>
           </div>
         ))}
@@ -149,9 +161,17 @@ export function CoastFireProjectionChart({
   }
 
   const paceUntilYear = pace?.reached?.calendarYear ?? null;
+  // § 21 RE3: a series that runs out stops at zero in that year and has no points after it.
+  const clipped = clipDepletedSeries(projectionData, ['bearPortfolioValue', 'basePortfolioValue', 'bullPortfolioValue'] as const, {
+    bearPortfolioValue: projectionData[0]?.bearPortfolioValue,
+    basePortfolioValue: projectionData[0]?.basePortfolioValue,
+    bullPortfolioValue: projectionData[0]?.bullPortfolioValue,
+  });
+  const depletion = { bear: clipped.depletion.bearPortfolioValue, base: clipped.depletion.basePortfolioValue, bull: clipped.depletion.bullPortfolioValue };
+  const anyDepletion = depletion.bear !== null || depletion.base !== null || depletion.bull !== null;
   const data: CoastPlotPoint[] = pace
-    ? projectionData.map((point, index) => ({ ...point, paceValue: pace.series[index] }))
-    : projectionData;
+    ? clipped.rows.map((point, index) => ({ ...point, paceValue: pace.series[index] }))
+    : clipped.rows;
 
   return (
     <div className="flex h-full min-h-0 flex-col" style={typeof height === 'number' ? { height } : undefined}>
@@ -162,9 +182,10 @@ export function CoastFireProjectionChart({
             margin={{ top: 12, left: marginLeft, bottom: 4 }}
             role="img"
             aria-label={
-              pace
+              (anyDepletion ? `Capitale esaurito nel ${[depletion.bear, depletion.base, depletion.bull].filter((year) => year !== null).join(' · ')}: le linee si fermano a zero. ` : '') +
+              (pace
                 ? "Grafico proiezione Coast FIRE: il patrimonio che cresce senza nuovi versamenti negli scenari Bear, Base e Bull, la linea punteggiata del base con il risparmio attuale e la linea tratteggiata del capitale richiesto al target"
-                : "Grafico proiezione Coast FIRE: il patrimonio che cresce senza nuovi versamenti negli scenari Bear, Base e Bull, con la linea tratteggiata del capitale richiesto al target"
+                : "Grafico proiezione Coast FIRE: il patrimonio che cresce senza nuovi versamenti negli scenari Bear, Base e Bull, con la linea tratteggiata del capitale richiesto al target")
             }
             accessibilityLayer={false}
           >
@@ -174,6 +195,8 @@ export function CoastFireProjectionChart({
               width={marginLeft <= 20 ? 70 : 100}
               tickFormatter={(value) => formatCurrencyCompact(Number(value))}
               tick={CHART_TICK_STYLE}
+              domain={anyDepletion ? [0, 'auto'] : undefined}
+              allowDataOverflow={anyDepletion}
             />
             <Tooltip
               content={
@@ -181,6 +204,7 @@ export function CoastFireProjectionChart({
                   pensionUnlockCalendarYear={pensionUnlockCalendarYear}
                   paceUntilYear={paceUntilYear}
                   colors={{ bear: bearColor, base: baseColor, bull: bullColor }}
+                  depletion={depletion}
                 />
               }
             />
@@ -239,6 +263,11 @@ export function CoastFireProjectionChart({
               dot={false}
               isAnimationActive={false}
             />
+            {(['bear', 'base', 'bull'] as const).map((key) =>
+              depletion[key] === null ? null : (
+                <ReferenceDot key={`depleted-${key}`} x={depletion[key] as number} y={0} r={4} fill={{ bear: bearColor, base: baseColor, bull: bullColor }[key]} stroke="var(--background)" ifOverflow="visible" />
+              ),
+            )}
             {paceUntilYear !== null && (
               <ReferenceLine
                 x={paceUntilYear}

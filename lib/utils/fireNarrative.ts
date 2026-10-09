@@ -85,6 +85,8 @@ export interface FireVerdictInput {
   lock: FireLock;
   /** What is inside the number besides expenses ÷ SWR; absent = nothing declared. */
   honest?: FireTargetHonest;
+  /** § 21 RE1–RE2: the Base capital runs out before any FIRE year; the cause is the biggest lump outflow of that year. */
+  depletion?: { year: number; cause: { label: string; amount: number } | null } | null;
 }
 
 /** «, tasse comprese» / «; dal 2060 la pensione statale ne copre 13.000 € l'anno». */
@@ -155,7 +157,19 @@ function passiveIncomeClause(timeline: FireTimeline, swr: number, bridgeUntil: n
   ];
 }
 
+/** § 21.6: «Il capitale si esaurisce nel 2032 con Acquisto Casa (41.777 €).» / «… per le uscite del piano.» */
+export function describeDepletion(depletion: { year: number; cause: { label: string; amount: number } | null }): Narrative {
+  return depletion.cause
+    ? [prose('Il capitale si esaurisce nel '), year(depletion.year), prose(` con ${depletion.cause.label} (`), amount(depletion.cause.amount), prose('). ')]
+    : [prose('Il capitale si esaurisce nel '), year(depletion.year), prose(' per le uscite del piano. ')];
+}
+
 export function buildFireVerdict(input: FireVerdictInput): PageVerdictModel {
+  const verdict = buildFireVerdictCore(input);
+  return input.depletion ? { ...verdict, sentence: [...describeDepletion(input.depletion), ...verdict.sentence] } : verdict;
+}
+
+function buildFireVerdictCore(input: FireVerdictInput): PageVerdictModel {
   if (!input.hasNetWorth) {
     return {
       headline: 'Nessun patrimonio FIRE.',
@@ -689,14 +703,20 @@ const HORIZON_YEARS = 50;
  * A scenario at year 0 is «già raggiunto»: the walk tests today before stepping, and a reader
  * who is FIRE must never be told «tra 1 anno» under a verdict that says «Sei già FIRE.».
  */
-export function describeScenarios(rows: ScenarioRow[]): Narrative {
+export function describeScenarios(rows: ScenarioRow[], options?: { quotaMissing?: boolean }): Narrative {
   const bear = rows.find((row) => row.key === 'bear');
   const base = rows.find((row) => row.key === 'base');
   const bull = rows.find((row) => row.key === 'bull');
   if (!bear || !base || !bull) return [];
 
+  // § 21 RE6/RE8: no FIRE year in the Base — the share of the number at the target age, or the line that asks for the age.
+  const quotaTail: Narrative = base.quotaLabel
+    ? [prose(` All’età obiettivo il ${base.quotaLabel} del numero FIRE nel base.`)]
+    : options?.quotaMissing && base.calendarYear === null
+      ? [prose(' Imposta l’età obiettivo in Il mio piano per vedere quanto del numero FIRE avrai a quell’età.')]
+      : [];
   if (base.calendarYear === null && bear.calendarYear === null && bull.calendarYear === null) {
-    return [prose(`In nessuno scenario il FIRE arriva entro ${HORIZON_YEARS} anni.`)];
+    return [prose(`In nessuno scenario il FIRE arriva entro ${HORIZON_YEARS} anni.`), ...quotaTail];
   }
 
   if (bear.yearsToFire === 0 && base.yearsToFire === 0 && bull.yearsToFire === 0) {
@@ -716,6 +736,7 @@ export function describeScenarios(rows: ScenarioRow[]): Narrative {
     const out: Narrative = [prose(`Nel base il FIRE non arriva entro ${HORIZON_YEARS} anni; `)];
     out.push(...(bear.calendarYear === null ? [prose("nemmeno nel bear")] : [prose("il bear lo raggiunge nel "), year(bear.calendarYear)]));
     out.push(...(bull.calendarYear === null ? [prose(', nemmeno il bull.')] : [prose(', il bull lo raggiunge nel '), year(bull.calendarYear), prose('.')]));
+    out.push(...quotaTail);
     return out;
   }
 

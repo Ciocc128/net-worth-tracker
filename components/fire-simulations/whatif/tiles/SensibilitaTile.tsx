@@ -18,6 +18,7 @@
  * a cardified mobile view needs its own reading note).
  */
 
+import { formatQuota } from '@/lib/utils/fireDepletion';
 import type { FIRESensitivityCell, FIRESensitivityMatrix } from '@/lib/services/fireService';
 import type { Narrative } from '@/lib/utils/narrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
@@ -49,7 +50,9 @@ const CELL_CLASS: Record<FIRESensitivityCell['relationToBaseline'], string> = {
   neutral: 'border-transparent',
 };
 
-function cellText(cell: FIRESensitivityCell): string {
+function cellText(cell: FIRESensitivityCell, byQuota = false): string {
+  // § 21 RE7: out of the horizon the cell is the share of the FIRE number at the target age.
+  if (byQuota && cell.quotaAtTarget !== undefined && cell.quotaAtTarget !== null) return formatQuota(cell.quotaAtTarget, cell.quotaReached);
   if (cell.yearsToFIRE === null) return '50+ anni';
   return `${cell.yearsToFIRE} ${cell.yearsToFIRE === 1 ? 'anno' : 'anni'}`;
 }
@@ -112,7 +115,7 @@ export function SensibilitaTile({ reading, aside, baselineInput, onBaselineInput
                     {row.cells.map((cell, index) => (
                       <td key={`${row.label}-${matrix.columns[index].label}`} className="px-2 py-1.5">
                         <span className={cn('block rounded-md border px-2 py-2 text-center font-mono text-[13px] font-semibold tabular-nums text-foreground', CELL_CLASS[cell.relationToBaseline])}>
-                          {cellText(cell)}
+                          {cellText(cell, matrix.byQuota)}
                         </span>
                       </td>
                     ))}
@@ -134,7 +137,7 @@ export function SensibilitaTile({ reading, aside, baselineInput, onBaselineInput
                   {row.cells.map((cell, index) => (
                     <div key={`${row.label}-${matrix.columns[index].label}`} className={cn('flex flex-col gap-0.5 rounded-md border px-2.5 py-2', CELL_CLASS[cell.relationToBaseline])}>
                       <span className={TILE_SUB_EYEBROW_CLASS}>Risparmio {matrix.columns[index].label === 'Base' ? 'di oggi' : matrix.columns[index].label}</span>
-                      <span className="font-mono text-[14px] font-semibold tabular-nums text-foreground">{cellText(cell)}</span>
+                      <span className="font-mono text-[14px] font-semibold tabular-nums text-foreground">{cellText(cell, matrix.byQuota)}</span>
                     </div>
                   ))}
                 </div>

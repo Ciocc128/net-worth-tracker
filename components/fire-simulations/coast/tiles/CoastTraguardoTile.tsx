@@ -121,7 +121,13 @@ function StageCell({ stage, past }: { stage: CoastStage; past: boolean }) {
         servono <span className="font-mono text-[13px] font-semibold tabular-nums text-foreground">{formatCurrencyEUR(stage.required)}</span>
       </p>
       <p className="text-[11px] text-muted-foreground">
-        {past ? 'ne hai' : 'ne avrai'} <span className="font-mono text-[13px] font-semibold tabular-nums text-foreground">{formatCurrencyEUR(stage.onCourse)}</span>
+        {stage.depleted ? (
+          <span className="font-mono text-[13px] font-semibold text-foreground">{stage.depletionYear === null ? 'esaurito' : `esaurito nel ${stage.depletionYear}`}</span>
+        ) : (
+          <>
+            {past ? 'ne hai' : 'ne avrai'} <span className="font-mono text-[13px] font-semibold tabular-nums text-foreground">{formatCurrencyEUR(stage.onCourse)}</span>
+          </>
+        )}
       </p>
       {stage.enough ? (
         <p className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-positive">
