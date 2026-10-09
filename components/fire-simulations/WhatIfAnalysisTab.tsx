@@ -249,7 +249,7 @@ export function WhatIfAnalysisTab() {
   const deltaView = buildDeltaView(summary);
   return (
     <div className="space-y-4">
-      {/* D-W5 (2026-10-09, revises D-W1): the verdict under «Ipotesi usate», full width and left-aligned as on every
+      {/* D-W7 (2026-10-09, revises D-W1): the verdict under «Ipotesi usate», full width and left-aligned as on every
           other FIRE tab; then Evento 4 | Prima e dopo 5 | Delta 3. Below `desktop:` one column, in that order. */}
       <div className="pt-1">
         <FireAssumptionsRow assumptions={assumptionsWithFlows} />
