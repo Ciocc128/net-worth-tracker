@@ -134,7 +134,6 @@ export function FirePlanBlock() {
   const typedAge = parseOptionalInteger(form.userAge);
   const typedTarget = parseOptionalInteger(form.targetAge);
   const incompleteCount = new Set(pensionIssues.filter((issue) => issue.kind === 'incomplete').map((issue) => issue.pensionId)).size;
-  const hasCompactPensionEditor = form.pensions.length >= 3;
   const flowsInUse = settings?.fireDatedFlows?.length ?? 0;
 
   const updatePension = (id: string, field: 'label' | 'grossMonthlyAmount' | 'monthsPerYear' | 'startDate', value: string) =>
@@ -253,7 +252,7 @@ export function FirePlanBlock() {
                     className={cn(CONTROL_CLASS, 'w-[160px]')}
                   />
                   <Help id="plannedExpenses-help" invalid={problems.plannedExpenses}>
-                    Vuota = l&apos;ultimo anno del Cashflow. {FIRE_PLAN_AFFECTS.expenses}.
+                    Se lasci vuoto il campo, uso la spesa dell&apos;ultimo anno del Cashflow. {FIRE_PLAN_AFFECTS.expenses}.
                   </Help>
                 </div>
 
@@ -367,13 +366,9 @@ export function FirePlanBlock() {
                 <div className="mt-2.5 flex flex-col divide-y divide-border">
                   {form.pensions.map((pension, index) => (
                     <div key={pension.id} className="py-3">
-                      {/* Always 2-col on mobile so inputs are paired (Name+Amount, Months+Date), then one line at desktop with the delete at the end. */}
-                      <div
-                        className={cn(
-                          'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start gap-3',
-                          hasCompactPensionEditor ? 'desktop:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px_150px_36px]' : 'desktop:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_120px_150px_36px]',
-                        )}
-                      >
+                      {/* Always 2-col on mobile so inputs are paired (Name+Amount, Months+Date), then one line at desktop with the delete at the end:
+                          each column sized to what it holds, packed to the left — stretched to the tile, a 4-digit amount sat in 325px (collaudo 2026-10-09). */}
+                      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start gap-3 desktop:grid-cols-[240px_160px_96px_168px_36px] desktop:justify-start">
                         <div>
                           <Label htmlFor={`coast-pension-label-${pension.id}`} className="text-[11px] text-muted-foreground">
                             Nome
@@ -466,7 +461,7 @@ export function FirePlanBlock() {
                       onChange={(event) => onFormChange({ inpsRetirementAge: event.target.value })}
                       aria-invalid={problems.inpsRetirementAge ? true : undefined}
                       aria-describedby="pensionInpsRetirementAge-help"
-                      className={CONTROL_CLASS}
+                      className={cn(CONTROL_CLASS, 'w-[160px]')}
                       />
                     <Help id="pensionInpsRetirementAge-help" invalid={problems.inpsRetirementAge}>
                       RITA anticipa lo sblocco di 5 anni rispetto a questa età. {FIRE_PLAN_AFFECTS.rita}.

@@ -40,7 +40,7 @@ export function TaxBracketsTile({ brackets, onChange, disabled = false, classNam
             <div key={bracket.id} className="grid grid-cols-[minmax(0,1fr)_96px_44px] items-end gap-3 py-2.5 desktop:grid-cols-[minmax(0,1fr)_110px_36px]">
               <div>
                 <Label htmlFor={`coast-tax-limit-${bracket.id}`} className="text-[11px] text-muted-foreground">
-                  {isLast ? 'Fino a (vuoto = senza tetto)' : 'Fino a (€ annui)'}
+                  Fino a (€ annui)
                 </Label>
                 <Input
                   id={`coast-tax-limit-${bracket.id}`}
@@ -93,6 +93,7 @@ export function TaxBracketsTile({ brackets, onChange, disabled = false, classNam
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
           Aggiungi scaglione
         </Button>
+        <span className="text-[11px] leading-[1.4] text-muted-foreground">Lascia vuoto l&apos;ultimo scaglione se non ha un tetto.</span>
       </div>
     </Tile>
   );

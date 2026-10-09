@@ -84,7 +84,6 @@ const SKELETON_CELLS: TileSkeletonCell[] = [
 const EMPTY_FORM: WhatIfEventForm = {
   monthsWithoutIncome: '6',
   purchaseAmount: '',
-  isPrimaryResidence: false,
   savingsDelta: '',
   expensesDelta: '',
   windfallAmount: '',
@@ -186,7 +185,7 @@ export function WhatIfAnalysisTab() {
           lostAnnualIncome: hasIncomeSources ? selectedAnnualIncome : undefined,
         };
       case 'majorPurchase':
-        return { eventType, whenYear, lumpSumAmount: parseAmount(form.purchaseAmount), isPrimaryResidence: form.isPrimaryResidence };
+        return { eventType, whenYear, lumpSumAmount: parseAmount(form.purchaseAmount) };
       case 'cashflowChange':
         return { eventType, whenYear, annualSavingsDelta: parseAmount(form.savingsDelta), annualExpensesDelta: parseAmount(form.expensesDelta) };
       case 'windfall':
@@ -236,7 +235,7 @@ export function WhatIfAnalysisTab() {
       <div className="space-y-4">
         <div className="pt-1">
           <FireAssumptionsRow assumptions={assumptionsWithFlows} />
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" />
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" />
         </div>
       </div>
     );
@@ -250,12 +249,13 @@ export function WhatIfAnalysisTab() {
   const deltaView = buildDeltaView(summary);
   return (
     <div className="space-y-4">
+      {/* D-W7 (2026-10-09, revises D-W1): the verdict under «Ipotesi usate», full width and left-aligned as on every
+          other FIRE tab; then Evento 4 | Prima e dopo 5 | Delta 3. Below `desktop:` one column, in that order. */}
       <div className="pt-1">
         <FireAssumptionsRow assumptions={assumptionsWithFlows} />
+        <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" />
       </div>
 
-      {/* The Evento first on every width, the verdict over the answers beside it on a desktop (a column of 8:
-          Prima e dopo 5 | Delta 3). Below `desktop:` everything is one column, in the phone's order. */}
       <div className="grid grid-cols-1 gap-3 desktop:grid-cols-12">
         <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4')}>
           <EventoTile
@@ -285,39 +285,33 @@ export function WhatIfAnalysisTab() {
           />
         </div>
 
-        <div className="flex min-w-0 flex-col gap-3 desktop:col-span-8">
-          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" />
-
-          <div className="grid grid-cols-1 gap-3 desktop:flex-1 desktop:grid-cols-8">
-            <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-5')}>
-              <PrimaDopoTile
-                reading={describeBeforeAfter(summary, divergence)}
-                aside={describeBeforeAfterAside(scenarios.base)}
-                chart={
-                  <WhatIfProjectionChart
-                    series={series}
-                    calendarBefore={summary.timeline.reachedBefore ? null : summary.timeline.calendarBefore}
-                    calendarAfter={summary.timeline.reachedAfter ? null : summary.timeline.calendarAfter}
-                    targetsDiffer={targetsDiffer}
-                    height="100%"
-                    pensionUnlockCalendarYear={summary.isBridge ? lock.unlockCalendarYear : null}
-                  />
-                }
+        <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-5')}>
+          <PrimaDopoTile
+            reading={describeBeforeAfter(summary, divergence)}
+            aside={describeBeforeAfterAside(scenarios.base)}
+            chart={
+              <WhatIfProjectionChart
+                series={series}
+                calendarBefore={summary.timeline.reachedBefore ? null : summary.timeline.calendarBefore}
+                calendarAfter={summary.timeline.reachedAfter ? null : summary.timeline.calendarAfter}
                 targetsDiffer={targetsDiffer}
-                footer={describeBeforeAfterFooter({ eventCalendarYear: event.calendarYear, isBridge: summary.isBridge, unlockCalendarYear: lock.unlockCalendarYear, lastProjectedYear })}
+                height="100%"
+                pensionUnlockCalendarYear={summary.isBridge ? lock.unlockCalendarYear : null}
               />
-            </div>
+            }
+            targetsDiffer={targetsDiffer}
+            footer={describeBeforeAfterFooter({ eventCalendarYear: event.calendarYear, isBridge: summary.isBridge, unlockCalendarYear: lock.unlockCalendarYear, lastProjectedYear })}
+          />
+        </div>
 
-            <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-3')}>
-              <DeltaTile
-                reading={describeDelta(summary)}
-                view={deltaView}
-                coastRetirementAge={summary.coast?.retirementAge ?? null}
-                footer={describeDeltaFooter(deltaView.hasCoast)}
-                effect={jobLossHit && event.kind === 'jobLoss' ? <JobLossEffect hit={jobLossHit} months={event.months} annualSavings={annualSavings} lostAnnualIncome={event.lostAnnualIncome} /> : null}
-              />
-            </div>
-          </div>
+        <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-3')}>
+          <DeltaTile
+            reading={describeDelta(summary)}
+            view={deltaView}
+            coastRetirementAge={summary.coast?.retirementAge ?? null}
+            footer={describeDeltaFooter(deltaView.hasCoast)}
+            effect={jobLossHit && event.kind === 'jobLoss' ? <JobLossEffect hit={jobLossHit} months={event.months} annualSavings={annualSavings} lostAnnualIncome={event.lostAnnualIncome} /> : null}
+          />
         </div>
       </div>
     </div>

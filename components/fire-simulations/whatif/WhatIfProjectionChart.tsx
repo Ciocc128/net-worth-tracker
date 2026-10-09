@@ -102,7 +102,7 @@ export function WhatIfProjectionChart({
       >
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="calendarYear" tick={CHART_TICK_STYLE} tickMargin={6} />
-        <YAxis width={64} tickFormatter={(value) => formatCurrencyCompact(Number(value))} tick={CHART_TICK_STYLE} />
+        <YAxis width={80} tickFormatter={(value) => formatCurrencyCompact(Number(value))} tick={CHART_TICK_STYLE} />
         <Tooltip content={<ComparisonTooltip afterColor={afterColor} pensionUnlockCalendarYear={pensionUnlockCalendarYear} />} />
         {targetsDiffer && (
           <Line type="monotone" dataKey="targetBefore" stroke={BASELINE_STROKE} strokeWidth={1.5} strokeDasharray="8 4" name="Numero FIRE senza l'evento" dot={false} connectNulls={false} animationDuration={800} animationEasing="ease-out" />

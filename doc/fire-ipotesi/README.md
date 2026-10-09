@@ -2539,7 +2539,7 @@ verifica Runway) sono in un'unica PR.
 
 | ID | Decisione | Alternative scartate | Motivo |
 | --- | --- | --- | --- |
-| D-W1 | Il What If apre con l'**Evento in cima, prima del verdetto**, a ogni larghezza. Su desktop: Evento (4 colonne) a sinistra; a destra, in una colonna da 8, il verdetto sopra Prima e dopo (5) e Delta (3). | Evento a tutta larghezza sopra il verdetto (un modulo stretto in una riga larga). | Lo schema di prima (5·3·4) resta uguale nelle larghezze; cambia solo l'ordine di lettura. |
+| D-W1 | Il What If apre con l'**Evento in cima, prima del verdetto**, a ogni larghezza. Su desktop: Evento (4 colonne) a sinistra; a destra, in una colonna da 8, il verdetto sopra Prima e dopo (5) e Delta (3). | Evento a tutta larghezza sopra il verdetto (un modulo stretto in una riga larga). | Lo schema di prima (5·3·4) resta uguale nelle larghezze; cambia solo l'ordine di lettura. **Rivista da D-W7** (09/10/2026): il verdetto torna in cima. |
 | D-W2 | L'evento resta **preimpostato** (6 mesi senza reddito). | Scheda vuota finché non si sceglie. | Una scheda vuota non avrebbe un verdetto da dire; il verdetto nomina l'evento e la tessera Evento lo ripete. |
 | D-W3 | La **scomposizione dell'effetto** (mancati risparmi, spese dal portafoglio) passa dalla tessera Evento alla tessera **Delta**, sotto le righe. Resta solo per una perdita di lavoro di oggi. | Lasciarla nell'Evento; una tessera a sé. | È un risultato, non un input; spiega la riga «Patrimonio FIRE» del Delta. |
 | D-W4 | Il **Delta mostra solo le righe che cambiano**, nell'ordine fisso (anno, patrimonio, numero FIRE, progresso, reddito passivo; Coast). Le altre in una riga di chiusura («Invariati: numero FIRE, Coast»; Coast è una voce sola se entrambe le sue righe restano ferme). Una riga senza delta calcolabile (un lato non arriva al FIRE) **non** è «invariata» e resta. Se nulla cambia, la tessera è una frase: «L'evento non sposta nessuna cifra del piano.» | Righe sempre visibili. | Card approvata il 05/10; l'ordine fisso limita il costo del confronto a occhio. |
@@ -2900,3 +2900,56 @@ numero FIRE parte da spese annue ÷ SWR»).
 | NF2 | Numero FIRE di oggi nel What If e nel Calcolatore | lo stesso valore (test A-N4 di `__tests__/whatIfService.test.ts`, invariato) |
 | NF3 | PDF, fixture di `__tests__/pdfNarrative.test.ts` | «Spese ÷ SWR fa 789.000 € al 4,0% di prelievo: sei al 39,6%. Mancano 476.520 €. Non è il numero FIRE del Calcolatore, che conta anche tassa sui prelievi, pensioni e flussi datati.» |
 | NF4 | Nessun valore cambia | tutti i test di calcolo invariati |
+
+## 20. Collaudo guidato di FIRE e simulazioni (09/10/2026)
+
+Il proprietario ha provato le sette schede sul Mac (fixture Coast, account `test@example.com`) e lasciato le note con
+Agentation. Revisione e piano nel thread del progetto; qui le decisioni e le correzioni, nessuna formula nuova.
+
+### 20.1 Decisioni
+
+| # | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| D-W7 | **Presa** (09/10/2026, proprietario: la strada consigliata) | Il verdetto del What If torna **a tutta larghezza in cima**, sotto «Ipotesi usate» e allineato a sinistra come nelle altre schede; sotto, Evento (4) · Prima e dopo (5) · Delta (3). Rivede D-W1. | Evento a tutta larghezza sopra il verdetto (un modulo stretto in una riga larga, già scartato in D-W1); lasciare D-W1 (il titolo partiva a metà pagina, a 661 px su 1440, e si leggeva come centrato). |
+| D-W8 | **Presa** (09/10/2026, proprietario: la strada consigliata) | Lo switch «È l'abitazione principale» dell'Acquisto importante **esce**, con il campo `WhatIfEvent.isPrimaryResidence`. | Tenerlo con un testo solo informativo. Nessun calcolo lo leggeva («informational in v1»), e non può cambiare nulla: il capitale FIRE è già senza immobili (L2), quindi l'esborso pesa per intero comunque. Il sottotesto prometteva un effetto che non c'era. |
+| D-CO9 | **Presa** (09/10/2026, proprietario: la strada consigliata) | Ogni riga degli Afflussi dice la direzione **a parole**, sulla riga sotto l'importo: «in entrata · …» o «in uscita · …». Il segno resta senza colore. Sulla riga dell'importo la didascalia andava a capo a metà nelle colonne strette della rotaia. | Lasciare solo segno e icona (un'uscita si riconosceva solo leggendo il «−»); colorare il segno (contro la regola del segno senza colore). |
+
+### 20.2 Correzioni senza decisione
+
+- **Aiuti in prosa** al posto di «Vuoto = …»: Spesa del piano («Se lasci vuoto il campo, uso la spesa dell'ultimo
+  anno del Cashflow.»), Quando del What If, scaglioni IRPEF (l'etichetta è «Fino a (€ annui)» anche sull'ultimo, e una
+  riga accanto ad «Aggiungi scaglione» dice di lasciarlo vuoto se non ha un tetto), Impostazioni › Previdenza
+  («Rendimento del fondo calcolabile da»).
+- **Pensioni di «Il mio piano»** su desktop: colonne a misura del contenuto (Nome 240, Lordo 160, Mensilità 96,
+  Decorrenza 168), allineate a sinistra. Misurati prima: Nome 423 px, Lordo 325 px. «Età pensione INPS» a 160 px come
+  gli altri campi numerici del piano (era 543 px).
+- **Sensibilità** (Calcolatore): due etichette d'asse separate, «Risparmio annuo →» sopra le quattro colonne e
+  «Spese annue ↓» nell'angolo. Prima una sola riga di 9px andava a capo e le frecce non indicavano più nulla.
+- **Prima e dopo** del What If: asse Y a 80 px come il Calcolatore (a 64 «1,1 Mln €» perdeva la prima cifra).
+- **E2E del Coast** (`e2e/coast.spec.ts`): Afflussi e tooltip cercano le righe della fixture per nome, non per numero o
+  posizione. Un obiettivo «Alla scadenza lo spendo» creato durante il giro aggiungeva una riga e rompeva due test.
+
+### 20.2bis Direzioni dalla revisione UI/UX (09/10/2026)
+
+Dalla revisione «FIRE e simulazioni — revisione UI/UX e miglioramenti» (Claude Doc del progetto). Il proprietario ha
+scelto le strade consigliate; ognuna va specificata prima del codice.
+
+| # | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| D-CG1 | **Presa** (09/10/2026, proprietario: la strada consigliata) | **Capitale esaurito**: quando il cammino va sotto zero (RF6 lo consente) la pagina non stampa la cifra negativa. La tappa dice «esaurito nel {anno}», il grafico si ferma a zero con un segno sull'anno, il verdetto nomina l'uscita che lo causa. Il calcolo non cambia. | Cifra negativa con una riga che la chiama debito (un portafoglio non va in debito per un'uscita datata); lasciare com'è («ne avrai −33.749 €»). |
+| D-CG2 | **Presa** (09/10/2026, proprietario: la strada consigliata) | **FIRE fuori orizzonte**: la Sensibilità misura la quota del numero FIRE raggiunta all'età obiettivo, Dopo il FIRE parte dall'età obiettivo invece che da oggi, l'Effetto sul FIRE di un obiettivo dice di quanto sposta quella quota. | Nascondere le tessere senza risposta (la pagina diventa vuota proprio quando serve capire quanto manca); lasciare com'è (20 celle «50+ anni», «regge nello 0%» smettendo oggi). |
+| D-CG3 | **Presa** (09/10/2026, proprietario: la strada consigliata) | Gli **immobili escono dalle quote libere** degli Obiettivi, coerente con L2 (casa fuori dal capitale FIRE). | Lasciarli con una nota. |
+| D-CG4 | **Presa** (09/10/2026, proprietario: la strada consigliata) | Il Traguardo del Calcolatore **perde la vista Distribuzione**, come Dopo il FIRE (T5) e Proiezione (T6). | Tenerla (l'unica scheda con la Distribuzione rimasta). |
+
+Restano senza decisione, perché non ne serve una: la frase sulla leva che scatta senza leva (bug,
+`monteCarloNarrative.ts:157` e `:335`, `fireNarrative.ts:966`) e i ritocchi elencati al passo 1 del documento.
+
+### 20.3 Criteri di accettazione
+
+| # | Caso | Atteso |
+| --- | --- | --- |
+| CG1 | What If su desktop | il titolo del verdetto parte dal bordo sinistro del contenuto, come nel Calcolatore |
+| CG2 | What If › Acquisto importante | un solo campo, l'importo; nessuno switch |
+| CG3 | Coast con un flusso datato in uscita dopo il target | la sua riga dice «−N € in uscita · l'anno»; le pensioni «in entrata · netti reali l'anno» |
+| CG4 | Coast con un obiettivo «Alla scadenza lo spendo» | `e2e/coast.spec.ts` resta verde |
+| CG5 | `grep -rniE "vuot[ao] =" app components` | nessuna occorrenza visibile all'utente |

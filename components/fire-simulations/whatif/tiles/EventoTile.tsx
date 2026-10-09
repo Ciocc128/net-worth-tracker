@@ -27,7 +27,6 @@ import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { categoryLeafKeys, NO_SUBCATEGORY_ID } from '@/components/fire-simulations/whatif/incomeSelection';
 
@@ -47,7 +46,6 @@ const compact = (value: number) => cachedFormatCurrencyEUR(Math.round(value), tr
 export interface WhatIfEventForm {
   monthsWithoutIncome: string;
   purchaseAmount: string;
-  isPrimaryResidence: boolean;
   savingsDelta: string;
   expensesDelta: string;
   windfallAmount: string;
@@ -166,7 +164,7 @@ export function EventoTile({ reading, event, eventType, onEventTypeChange, form,
         ? `Un anno passato non vale: l'evento resta oggi, nel ${currentYear}.`
         : later
           ? "Fino ad allora il piano non cambia; gli importi sono euro di oggi, rivalutati con l'inflazione."
-          : "Vuoto = oggi. Un anno futuro sposta l'evento in avanti: il piano di prima resta com'è.";
+          : "Se lo lasci vuoto, l'evento accade quest'anno. Con un anno futuro l'evento si sposta in avanti e il piano di prima resta com'è.";
   return (
     <Tile eyebrow="Evento" aside={later ? `applicato nel ${event.calendarYear}` : "applicato oggi, all'anno 0"} reading={reading} ariaLabel="Evento simulato" className={className}>
       <div role="group" aria-label="Tipo di evento" className="mt-3.5 grid grid-cols-2 gap-2">
@@ -245,15 +243,6 @@ export function EventoTile({ reading, event, eventType, onEventTypeChange, form,
             min="0"
             hint="Esborso una tantum (anticipo casa, auto)."
           />
-          <div className="flex items-start justify-between gap-4 border-t border-border pt-3.5">
-            <div className="min-w-0">
-              <Label htmlFor="whatIfPrimaryResidence" className="text-[13px] leading-normal">
-                È l&apos;abitazione principale
-              </Label>
-              <p className="text-[11px] leading-[1.4] text-muted-foreground">Se sì, in genere è esclusa dal patrimonio FIRE: l&apos;impatto resta pieno.</p>
-            </div>
-            <Switch id="whatIfPrimaryResidence" checked={form.isPrimaryResidence} onCheckedChange={(checked) => onFormChange({ isPrimaryResidence: checked })} className="mt-0.5 shrink-0" />
-          </div>
         </div>
       )}
 
