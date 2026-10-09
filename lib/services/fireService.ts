@@ -13,6 +13,7 @@ import { getItalyMonth, getItalyMonthYear, getItalyYear } from '@/lib/utils/date
 import { realReturn } from '@/lib/utils/realReturn';
 import { resolveGainShare, resolveTaxMultiplier } from '@/lib/utils/withdrawalTax';
 import { buildFlowSchedule, flowsRequirementAdjustment, type DatedFlowsInput, type FlowSchedule } from '@/lib/utils/datedFlows';
+import { quotaAtTarget } from '@/lib/utils/fireDepletion';
 import { calculateTotalExpenses, calculateTotalIncome, getExpensesByDateRange } from './expenseService';
 import { getUserSnapshots } from './snapshotService';
 
@@ -89,6 +90,10 @@ export interface FIRESensitivityCell {
   yearsToFIRE: number | null;
   isBaseline: boolean;
   relationToBaseline: 'baseline' | 'better' | 'worse' | 'neutral';
+  /** § 21 RE7: the share of the FIRE number at the target age (ratio); present only when the matrix was asked for `targetYears`. */
+  quotaAtTarget?: number | null;
+  /** The cell reaches the FIRE within the target age («100%+»). */
+  quotaReached?: boolean;
 }
 
 interface FIRESensitivityColumn {
@@ -110,6 +115,9 @@ export interface FIRESensitivityMatrix {
   baselineAnnualExpenses: number;
   baselineAnnualSavings: number;
   baselineYearsToFIRE: number | null;
+  /** § 21 RE6–RE7: the cells read as a share of the FIRE number at `targetYears` (the plan's own cell never reaches it). */
+  byQuota?: boolean;
+  targetYears?: number;
 }
 
 export interface CoastFIREMetrics {
@@ -1959,7 +1967,10 @@ export function calculateFIRESensitivityMatrix(
   // The Calcolatore's own walk (the Sensibilità lives there since 2026-10-05): the pension bridge and the honest inputs, so the
   // baseline cell is the year the verdict names. Absent → the matrix of before, byte-identical.
   pensionBridge?: FireProjectionPensionBridge,
-  honest?: FireHonestInputs
+  honest?: FireHonestInputs,
+  // § 21 RE7: the years to the target age. Given, every cell also carries its share of the FIRE number at that age; absent →
+  // the matrix of before, byte-identical.
+  targetYears?: number
 ): FIRESensitivityMatrix {
   const baselineProjection =
     initialNetWorth > 0 && baselineAnnualExpenses > 0 && withdrawalRate > 0
@@ -1977,6 +1988,9 @@ export function calculateFIRESensitivityMatrix(
         )
       : null;
   const baselineYearsToFIRE = baselineProjection?.baseYearsToFIRE ?? null;
+  const baselineQuota = targetYears === undefined ? null : quotaAtTarget(baselineProjection, targetYears);
+  // RE6: the quota replaces the years only when the plan's own cell never reaches the FIRE and the target age is on the walk.
+  const byQuota = targetYears !== undefined && baselineYearsToFIRE === null && baselineQuota !== null;
 
   const columns = baselineAnnualSavings > 0
     ? SAVINGS_MULTIPLIERS.map((multiplier) => {
@@ -2016,8 +2030,14 @@ export function calculateFIRESensitivityMatrix(
       let relationToBaseline: FIRESensitivityCell['relationToBaseline'] = 'neutral';
       const isBaseline = multiplier === 1 && column.isBaseline;
 
+      const quota = targetYears === undefined ? null : quotaAtTarget(projection, targetYears);
       if (isBaseline) {
         relationToBaseline = 'baseline';
+      } else if (byQuota && quota !== null && baselineQuota !== null) {
+        const cellPercent = Math.floor(quota * 100 + 1e-9);
+        const basePercent = Math.floor(baselineQuota * 100 + 1e-9);
+        if (cellPercent > basePercent) relationToBaseline = 'better';
+        else if (cellPercent < basePercent) relationToBaseline = 'worse';
       } else if (baselineYearsToFIRE !== null && yearsToFIRE !== null) {
         if (yearsToFIRE < baselineYearsToFIRE) {
           relationToBaseline = 'better';
@@ -2032,6 +2052,9 @@ export function calculateFIRESensitivityMatrix(
         yearsToFIRE,
         isBaseline,
         relationToBaseline,
+        ...(targetYears !== undefined
+          ? { quotaAtTarget: quota, quotaReached: yearsToFIRE !== null && yearsToFIRE <= targetYears }
+          : {}),
       };
     });
 
@@ -2049,6 +2072,7 @@ export function calculateFIRESensitivityMatrix(
     baselineAnnualExpenses,
     baselineAnnualSavings,
     baselineYearsToFIRE,
+    ...(byQuota ? { byQuota: true, targetYears } : {}),
   };
 }
 

@@ -46,6 +46,8 @@ import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
 import { useWhatIfBaseline } from '@/lib/hooks/useWhatIfBaseline';
 import { runBaselineProjection } from '@/lib/services/whatIfService';
 import { defaultWithdrawalYears, resolveFireStart } from '@/lib/utils/fireStart';
+import { targetYearsOf } from '@/lib/utils/fireDepletion';
+import { DEFAULT_FIRE_TARGET_AGE } from '@/lib/utils/firePlan';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { portfolioCost } from '@/lib/utils/fireCosts';
 import { buildScenarioParams, runMonteCarloSimulation, type AnnualInflow } from '@/lib/services/monteCarloService';
@@ -225,14 +227,16 @@ export function MonteCarloTab() {
   const currentAge = settings?.userAge ?? null;
   const baseInflationPct = scenarios.base.inflationRate;
   // RD1–RD2: the FIRE year and the Base capital of that year; «today» with the reason when there is none (DF6).
+  // § 21 RE9: with no FIRE year within the horizon the run may start at the target age instead.
+  const targetYears = useMemo(() => targetYearsOf(settings?.coastFireRetirementAge ?? DEFAULT_FIRE_TARGET_AGE, currentAge ?? undefined), [settings?.coastFireRetirementAge, currentAge]);
   const fireStart = useMemo(() => {
     if (baselineLoading) return null;
     const { projection, yearsToFIRE } = runBaselineProjection(baseline);
-    return resolveFireStart({ projection, yearsToFIRE, hasBaseline, baseInflationRate: baseInflationPct, currentYear, currentAge });
-  }, [baselineLoading, baseline, hasBaseline, baseInflationPct, currentYear, currentAge]);
+    return resolveFireStart({ projection, yearsToFIRE, hasBaseline, baseInflationRate: baseInflationPct, currentYear, currentAge, targetYears });
+  }, [baselineLoading, baseline, hasBaseline, baseInflationPct, currentYear, currentAge, targetYears]);
   const [startChoice, setStartChoice] = useState<StartMode>('fire');
-  const startMode: StartMode = fireStart?.kind === 'fire' ? startChoice : 'today';
-  const startYears = startMode === 'fire' && fireStart?.kind === 'fire' ? fireStart.years : 0;
+  const startMode: StartMode = fireStart?.kind === 'fire' || fireStart?.kind === 'target' ? startChoice : 'today';
+  const startYears = startMode === 'fire' && (fireStart?.kind === 'fire' || fireStart?.kind === 'target') ? fireStart.years : 0;
   /** The context of a run that started `years` from today: dates, ages and the inflation its euros are deflated with (RD6). */
   const contextFor = useCallback(
     (years: number) => ({ startCalendarYear: currentYear + years, currentAge: currentAge === null ? null : currentAge + years, startYears: years, inflationRate: baseInflationPct }),
@@ -284,10 +288,10 @@ export function MonteCarloTab() {
   const buildSeedForm = useCallback((): MonteCarloForm | null => {
     if (!assumptions || !fireStart) return null;
     const weights = assumptions.weights;
-    const seedYears = fireStart.kind === 'fire' ? fireStart.years : 0;
+    const seedYears = fireStart.kind === 'fire' || fireStart.kind === 'target' ? fireStart.years : 0;
     return {
       // The first run is «Al FIRE» when the Calcolatore has a FIRE year (RD2: the Base capital of that year, today's euros).
-      initialPortfolio: formatInputAmount(fireStart.kind === 'fire' ? fireStart.capitalToday : totalNetWorth),
+      initialPortfolio: formatInputAmount(fireStart.kind === 'fire' || fireStart.kind === 'target' ? fireStart.capitalToday : totalNetWorth),
       retirementYears: String(defaultWithdrawalYears(currentAge, seedYears)),
       // RP6 (D5): the same expenses as the other tabs; the old 30.000 € stands in only while there are none anywhere.
       annualWithdrawal: String(Math.round(assumptions.expenses?.annual ?? 0) || DEFAULT_WITHDRAWAL),
@@ -321,12 +325,12 @@ export function MonteCarloTab() {
     (mode: StartMode) => {
       if (!fireStart) return;
       setStartChoice(mode);
-      const years = mode === 'fire' && fireStart.kind === 'fire' ? fireStart.years : 0;
+      const years = mode === 'fire' && (fireStart.kind === 'fire' || fireStart.kind === 'target') ? fireStart.years : 0;
       setForm((prev) =>
         prev
           ? {
               ...prev,
-              initialPortfolio: formatInputAmount(years > 0 && fireStart.kind === 'fire' ? fireStart.capitalToday : totalNetWorth),
+              initialPortfolio: formatInputAmount(years > 0 && (fireStart.kind === 'fire' || fireStart.kind === 'target') ? fireStart.capitalToday : totalNetWorth),
               retirementYears: yearsTouchedRef.current ? prev.retirementYears : String(defaultWithdrawalYears(currentAge, years)),
             }
           : prev,
@@ -360,7 +364,7 @@ export function MonteCarloTab() {
       annualInflows: statePensionInflows.length > 0 ? statePensionInflows : undefined,
       // The typed capital keeps the gain share of the capital it stands for: today's, or (RD3) the Base's at the FIRE year.
       withdrawalTax: taxProfile
-        ? { basisToday: initialPortfolio * (1 - (startYears > 0 && fireStart?.kind === 'fire' && fireStart.gainShare !== null ? fireStart.gainShare : taxProfile.gainShare)), rate: taxProfile.rate }
+        ? { basisToday: initialPortfolio * (1 - (startYears > 0 && (fireStart?.kind === 'fire' || fireStart?.kind === 'target') && fireStart.gainShare !== null ? fireStart.gainShare : taxProfile.gainShare)), rate: taxProfile.rate }
         : undefined,
       flows: datedFlows,
       ...(startYears > 0 ? { startYear: startYears } : {}),
@@ -377,7 +381,7 @@ export function MonteCarloTab() {
     [resolvedFlows],
   );
   const leverage = weightsLeverage(MONTE_CARLO_CLASSES.map((cls) => (params ? params.weights[cls] : 0)));
-  const canRun = runnable && (totalState === 'plain' || totalState === 'leveraged') && !!params && params.retirementYears >= 1 && params.retirementYears <= 60;
+  const canRun = fireStart?.kind !== 'depleted' && runnable && (totalState === 'plain' || totalState === 'leveraged') && !!params && params.retirementYears >= 1 && params.retirementYears <= 60;
 
   const currentInputs = useMemo<MonteCarloRunInputs | null>(() => (params ? { params, scenarios, inflows: pensionInflows } : null), [params, scenarios, pensionInflows]);
 
@@ -497,7 +501,7 @@ export function MonteCarloTab() {
       ? lock.unlockCalendarYear
       : null;
   const startOptions: ReadonlyArray<SegmentedPillOption<StartMode>> | null =
-    fireStart.kind === 'fire'
+    fireStart.kind === 'fire' || fireStart.kind === 'target'
       ? [
           { value: 'fire', label: START_MODE_LABELS.fire(fireStart) },
           { value: 'today', label: START_MODE_LABELS.today(fireStart) },
@@ -573,7 +577,7 @@ export function MonteCarloTab() {
               options: startOptions,
               onModeChange: onStartModeChange,
               note: describeFireStartRow(fireStart, startMode, currentYear),
-              fireCapital: fireStart.kind === 'fire' ? fireStart.capitalToday : null,
+              fireCapital: fireStart.kind === 'fire' || fireStart.kind === 'target' ? fireStart.capitalToday : null,
             }}
             flowsNote={describeSimulationFlowsRow({ count: resolvedFlows.length, excluded: excludedFlows, fireAnchored: resolvedFlows.filter((flow) => flow.anchor === 'fire').length, view: 'monteCarlo' })}
             onRun={handleRun}
