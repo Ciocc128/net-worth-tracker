@@ -2953,3 +2953,212 @@ Restano senza decisione, perché non ne serve una: la frase sulla leva che scatt
 | CG3 | Coast con un flusso datato in uscita dopo il target | la sua riga dice «−N € in uscita · l'anno»; le pensioni «in entrata · netti reali l'anno» |
 | CG4 | Coast con un obiettivo «Alla scadenza lo spendo» | `e2e/coast.spec.ts` resta verde |
 | CG5 | `grep -rniE "vuot[ao] =" app components` | nessuna occorrenza visibile all'utente |
+
+## 21. Capitale esaurito e FIRE fuori orizzonte (D-CG1, D-CG2; task CG-A)
+
+Spec breve delle due letture decise in § 20.2bis. **Nessuna formula del cammino cambia**: RF6 resta com'è (il capitale
+del cammino deterministico può andare sotto zero) e il motore Monte Carlo non si tocca. Cambia cosa la pagina legge
+dalle stesse cifre.
+
+### 21.1 Obiettivo
+
+- **D-CG1**: quando il capitale va sotto zero la pagina non stampa la cifra negativa. Dice «esaurito nel {anno}», il
+  grafico si ferma a zero con un segno sull'anno, il verdetto nomina l'uscita che lo causa.
+- **D-CG2**: quando lo scenario Base non arriva al FIRE entro l'orizzonte, le tessere che oggi non dicono nulla
+  («50+ anni» in 20 celle, «oltre 50 anni» tre volte, «regge nello 0%» smettendo oggi, «non sposta l'anno FIRE»)
+  misurano la **quota del numero FIRE raggiunta all'età obiettivo**.
+
+### 21.2 Stato di partenza (verificato nel codice, 09/10/2026)
+
+- `calculateFIREProjection` (`lib/services/fireService.ts`) restituisce `yearlyData` con `baseNetWorth`,
+  `baseFireNumber` (e Bear, Bull) in euro nominali; senza FIRE in nessuno scenario cammina 50 anni (`maxYears`).
+  Un'uscita una tantum più grande del capitale lo porta sotto zero e lo lascia lì (nessun limite a zero).
+- Coast: la tappa «Al target» stampa `CoastStage.onCourse` (`lib/utils/coastFireView.ts`, RCO2), anche negativo
+  («ne avrai −33.749 €»); il grafico è `CoastFireProjectionChart.tsx` su `CoastFIREProjectionPoint.basePortfolioValue`.
+- Calcolatore: grafico `FIREProjectionChart.tsx` (tre serie, i segni delle una tantum da `lumpMarkersOf`), Scenari da
+  `summarizeScenarios` (`lib/utils/fireSummary.ts`) e `describeScenarios` (`fireNarrative.ts`), Sensibilità da
+  `calculateFIRESensitivityMatrix` → `SensibilitaTile.tsx` (`'50+ anni'` alla riga 53).
+- What If: «Prima e dopo» (`whatif/tiles/PrimaDopoTile.tsx`) sulle due camminate.
+- Proiezione: percentili da `summarizeProjection` (`lib/utils/projectionSummary.ts`), Tappe da `describeTappe`
+  (`projectionNarrative.ts`), ventaglio `MonteCarloFanChart`; una mediana può essere negativa («mediana −4467 €»).
+- Dopo il FIRE: `resolveFireStart` (`lib/utils/fireStart.ts`) ritorna `{ kind: 'today', reason: 'never' }` quando il
+  Base non ha anno FIRE, e la simulazione parte da oggi.
+- Effetto sul FIRE: `goalFireEffect` (`lib/utils/goalFire.ts`) confronta due anni FIRE (`baseYearsToFIREWithFlows`);
+  con entrambi `null` scrive «non sposta l'anno FIRE (oltre il {anno})».
+- L'età obiettivo è `coastFireRetirementAge` (Il mio piano, `lib/utils/firePlan.ts`), l'età attuale quella del piano;
+  `yearsToTargetAge` (`lib/utils/fireTargetAge.ts`) dà `T`.
+
+### 21.3 Perimetro
+
+**Incluso**: Calcolatore (grafico, verdetto, Scenari, Sensibilità), What If (Prima e dopo), Coast (tappa, grafico,
+verdetto), Proiezione (Tappe, ventaglio, frasi), Dopo il FIRE (partenza), Obiettivi (Effetto sul FIRE).
+
+**Escluso**: qualunque modifica al cammino o al motore; il verdetto del Calcolatore fuori orizzonte (dice già
+«oltre il {anno}»); la barra di salvataggio di Il mio piano (T4 della revisione, nessuna decisione presa); D-CG3 e
+D-CG4 (task a parte); la ripresa del capitale dopo l'esaurimento (vedi RE3).
+
+### 21.4 Casi d'uso
+
+1. Il portafoglio è 18.283 €, nel 2032 c'è «Acquisto Casa» da 41.777 €: il Coast dice «Al target: servono X €,
+   esaurito nel 2032», il grafico tocca zero nel 2032 e si ferma, il verdetto nomina «Acquisto Casa».
+2. La Proiezione con la stessa uscita: le tappe con il 10° percentile e la mediana sotto zero dicono «esaurito»; le
+   bande del ventaglio non scendono sotto zero.
+3. Il FIRE Base è oltre il 2076, l'età obiettivo è tra 10 anni: la Sensibilità mostra «20%» nella cella del piano e le
+   altre celle in percentuale; gli Scenari dicono «all'età obiettivo il 20% del numero FIRE»; Dopo il FIRE parte dal
+   2036 con il capitale di allora; l'obiettivo da 50.000 € dice «all'età obiettivo avrai il 15% del numero FIRE invece
+   del 20%».
+4. Come il caso 3 senza età obiettivo salvata: le tessere restano come oggi e una riga dice «Imposta l'età obiettivo
+   in Il mio piano per vedere quanto del numero FIRE avrai a quell'età.»
+
+### 21.5 Regole di calcolo
+
+Notazione: `W_t` il capitale della serie (nominale) all'anno `t` del cammino, `N_t` il numero FIRE della stessa
+serie all'anno `t` (`baseFireNumber` per il Base), `T` gli anni all'età obiettivo, `Y₀` l'anno corrente.
+
+**RE1 — Anno di esaurimento.** Per una serie, `depletionYear = Y₀ + min{ t ≥ 1 : W_t ≤ 0 }`, `null` se non esiste o
+se il capitale di partenza è già ≤ 0 (quello è lo stato «niente capitale», non l'esaurimento). Funzione pura nuova
+`findDepletion(points, key)` in `lib/utils/fireDepletion.ts`, valida per `FIREProjectionYearData` (chiavi
+`bearNetWorth`, `baseNetWorth`, `bullNetWorth`) e per i punti del Coast (`basePortfolioValue`, ecc.).
+
+**RE2 — Causa.** Tra i flussi risolti (`ResolvedFlow`), le uscite una tantum (`kind = 'lumpOut'`) che cadono
+nell'anno di esaurimento: ancorate a un anno (`anchor = 'fixed'`, `Y₀ + start = depletionYear`). La causa è la più
+grande per `amount`; a parità, la prima della lista. Senza una tantum in quell'anno la causa è generica (nessun nome,
+vedi la frase in 21.6). Funzione pura `depletionCause(resolved, depletionYear, Y₀)` nello stesso modulo, che
+restituisce `{ label, amount } | null`.
+
+**RE3 — Il grafico si ferma.** Una serie con `depletionYear` si disegna fino a quell'anno con il valore **0**
+(non `W_t`) e dopo non ha punti (`null`, la linea finisce). Gli assi non scendono più sotto zero. Se più avanti il
+cammino tornasse sopra zero (un risparmio che ricopre il debito), il grafico non lo mostra: il cammino non è più una
+storia credibile dopo l'esaurimento. Le linee del numero FIRE restano intere.
+
+**RE4 — Percentili della Proiezione.** Ogni percentile `p ≤ 0` si legge «esaurito» (mai una cifra negativa); le
+bande e la mediana del ventaglio si disegnano con `max(0, p)`. Le probabilità sopra la soglia non cambiano.
+
+**RE5 — Quota all'età obiettivo.** Con `T` noto (età obiettivo salvata e nel futuro, `1 ≤ T ≤` gli anni del cammino):
+
+```
+Q = max(0, W_T) / N_T        // stessa serie, stesso anno: il rapporto non dipende dall'inflazione
+```
+
+Si mostra in percentuale intera **troncata** (`Math.floor(100 · Q)`), così il 99,6% non diventa «100%». Se la serie
+raggiunge il FIRE entro `T` (`yearsToFIRE ≤ T`) la quota si scrive «100%+». Funzione pura `quotaAtTarget(projection,
+T, key = 'base')` in `lib/utils/fireDepletion.ts` (`null` se `T` manca o è oltre il cammino).
+
+**RE6 — Quando scatta «fuori orizzonte».** `baseYearsToFIRE === null` (camminata del piano salvato) **e** RE5 dà
+una quota. Se `baseYearsToFIRE === null` ma la quota non c'è (nessuna età obiettivo, o età già passata), le tessere
+restano come oggi più la riga del caso d'uso 4.
+
+**RE7 — Sensibilità fuori orizzonte.** Con RE6 vero sulla cella del piano, ogni cella della matrice mostra la quota
+RE5 della propria camminata (stesso `T` per tutte) al posto di «50+ anni» o «tra N anni». Il colore «meglio /
+peggio» confronta la quota con quella del piano (più alta = meglio). `calculateFIRESensitivityMatrix` aggiunge un
+parametro opzionale `targetYears?: number` e, per ogni cella, `quotaAtTarget: number | null` (assente → matrice di
+prima, byte per byte).
+
+**RE8 — Scenari fuori orizzonte.** Una riga degli Scenari senza anno FIRE, con `T` noto, dice «all'età obiettivo il
+{Q}% del numero FIRE» con la quota della **propria** serie (Bear, Base, Bull). Una riga con l'anno resta com'è.
+
+**RE9 — Dopo il FIRE dall'età obiettivo.** `resolveFireStart` riceve `targetYears: number | null`. Con
+`yearsToFIRE === null` e `targetYears` noto e presente nel cammino, ritorna un nuovo caso
+`{ kind: 'target', years: T, calendarYear, ageAtFire: età obiettivo, capitalNominal: W_T, capitalToday, gainShare,
+quota }`, calcolati come il caso `'fire'` (RD2, RD3) all'anno `T`. Gli anni di prelievo di default sono
+`defaultWithdrawalYears(currentAge, T)`. Se `W_T ≤ 0` ritorna `{ kind: 'depleted', depletionYear }`: nessuna
+simulazione (RE1 vale anche qui).
+
+**RE10 — Effetto sul FIRE fuori orizzonte.** In `goalFireEffect`, se `yearWith` e `yearWithout` sono entrambi `null` e
+`T` è noto, l'effetto porta `quotaWith` e `quotaWithout` (RE5 sulle due camminate, scenario Base) e
+`targetCalendarYear`. Nuova funzione `baseQuotaAtTargetWithFlows(baseline, flows, T)` accanto a
+`baseYearsToFIREWithFlows` (`lib/services/whatIfService.ts`), stessa camminata. Se solo uno dei due anni è `null`, la
+frase di oggi resta (dice già «oltre il {anno}»).
+
+### 21.6 Cosa vede l'utente
+
+| Dove | Oggi | Dopo |
+| --- | --- | --- |
+| Coast › Traguardo, tappa con `onCourse ≤ 0` | «ne avrai −33.749 €» | «esaurito nel 2032» al posto di «ne avrai …»; «mancano» = l'intero richiesto. Anno da RE1 sulla serie Base del grafico Coast; se RE1 non trova l'anno, solo «esaurito». |
+| Calcolatore, What If, Coast › grafici | linee e assi sotto zero | RE3; un segno (punto a zero, colore della serie) sull'anno; tooltip di quell'anno «esaurito nel {anno}»; l'`aria-label` lo dice |
+| Verdetto del Calcolatore (Base esaurito prima dell'anno FIRE o senza anno FIRE) | nulla | prima frase dopo il titolo: «Il capitale si esaurisce nel 2032 con Acquisto Casa (41.777 €).»; senza causa RE2: «Il capitale si esaurisce nel 2032 per le uscite del piano.» |
+| Verdetto del Coast (tappa «Al target» esaurita) | «ne avrai −33.749 €» nella frase | stessa frase del Calcolatore al posto della cifra |
+| Proiezione › Tappe, Scenari, frasi | «mediana −4467 €» | «esaurito» al posto della cifra (RE4); in `describeTappe` «la mediana è esaurita», «il 10° percentile a 50 anni è esaurito» |
+| Proiezione › ventaglio | bande sotto zero | `max(0, p)` |
+| Calcolatore › Sensibilità fuori orizzonte | 20 × «50+ anni» | RE7: «20%», «31%», «100%+»; l'intestazione dice «Quota del numero FIRE all'età obiettivo ({età}, {anno})» al posto degli anni |
+| Calcolatore › Scenari fuori orizzonte | «oltre 50 anni» | RE8: «all'età obiettivo il 20% del numero FIRE» |
+| Dopo il FIRE fuori orizzonte | «Il Calcolatore non trova un anno FIRE entro il 2076: la simulazione parte da oggi» | «Il FIRE non arriva entro il 2076: la simulazione parte dall'età obiettivo ({età}, nel 2036) con il capitale che avrai allora, {X} € di oggi, il 20% del numero FIRE.»; il selettore di Parametri «Al FIRE · Oggi» diventa «All'età obiettivo · Oggi». Con RE9 `depleted`: «All'età obiettivo il capitale è esaurito (nel 2032): non c'è nulla da prelevare.» e nessuna tessera di risultato |
+| Obiettivi › Effetto sul FIRE fuori orizzonte | «non sposta l'anno FIRE (oltre il 2076)» | «Con questa spesa all'età obiettivo (2036) avrai il 15% del numero FIRE invece del 20% (scenario Base).»; quote uguali: «Questa spesa non cambia la quota del numero FIRE all'età obiettivo (20%, scenario Base).»; la variante «Se la contassi nel FIRE: …» segue lo stesso schema |
+| Tessere fuori orizzonte senza età obiettivo | come oggi | come oggi + «Imposta l'età obiettivo in Il mio piano per vedere quanto del numero FIRE avrai a quell'età.» |
+
+Le cifre restano senza colore di segno; i testi in euro con `formatCurrencyEUR`; le percentuali con la virgola
+italiana non servono (sono intere).
+
+### 21.7 Decisioni
+
+| # | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| D-CG1 | **Presa** (§ 20.2bis) | Capitale esaurito: RE1–RE4. | Vedi § 20.2bis. |
+| D-CG2 | **Presa** (§ 20.2bis) | FIRE fuori orizzonte: RE5–RE7, RE9, RE10. | Vedi § 20.2bis. |
+| D-CG5 | **Presa** (09/10/2026, proprietario: la strada consigliata) | Anche gli **Scenari** del Calcolatore leggono la quota fuori orizzonte (RE8). | Lasciare «oltre 50 anni» (la revisione li elencava nello stesso problema T3, e sarebbero l'unica tessera muta). |
+| D-CG6 | **Presa** (09/10/2026, proprietario: la strada consigliata) | La **barra di salvataggio** di Il mio piano (T4) **resta fuori** da questa spec. | Includerla (nessuna decisione presa su di essa nel § 20.2bis). |
+| D-CG7 | Scelta di spec, da confermare nella review della PR | Dopo l'esaurimento il grafico **finisce** (RE3) invece di riprendere da zero. | Ridisegnare la ripresa: richiederebbe un cammino diverso da RF6, e D-CG1 dice che il calcolo non cambia. |
+| D-CG8 | Scelta di spec, da confermare nella review della PR | Quota **troncata** all'intero, «100%+» se il FIRE arriva entro `T`. | Arrotondare (99,6% diventerebbe «100%» senza FIRE); un decimale (rumore in 20 celle). |
+| D-CG9 | Scelta di spec, da confermare nella review della PR | Senza età obiettivo le tessere fuori orizzonte restano come oggi, con una riga che manda a Il mio piano. | Usare l'ultimo anno del cammino come riferimento (una quota a 50 anni non risponde alla domanda di nessuno). |
+
+### 21.8 Criteri di accettazione (valori di riferimento verificabili)
+
+Scenari Bear = Base = Bull con rendimento 0% e inflazione 0%, SWR 4%, nessuna pensione, nessuna tassa. Valori
+verificati con `calculateFIREProjection` il 09/10/2026 (nessuno scenario arriva al FIRE: `baseYearsToFIRE = null`,
+50 righe).
+
+| # | Caso | Atteso |
+| --- | --- | --- |
+| CGA1 | Capitale 100.000 €, risparmio 10.000 €, spesa 40.000 €, `T = 10` | riga 10: `W = 200.000`, `N = 1.000.000` → quota **20%** |
+| CGA2 | CGA1 con un'uscita una tantum di 50.000 € all'anno 5 (`anchor: 'fixed'`, `start: 5`) | riga 10: `W = 150.000`, `N = 1.000.000` → **15%**; Effetto sul FIRE: «avrai il 15% del numero FIRE invece del 20%» |
+| CGA3 | Sensibilità di CGA1 (colonne ×0,75…×1,5, righe ×0,8…×1,2) | cella del piano **20%**; risparmio ×1,5 e spesa ×0,8: 250.000 / 800.000 → **31%**; risparmio ×0,75 e spesa ×1,2: 175.000 / 1.200.000 → **14%** (troncato da 14,58) |
+| CGA4 | Scenari di CGA1 | tre righe «all'età obiettivo il 20% del numero FIRE» |
+| CGA5 | Capitale 18.283 €, risparmio 0, spesa 30.000 €, «Acquisto Casa» 41.777 € all'anno 6 (Y₀ = 2026) | `W_2031 = 18.283`, `W_2032 = −23.494`: `findDepletion` → **2032**; `depletionCause` → «Acquisto Casa», 41.777 € |
+| CGA6 | CGA5 nel grafico del Calcolatore | la serie Base vale 0 nel 2032 e non ha punti dal 2033; nessun tick sotto zero; un segno sul 2032 |
+| CGA7 | CGA5 nel verdetto del Calcolatore | «Il capitale si esaurisce nel 2032 con Acquisto Casa (41.777 €).» |
+| CGA8 | CGA5 con l'uscita sostituita da un'uscita ricorrente che porta il capitale sotto zero nello stesso anno | «… nel {anno} per le uscite del piano.» |
+| CGA9 | Coast con la fixture della revisione (tappa al target negativa) | «esaurito nel 2032», nessun «−» davanti a un euro nella tessera |
+| CGA10 | Proiezione con percentili ≤ 0 (unit test su `summarizeProjection` + narrativa) | Tappe e `describeTappe` dicono «esaurito»; la serie del ventaglio non ha valori < 0 |
+| CGA11 | Dopo il FIRE con CGA1 (età 40, obiettivo 50) | `resolveFireStart` → `kind: 'target'`, `years: 10`, `calendarYear: 2036`, `capitalNominal: 200.000`, `quota: 0,2`; anni di prelievo 40 (fino a 90) |
+| CGA12 | Dopo il FIRE con CGA5 e `T = 6` | `kind: 'depleted'`, `depletionYear: 2032` |
+| CGA13 | CGA1 senza età obiettivo | tessere come oggi + la riga del caso d'uso 4 |
+| CGA14 | Un piano che arriva al FIRE e non si esaurisce | ogni tessera byte per byte come prima (`calculateFIRESensitivityMatrix` senza `targetYears` identica; test di parità esistenti verdi) |
+
+### 21.9 Task CG-A — capitale esaurito e FIRE fuori orizzonte (thread «impl», Sonnet 5.5)
+
+**Moduli**
+- Nuovo `lib/utils/fireDepletion.ts`: `findDepletion`, `depletionCause`, `quotaAtTarget`, `formatQuota`
+  («20%», «100%+»), con `__tests__/fireDepletion.test.ts` (CGA1, CGA3, CGA5, troncamento, «100%+»).
+- `lib/services/fireService.ts`: `calculateFIRESensitivityMatrix(…, targetYears?)` e `quotaAtTarget` per cella (RE7).
+- `lib/services/whatIfService.ts`: `baseQuotaAtTargetWithFlows` (RE10).
+- `lib/utils/fireStart.ts`: casi `'target'` e `'depleted'` (RE9); `lib/utils/goalFire.ts` + `goalFireNarrative` (RE10).
+- `lib/utils/fireSummary.ts` / `fireNarrative.ts`: Scenari (RE8), frase di esaurimento nel verdetto (`buildFireVerdict`).
+- `lib/utils/coastFireView.ts`: `CoastStage.depletionYear`, la tappa e `capitalClause` (21.6).
+- `lib/utils/projectionSummary.ts` / `projectionNarrative.ts`: RE4.
+- Componenti: `FIREProjectionChart.tsx`, `CoastFireProjectionChart.tsx`, `whatif/tiles/PrimaDopoTile.tsx` (RE3, una
+  funzione condivisa che taglia la serie), `whatif/tiles/SensibilitaTile.tsx` (RE7), `coast/tiles/CoastTraguardoTile.tsx`,
+  `MonteCarloTab.tsx` (RE9, etichetta del selettore), il ventaglio della Proiezione (`MonteCarloFanChart`, una prop
+  `floorAtZero` usata solo dalla Proiezione), `FireCalculatorTab.tsx` (passa `T` alla matrice e agli Scenari),
+  `GoalBasedInvestingTab.tsx` (passa `T`).
+
+**Test**: CGA1–CGA14 come unit test dove la cifra è pura; i test esistenti di `fireStart`, `goalFire`,
+`coastFireView`, `projectionNarrative`, `whatIfSummary` restano verdi senza cambiare i valori attesi dei casi dentro
+l'orizzonte.
+
+**Documentazione** (stessa PR): `doc/guide/fire.md` (RF6: la lettura dell'esaurimento; Sensibilità e Scenari fuori
+orizzonte; blind spot: «dopo l'esaurimento il grafico finisce anche se il risparmio ricoprirebbe il debito»),
+`doc/guide/fire-coast.md`, `doc/guide/fire-monte-carlo.md`, `doc/guide/fire-proiezione.md`,
+`doc/guide/fire-obiettivi.md`, `CLAUDE.md` (Latest), `Draft Release Temp.md`; in questo dossier l'esito in coda a
+§ 21.9.
+
+**Criterio di fine**: CGA1–CGA14 verdi; `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts
+__tests__`, `TZ=Europe/Rome npx vitest run`. Le spec Playwright toccate (`e2e/fire*.spec.ts`, `e2e/coast*.spec.ts`,
+`e2e/projection*.spec.ts`) si aggiornano nella PR e si eseguono in un thread sul computer del proprietario.
+
+### 21.10 Rischi
+
+- **Parità del Coast** («every euro printed is one of the projection's own numbers»): con RE3 il grafico mostra 0 e
+  non `W_t`; il test di parità va esteso a «0 o esaurito», non allentato.
+- **Matrice più lenta**: RE7 non aggiunge camminate (legge la riga `T` delle 20 già fatte).
+- **Fixture E2E**: la fixture Coast della revisione ha l'uscita più grande del portafoglio; le spec che leggono «ne
+  avrai» cambiano.
