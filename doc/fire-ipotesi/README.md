@@ -2929,6 +2929,21 @@ Agentation. Revisione e piano nel thread del progetto; qui le decisioni e le cor
 - **E2E del Coast** (`e2e/coast.spec.ts`): Afflussi e tooltip cercano le righe della fixture per nome, non per numero o
   posizione. Un obiettivo «Alla scadenza lo spendo» creato durante il giro aggiungeva una riga e rompeva due test.
 
+### 20.2bis Direzioni dalla revisione UI/UX (09/10/2026)
+
+Dalla revisione «FIRE e simulazioni — revisione UI/UX e miglioramenti» (Claude Doc del progetto). Il proprietario ha
+scelto le strade consigliate; ognuna va specificata prima del codice.
+
+| # | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| D-CG1 | **Presa** (09/10/2026, proprietario: la strada consigliata) | **Capitale esaurito**: quando il cammino va sotto zero (RF6 lo consente) la pagina non stampa la cifra negativa. La tappa dice «esaurito nel {anno}», il grafico si ferma a zero con un segno sull'anno, il verdetto nomina l'uscita che lo causa. Il calcolo non cambia. | Cifra negativa con una riga che la chiama debito (un portafoglio non va in debito per un'uscita datata); lasciare com'è («ne avrai −33.749 €»). |
+| D-CG2 | **Presa** (09/10/2026, proprietario: la strada consigliata) | **FIRE fuori orizzonte**: la Sensibilità misura la quota del numero FIRE raggiunta all'età obiettivo, Dopo il FIRE parte dall'età obiettivo invece che da oggi, l'Effetto sul FIRE di un obiettivo dice di quanto sposta quella quota. | Nascondere le tessere senza risposta (la pagina diventa vuota proprio quando serve capire quanto manca); lasciare com'è (20 celle «50+ anni», «regge nello 0%» smettendo oggi). |
+| D-CG3 | **Presa** (09/10/2026, proprietario: la strada consigliata) | Gli **immobili escono dalle quote libere** degli Obiettivi, coerente con L2 (casa fuori dal capitale FIRE). | Lasciarli con una nota. |
+| D-CG4 | **Presa** (09/10/2026, proprietario: la strada consigliata) | Il Traguardo del Calcolatore **perde la vista Distribuzione**, come Dopo il FIRE (T5) e Proiezione (T6). | Tenerla (l'unica scheda con la Distribuzione rimasta). |
+
+Restano senza decisione, perché non ne serve una: la frase sulla leva che scatta senza leva (bug,
+`monteCarloNarrative.ts:157` e `:335`, `fireNarrative.ts:966`) e i ritocchi elencati al passo 1 del documento.
+
 ### 20.3 Criteri di accettazione
 
 | # | Caso | Atteso |
