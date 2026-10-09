@@ -80,25 +80,33 @@ test('the Afflussi tile lists both state pensions and the fund unlock, in calend
   const tile = page.getByRole('region', { name: 'Afflussi già considerati' });
   await expect(tile).toBeVisible();
   const items = tile.getByRole('listitem');
-  await expect(items).toHaveCount(3);
 
-  // Every event the backward walk discounts is named — the fund unlock included.
-  await expect(tile.getByText('Sblocco fondo pensione', { exact: true })).toBeVisible();
-  await expect(tile.getByText('Pensione estera', { exact: true })).toBeVisible();
-  await expect(tile.getByText('Pensione INPS', { exact: true })).toBeVisible();
+  // The fixture's three rows, found by NAME: a goal «Alla scadenza lo spendo» or a dated flow on the account adds
+  // its own row (the emulator is shared with the tours — collaudo 2026-10-09), so neither the count nor the first
+  // position is the fixture's.
+  const yearOf = async (title: string) => {
+    const row = items.filter({ has: page.getByText(title, { exact: true }) });
+    await expect(row).toHaveCount(1);
+    return Number((await row.locator('span.font-mono').first().textContent())?.trim());
+  };
+  const fund = await yearOf('Sblocco fondo pensione');
+  const foreign = await yearOf('Pensione estera');
+  const inps = await yearOf('Pensione INPS');
+  // The fixture's fund unlock (2048) precedes both pensions (2052, 2058).
+  expect(fund).toBeGreaterThan(2020);
+  expect(fund).toBeLessThan(foreign);
+  expect(foreign).toBeLessThan(inps);
 
-  // Years read left to right in ascending order, and each row carries its own amount.
+  // Every row, whatever its source: years read left to right in ascending order, and each row carries its own
+  // amount (a dated flow's is signed) and says in words which way the money goes (D-CO3).
   const years = await items.evaluateAll((nodes) => nodes.map((node) => Number(node.querySelector('span.font-mono')?.textContent?.trim())));
-  expect(years).toHaveLength(3);
   expect(years.every((year) => Number.isFinite(year) && year > 2020)).toBe(true);
   expect([...years].sort((a, b) => a - b)).toEqual(years);
-  // The fixture's fund unlock (2048) precedes both pensions (2052, 2058).
-  expect(years[0]).toBeLessThan(years[1]);
 
   const amounts = await items.evaluateAll((nodes) => nodes.map((node) => node.querySelector('p.font-mono')?.textContent?.trim() ?? ''));
   amounts.forEach((amount) => {
     // The amount is followed by its caption inside the same <p>, so match a prefix.
-    expect(amount).toMatch(/^(\d{1,3}(\.\d{3})+|\d{1,4})[\s ]*€/);
+    expect(amount).toMatch(/^[+−]?(\d{1,3}(\.\d{3})+|\d{1,4})[\s ]*€\s+in (entrata|uscita) · /);
   });
 });
 
@@ -204,8 +212,15 @@ test('the projection tooltip names the pension-fund step at the unlock year', as
   const box = await chart.boundingBox();
   expect(box).not.toBeNull();
 
+  // The unlock row by name, not the first row: a goal or a dated flow on the account can come before it.
   const unlockYear = Number(
-    await page.getByRole('region', { name: 'Afflussi già considerati' }).getByRole('listitem').first().locator('span.font-mono').textContent(),
+    await page
+      .getByRole('region', { name: 'Afflussi già considerati' })
+      .getByRole('listitem')
+      .filter({ has: page.getByText('Sblocco fondo pensione', { exact: true }) })
+      .locator('span.font-mono')
+      .first()
+      .textContent(),
   );
 
   // Sweep the plot area until the hovered year is the unlock year, then read the note.

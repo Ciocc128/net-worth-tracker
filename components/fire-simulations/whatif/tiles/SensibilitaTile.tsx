@@ -83,12 +83,19 @@ export function SensibilitaTile({ reading, aside, baselineInput, onBaselineInput
           <div className="mt-3.5 hidden overflow-x-auto desktop:block">
             <table className="w-full border-collapse">
               <thead>
+                {/* Two axes, two labels (collaudo 2026-10-09): one line in the corner wrapped and lost which arrow was whose.
+                    The savings axis spans its columns; the expenses axis heads the row labels, at their foot. */}
                 <tr>
-                  <th scope="col" className={cn(TILE_SUB_EYEBROW_CLASS, 'w-[180px] pb-2 pr-2 text-left font-semibold')}>
-                    Spese annue ↓ · risparmio annuo →
+                  <th rowSpan={2} scope="col" className={cn(TILE_SUB_EYEBROW_CLASS, 'w-[180px] pb-2 pr-2 text-left align-bottom font-semibold')}>
+                    Spese annue ↓
                   </th>
+                  <th colSpan={matrix.columns.length} scope="colgroup" className={cn(TILE_SUB_EYEBROW_CLASS, 'border-b border-border px-2 pb-1.5 text-center font-semibold')}>
+                    Risparmio annuo →
+                  </th>
+                </tr>
+                <tr>
                   {matrix.columns.map((column) => (
-                    <th key={column.label} scope="col" className="px-2 pb-2 text-center">
+                    <th key={column.label} scope="col" className="px-2 pb-2 pt-2 text-center">
                       <span className={cn(TILE_SUB_EYEBROW_CLASS, 'block', column.isBaseline && 'text-foreground')}>{column.label}</span>
                       <span className="block font-mono text-[11px] font-normal tabular-nums text-muted-foreground">{compact(column.annualSavings)}</span>
                     </th>

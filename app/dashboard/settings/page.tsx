@@ -2276,7 +2276,7 @@ export default function SettingsPage() {
                           Rendimento del fondo calcolabile da
                         </Label>
                         <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
-                          Vuoto = dal primo versamento registrato
+                          Se lo lasci vuoto, il rendimento parte dal primo versamento registrato.
                         </p>
                       </div>
                       <Input

@@ -45,7 +45,6 @@ export interface WhatIfScenario {
 
   // majorPurchase / windfall — positive magnitude of the one-off cash movement
   lumpSumAmount?: number;
-  isPrimaryResidence?: boolean; // majorPurchase only; informational in v1
 
   // cashflowChange — ongoing deltas applied from now onward (negative = reduction)
   annualSavingsDelta?: number;

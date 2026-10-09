@@ -67,8 +67,12 @@ export function AfflussiTile({ reading, events, footer, method, className }: Aff
                   <Icon className="mt-[3px] h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                   <div className="min-w-0">
                     <p className="text-[13px] font-medium text-foreground">{event.title}</p>
+                    {/* D-CO3: the direction in words, beside the amount — the sign alone did not tell a reader an out from an in, and the sign wears no colour. */}
                     <p className="mt-1 font-mono text-[13px] font-semibold tabular-nums text-foreground">
-                      {event.amount} <span className="font-sans text-[11px] font-normal text-muted-foreground">{event.amountCaption}</span>
+                      {event.amount}{' '}
+                      <span className="font-sans text-[11px] font-normal text-muted-foreground">
+                        {event.sign > 0 ? 'in entrata' : 'in uscita'} · {event.amountCaption}
+                      </span>
                     </p>
                     {event.note && <p className="mt-0.5 text-[11px] text-muted-foreground">{event.note}</p>}
                   </div>
