@@ -62,9 +62,9 @@ export function describeFlowRow(flow: DatedFlow, mortgage?: MortgageFlowSchedule
   return `${flow.label} · ${KIND_SHORT[flow.kind]} · ${amount} · ${describeStart(flow)}${duration}${inside}`;
 }
 
-/** «Pensione INPS · dal 2058 · si modifica in Il mio piano»: the pensions are shown, never edited here (D-F4). */
+/** «Pensione INPS · dal 2058 · si modifica in Pensioni, qui sotto»: the pensions are shown, never edited here (D-F4). */
 export function describePensionFlowRow(label: string, startYear: number | null): string {
-  return `${label} · ${startYear === null ? 'data da stimare' : `dal ${startYear}`} · si modifica in Il mio piano`;
+  return `${label} · ${startYear === null ? 'data da stimare' : `dal ${startYear}`} · si modifica in Pensioni, qui sotto`;
 }
 
 /**

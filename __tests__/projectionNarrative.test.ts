@@ -148,7 +148,7 @@ describe('T6 — the threshold in words', () => {
     expect(PROJECTION_THRESHOLD_HINT_FIRE).toContain('non segue il capitale e il versamento');
     expect(PROJECTION_THRESHOLD_HINT_FIXED).toBe('una cifra fissa in euro di oggi');
     expect(PROJECTION_THRESHOLD_HINT_EMPTY).toContain('scrivi una soglia');
-    expect(describeFireThresholdPlaceholder(606_961).replace(/\s/g, " ")).toBe('oggi 606.961 €, poi anno per anno');
+    expect(describeFireThresholdPlaceholder(606_961).replace(/\s/g, " ")).toBe('oggi 606.961 €');
   });
 });
 

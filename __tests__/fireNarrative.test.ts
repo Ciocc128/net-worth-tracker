@@ -668,7 +668,8 @@ describe('describePersonalSwr (E1)', () => {
     );
   });
   it('says leverage ruin when no rate reaches 90%', () => {
-    expect(plain(describePersonalSwr({ rate: null, horizonYears: 30 }))).toContain('nessun prelievo arriva al 90%');
+    expect(plain(describePersonalSwr({ rate: null, horizonYears: 30 }, 1.5))).toContain('la leva azzera il capitale da sola');
+    expect(plain(describePersonalSwr({ rate: null, horizonYears: 30 }))).not.toContain('leva');
   });
 });
 

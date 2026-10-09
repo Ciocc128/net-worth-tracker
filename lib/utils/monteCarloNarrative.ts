@@ -79,7 +79,7 @@ export interface MonteCarloVerdictInput {
   /** With leverage above 1: the Base run again without it, on the same shocks (D11); null otherwise. */
   unleveragedSuccessRate?: number | null;
   /** S1: the Base 90% sustainable withdrawal of the last run and the withdrawal that run was typed with; null = not computed. */
-  sustainable?: { base90: SustainableWithdrawal; capital: number; typedWithdrawal: number } | null;
+  sustainable?: { base90: SustainableWithdrawal; capital: number; typedWithdrawal: number; leverage?: number; datedOutflows?: number } | null;
   /** T5: where the withdrawals start and with what capital (today's euros); absent/null = the sentence of before, without the start. */
   start?: MonteCarloVerdictStart | null;
 }
@@ -145,6 +145,26 @@ function outcomesClause(run: MonteCarloRun): Narrative {
 }
 
 /**
+ * Why no withdrawal reaches the probability (null from the solver), in the order the reader can act on:
+ * leverage above 100% (the leverage alone ruins more than 1 − p), dated outflows larger than the capital,
+ * or a capital too small for the plan. Three causes, three sentences — never «la leva» without leverage.
+ */
+export type NoWithdrawalCause = 'leverage' | 'flows' | 'capital';
+
+export function classifyNoWithdrawal(input: { leverage?: number; capital?: number; datedOutflows?: number }): NoWithdrawalCause {
+  if ((input.leverage ?? 1) > 1.0005) return 'leverage';
+  if ((input.datedOutflows ?? 0) > (input.capital ?? Infinity)) return 'flows';
+  return 'capital';
+}
+
+/** The reason clause, after «nessun prelievo arriva al {p}%»: «perché …». */
+function noWithdrawalReason(cause: NoWithdrawalCause, share: string): string {
+  if (cause === 'leverage') return `in più di una simulazione su ${share} la leva azzera il capitale da sola`;
+  if (cause === 'flows') return "le uscite datate del piano superano da sole il capitale";
+  return "il capitale è troppo piccolo per reggere il piano";
+}
+
+/**
  * S1, three forms and no tone (a proposal, not a judgement): the withdrawal that keeps the plan at 90%.
  *  ≤ W90 → « Per restare al 90% potresti prelevare fino a 43.300 € l'anno di oggi (3.608 € al mese), il 4,3% del capitale.»
  *  > W90 → « Per tornare al 90% il prelievo dovrebbe scendere a 43.300 € l'anno di oggi (il 4,3% del capitale).»
@@ -154,7 +174,8 @@ function sustainableSentence(input: MonteCarloVerdictInput['sustainable']): Narr
   if (!input) return [];
   const { base90, typedWithdrawal } = input;
   if (base90.withdrawal === null || base90.rate === null) {
-    return [prose(' Con questa leva nessun prelievo arriva al 90%: in più di una simulazione su dieci la leva azzera il capitale da sola.')];
+    const cause = classifyNoWithdrawal({ leverage: input.leverage, capital: input.capital, datedOutflows: input.datedOutflows });
+    return [prose(` Nessun prelievo arriva al 90%: ${noWithdrawalReason(cause, 'dieci')}.`)];
   }
   if (base90.withdrawal === 0) {
     return [prose(' Nemmeno un prelievo di '), amount(100), prose(" l'anno di oggi arriva al 90%.")];
@@ -328,11 +349,12 @@ export function scenarioLabel(key: ScenarioRunSummary['key']): string {
 export const SPESA_ASIDE = "euro di oggi, l'anno";
 
 /** «In 9 simulazioni su 10 il capitale regge 30 anni prelevando fino a 43.300 € l'anno di oggi; nel bear 33.700 €.» */
-export function describeSpesaSostenibile(summary: SustainableSpendingSummary, horizonYears: number): Narrative {
+export function describeSpesaSostenibile(summary: SustainableSpendingSummary, horizonYears: number, context: { leverage?: number; datedOutflows?: number } = {}): Narrative {
   const row = summary.rows.find((candidate) => candidate.probability === 0.9);
   if (!row) return [];
   if (row.base.withdrawal === null) {
-    return [prose('Con questa leva nessun prelievo fa reggere il piano in 9 simulazioni su 10: la leva azzera il capitale da sola.')];
+    const cause = classifyNoWithdrawal({ ...context, capital: summary.capital });
+    return [prose(`Nessun prelievo fa reggere il piano in 9 simulazioni su 10: ${noWithdrawalReason(cause, 'dieci')}.`)];
   }
   const bear: Narrative = row.bear.withdrawal === null ? [prose("nel bear nessun prelievo basta")] : [prose("nel bear "), amount(row.bear.withdrawal)];
   return [

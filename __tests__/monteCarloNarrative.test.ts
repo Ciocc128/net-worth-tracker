@@ -39,6 +39,7 @@ import {
   describeScenari,
   describeScenarioNote,
   describeSpesaSostenibile,
+  classifyNoWithdrawal,
   describeSpesaCell,
   describeSpesaHeroAside,
   describeTraiettorie,
@@ -336,7 +337,17 @@ describe('the verdict’s sustainable-spending sentence', () => {
     expect(verdictWith(cell(43_300), 50_000)).toContain("Per tornare al 90% il prelievo dovrebbe scendere a 43.300 € l'anno di oggi (il 4,3% del capitale).");
   });
   it('null: no withdrawal reaches 90% — the leverage ruins the capital alone', () => {
-    expect(verdictWith(cell(null), 30_000)).toContain('Con questa leva nessun prelievo arriva al 90%: in più di una simulazione su dieci la leva azzera il capitale da sola.');
+    // Without leverage or flows the cause is the capital: the sentence never blames a leverage that is not there.
+    expect(verdictWith(cell(null), 30_000)).toContain('Nessun prelievo arriva al 90%: il capitale è troppo piccolo per reggere il piano.');
+    expect(verdictWith(cell(null), 30_000)).not.toContain('leva');
+  });
+  it('no withdrawal reaches 90%: three causes, three sentences', () => {
+    const verdict = (extra: { leverage?: number; datedOutflows?: number }) =>
+      plain(buildMonteCarloVerdict({ runnable: true, run: makeRun(), scenarios: null, lock: INACTIVE_LOCK, sustainable: { base90: cell(null), capital: 1_000_000, typedWithdrawal: 30_000, ...extra } }).sentence);
+    expect(verdict({ leverage: 1.5 })).toContain('la leva azzera il capitale da sola');
+    expect(verdict({ leverage: 1, datedOutflows: 2_000_000 })).toContain('le uscite datate del piano superano da sole il capitale');
+    expect(verdict({ leverage: 1, datedOutflows: 10_000 })).toContain('il capitale è troppo piccolo');
+    expect(classifyNoWithdrawal({ leverage: 1.5, datedOutflows: 9e9, capital: 1 })).toBe('leverage');
   });
   it('a zero figure says so instead of «fino a 0 €»', () => {
     const text = verdictWith({ withdrawal: 0, successRate: 0.9, rate: 0 }, 30_000);
@@ -359,8 +370,10 @@ describe('the Spesa sostenibile tile’s words', () => {
   it('a bear cell with no withdrawal says it', () => {
     expect(plain(describeSpesaSostenibile(makeSummary(43_300, null), 30))).toContain("nel bear nessun prelievo basta");
   });
-  it('a Base cell with no withdrawal reads the leverage', () => {
-    expect(plain(describeSpesaSostenibile(makeSummary(null), 30))).toContain('la leva azzera il capitale da sola');
+  it('a Base cell with no withdrawal names its cause', () => {
+    expect(plain(describeSpesaSostenibile(makeSummary(null), 30, { leverage: 1.5 }))).toContain('la leva azzera il capitale da sola');
+    expect(plain(describeSpesaSostenibile(makeSummary(null), 30, { datedOutflows: 5_000_000 }))).toContain('le uscite datate');
+    expect(plain(describeSpesaSostenibile(makeSummary(null), 30))).toContain('il capitale è troppo piccolo');
   });
   it('the cells and the hero aside', () => {
     expect(describeSpesaCell(cell(43_300)).replace(/\u00a0/g, ' ')).toBe('43.300 €');
