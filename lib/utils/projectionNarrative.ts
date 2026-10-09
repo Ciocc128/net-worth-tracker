@@ -19,6 +19,9 @@ import type { ProjectionFigures, ProjectionSummary, ScenarioKey } from '@/lib/ut
 const prose = (text: string): NarrativeSegment => ({ text });
 const figure = (text: string): NarrativeSegment => ({ text, mono: true });
 const amount = (value: number): NarrativeSegment => figure(cachedFormatCurrencyEUR(Math.round(Math.abs(value)), true));
+/** § 21 RE4: a percentile at or under zero reads «esaurito», never a negative (or an unsigned) figure. */
+const isDepleted = (value: number): boolean => Math.round(value) <= 0;
+const capital = (value: number): NarrativeSegment => (isDepleted(value) ? figure('esaurito') : amount(value));
 const count = (value: number): NarrativeSegment => figure(value.toLocaleString('it-IT'));
 
 /** «45%» / «45,2%»: one decimal, or none when it is zero. */
@@ -99,17 +102,15 @@ export function buildProjectionVerdict(input: ProjectionVerdictInput): PageVerdi
   const when: Narrative = [prose('Tra '), figure(years(summary.horizon)), prose(summary.endAge !== null ? ` (a ${summary.endAge} anni, nel ` : ' (nel '), figure(String(summary.endCalendarYear)), prose(')')];
 
   return {
-    headline: `Tra ${years(summary.horizon)}, ${cachedFormatCurrencyEUR(Math.round(base.p50), true)} di oggi in mediana.`,
+    headline: isDepleted(base.p50) ? `Tra ${years(summary.horizon)}, il portafoglio è esaurito in mediana.` : `Tra ${years(summary.horizon)}, ${cachedFormatCurrencyEUR(Math.round(base.p50), true)} di oggi in mediana.`,
     tone,
     sentence: [
       ...when,
-      prose(' il portafoglio vale '),
-      amount(base.p50),
-      prose(' di oggi in mediana; più di '),
-      amount(base.p10),
-      prose(' in nove simulazioni su dieci, più di '),
-      amount(base.p90),
-      prose(' in una su dieci.'),
+      ...(isDepleted(base.p50) ? [prose(' il portafoglio è '), capital(base.p50), prose(' in mediana; ')] : [prose(' il portafoglio vale '), amount(base.p50), prose(' di oggi in mediana; ')]),
+      ...(isDepleted(base.p10) ? [prose('in nove simulazioni su dieci è '), capital(base.p10)] : [prose('più di '), amount(base.p10), prose(' in nove simulazioni su dieci')]),
+      prose(', '),
+      ...(isDepleted(base.p90) ? [prose('in una su dieci è '), capital(base.p90)] : [prose('più di '), amount(base.p90), prose(' in una su dieci')]),
+      prose('.'),
       ...thresholdSentence(summary, input.thresholdIsFireNumber),
       ...leverageSentence(summary, input.leverage),
     ],
@@ -127,7 +128,7 @@ export function describeVentaglio(summary: ProjectionSummary, startValue: number
     prose('La mediana passa da '),
     amount(startValue),
     prose(' a '),
-    amount(base.p50),
+    capital(base.p50),
     prose(' nel '),
     figure(String(summary.endCalendarYear)),
     prose('; metà delle simulazioni sta tra '),
@@ -161,7 +162,7 @@ export const PROJECTION_SCENARI_ASIDE = 'stesso piano, mercati diversi';
 export function describeProjectionScenari(summary: ProjectionSummary): Narrative {
   const bear = summary.scenarios.bear.atHorizon.p50;
   const bull = summary.scenarios.bull.atHorizon.p50;
-  const out: Narrative = [prose('Mediana '), prose('bear '), amount(bear), prose(', base '), amount(summary.scenarios.base.atHorizon.p50), prose(', bull '), amount(bull)];
+  const out: Narrative = [prose('Mediana '), prose('bear '), capital(bear), prose(', base '), capital(summary.scenarios.base.atHorizon.p50), prose(', bull '), capital(bull)];
   if (bear > 0) out.push(prose(': '), figure(`${(bull / bear).toLocaleString('it-IT', { maximumFractionDigits: 1 })}×`), prose(' tra bear e bull.'));
   else out.push(prose('.'));
   return out;
@@ -193,8 +194,24 @@ export function describeTappe(rows: ProjectionFigures[]): Narrative {
   if (rows.length === 0) return [];
   const first = rows[0];
   const last = rows[rows.length - 1];
-  if (first === last) return [prose('Tra '), figure(years(last.year)), prose(' la mediana è '), amount(last.p50), prose('.')];
-  return [prose('Tra '), figure(years(first.year)), prose(' la mediana è '), amount(first.p50), prose(', tra '), figure(years(last.year)), prose(' '), amount(last.p50), prose('; il 10° percentile a '), figure(years(last.year)), prose(' è '), amount(last.p10), prose('.')];
+  // § 21 RE4: «la mediana è esaurita» / «il 10° percentile a 50 anni è esaurito».
+  const median = (row: ProjectionFigures): Narrative => (isDepleted(row.p50) ? [prose('la mediana è '), figure('esaurita')] : [prose('la mediana è '), amount(row.p50)]);
+  if (first === last) return [prose('Tra '), figure(years(last.year)), prose(' '), ...median(last), prose('.')];
+  return [
+    prose('Tra '),
+    figure(years(first.year)),
+    prose(' '),
+    ...median(first),
+    prose(', tra '),
+    figure(years(last.year)),
+    prose(' '),
+    isDepleted(last.p50) ? figure('esaurita') : amount(last.p50),
+    prose('; il 10° percentile a '),
+    figure(years(last.year)),
+    prose(' è '),
+    capital(last.p10),
+    prose('.'),
+  ];
 }
 
 /** `threshold`: 'fire' says the row's own figure sits under each percentage; 'fixed' says the one figure for all rows. */

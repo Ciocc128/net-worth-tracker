@@ -13,6 +13,7 @@
  * so the step never reads as a data glitch. Vertical reference lines mark the two FIRE years.
  */
 
+import { clipDepletedSeries } from '@/lib/utils/fireDepletion';
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { WhatIfComparisonPoint } from '@/lib/utils/whatIfSummary';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
@@ -40,17 +41,18 @@ interface ComparisonTooltipProps {
   label?: string | number;
   afterColor: string;
   pensionUnlockCalendarYear: number | null;
+  depletion?: { before: number | null; after: number | null };
 }
 
 /** Module-level custom tooltip: both capitals and both targets of the hovered year. */
-function ComparisonTooltip({ active, payload, label, afterColor, pensionUnlockCalendarYear }: ComparisonTooltipProps) {
+function ComparisonTooltip({ active, payload, label, afterColor, pensionUnlockCalendarYear, depletion }: ComparisonTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
   const row = payload[0]?.payload;
   if (!row) return null;
 
   const rows = [
-    { name: 'Piano di oggi', value: row.before, target: row.targetBefore, color: BASELINE_STROKE },
-    { name: "Dopo l'evento", value: row.after, target: row.targetAfter, color: afterColor },
+    { name: 'Piano di oggi', value: row.before, target: row.targetBefore, color: BASELINE_STROKE, depletedIn: depletion?.before ?? null },
+    { name: "Dopo l'evento", value: row.after, target: row.targetAfter, color: afterColor, depletedIn: depletion?.after ?? null },
   ];
 
   return (
@@ -64,7 +66,7 @@ function ComparisonTooltip({ active, payload, label, afterColor, pensionUnlockCa
           <div key={entry.name} className="flex items-baseline gap-2 text-xs">
             <span className="h-2 w-2 shrink-0 self-center rounded-[2px]" style={{ background: entry.color }} />
             <span className="text-muted-foreground">{entry.name}</span>
-            <span className="ml-auto font-mono font-medium tabular-nums text-foreground">{entry.value === null ? '—' : formatCurrency(entry.value)}</span>
+            <span className="ml-auto font-mono font-medium tabular-nums text-foreground">{entry.depletedIn !== null && (entry.value === null || row.calendarYear === entry.depletedIn) ? `esaurito nel ${entry.depletedIn}` : entry.value === null ? '—' : formatCurrency(entry.value)}</span>
             {entry.target !== null && <span className="font-mono text-[11px] tabular-nums text-muted-foreground">target {formatCurrency(entry.target)}</span>}
           </div>
         ))}
@@ -82,6 +84,9 @@ export function WhatIfProjectionChart({
   pensionUnlockCalendarYear = null,
 }: WhatIfProjectionChartProps) {
   const afterColor = SCENARIO_COLOR.base;
+  // § 21 RE3: a walk that runs out stops at zero in that year and has no points after it.
+  const clipped = clipDepletedSeries(series, ['before', 'after'] as const);
+  const anyDepletion = clipped.depletion.before !== null || clipped.depletion.after !== null;
 
   if (series.length === 0) {
     return <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">Nessun dato di proiezione disponibile.</div>;
@@ -90,20 +95,20 @@ export function WhatIfProjectionChart({
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart
-        data={series}
+        data={clipped.rows}
         margin={{ left: 0, right: 8, bottom: 4 }}
         role="img"
         aria-label={`Grafico prima e dopo: il patrimonio del piano di oggi (linea grigia) e dopo l'evento (linea colorata) nello scenario base, con la linea tratteggiata del numero FIRE${
           targetsDiffer ? ' di entrambi i piani' : ''
-        }; il FIRE di oggi ${calendarBefore !== null ? `nel ${calendarBefore}` : 'non arriva entro la proiezione'}, dopo l'evento ${
+        }${anyDepletion ? '; il capitale si esaurisce e la linea si ferma a zero' : ''}; il FIRE di oggi ${calendarBefore !== null ? `nel ${calendarBefore}` : 'non arriva entro la proiezione'}, dopo l'evento ${
           calendarAfter !== null ? `nel ${calendarAfter}` : 'non arriva entro la proiezione'
         }`}
         accessibilityLayer={false}
       >
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="calendarYear" tick={CHART_TICK_STYLE} tickMargin={6} />
-        <YAxis width={80} domain={[(dataMin: number) => (dataMin >= 0 ? 0 : dataMin), "auto"]} tickFormatter={(value) => formatCurrencyCompact(Number(value))} tick={CHART_TICK_STYLE} />
-        <Tooltip content={<ComparisonTooltip afterColor={afterColor} pensionUnlockCalendarYear={pensionUnlockCalendarYear} />} />
+        <YAxis width={80} domain={[(dataMin: number) => (dataMin >= 0 || anyDepletion ? 0 : dataMin), "auto"]} allowDataOverflow={anyDepletion} tickFormatter={(value) => formatCurrencyCompact(Number(value))} tick={CHART_TICK_STYLE} />
+        <Tooltip content={<ComparisonTooltip afterColor={afterColor} pensionUnlockCalendarYear={pensionUnlockCalendarYear} depletion={clipped.depletion} />} />
         {targetsDiffer && (
           <Line type="monotone" dataKey="targetBefore" stroke={BASELINE_STROKE} strokeWidth={1.5} strokeDasharray="8 4" name="Numero FIRE senza l'evento" dot={false} connectNulls={false} animationDuration={800} animationEasing="ease-out" />
         )}

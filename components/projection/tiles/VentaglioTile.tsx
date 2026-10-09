@@ -31,7 +31,7 @@ function Kpi({ label, value, hero = false }: { label: string; value: number; her
     <div className="flex min-w-0 flex-col gap-1.5">
       <p className={TILE_SUB_EYEBROW_CLASS}>{label}</p>
       <span className={hero ? 'font-mono text-[28px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground desktop:text-[34px]' : 'font-mono text-[16px] font-semibold leading-none tabular-nums text-foreground desktop:text-[18px]'}>
-        {cachedFormatCurrencyEUR(value, true)}
+        {Math.round(value) <= 0 ? 'esaurito' : cachedFormatCurrencyEUR(value, true)}
       </span>
     </div>
   );

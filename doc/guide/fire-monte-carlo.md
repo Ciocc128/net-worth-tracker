@@ -145,6 +145,13 @@
   `#mc-*` ids, the disclosure by `/^Dettaglio/`. The figures are random draws: a spec asserts structure, format and the stale flag's round trip
   (edit → warning footer → Esegui → «Ultima esecuzione con questi parametri»), never a rate.
 
+## CG-A — «Dopo il FIRE» from the target age (2026-10-09, doc/fire-ipotesi/README.md § 21, RE9)
+- With no FIRE year in the horizon, `resolveFireStart` (`targetYears` input) returns `kind: 'target'` (years = the years to the target age, the
+  Base capital of that year, `quota` = its share of the FIRE number): the run starts there, the selector reads «All'età obiettivo · Oggi»
+  and the row says «Il FIRE non arriva entro il {anno}: la simulazione parte dall'età obiettivo …». If the capital is gone by then it
+  returns `kind: 'depleted'`: the row says «All'età obiettivo il capitale è esaurito (nel {anno}): non c'è nulla da prelevare.» and
+  «Prova» is disabled (`canRun`). The engine is untouched.
+
 ## Per-page blind spots
 
 - **FIRE › Monte Carlo, dated flows (F2, 2026-10-04, doc/guide/fire.md § F2)**: the plan reads the SAVED flows as «if I stop today» — a flow anchored to the FIRE opens in year 1 + its delay, so a flow typed «dal FIRE» in the Calcolatore does not wait for the Base's FIRE year here; the flows are the same in every path; the typed withdrawal replaces the plan's expenses in RF4, so a flow already in the Cashflow that the plan's expenses contain is taken out of the need (as in the Calcolatore); the personal SWR (Calcolatore) stays pure, without flows or pensions.

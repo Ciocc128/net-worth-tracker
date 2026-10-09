@@ -28,6 +28,7 @@ import { formatCurrencyCompact } from '@/lib/services/chartService';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
+import { clipDepletedSeries } from '@/lib/utils/fireDepletion';
 import { SeriesLegend } from '@/components/ui/series-legend';
 import {
   LineChart,
@@ -38,6 +39,7 @@ import {
   Tooltip,
   ReferenceLine,
   ResponsiveContainer,
+  ReferenceDot,
 } from 'recharts';
 
 interface FIREProjectionChartProps {
@@ -62,13 +64,20 @@ export interface FlowLumpMarker {
   direction: 'in' | 'out';
 }
 
+type ClippedRow = Omit<FIREProjectionYearData, 'bearNetWorth' | 'baseNetWorth' | 'bullNetWorth'> & {
+  bearNetWorth: number | null;
+  baseNetWorth: number | null;
+  bullNetWorth: number | null;
+};
+
 interface ScenarioTooltipProps {
   active?: boolean;
-  payload?: { payload?: FIREProjectionYearData; color?: string }[];
+  payload?: { payload?: ClippedRow; color?: string }[];
   label?: string | number;
   pensionUnlockCalendarYear?: number | null;
   lumpMarkers?: FlowLumpMarker[];
   colors: { bear: string; base: string; bull: string };
+  depletion?: { bear: number | null; base: number | null; bull: number | null };
 }
 
 /**
@@ -83,15 +92,16 @@ function ScenarioTooltip({
   pensionUnlockCalendarYear,
   lumpMarkers,
   colors,
+  depletion,
 }: ScenarioTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
   const row = payload[0]?.payload;
   if (!row) return null;
 
   const scenarioRows = [
-    { name: 'Bear', netWorth: row.bearNetWorth, fireNumber: row.bearFireNumber, color: colors.bear },
-    { name: 'Base', netWorth: row.baseNetWorth, fireNumber: row.baseFireNumber, color: colors.base },
-    { name: 'Bull', netWorth: row.bullNetWorth, fireNumber: row.bullFireNumber, color: colors.bull },
+    { name: 'Bear', netWorth: row.bearNetWorth, fireNumber: row.bearFireNumber, color: colors.bear, depletedIn: depletion?.bear ?? null },
+    { name: 'Base', netWorth: row.baseNetWorth, fireNumber: row.baseFireNumber, color: colors.base, depletedIn: depletion?.base ?? null },
+    { name: 'Bull', netWorth: row.bullNetWorth, fireNumber: row.bullFireNumber, color: colors.bull, depletedIn: depletion?.bull ?? null },
   ];
 
   return (
@@ -118,7 +128,9 @@ function ScenarioTooltip({
             <span className="h-2 w-2 shrink-0 self-center rounded-[2px]" style={{ background: scenario.color }} aria-hidden="true" />
             <span className="text-muted-foreground">{scenario.name}</span>
             <span className="ml-auto font-mono font-medium tabular-nums text-foreground">
-              {cachedFormatCurrencyEUR(scenario.netWorth, true)}
+              {scenario.depletedIn !== null && (scenario.netWorth === null || row.calendarYear === scenario.depletedIn)
+                ? `esaurito nel ${scenario.depletedIn}`
+                : cachedFormatCurrencyEUR(scenario.netWorth ?? 0, true)}
             </span>
             <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
               target {cachedFormatCurrencyEUR(scenario.fireNumber, true)}
@@ -188,6 +200,15 @@ export function FIREProjectionChart({
     );
   }
 
+  // § 21 RE3: a series that runs out stops at zero in that year and has no points after it.
+  const clipped = clipDepletedSeries(yearlyData, ['bearNetWorth', 'baseNetWorth', 'bullNetWorth'] as const);
+  const depletion = {
+    bear: clipped.depletion.bearNetWorth,
+    base: clipped.depletion.baseNetWorth,
+    bull: clipped.depletion.bullNetWorth,
+  };
+  const anyDepletion = depletion.bear !== null || depletion.base !== null || depletion.bull !== null;
+
   const markers = buildFireYearMarkers(
     [
       { name: 'Bear', years: bearYearsToFIRE, color: bearColor, isBase: false },
@@ -202,10 +223,10 @@ export function FIREProjectionChart({
       <div className="min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
-            data={yearlyData}
+            data={clipped.rows}
             margin={{ top: 12, left: marginLeft, bottom: 4 }}
             role="img"
-            aria-label={`Grafico proiezione scenari: patrimonio anno per anno negli scenari Bear, Base e Bull, con la linea tratteggiata del numero FIRE dello scenario base e una linea verticale nell'anno in cui ogni scenario lo raggiunge${lumpMarkers.length > 0 ? ', un segno per ogni entrata o uscita una tantum dei flussi' : ''}; i target Bear e Bull sono nel tooltip`}
+            aria-label={`Grafico proiezione scenari: patrimonio anno per anno negli scenari Bear, Base e Bull${anyDepletion ? ` (${(['bear', 'base', 'bull'] as const).filter((key) => depletion[key] !== null).map((key) => `${key === 'bear' ? 'Bear' : key === 'base' ? 'Base' : 'Bull'} esaurito nel ${depletion[key]}`).join(', ')}; la linea si ferma a zero)` : ''}, con la linea tratteggiata del numero FIRE dello scenario base e una linea verticale nell'anno in cui ogni scenario lo raggiunge${lumpMarkers.length > 0 ? ', un segno per ogni entrata o uscita una tantum dei flussi' : ''}; i target Bear e Bull sono nel tooltip`}
             accessibilityLayer={false}
           >
             <CartesianGrid strokeDasharray="3 3" />
@@ -214,6 +235,8 @@ export function FIREProjectionChart({
               width={marginLeft <= 20 ? 80 : 100}
               tickFormatter={(value) => formatCurrencyCompact(Number(value))}
               tick={CHART_TICK_STYLE}
+              domain={anyDepletion ? [0, 'auto'] : undefined}
+              allowDataOverflow={anyDepletion}
             />
             <Tooltip
               content={
@@ -221,6 +244,7 @@ export function FIREProjectionChart({
                   pensionUnlockCalendarYear={pensionUnlockCalendarYear}
                   lumpMarkers={lumpMarkers}
                   colors={{ bear: bearColor, base: baseColor, bull: bullColor }}
+                  depletion={depletion}
                 />
               }
             />
@@ -279,6 +303,12 @@ export function FIREProjectionChart({
                   label={{ value: marker.direction === 'in' ? '+' : '−', position: 'insideBottom', fill: 'var(--muted-foreground)', fontSize: 11 }}
                 />
               ))}
+            {/* § 21 RE3: a sign (a dot at zero, the series' colour) on the year each series runs out. */}
+            {(['bear', 'base', 'bull'] as const).map((key) =>
+              depletion[key] === null ? null : (
+                <ReferenceDot key={`depleted-${key}`} x={depletion[key] as number} y={0} r={4} fill={{ bear: bearColor, base: baseColor, bull: bullColor }[key]} stroke="var(--background)" ifOverflow="visible" />
+              ),
+            )}
             {/* One vertical line per distinct FIRE year; the label sits inside the plot, under
                 the top margin, so it is never clipped. */}
             {markers.map((marker) => (

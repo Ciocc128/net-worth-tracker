@@ -3155,6 +3155,12 @@ orizzonte; blind spot: «dopo l'esaurimento il grafico finisce anche se il rispa
 __tests__`, `TZ=Europe/Rome npx vitest run`. Le spec Playwright toccate (`e2e/fire*.spec.ts`, `e2e/coast*.spec.ts`,
 `e2e/projection*.spec.ts`) si aggiornano nella PR e si eseguono in un thread sul computer del proprietario.
 
+**Esito (09/10/2026, thread «impl»).** Implementata come da spec: `lib/utils/fireDepletion.ts` (RE1–RE3, RE5), matrice per quota (RE7),
+Scenari (RE8), Dopo il FIRE `'target'`/`'depleted'` (RE9), Effetto sul FIRE (RE10), grafici del Calcolatore, del Coast e del What If, Proiezione
+(`floorAtZero`). CGA1–CGA5, CGA7–CGA8, CGA10–CGA14 sono unit test in `__tests__/fireDepletion.test.ts`; CGA6 e CGA9 (grafico e tessera del Coast) si
+verificano nel browser, sul Mac. Scelta di implementazione: l'età obiettivo che dà `T` è quella salvata, altrimenti `DEFAULT_FIRE_TARGET_AGE`
+(il valore che «Il mio piano» mostra), contro l'età del piano. Le spec Playwright (`e2e/fire*`, `e2e/coast*`, `e2e/projection*`) non sono state toccate né eseguite.
+
 ### 21.10 Rischi
 
 - **Parità del Coast** («every euro printed is one of the projection's own numbers»): con RE3 il grafico mostra 0 e

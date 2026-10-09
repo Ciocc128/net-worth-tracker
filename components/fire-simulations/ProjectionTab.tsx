@@ -456,6 +456,7 @@ export function ProjectionTab() {
                 horizonLabel={`${summary.horizon} ${summary.horizon === 1 ? 'anno' : 'anni'}`}
                 chart={
                   <MonteCarloFanChart
+                    floorAtZero
                     percentiles={base.series}
                     startCalendarYear={ctx.startCalendarYear}
                     unlockCalendarYear={null}

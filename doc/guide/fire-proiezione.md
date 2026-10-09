@@ -17,6 +17,11 @@
 - **Dated flows (F2, RF10)**: the same engine takes `flows` — the lumps land every year, a recurring flow changes the saving only while it is paid (`t ≤ savingsYears`), a FIRE-anchored flow does not exist here (the tab has no FIRE; the Parametri line says «quelli dal FIRE non valgono nella Proiezione»). The saved list is read (`useFireDatedFlows()`), the lumps of the running year join `startValue`, the list is part of the stale-run check (`datedFlowsSignature`). Values stay nominal in the run and are deflated by the scenario's π like the rest.
 - **Performance**: 10.000 paths × 3 scenarios × 50 years with `collectPaths: false` measured about 0,9 s in the cloud container with and without leverage (2026-10-04, Node, no browser): under the 3 s line, so the default stays 10.000.
 
+## CG-A — «esaurito» (2026-10-09, doc/fire-ipotesi/README.md § 21, RE4)
+- A percentile ≤ 0 reads «esaurito» in the verdict, Tappe (`describeTappe`: «la mediana è esaurita», «il 10° percentile a 50 anni è esaurito»),
+  Scenari and the Ventaglio's figures; the Ventaglio draws bands and median at `max(0, p)` (`MonteCarloFanChart` prop `floorAtZero`, set
+  by the Proiezione only). The probabilities above the threshold are untouched.
+
 ## Per-page blind spots
 
 - **The value is net of TER and stamp duty, gross of the tax at sale** (V8, changed by P6/D-C6, doc/fire-ipotesi § 9): the run's `annualCostRate` is `portfolioCost(run weights)`; no transaction costs. The footer of the Ventaglio says «Al netto di TER e bollo (0,36% l'anno); lordi della tassa sulla vendita» (or «Nessun costo ricorrente rilevato…» with the duty off and no TER), the Dettaglio says the same.

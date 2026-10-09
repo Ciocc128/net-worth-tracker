@@ -22,6 +22,7 @@ import type { FireLock } from '@/lib/utils/fireSummary';
 import type { ResolvedMonteCarloMarket } from '@/lib/utils/monteCarloMarket';
 import type { Narrative, NarrativeSegment, PageVerdictModel } from '@/lib/utils/narrative';
 import type { SustainableSpendingSummary, SustainableWithdrawal } from '@/lib/utils/sustainableWithdrawal';
+import { formatQuota } from '@/lib/utils/fireDepletion';
 import type { FireStart } from '@/lib/utils/fireStart';
 import { resolveSuccessTone, type MonteCarloPlan, type MonteCarloRun, type PlanInflow, type PlanStatePension, type PlanWithdrawalTax, type ScenarioComparison, type ScenarioRunSummary } from '@/lib/utils/monteCarloSummary';
 
@@ -414,7 +415,7 @@ export function describeParametri(plan: MonteCarloPlan): Narrative {
 export type StartMode = 'fire' | 'today';
 
 export const START_MODE_LABELS: Record<StartMode, (start: FireStart) => string> = {
-  fire: (start) => (start.kind === 'fire' ? `Al FIRE (${start.calendarYear})` : 'Al FIRE'),
+  fire: (start) => (start.kind === 'fire' ? `Al FIRE (${start.calendarYear})` : start.kind === 'target' ? 'All’età obiettivo' : 'Al FIRE'),
   today: () => 'Oggi',
 };
 
@@ -423,6 +424,25 @@ export const START_MODE_LABELS: Record<StartMode, (start: FireStart) => string> 
  * the run starts from, or why the run starts today. `currentYear` dates the «mai entro 50 anni» case.
  */
 export function describeFireStartRow(start: FireStart, mode: StartMode, currentYear: number): Narrative {
+  if (start.kind === 'depleted') {
+    return [prose('All’età obiettivo il capitale è esaurito (nel '), year(start.depletionYear), prose('): non c’è nulla da prelevare.')];
+  }
+  if (start.kind === 'target') {
+    if (mode === 'today') {
+      return [prose('La simulazione parte da oggi con il capitale di oggi; il FIRE non arriva entro il '), year(currentYear + 50), prose('.')];
+    }
+    return [
+      prose('Il FIRE non arriva entro il '),
+      year(currentYear + 50),
+      prose(': la simulazione parte dall’età obiettivo ('),
+      ...(start.ageAtFire === null ? [] : [figure(`${start.ageAtFire} anni`), prose(', ')]),
+      prose('nel '),
+      year(start.calendarYear),
+      prose(') con il capitale che avrai allora, '),
+      amount(start.capitalToday),
+      prose(` di oggi, il ${formatQuota(start.quota)} del numero FIRE.`),
+    ];
+  }
   if (start.kind === 'today') {
     switch (start.reason) {
       case 'already':

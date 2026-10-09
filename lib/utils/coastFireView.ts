@@ -413,6 +413,8 @@ export interface CoastTarget {
   retirementCapitalRequired: number;
   /** §17 RCO2: the chart's own Base capital at the target age (the lumps included); the verdict and the stage read it. */
   capitalAtRetirementOnCourse: number;
+  /** § 21: the capital runs out on the way to the target age — the verdict names the year and the cause instead of a negative figure. */
+  depletion: { year: number | null; cause: { label: string; amount: number } | null } | null;
   /** §17 RCO1–RCO3: today, at the target age, at steady state — the same walk seen at three dates. Empty-or-one stage = no strip. */
   stages: CoastStage[];
   /** Calendar year of the steady-state stage, or null without one. */
@@ -429,8 +431,12 @@ export interface CoastStage {
   /** «ne hai» (today) or «ne avrai» (later) — the free capital on course. */
   onCourse: number;
   enough: boolean;
-  /** `max(required − onCourse, 0)`; read only when `!enough`. */
+  /** `max(required − max(onCourse, 0), 0)`; read only when `!enough`. */
   shortfall: number;
+  /** § 21 RE1: a later stage whose capital on course is zero or less reads «esaurito», never a negative figure. */
+  depleted: boolean;
+  /** The calendar year the Base series of the chart runs out; null when the chart never does (the stage says only «esaurito»). */
+  depletionYear: number | null;
 }
 
 export interface CoastTargetInput {
@@ -445,14 +451,17 @@ export interface CoastTargetInput {
   withdrawalRate?: number;
   /** Any dated flow the number counts: the method line says «più i flussi datati dopo il {anno}». */
   hasDatedFlows?: boolean;
+  /** § 21 RE1–RE2: when the Base series of the chart runs out and what causes it. */
+  depletion?: { year: number | null; cause: { label: string; amount: number } | null } | null;
 }
 
 /** A stage is «enough» with the hero's half-euro tolerance (RCO4). */
 const STAGE_TOLERANCE = 0.5;
 
-function buildStage(key: CoastStage['key'], label: string, required: number, onCourse: number): CoastStage {
+function buildStage(key: CoastStage['key'], label: string, required: number, onCourse: number, depletionYear: number | null = null): CoastStage {
   const enough = onCourse >= required - STAGE_TOLERANCE;
-  return { key, label, required, onCourse, enough, shortfall: enough ? 0 : required - onCourse };
+  const depleted = key !== 'today' && onCourse <= 0;
+  return { key, label, required, onCourse, enough, shortfall: enough ? 0 : required - Math.max(0, onCourse), depleted, depletionYear: depleted ? depletionYear : null };
 }
 
 /**
@@ -463,12 +472,12 @@ export function summarizeCoastTarget(base: CoastScenarioMetrics, input: CoastTar
   const currentYear = input.currentYear ?? getItalyYear();
   const stages: CoastStage[] = [buildStage('today', 'Oggi', base.coastFireNumberToday, input.currentNetWorth)];
   if (base.yearsToRetirement > 0) {
-    stages.push(buildStage('target', `A ${input.retirementAge} anni · ${currentYear + base.yearsToRetirement}`, base.retirementCapitalRequired, base.capitalAtRetirementOnCourse));
+    stages.push(buildStage('target', `A ${input.retirementAge} anni · ${currentYear + base.yearsToRetirement}`, base.retirementCapitalRequired, base.capitalAtRetirementOnCourse, input.depletion?.year ?? null));
   }
   let regimeCalendarYear: number | null = null;
   if (base.regimeYears > 0) {
     regimeCalendarYear = currentYear + base.yearsToRetirement + base.regimeYears;
-    stages.push(buildStage('regime', `A regime · dal ${regimeCalendarYear}`, base.regimeCapitalRequired, base.capitalAtRegimeOnCourse));
+    stages.push(buildStage('regime', `A regime · dal ${regimeCalendarYear}`, base.regimeCapitalRequired, base.capitalAtRegimeOnCourse, input.depletion?.year ?? null));
   }
   return {
     coastNumberToday: base.coastFireNumberToday,
@@ -487,6 +496,7 @@ export function summarizeCoastTarget(base: CoastScenarioMetrics, input: CoastTar
     futureValueAtRetirement: base.futureValueAtRetirementWithoutNewContributions,
     retirementCapitalRequired: base.retirementCapitalRequired,
     capitalAtRetirementOnCourse: base.capitalAtRetirementOnCourse,
+    depletion: base.capitalAtRetirementOnCourse <= 0 && input.depletion ? input.depletion : null,
     stages,
     regimeCalendarYear,
     withdrawalRate: input.withdrawalRate ?? null,
@@ -727,6 +737,20 @@ function lockSentence(lock: FireLock): Narrative {
 function capitalClause(target: CoastTarget, comparison: 'contro' | 'oltre'): Narrative {
   if (target.yearsToRetirement <= 0) {
     return [prose(", e sei già all'età target di "), age(target.retirementAge)];
+  }
+  if (target.depletion) {
+    const { year: depletionYear, cause } = target.depletion;
+    return [
+      prose(': smettendo di versare a '),
+      age(target.currentAge),
+      prose(' il capitale si esaurisce'),
+      ...(depletionYear === null ? [] : [prose(' nel '), year(depletionYear)]),
+      ...(cause ? [prose(` con ${cause.label} (`), amount(cause.amount), prose(')')] : [prose(' per le uscite del piano')]),
+      prose(`, ${comparison} i `),
+      amount(target.retirementCapitalRequired),
+      prose(' richiesti a '),
+      age(target.retirementAge),
+    ];
   }
   return [
     prose(': smettendo di versare a '),

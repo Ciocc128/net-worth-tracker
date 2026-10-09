@@ -50,6 +50,12 @@
 - **D-G8: the verdict stays deterministic** (the trajectory's centre path, 1% tolerance); «In rotta · 55%» is not a contradiction: one is the central path, the other the share of paths. Panoramica and the Assistant do not read the simulation.
 - **Blind spots**: probability is shown whole and rounded (99,6% reads 100%); a deadline past, a reached goal or an open goal has no reading; the portfolio has no leverage and no ruin (a path never zeroes); the contribution is the one of today, constant, and is already inside the Cashflow saving; solver and band use the Base scenario only; with 10 dated goals the page runs ≈21 ms per goal of 36 months (longer deadlines scale linearly) in a `useMemo`.
 
+## CG-A — Effetto sul FIRE out of the horizon (2026-10-09, doc/fire-ipotesi/README.md § 21, RE10)
+- When both years are beyond the horizon and the target age is known, `goalFireEffect` carries `quotaWith` / `quotaWithout` /
+  `targetCalendarYear` (`baseQuotaAtTargetWithFlows`, same walk as `baseYearsToFIREWithFlows`) and the line reads «Con questa spesa
+  all'età obiettivo (2036) avrai il 15% del numero FIRE invece del 20% (scenario Base).»; equal shares say so. If only one year is null,
+  the sentence of before stays.
+
 ## Per-page blind spots
 
 - **FIRE › Obiettivi, return**: the allocation of a goal has no gold level, so a commodity share is simulated as Materie prime; a goal's return is the Base scenario only (no Bear/Bull view); the Assistant's figure ignores the pension lock.

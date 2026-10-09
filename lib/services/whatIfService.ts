@@ -20,6 +20,7 @@
  * See `types/whatIf.ts` for the modelling rationale.
  */
 
+import { quotaAtTarget } from '@/lib/utils/fireDepletion';
 import {
   calculateFIREMetrics,
   calculateFIREProjection,
@@ -297,6 +298,16 @@ export function baseYearsToFIREWithFlows(baseline: WhatIfBaseline, flows: DatedF
   const metrics = resolveFireMetrics(baseline, baseline.netWorth, baseline.annualExpenses, used);
   const projection = runBaseProjection(baseline, baseline.netWorth, baseline.annualExpenses, baseline.annualSavings, used);
   return resolveYearsToFIRE(metrics, projection, !!used);
+}
+
+/**
+ * § 21 RE10: the Base share of the FIRE number at `targetYears` on the same walk as `baseYearsToFIREWithFlows`. Null when the
+ * plan cannot run or `targetYears` is beyond the walk.
+ */
+export function baseQuotaAtTargetWithFlows(baseline: WhatIfBaseline, flows: DatedFlowsInput | undefined, targetYears: number): number | null {
+  const used = flows && flows.resolved.length > 0 ? flows : undefined;
+  const projection = runBaseProjection(baseline, baseline.netWorth, baseline.annualExpenses, baseline.annualSavings, used);
+  return quotaAtTarget(projection, targetYears);
 }
 
 /**

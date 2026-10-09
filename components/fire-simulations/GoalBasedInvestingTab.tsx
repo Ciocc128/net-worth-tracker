@@ -29,6 +29,8 @@
  * 4. Pure layer      → rows, overview, trajectory, allocation, assignments
  */
 
+import { targetYearsOf } from '@/lib/utils/fireDepletion';
+import { DEFAULT_FIRE_TARGET_AGE } from '@/lib/utils/firePlan';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -231,7 +233,7 @@ export function GoalBasedInvestingTab() {
   const uncertaintyLines = useMemo(() => (trajectory ? describeIncertezza(trajectory, (months) => goalDateFromDate(addGoalMonths(now, months))) : []), [trajectory, now]);
 
   // § 13, RO2: the selected goal's effect on the FIRE year, on the plan of today (the What If's baseline). Absent while that plan loads or fails.
-  const { baseline: fireBaseline, hasBaseline: hasFirePlan, assumptions: fireAssumptions, currentYear: fireYear, isLoadingSettings: fbLoadS, isLoadingAssets: fbLoadA, isLoadingCashflow: fbLoadC, isLoadingFlows: fbLoadF, settingsError: fbErrS, assetsError: fbErrA, cashflowError: fbErrC } = useWhatIfBaseline();
+  const { settings: fireSettings, baseline: fireBaseline, hasBaseline: hasFirePlan, assumptions: fireAssumptions, currentYear: fireYear, isLoadingSettings: fbLoadS, isLoadingAssets: fbLoadA, isLoadingCashflow: fbLoadC, isLoadingFlows: fbLoadF, settingsError: fbErrS, assetsError: fbErrA, cashflowError: fbErrC } = useWhatIfBaseline();
   const fireEffectLine = useMemo(() => {
     const goal = selectedRow?.goal;
     if (!goal || !isEnabled) return null;
@@ -257,9 +259,10 @@ export function GoalBasedInvestingTab() {
       },
       baseline: fireBaseline,
       hasPlan: hasFirePlan,
+      targetYears: targetYearsOf(fireSettings?.coastFireRetirementAge ?? DEFAULT_FIRE_TARGET_AGE, fireSettings?.userAge),
     });
     return effect ? { effect, text: goalFireNarrative(effect) } : null;
-  }, [selectedRow, isEnabled, assets, cleanedAssignments, fireBaseline, hasFirePlan, fireAssumptions, fireYear, fbLoadS, fbLoadA, fbLoadC, fbLoadF, fbErrS, fbErrA, fbErrC]);
+  }, [selectedRow, isEnabled, assets, cleanedAssignments, fireBaseline, hasFirePlan, fireSettings, fireAssumptions, fireYear, fbLoadS, fbLoadA, fbLoadC, fbLoadF, fbErrS, fbErrA, fbErrC]);
 
   const orderedGoals = useMemo(() => overview.goals.map((line) => goals.find((g) => g.id === line.id)).filter((g): g is InvestmentGoal => g != null), [overview.goals, goals]);
   const derivedAllocation = useMemo(() => (isGoalDriven ? summarizeDerivedAllocation(orderedGoals, cleanedAssignments, assets) : null), [isGoalDriven, orderedGoals, cleanedAssignments, assets]);
