@@ -28,6 +28,8 @@ interface MonteCarloFanChartProps {
   ariaLabel: string;
   /** Draw the dashed destructive line at zero (the capital exhausted). Default true: the Monte Carlo's. */
   zeroLine?: boolean;
+  /** § 21 RE4: bands and median are drawn at `max(0, p)` and the tooltip says «esaurito» for a percentile at or under zero. Only the Proiezione sets it. */
+  floorAtZero?: boolean;
   /** A neutral dashed line at a value (Proiezione's threshold) — a target, not a loss, so never the destructive token. */
   referenceLine?: { value: number; label: string };
   /** The same neutral dashed line as a SERIES on the percentiles' years (Proiezione's moving threshold): `values[t]` at year t. */
@@ -98,23 +100,26 @@ function renderSeriesLabel(text: string) {
   return SeriesLabel;
 }
 
-export function MonteCarloFanChart({ percentiles, startCalendarYear, unlockCalendarYear, height, ariaLabel, zeroLine = true, referenceLine, referenceSeries, markedCalendarYear = null }: MonteCarloFanChartProps) {
+export function MonteCarloFanChart({ percentiles, startCalendarYear, unlockCalendarYear, height, ariaLabel, zeroLine = true, floorAtZero = false, referenceLine, referenceSeries, markedCalendarYear = null }: MonteCarloFanChartProps) {
   const fanColor = SCENARIO_COLOR.base;
 
   const rows = useMemo<FanRow[]>(
     () =>
-      percentiles.map((point) => ({
-        calendarYear: startCalendarYear + point.year,
-        band1090: [point.p10, point.p90],
-        band2575: [point.p25, point.p75],
-        p10: point.p10,
-        p25: point.p25,
-        p50: point.p50,
-        p75: point.p75,
-        p90: point.p90,
-        ...(referenceSeries && referenceSeries.values[point.year] !== undefined ? { reference: referenceSeries.values[point.year] } : {}),
-      })),
-    [percentiles, startCalendarYear, referenceSeries],
+      percentiles.map((raw) => {
+        const point = floorAtZero ? { ...raw, p10: Math.max(0, raw.p10), p25: Math.max(0, raw.p25), p50: Math.max(0, raw.p50), p75: Math.max(0, raw.p75), p90: Math.max(0, raw.p90) } : raw;
+        return {
+          calendarYear: startCalendarYear + point.year,
+          band1090: [point.p10, point.p90],
+          band2575: [point.p25, point.p75],
+          p10: point.p10,
+          p25: point.p25,
+          p50: point.p50,
+          p75: point.p75,
+          p90: point.p90,
+          ...(referenceSeries && referenceSeries.values[point.year] !== undefined ? { reference: referenceSeries.values[point.year] } : {}),
+        };
+      }),
+    [percentiles, startCalendarYear, referenceSeries, floorAtZero],
   );
 
   return (

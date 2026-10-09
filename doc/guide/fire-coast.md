@@ -113,6 +113,12 @@
 - **The Dettaglio's «Capitale a regime» is `S_H`**, labelled `A regime · dal {year}` with `year = today + T + H`; without flows `S_H = steadyStatePortfolioNeed`, with dated flows it adds RF5 at `T + H`.
 - **The Afflussi events are the flows the number counts** (RCO5–RCO6, `buildCoastInflowEvents(…, datedFlows)`): every lump from next year on, every recurring flow active after the target (from `max(start, T+1)`, noted «conta da N anni»), signed, in today's euro. The tile has «Afflussi e uscite» as eyebrow when one is an outflow, each row says its direction in words on the line under the amount («in entrata · …», «in uscita · …», D-CO9, 2026-10-09: the sign wears no colour, so the «−» alone did not tell an out from an in), six events on the rail and «+N» past that, and it is NOT drawn without events (RCO7): `describeCoastTargetFooter({ noInflows })` carries the sentence and the grid goes Traguardo(5) | Scenari(7) (RCO8). The loading skeleton stays at three cells.
 
+## CG-A — «esaurito» in the Traguardo (2026-10-09, doc/fire-ipotesi/README.md § 21)
+- A later stage whose capital on course is ≤ 0 (`CoastStage.depleted`) reads «esaurito nel {anno}» in place of «ne avrai …» (the year is
+  `findDepletion` on the chart's Base series, `CoastStage.depletionYear`; «esaurito» alone when the chart never gets there), and
+  «mancano» is the whole requirement. The verdict's `capitalClause` names the year and the lump (`CoastTarget.depletion`) instead of
+  the negative figure. The chart is clipped by `clipDepletedSeries` like the Calcolatore's.
+
 ## Per-page blind spots
 
 - **Coast and the dated flows**: only the lumps before the target age move the Coast number; a recurring expense that starts before it (a mortgage, a child) does not — by definition of Coast the work pays for it — but it does move the requirement AT the target age when it lasts past it.

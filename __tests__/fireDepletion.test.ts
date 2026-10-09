@@ -6,6 +6,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/services/expenseService', () => ({}));
 vi.mock('@/lib/services/snapshotService', () => ({}));
+vi.mock('@/lib/services/chartService', () => ({ formatCurrencyCompact: (value: number) => String(Math.round(value)) }));
+vi.mock('@/lib/services/whatIfService', () => ({ WHAT_IF_HORIZON_YEARS: 50, baseYearsToFIREWithFlows: vi.fn(), baseQuotaAtTargetWithFlows: vi.fn() }));
 
 import { calculateFIREProjection, calculateFIRESensitivityMatrix } from '@/lib/services/fireService';
 import { depletionCause, findDepletion, formatQuota, quotaAtTarget, targetYearsOf } from '@/lib/utils/fireDepletion';
@@ -57,11 +59,6 @@ describe('CGA2 — con un’uscita di 50.000 € all’anno 5', () => {
 
 describe('CGA3 — Sensibilità fuori orizzonte', () => {
   const matrix = calculateFIRESensitivityMatrix(100_000, 40_000, 10_000, 4, scenarios, false, undefined, undefined, undefined, 10);
-  const cell = (rowMultiplier: number, columnLabel: string) => {
-    const row = matrix.rows.find((entry) => Math.abs(entry.multiplier - rowMultiplier) < 1e-9)!;
-    const index = matrix.columns.findIndex((column) => column.label === columnLabel);
-    return row.cells[index];
-  };
   it('la cella del piano è 20%', () => {
     expect(matrix.byQuota).toBe(true);
     const base = matrix.rows.flatMap((row) => row.cells).find((entry) => entry.isBaseline)!;
@@ -122,3 +119,66 @@ describe('CGA11–CGA12 — Dopo il FIRE', () => {
   });
 });
 
+
+// ─── Narrative: the words that read the same figures ──────────────────────────
+import { describeDepletion, describeScenarios } from '@/lib/utils/fireNarrative';
+import { summarizeScenarios } from '@/lib/utils/fireSummary';
+import { goalFireNarrative } from '@/lib/utils/goalFire';
+import { describeTappe } from '@/lib/utils/projectionNarrative';
+import { clipDepletedSeries } from '@/lib/utils/fireDepletion';
+
+const text = (segments: Array<{ text: string }>) => segments.map((segment) => segment.text).join('');
+
+describe('CGA4 — Scenari fuori orizzonte', () => {
+  it('tre righe «all’età obiettivo il 20% del numero FIRE»', () => {
+    const rows = summarizeScenarios(walk(100_000, 40_000, 10_000), YEAR, 10);
+    expect(rows.map((row) => row.quotaLabel)).toEqual(['20%', '20%', '20%']);
+    expect(text(describeScenarios(rows))).toContain('All’età obiettivo il 20% del numero FIRE nel base.');
+  });
+  it('CGA13 — senza età obiettivo: come oggi più la riga che manda a Il mio piano', () => {
+    const rows = summarizeScenarios(walk(100_000, 40_000, 10_000), YEAR, null);
+    expect(rows.every((row) => row.quotaLabel === undefined)).toBe(true);
+    expect(text(describeScenarios(rows, { quotaMissing: true }))).toContain('Imposta l’età obiettivo in Il mio piano');
+  });
+});
+
+describe('CGA7–CGA8 — la frase di esaurimento', () => {
+  it('con la causa', () => {
+    expect(text(describeDepletion({ year: 2032, cause: { label: 'Acquisto Casa', amount: 41_777 } }))).toMatch(/^Il capitale si esaurisce nel 2032 con Acquisto Casa \(41\.777\s€\)\. $/);
+  });
+  it('senza una tantum: per le uscite del piano', () => {
+    expect(text(describeDepletion({ year: 2032, cause: null }))).toBe('Il capitale si esaurisce nel 2032 per le uscite del piano. ');
+  });
+});
+
+describe('RE3 — il grafico si ferma', () => {
+  it('0 nell’anno di esaurimento, nessun punto dopo', () => {
+    const projection = walk(18_283, 30_000, 0, flowsOf([lump('Acquisto Casa', 41_777, 6)]));
+    const { rows, depletion } = clipDepletedSeries(projection.yearlyData, ['baseNetWorth'] as const);
+    expect(depletion.baseNetWorth).toBe(YEAR + 6);
+    expect(rows.find((row) => row.calendarYear === YEAR + 6)!.baseNetWorth).toBe(0);
+    expect(rows.find((row) => row.calendarYear === YEAR + 7)!.baseNetWorth).toBeNull();
+    expect(rows.every((row) => row.baseNetWorth === null || row.baseNetWorth >= 0)).toBe(true);
+  });
+});
+
+describe('RE4 — Proiezione: «esaurito»', () => {
+  it('describeTappe non stampa cifre negative', () => {
+    const row = (year: number, p10: number, p50: number) => ({ year, p10, p50 }) as unknown as Parameters<typeof describeTappe>[0][number];
+    const out = text(describeTappe([row(20, -100, 371_000), row(50, -4_467, -4_467)]));
+    expect(out).toContain('tra 50 anni esaurita');
+    expect(text(describeTappe([row(50, -4_467, -4_467), row(50, -4_467, -4_467)]))).toContain('la mediana è esaurita');
+    expect(out).toContain('il 10° percentile a 50 anni è esaurito');
+    expect(out).not.toMatch(/4\.467/);
+  });
+});
+
+describe('RE10 — Effetto sul FIRE fuori orizzonte', () => {
+  const base = { kind: 'effect' as const, counted: true, yearWith: null, yearWithout: null, horizonYear: YEAR + 50, targetCalendarYear: YEAR + 10 };
+  it('CGA2: 15% invece del 20%', () => {
+    expect(goalFireNarrative({ ...base, quotaWith: 0.15, quotaWithout: 0.2 })).toBe(`Con questa spesa all’età obiettivo (${YEAR + 10}) avrai il 15% del numero FIRE invece del 20% (scenario Base).`);
+  });
+  it('quote uguali', () => {
+    expect(goalFireNarrative({ ...base, quotaWith: 0.2, quotaWithout: 0.2 })).toBe('Questa spesa non cambia la quota del numero FIRE all’età obiettivo (20%, scenario Base).');
+  });
+});

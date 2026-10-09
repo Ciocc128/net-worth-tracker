@@ -401,7 +401,23 @@ The `goal` source of `DatedFlow['source']` is now live, but only on the resolved
   «Spese ÷ SWR» in the PDF, «Progresso su spesa ÷ SWR» in the historical runway) and, where it could be mistaken for it,
   a line saying it is not the Calcolatore's. The glossary is § 19.1 of the dossier: a new figure goes there first.
 
+## CG-A — capital run out and FIRE beyond the horizon (2026-10-09, doc/fire-ipotesi/README.md § 21, RE1–RE10)
+- **The walk does not change** (RF6 still lets the capital go below zero); only the reading does. `lib/utils/fireDepletion.ts` is the ONE
+  home: `findDepletion` (RE1, the calendar year the series first reaches ≤ 0; null when the start is already ≤ 0), `depletionCause`
+  (RE2, the biggest fixed-year `lumpOut` of that year), `clipDepletedSeries` (RE3: 0 in the depletion year, `null` after, the axis
+  stops at zero, a dot in the series' colour on the year, «esaurito nel {anno}» in the tooltip and the `aria-label`),
+  `quotaAtTarget` / `formatQuota` (RE5, D-CG8: `max(0, W_T) / N_T`, whole percent TRUNCATED, «100%+» when the series reaches the FIRE
+  within `T`), `targetYearsOf` (the saved target age, or `DEFAULT_FIRE_TARGET_AGE`, against the plan's age).
+- **Verdict**: when the Base runs out before any FIRE year, `buildFireVerdict` opens with «Il capitale si esaurisce nel 2032 con
+  Acquisto Casa (41.777 €).» (or «… per le uscite del piano.»).
+- **Out of the horizon (`baseYearsToFIRE === null`) with the target age known** the tiles measure the share of the FIRE number at
+  that age: the Sensibilità cells (`calculateFIRESensitivityMatrix(…, targetYears?)` adds `quotaAtTarget` per cell and `byQuota`
+  on the matrix; absent = the matrix of before, byte for byte) and the Scenari rows (`ScenarioRow.quotaLabel`, each scenario its own
+  series). Without the target age they stay as before plus «Imposta l'età obiettivo in Il mio piano …».
+
 ## Per-page blind spots
+- **After a depletion the chart ends, even if the saving would cover the debt later** (CG-A, D-CG7): the walk is unchanged, a path that came back above zero is not shown because after the run-out it is no longer a credible story.
+- **The share at the target age is truncated, not rounded** (D-CG8): 99,6% reads «99%», never «100%»; «100%+» only when the series reaches the FIRE within the target age.
 - **Dated flows** (F1): deterministic (the same in every path); amounts are NET and typed by the user; the surplus of a year of income over the need is not reinvested; no tax on what the accumulation sells; a linked mortgage changes the FIRE year by itself when an instalment is settled or the TAN changes (that is the point); a flow anchored to an age is excluded without `userAge`; an age anchor on a typed Coast draft age is not previewed (the saved age counts); the stochastic engines read the SAME deterministic flows in every path (no probability on an inheritance), the Ventaglio's FIRE-anchored flows follow each path's own FIRE year while Monte Carlo starts them in year 1, and the Proiezione ignores them.
 - **With no emergency fund set, the cash outside the portfolio does not count, and the year FIRE moves away** (K1, rewritten by EF1, 2026-10-05): it is declared in the line («fuori: Liquidità …») and the fund is set in Parametri (0 € = all of it enters). Not a bug: the portfolio is what the target weights describe. A fund larger than the cash outside enters nothing and the field says it is not covered.
 

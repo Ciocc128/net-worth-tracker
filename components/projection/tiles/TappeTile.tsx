@@ -36,7 +36,8 @@ interface TappeTileProps {
   className?: string;
 }
 
-const compact = (value: number) => cachedFormatCurrencyEUR(value, true);
+// § 21 RE4: a percentile at or under zero reads «esaurito», never a negative figure.
+const compact = (value: number) => (Math.round(value) <= 0 ? 'esaurito' : cachedFormatCurrencyEUR(value, true));
 
 export function TappeTile({ reading, rows, scenario, onScenarioChange, horizon, hasThreshold, showRowThreshold, footer, className }: TappeTileProps) {
   return (
