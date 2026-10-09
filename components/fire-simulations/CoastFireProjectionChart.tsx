@@ -254,9 +254,7 @@ export function CoastFireProjectionChart({
       <SeriesLegend
         className="mt-1.5 justify-center"
         items={[
-          { label: 'Patrimonio Bear', colors: [bearColor] },
-          { label: 'Patrimonio Base', colors: [baseColor] },
-          { label: 'Patrimonio Bull', colors: [bullColor] },
+          { label: 'Patrimonio Bear · Base · Bull', colors: [bearColor, baseColor, bullColor] },
           ...(pace ? [{ label: 'Base con il risparmio attuale', colors: [baseColor] }] : []),
           { label: 'Capitale richiesto al target', colors: [TARGET_INK] },
         ]}

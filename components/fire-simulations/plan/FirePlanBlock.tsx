@@ -31,6 +31,8 @@ import { DEFAULT_INPS_RETIREMENT_AGE, resolvePensionLockState, resolveRitaUnlock
 import { summarizeLock } from '@/lib/utils/fireSummary';
 import { describeEmergencyFund } from '@/lib/utils/fireAssumptionsNarrative';
 import { describeLock, describePersonalSwr, describeRitaPreview, formatRate } from '@/lib/utils/fireNarrative';
+import { MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
+import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
 import { addYearsToDate, createPensionDraft, describePensioniStatali, isValidAge, parseOptionalInteger, type PensionDraftIssue } from '@/lib/utils/coastFireView';
 import { resolvePersonalSwrHorizon, solvePersonalSwr } from '@/lib/utils/sustainableWithdrawal';
 import { DEFAULT_FIRE_TARGET_AGE, FIRE_PLAN_AFFECTS, describePlanFlows, describePlanSpending, describePlanYou } from '@/lib/utils/firePlan';

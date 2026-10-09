@@ -280,26 +280,41 @@ export function MonteCarloTab() {
   // (`computeSimulatedCapital` + `deriveMonteCarloWeights`, shared with the Ventaglio: the two call sites must stay identical).
   // Deferred so the effect body itself sets no state (react-hooks/set-state-in-effect).
   const didSeedRef = useRef(false);
+  // The form as the saved plan declares it; also what «Riporta al piano» puts back.
+  const buildSeedForm = useCallback((): MonteCarloForm | null => {
+    if (!assumptions || !fireStart) return null;
+    const weights = assumptions.weights;
+    const seedYears = fireStart.kind === 'fire' ? fireStart.years : 0;
+    return {
+      // The first run is «Al FIRE» when the Calcolatore has a FIRE year (RD2: the Base capital of that year, today's euros).
+      initialPortfolio: formatInputAmount(fireStart.kind === 'fire' ? fireStart.capitalToday : totalNetWorth),
+      retirementYears: String(defaultWithdrawalYears(currentAge, seedYears)),
+      // RP6 (D5): the same expenses as the other tabs; the old 30.000 € stands in only while there are none anywhere.
+      annualWithdrawal: String(Math.round(assumptions.expenses?.annual ?? 0) || DEFAULT_WITHDRAWAL),
+      numberOfSimulations: String(DEFAULT_SIMULATIONS),
+      weights: monteCarloClassRecord((cls) => String(weights[cls])),
+    };
+  }, [assumptions, fireStart, totalNetWorth, currentAge]);
   useEffect(() => {
     if (didSeedRef.current || isLoadingAssets || isLoadingSettings || !assets || !assumptions || !fireStart) return;
     const timer = setTimeout(() => {
       didSeedRef.current = true;
       // The seed: the targets of Allocazione, else the portfolio held today (the Parametri line says which).
-      const weights = assumptions.weights;
       setWeightsOrigin(assumptions.weightsOrigin === 'targets' ? 'targets' : 'holdings');
-      const seedYears = fireStart.kind === 'fire' ? fireStart.years : 0;
-      setForm({
-        // The first run is «Al FIRE» when the Calcolatore has a FIRE year (RD2: the Base capital of that year, today's euros).
-        initialPortfolio: formatInputAmount(fireStart.kind === 'fire' ? fireStart.capitalToday : totalNetWorth),
-        retirementYears: String(defaultWithdrawalYears(currentAge, seedYears)),
-        // RP6 (D5): the same expenses as the other tabs; the old 30.000 € stands in only while there are none anywhere.
-        annualWithdrawal: String(Math.round(assumptions.expenses?.annual ?? 0) || DEFAULT_WITHDRAWAL),
-        numberOfSimulations: String(DEFAULT_SIMULATIONS),
-        weights: monteCarloClassRecord((cls) => String(weights[cls])),
-      });
+      setForm(buildSeedForm());
     }, 0);
     return () => clearTimeout(timer);
-  }, [isLoadingAssets, isLoadingSettings, assets, settings, totalNetWorth, assumptions, fireStart, currentAge]);
+  }, [isLoadingAssets, isLoadingSettings, assets, settings, assumptions, fireStart, buildSeedForm]);
+
+  // «Riporta al piano»: every typed value back to the saved plan's.
+  const resetToPlan = useCallback(() => {
+    const seed = buildSeedForm();
+    if (!seed || !assumptions) return;
+    yearsTouchedRef.current = false;
+    setStartChoice('fire');
+    setWeightsOrigin(assumptions.weightsOrigin === 'targets' ? 'targets' : 'holdings');
+    setForm(seed);
+  }, [buildSeedForm, assumptions]);
 
   // Changing «Quando smetto» re-seeds the capital (and the horizon, unless typed): a value typed by hand wins only until the mode changes.
   const onStartModeChange = useCallback(
@@ -356,6 +371,11 @@ export function MonteCarloTab() {
   const runnable = !!params && params.initialPortfolio > 0 && params.annualWithdrawal > 0;
   // Below 100% or above 300% the run stays blocked; in between a sum above 100% is leverage (R4).
   const totalState = resolveAllocationTotalState(allocationSum);
+  // Nominal sum of the dated outflows over the horizon: enough to tell «the flows alone exceed the capital».
+  const datedOutflows = useMemo(
+    () => resolvedFlows.reduce((sum, flow) => (flow.sigma === 1 || (flow.sigma === 0 && flow.kind === 'lumpOut') ? sum + flow.amount * (flow.sigma === 0 ? 1 : Math.min(flow.durationYears ?? 60, 60)) : sum), 0),
+    [resolvedFlows],
+  );
   const leverage = weightsLeverage(MONTE_CARLO_CLASSES.map((cls) => (params ? params.weights[cls] : 0)));
   const canRun = runnable && (totalState === 'plain' || totalState === 'leveraged') && !!params && params.retirementYears >= 1 && params.retirementYears <= 60;
 
@@ -437,8 +457,8 @@ export function MonteCarloTab() {
   const sustainable = lastRun?.sustainable ?? null;
   const sustainableVerdictInput = useMemo(() => {
     const base90 = sustainable?.rows.find((row) => row.probability === SUSTAINABLE_VERDICT_PROBABILITY)?.base;
-    return sustainable && base90 && runParams ? { base90, capital: sustainable.capital, typedWithdrawal: runParams.annualWithdrawal } : null;
-  }, [sustainable, runParams]);
+    return sustainable && base90 && runParams ? { base90, capital: sustainable.capital, typedWithdrawal: runParams.annualWithdrawal, leverage, datedOutflows } : null;
+  }, [sustainable, runParams, leverage, datedOutflows]);
 
   // ─── The words (pure layer) ───────────────────────────────────────────────────
   const unleveragedSuccessRate = lastRun?.results.unleveragedBase?.successRate ?? null;
@@ -496,7 +516,7 @@ export function MonteCarloTab() {
       <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
         {sustainable && runParams && (
           <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
-            <SpesaSostenibileTile reading={describeSpesaSostenibile(sustainable, runParams.retirementYears)} aside={SPESA_ASIDE} summary={sustainable} />
+            <SpesaSostenibileTile reading={describeSpesaSostenibile(sustainable, runParams.retirementYears, { leverage, datedOutflows })} aside={SPESA_ASIDE} summary={sustainable} />
           </div>
         )}
 
@@ -557,6 +577,7 @@ export function MonteCarloTab() {
             }}
             flowsNote={describeSimulationFlowsRow({ count: resolvedFlows.length, excluded: excludedFlows, fireAnchored: resolvedFlows.filter((flow) => flow.anchor === 'fire').length, view: 'monteCarlo' })}
             onRun={handleRun}
+            onReset={resetToPlan}
             canRun={canRun}
             isRunning={isRunning}
             footer={
