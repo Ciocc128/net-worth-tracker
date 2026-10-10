@@ -1961,6 +1961,8 @@ FireCalculatorTab}.tsx`; test `__tests__/{monteCarloDraw,monteCarloService,monte
 
 ### 14.13 Q5 — Archivio dei dati e controllo dei valori (card «archivio dei dati grezzi»)
 
+> **Stato**: implementata il 10/10/2026 (AQ42–AQ44 coperti in `__tests__/monteCarloDefaultsArchive.test.ts`; archivio e licenze in `data/montecarlo/README.md`; guida in `doc/guide/fire-monte-carlo.md` § Q5). Scelte dell'implementazione: nella repo il manifest (38 file, ingressi inclusi), `annual_series.csv` (rendimenti annui nominali in euro, anche coperti, più il CPI europeo) e `build_annual.py`; i grezzi restano in `/mnt/project-files/montecarlo/` e il test ne verifica le impronte dove la cartella esiste. Il ricalcolo riproduce i default anche sulle **16** combinazioni di copertura, non solo sulla non coperta. Le licenze sono scritte dalla conoscenza dei termini, non da una lettura aggiornata dei siti: da confermare dal proprietario.
+
 **Modello**: Sonnet 5.5. **Decisioni**: V-D7. **Prerequisiti**: Q1 unita (i valori da controllare).
 
 #### Cosa vede l'utente
