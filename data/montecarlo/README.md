@@ -17,19 +17,25 @@ quella macchina (in un clone senza la cartella condivisa il controllo passa su q
 
 ## Licenze: cosa sta nella repo e perché
 
-Scritto il 10/10/2026 dalla conoscenza dei termini delle fonti, **senza consultare i testi aggiornati** (la rete del
-container non raggiunge quei siti): da confermare dal proprietario prima che la repo diventi più pubblica di quanto sia.
+Controllate il 10/10/2026 sui siti originali dove si sono potuti raggiungere (FRED e le pagine delle sue serie); **non
+raggiungibili dal container: il sito della BCE e testfol.io** (il gateway risponde 403 o il nome non si risolve). Per la BCE
+vale il riassunto della politica di riuso delle statistiche del SEBC trovato in una ricerca, non il testo ufficiale.
 
-| Fonte | Cosa si sa | Nella repo |
+| Fonte | Cosa dicono i termini | Nella repo |
 | --- | --- | --- |
-| **testfolio** (serie VTSIM, GLDSIM, GSGSIM, DBMFSIM, UEQCSIM, CASH*) | Il sito non dichiara condizioni di riuso che io conosca; le serie sono simulazioni costruite su indici di terzi (MSCI/FTSE, S&P GSCI, fondo DBMF, UBS UEQC). | **No** i giornalieri. **Sì** i rendimenti annui derivati (≈ 50 numeri per serie): un calcolo nostro, non la serie. |
-| **BCE** (€STR, curva AAA, SPF) | Dati statistici della BCE: riuso consentito con citazione della fonte, secondo le condizioni del sito. | Solo le **ancore** come numeri in `monteCarloMarketDefaults.ts`; le serie restano fuori (non servono). |
-| **FRED** (Bund 10 anni, CPI, cambi) | Ogni serie ha il suo titolare (OECD, Eurostat, Fed): FRED non concede un riuso generale. | **No** le serie. **Sì** il solo CPI annuo derivato, come colonna di `annual_series.csv`. |
-| **Damodaran** | Usato solo dai default v1 (dollari), restano per la migrazione; non entra in questo archivio. | No. |
+| **testfolio** (VTSIM, GLDSIM, GSGSIM, DBMFSIM, UEQCSIM, CASH*) | **Non verificato**: testfol.io non è raggiungibile e una ricerca non trova termini d'uso. Le serie sono simulazioni su indici di terzi. | **No** i giornalieri. **Sì** i rendimenti annui derivati (≈ 50 numeri per serie). Da leggere i termini sul sito prima di dare la repo per sicura. |
+| **BCE** (€STR, curva AAA, SPF) | Politica di riuso delle statistiche del SEBC (da una ricerca, non dal testo ufficiale): riuso gratuito citando la fonte («Source: ECB statistics»), dati e metadati non modificati; esclusi i dati di terzi. | Solo le **ancore** come numeri, identici a quelli pubblicati, in `monteCarloMarketDefaults.ts` e nel manifest; le serie restano fuori. Fonte da citare: ECB statistics. |
+| **FRED › OECD** (`IRLTLT01DEM156N` Bund 10 anni, `DEUCPIALLMINMEI` CPI Germania) | Pagina della serie: «Copyrighted: Citation Required»; da citare nel formato OECD. FRED stessa (termini API): le serie di terzi, per un uso che non sia personale, vanno chiesti al titolare. | Nessuna serie. Restano due colonne **derivate** di `annual_series.csv` (`bonds` dal Bund, `cpi_eur` anche dal CPI tedesco fino al 1996). **Rischio residuo**: sono un calcolo nostro, ma il titolare non ha dato un permesso. |
+| **FRED › Eurostat** (`CP0000EZ19M086NEST` HICP area euro) | «Copyright, European Union»; «Citation Required». | Solo nella colonna derivata `cpi_eur` dal 1997. Fonte da citare: Eurostat. |
+| **FRED › Fed** (`EXUSEU`, `EXUSEC`, `EXGEUS` cambi) | «Public Domain: Citation Requested». | Nessuna: servono solo al controllo del cambio implicito, restano fuori dalla repo. |
+| **Damodaran** | Non entra in questo archivio (solo i default v1 della migrazione). | No. |
 
-Se una fonte risultasse non riutilizzabile nemmeno in forma annua, si toglie la sua colonna da `annual_series.csv`: il test
-si ferma al manifest (impronte) per quella classe e lo dice. Stessa domanda della card «RICERCA bootstrap storico: serie
-salvabili nella repo» — la risposta di quella ricerca vale anche qui.
+**Cosa ne segue**: la repo tiene solo numeri derivati e le impronte; le fonti da citare sono testfolio, ECB statistics, OECD
+e Eurostat (via FRED). Il punto aperto è doppio: i termini di testfolio, da leggere dal sito, e se un calcolo annuo
+derivato da una serie OECD/Eurostat basti senza il permesso del titolare (la lettura prudente dei termini FRED è che per un
+uso non personale lo chieda). Se la risposta è no, si toglie la colonna `bonds` e/o `cpi_eur` da `annual_series.csv`: il test
+si ferma al manifest (impronte) per quelle classi e lo dice. Stessa domanda della card «RICERCA bootstrap storico: serie
+salvabili nella repo».
 
 ## Cosa controlla il test
 
