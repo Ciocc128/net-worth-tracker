@@ -1388,8 +1388,8 @@ fondo bloccato, `planExpensesFromCashflow` falso. Valori calcolati con
 ## 14. Ipotesi di mercato riviste: reali, in euro, con l'incertezza (spec del 10/10/2026)
 
 > **Stato**: spec scritta il 10/10/2026. Le decisioni V-D1…V-D10 sono state confermate dal proprietario l'08/10/2026,
-> V-D11…V-D13 il 10/10/2026 (thread «Ricerca R0-bis»); **DQ1–DQ5 sono proposte di questo thread, in attesa della sua
-> conferma** (§ 14.7): la spec è scritta sull'opzione consigliata di ciascuna.
+> V-D11…V-D13 il 10/10/2026 (thread «Ricerca R0-bis»), DQ1–DQ4 il 10/10/2026 in questo thread, tutte sull'opzione
+> proposta; DQ5 resta una proposta senza obiezioni (§ 14.7).
 >
 > Origine: card Todoist «SPEC Monte Carlo: ipotesi di mercato riviste» (epic `epic-montecarlo`). Input: la validazione
 > `/mnt/project-files/montecarlo/R0-validazione.md` (§ 3–5bis, decisioni V-D1…V-D10) e la ricerca
@@ -1686,10 +1686,10 @@ Le decisioni V-D sono della validazione e della ricerca, numerate come lì; le D
 | V-D11 | Presa (10/10/2026) | Bear e Bull deterministici al **15° e 85° percentile** del CAGR reale a 30 anni del portafoglio, **con l'incertezza sul parametro** (la regola del KID del PEPP). | 10°/90° (somma due prudenze: Bear delle azioni 0,13%); 25°/75° (troppo vicino alla mediana per un Bear). |
 | V-D12 | Presa (10/10/2026) | **Trend misurato con DBMF** per le correlazioni; **Trend–Carry 0,50**. | KMLM (0,75): un'altra strategia, più volatile e più legata al Carry. |
 | V-D13 | Presa (10/10/2026) | **Premio sopra la liquidità in forma parametrica**: Base di Trend e Carry = Liquidità + premio, classi lognormali come oggi, motore invariato. | Strutturale (`r = r_liquidità estratto + premio estratto`): matrice da rifare sugli eccessi e motore da cambiare, stesso risultato medio. |
-| DQ1 | **Proposta** | Volatilità dell'eccesso del Trend **11%** (DBMF dal vivo, 11,5%): premio 3,52%, volatilità non coperta 14,76%. | 15% (KMLM 1988–2025): premio circa 4,5% e volatilità circa 18%, una strategia diversa da quella che V-D12 misura. |
-| DQ2 | **Proposta** | Ancore aggiornate **dal cron ogni giorno, inflazione SPF compresa** (RQ9); il tile mostra valore e data. | Cron con inflazione ferma: il reale di Obbligazioni e Liquidità si sposterebbe per metà del dato. A mano: le ancore invecchiano, il motivo di V-D5 sparisce. |
-| DQ3 | **Proposta** | Migrazione che **tiene solo le modifiche** (RQ8): i valori uguali ai vecchi default prendono i nuovi, gli altri restano convertiti in reali, Bear/Bull scritti a mano si scartano con un avviso. | Tutto ai nuovi default: si perdono scelte fatte a mano senza che l'utente lo sappia. |
-| DQ4 | **Proposta** | Bear e Bull nei motori stocastici come **stress per classe** (RQ5), con il nome di sempre e la nota «stress». | Solo il Base: la pagina perde la risposta a «e se va male?» e cambiano tre tile. Stress pesato sul portafoglio (lo spostamento condizionato ai pesi): più fedele, ma dipende dai pesi della scheda e non si spiega in una riga. |
+| DQ1 | Presa (10/10/2026) | Volatilità dell'eccesso del Trend **11%** (DBMF dal vivo, 11,5%): premio 3,52%, volatilità non coperta 14,76%. | 15% (KMLM 1988–2025): premio circa 4,5% e volatilità circa 18%, una strategia diversa da quella che V-D12 misura. |
+| DQ2 | Presa (10/10/2026) | Ancore aggiornate **dal cron ogni giorno, inflazione SPF compresa** (RQ9); il tile mostra valore e data. | Cron con inflazione ferma: il reale di Obbligazioni e Liquidità si sposterebbe per metà del dato. A mano: le ancore invecchiano, il motivo di V-D5 sparisce. |
+| DQ3 | Presa (10/10/2026) | Migrazione che **tiene solo le modifiche** (RQ8): i valori uguali ai vecchi default prendono i nuovi, gli altri restano convertiti in reali, Bear/Bull scritti a mano si scartano con un avviso. | Tutto ai nuovi default: si perdono scelte fatte a mano senza che l'utente lo sappia. |
+| DQ4 | Presa (10/10/2026) | Bear e Bull nei motori stocastici come **stress per classe** (RQ5), con il nome di sempre e la nota «stress». | Solo il Base: la pagina perde la risposta a «e se va male?» e cambiano tre tile. Stress pesato sul portafoglio (lo spostamento condizionato ai pesi): più fedele, ma dipende dai pesi della scheda e non si spiega in una riga. |
 | DQ5 | **Proposta** | TER di UEQC **0,34%** (il più prudente delle due fonti terze); il factsheet UBS chiuderà il punto in modo formale. | 0,30%: sposta il Base del Carry di 0,02 punti, sotto l'arrotondamento. |
 
 **Scelte di default prese dall'agente** (dichiarate, il proprietario può rovesciarle):
@@ -1710,7 +1710,7 @@ Le decisioni V-D sono della validazione e della ricerca, numerate come lì; le D
 
 ### 14.8 Punti aperti
 
-- DQ1–DQ5 in attesa della conferma del proprietario.
+- DQ5 (TER di UEQC 0,34%) proposta senza obiezioni; non cambia nessun valore.
 - Il factsheet UBS di UEQC (DQ5) e i PDF delle norme di R0-bis § 12 (PEPP, PRIIPs, ACO): passano le fonti da secondarie
   a primarie, non cambiano nessun valore.
 - Q5: quali serie si possono tenere nella repo dipende dalle loro licenze (§ 14.13).
