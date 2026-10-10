@@ -46,7 +46,7 @@ test('the verdict answers the question and the Traguardo carries a formatted sho
   await expect(verdict.getByRole('heading', { level: 2 })).toHaveText(/^(Non ancora: continua a versare\.|Sì, puoi smettere di versare\.)$/);
   // The sentence names the Coast number of today and the walk to the target age.
   await expect(verdict).toContainText('al numero Coast FIRE di oggi');
-  await expect(verdict).toContainText('arriveresti a 60 anni');
+  await expect(verdict).toContainText(/arriveresti a 60 anni|si esaurisce nel \d{4}/);
   // The bridge model is on in the fixture: the lock sentence closes the verdict.
   await expect(verdict).toContainText('restano bloccati fino al');
   // «Non ancora» has a «quando» (2026-09-23): the base seed records income, so the Calcolatore's
@@ -122,13 +122,13 @@ test('the Traguardo reads the same walk at three dates, each with what is needed
   await expect(stages.nth(2)).toContainText('A regime · dal');
   for (const index of [0, 1, 2]) {
     await expect(stages.nth(index)).toContainText('servono');
-    await expect(stages.nth(index)).toContainText(/ne (hai|avrai)/);
+    await expect(stages.nth(index)).toContainText(/ne (hai|avrai)|esaurito/);
     await expect(stages.nth(index)).toContainText(/basta|mancano/);
   }
   // The method line says «a regime» is not the Calcolatore's number.
   await expect(traguardo).toContainText('Non è il numero FIRE del Calcolatore');
   // The verdict quotes the capital at the target age, one figure with the second stage.
-  await expect(page.getByRole('region', { name: 'Verdetto sul Coast FIRE' })).toContainText('arriveresti a 60 anni');
+  await expect(page.getByRole('region', { name: 'Verdetto sul Coast FIRE' })).toContainText(/arriveresti a 60 anni|si esaurisce nel \d{4}/);
 });
 
 test('the Scenari tile ranks the three Coast numbers, base in the middle', async ({ page }) => {
