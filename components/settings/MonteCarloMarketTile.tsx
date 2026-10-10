@@ -21,8 +21,18 @@ import type { MonteCarloClassOverride } from '@/types/assets';
 import type { Narrative } from '@/lib/utils/narrative';
 import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_LABELS, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { describeAnchorLines } from '@/lib/utils/marketAnchors';
-import { MONTE_CARLO_CLASS_DEFAULTS, MONTE_CARLO_CLASS_SOURCES, MONTE_CARLO_FROZEN_ANCHORS, type MonteCarloAnchors } from '@/lib/constants/monteCarloMarketDefaults';
-import { buildMarketNumbers, type MonteCarloMarketOverrides } from '@/lib/utils/monteCarloMarket';
+import {
+  MONTE_CARLO_CLASS_DEFAULTS,
+  MONTE_CARLO_CLASS_SOURCES,
+  MONTE_CARLO_FROZEN_ANCHORS,
+  MONTE_CARLO_HEDGEABLE_CLASSES,
+  defaultCorrelations,
+  normalizeHedge,
+  type MonteCarloAnchors,
+  type MonteCarloHedgeableClass,
+} from '@/lib/constants/monteCarloMarketDefaults';
+import { buildMarketNumbers, countEditedCorrelations, type MonteCarloMarketOverrides } from '@/lib/utils/monteCarloMarket';
+import { describeHedgeReading } from '@/lib/utils/settingsNarrative';
 import { toLogNormal } from '@/lib/utils/monteCarloDraw';
 import { portfolioScenarioBand, realReturn, type FireWeightsOrigin } from '@/lib/utils/fireAssumptions';
 import { formatPercentageIt } from '@/lib/utils/formatters';
@@ -30,6 +40,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 
@@ -138,7 +149,8 @@ export function MonteCarloMarketTile({
   className,
 }: MonteCarloMarketTileProps) {
   const numbers = buildMarketNumbers(draft.overrides, anchors);
-  const writtenAny = Object.keys(draft.overrides.classes).length > 0 || draft.overrides.inflationRate !== undefined;
+  const hedged = normalizeHedge(draft.overrides.hedged);
+  const writtenAny = Object.keys(draft.overrides.classes).length > 0 || draft.overrides.inflationRate !== undefined || Object.values(hedged).some(Boolean);
 
   const setOverrides = (overrides: MonteCarloMarketOverrides) => onDraftChange({ ...draft, overrides });
   const setField = (cls: MonteCarloClass, field: keyof MonteCarloClassOverride, value: number) =>
@@ -156,7 +168,20 @@ export function MonteCarloMarketTile({
     else delete classes[cls];
     setOverrides({ ...draft.overrides, classes });
   };
-  const resetAll = () => setOverrides({ classes: {} });
+  // Q4 (RQ7): a default correlation follows the hedge; a matrix the user edited stays as it is.
+  const withHedge = (next: Partial<Record<MonteCarloHedgeableClass, boolean>> | undefined): MonteCarloMarketDraft => {
+    const matrixEdited = countEditedCorrelations(draft.correlations, hedged) > 0;
+    return {
+      ...draft,
+      overrides: { ...draft.overrides, hedged: next },
+      correlations: matrixEdited ? draft.correlations : defaultCorrelations(next),
+    };
+  };
+  const setHedge = (cls: MonteCarloHedgeableClass, value: boolean) => {
+    const next = Object.fromEntries(MONTE_CARLO_HEDGEABLE_CLASSES.filter((key) => (key === cls ? value : hedged[key])).map((key) => [key, true]));
+    onDraftChange(withHedge(Object.keys(next).length > 0 ? next : undefined));
+  };
+  const resetAll = () => onDraftChange({ ...withHedge(undefined), overrides: { classes: {} } });
 
   // The Oro select lists the configured names, plus the one in force when it is not among them.
   const goldOptions = effectiveGoldSubCategory && !commoditySubCategories.includes(effectiveGoldSubCategory) ? [...commoditySubCategories, effectiveGoldSubCategory] : commoditySubCategories;
@@ -296,6 +321,23 @@ export function MonteCarloMarketTile({
             disabled={disabled}
             className="w-20"
           />
+        </div>
+      </div>
+
+      <div className="mt-4 border-t border-border pt-4" role="group" aria-label="Copertura del cambio" data-testid="mc-market-hedge">
+        <span className="text-[13px] font-medium">Copertura del cambio</span>
+        <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground" data-testid="mc-market-hedge-reading">
+          {describeHedgeReading(hedged)}
+        </p>
+        <div className="mt-2 grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+          {MONTE_CARLO_HEDGEABLE_CLASSES.map((cls) => (
+            <div key={cls} className="flex items-center justify-between gap-3 py-1.5">
+              <Label htmlFor={`mc-market-hedge-${cls}`} className="flex-1 cursor-pointer text-[13px] font-normal">
+                {MONTE_CARLO_CLASS_LABELS[cls]}
+              </Label>
+              <Switch id={`mc-market-hedge-${cls}`} checked={hedged[cls]} onCheckedChange={(checked) => setHedge(cls, checked)} disabled={disabled} />
+            </div>
+          ))}
         </div>
       </div>
 

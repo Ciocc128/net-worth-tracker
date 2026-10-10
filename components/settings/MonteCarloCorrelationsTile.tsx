@@ -14,7 +14,7 @@
 import { ChevronDown, RotateCcw } from 'lucide-react';
 import type { Narrative } from '@/lib/utils/narrative';
 import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_LABELS, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
-import { MONTE_CARLO_CORRELATIONS_SOURCE, getDefaultMonteCarloCorrelations } from '@/lib/constants/monteCarloMarketDefaults';
+import { MONTE_CARLO_CORRELATIONS_SOURCE, getDefaultMonteCarloCorrelations, type MonteCarloHedgeableClass } from '@/lib/constants/monteCarloMarketDefaults';
 import { pairIndices } from '@/lib/utils/correlationMatrix';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,8 @@ interface MonteCarloCorrelationsTileProps {
   onChange: (correlations: number[]) => void;
   /** The classes the portfolio holds: their lists come first and open. */
   heldClasses: MonteCarloClass[];
+  /** Q4: the hedge in force — «Ripristina default» restores the defaults of THIS combination. */
+  hedged?: Partial<Record<MonteCarloHedgeableClass, boolean>>;
   corrections: CorrectionsByIndex;
   disabled?: boolean;
   className?: string;
@@ -47,11 +49,11 @@ const PAIRS = pairIndices(MONTE_CARLO_CLASSES.length);
 
 const formatTwo = (value: number) => value.toFixed(2).replace('.', ',');
 
-export function MonteCarloCorrelationsTile({ reading, correlations, onChange, heldClasses, corrections, disabled, className }: MonteCarloCorrelationsTileProps) {
+export function MonteCarloCorrelationsTile({ reading, correlations, onChange, heldClasses, hedged, corrections, disabled, className }: MonteCarloCorrelationsTileProps) {
   // Every class but the last has successors. Held classes first (open), then the others (closed).
   const groups = MONTE_CARLO_CLASSES.slice(0, -1).map((cls, rowIndex) => ({ cls, rowIndex, held: heldClasses.includes(cls) }));
   const ordered = [...groups.filter((group) => group.held), ...groups.filter((group) => !group.held)];
-  const defaults = getDefaultMonteCarloCorrelations();
+  const defaults = getDefaultMonteCarloCorrelations(hedged);
   const source = MONTE_CARLO_CORRELATIONS_SOURCE;
 
   const setPair = (index: number, value: number) => onChange(correlations.map((current, i) => (i === index ? value : current)));

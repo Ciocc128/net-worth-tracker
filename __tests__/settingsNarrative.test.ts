@@ -23,6 +23,7 @@ vi.mock('firebase/firestore', () => ({
 import { narrativeToText, type Narrative } from '@/lib/utils/narrative';
 import {
   describeAllocationTotal,
+  describeHedgeReading,
   describeMonteCarloCorrelations,
   describeAssistantPreferences,
   describeAutoCalc,
@@ -1052,5 +1053,19 @@ describe('describeEmergencyFundDeclaration (§ 14.6)', () => {
     expect(say(0, 50)).toBe('0 €');
     expect(say(undefined, undefined)).toBe('non impostato · la liquidità fuori dal portafoglio resta fuori');
     expect(say(undefined, 50)).toBe('da fissare nel Calcolatore (quota salvata 50%)');
+  });
+});
+
+describe('Q4 — copertura del cambio', () => {
+  const none = { equity: false, gold: false, trendFollowing: false, carry: false };
+  it('says what the switches mean', () => {
+    expect(describeHedgeReading(none)).toContain('Nessuna classe coperta: volatilità e correlazioni di chi tiene strumenti in dollari senza copertura.');
+    expect(describeHedgeReading({ ...none, trendFollowing: true, carry: true })).toContain('Coperte: Trend, Carry.');
+    expect(describeHedgeReading(none)).toContain('Il Base non cambia');
+  });
+  it('the Correlazioni reading says a custom matrix is not changed by the hedge', () => {
+    expect(narrativeToText(describeMonteCarloCorrelations({ editedPairCount: 2, hedgedLabels: ['Trend'], correctedPairCount: 0 }))).toContain('la copertura non le cambia');
+    expect(narrativeToText(describeMonteCarloCorrelations({ editedPairCount: 0, hedgedLabels: ['Trend'], correctedPairCount: 0 }))).toContain('Seguono la copertura scelta (Trend)');
+    expect(narrativeToText(describeMonteCarloCorrelations({ editedPairCount: 2, correctedPairCount: 0 }))).not.toContain('copertura');
   });
 });

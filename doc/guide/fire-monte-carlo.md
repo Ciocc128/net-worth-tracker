@@ -127,6 +127,14 @@
   Rule already compares the RESOLVED scenarios). Left on the frozen anchors on purpose: the Landing, the assistant's server context
   (`assistantMonthContextService`, no client read there) and the Impostazioni load that migrates a v1 (a transient reading: the first save writes the v2).
   A written inflation wins over the SPF; the rate anchors stay (AQ34).
+- **Q4 «copertura del cambio»** (2026-10-10, doc/montecarlo/README.md § 14.12, RQ7): four switches (Azioni, Oro, Trend, Carry) in Impostazioni › Simulazioni ›
+  Ipotesi di mercato, default none hedged. `MonteCarloMarketSettingsV2.hedged` is written ONLY with at least one `true` (`toMonteCarloMarketSettings`; a merge
+  write deletes the keys turned off, `monteCarloMarketForMergeWrite`). It changes two defaults and nothing else: the volatility (`volatilityHedged` in
+  `MONTE_CARLO_CLASS_DEFAULTS`, 17,15 · 17,98 · 11,00 · 10,03) and the pairs of the default matrix (`HEDGE_PAIR_RULES` → `defaultCorrelations(hedged)`, 16 combinations all
+  positive semi-definite, minimum eigenvalue 0,198). The Base never moves (AQ39). A WRITTEN value stays: a typed volatility is compared with the default IN FORCE
+  (so 17,15 typed under the hedge is not a choice), a custom matrix stays under any switch and `countEditedCorrelations(corr, hedged)` counts on the combination
+  in force; toggling a switch carries an UNEDITED matrix to the new defaults in the tile (`withHedge`). «Ripristina default» of the market tile also clears the
+  switches. The hedge cost (USD − EUR short rate) is zero on average in the model: declared. «Coperte: Trend, Carry» is the last line of the FIRE «Rendimenti» chip.
 - **The classes move together through ONE correlation matrix** (T2, 2026-10-03; README § 6): 21 pairs of log-returns, the
   same for Bear, Base and Bull (D6), saved in `monteCarloMarket.correlations` ONLY when they differ from the research
   defaults (`MONTE_CARLO_DEFAULT_CORRELATIONS`), so an improved default reaches whoever never touched them. `buildDrawPlan`

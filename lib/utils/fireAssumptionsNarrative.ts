@@ -7,7 +7,8 @@ import { formatPercentage } from '@/lib/services/chartService';
 import { formatLeverage } from '@/lib/utils/monteCarloNarrative';
 import { FLOW_KIND_LABEL } from '@/lib/utils/datedFlowsNarrative';
 import type { ResolvedFlow, ExcludedFlow } from '@/lib/utils/datedFlows';
-import { MONTE_CARLO_EXCLUDED_CLASSES, MONTE_CARLO_EXCLUDED_LABELS } from '@/lib/constants/monteCarloClasses';
+import { MONTE_CARLO_CLASS_LABELS, MONTE_CARLO_EXCLUDED_CLASSES, MONTE_CARLO_EXCLUDED_LABELS } from '@/lib/constants/monteCarloClasses';
+import { hedgedClassList } from '@/lib/constants/monteCarloMarketDefaults';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import type { FireAssumptions, FireCapital } from '@/lib/utils/fireAssumptions';
@@ -121,6 +122,8 @@ export function describeReturnsChip(assumptions: FireAssumptions): FireChip {
   const { bear, base, bull } = assumptions.scenarios;
   const lines = [describeWeights(assumptions), `Bear ${pct(bear.growthRate)}, Bull ${pct(bull.growthRate)} (15° e 85° percentile a 30 anni del portafoglio, con l’incertezza sulle stime)`, `Inflazione ${pct(base.inflationRate)}`];
   if (assumptions.leverage > 1) lines.push(`Leva ${formatLeverage(assumptions.leverage)}`);
+  const hedged = hedgedClassList(assumptions.market.hedged);
+  if (hedged.length > 0) lines.push(`Coperte: ${hedged.map((cls) => MONTE_CARLO_CLASS_LABELS[cls]).join(', ')}`);
   return {
     id: 'returns',
     label: `Rendimento Base ${pct(base.growthRate)} · reale ${pct(base.realReturnRate)}`,
