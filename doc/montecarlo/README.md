@@ -10,7 +10,7 @@
 >
 > Lingua: conversazione in italiano; codice, identificatori e commenti in inglese; testo UI in italiano.
 >
-> **Ordine**: R0 (ricerca, consegnata il 03/10/2026, § 2) → T1 → T2 → T3 → T4 (Proiezione, § 11, aggiunta il 04/10/2026) → T5 («Dopo il FIRE», § 12, aggiunta il 05/10/2026) → T6 (soglia della Proiezione, Tappe prima, via la Distribuzione, § 13, aggiunta il 05/10/2026). Ogni task parte da sola da `main` dopo il merge della
+> **Ordine**: R0 (ricerca, consegnata il 03/10/2026, § 2) → T1 → T2 → T3 → T4 (Proiezione, § 11, aggiunta il 04/10/2026) → T5 («Dopo il FIRE», § 12, aggiunta il 05/10/2026) → T6 (soglia della Proiezione, Tappe prima, via la Distribuzione, § 13, aggiunta il 05/10/2026). Poi le ipotesi di mercato riviste (§ 14, spec del 10/10/2026): Q1 → Q2 → Q3 e Q4 → Q5. Ogni task parte da sola da `main` dopo il merge della
 > precedente; nessuna richiede codice non ancora scritto da una task successiva.
 
 ---
@@ -177,6 +177,9 @@ Target e nozionale di Crypto e Immobili non entrano: i target delle classi model
 ---
 
 ## 2. Valori predefiniti (ricerca R0, consegnata il 03/10/2026)
+
+> **Sostituito dal § 14 (10/10/2026)**: valori in euro e reali, un'inflazione attesa, Bear e Bull sul portafoglio. Questa
+> sezione resta come storia delle scelte del 03/10/2026; il codice la segue fino al merge di Q1.
 
 La ricerca è in `/mnt/project-files/montecarlo/R0-valori-predefiniti.md` (fonti F1–F7 nel suo § 1, script in
 `r0-dati/`). Le cifre entrano nel codice in un solo file, `lib/constants/monteCarloMarketDefaults.ts`, con
@@ -1379,3 +1382,620 @@ fondo bloccato, `planExpensesFromCashflow` falso. Valori calcolati con
   dossier: rimando a § 13 su RV6; `CLAUDE.md` riga «Latest»; `Draft Release Temp.md`.
 - Fine: `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__`, `TZ=Europe/Rome npx vitest
   run` verdi. Collaudo una fase per messaggio (WORKFLOW.md § 2).
+
+---
+
+## 14. Ipotesi di mercato riviste: reali, in euro, con l'incertezza (spec del 10/10/2026)
+
+> **Stato**: spec scritta il 10/10/2026. Le decisioni V-D1…V-D10 sono state confermate dal proprietario l'08/10/2026,
+> V-D11…V-D13 il 10/10/2026 (thread «Ricerca R0-bis»), DQ1–DQ4 il 10/10/2026 in questo thread, tutte sull'opzione
+> proposta; DQ5 resta una proposta senza obiezioni (§ 14.7).
+>
+> Origine: card Todoist «SPEC Monte Carlo: ipotesi di mercato riviste» (epic `epic-montecarlo`). Input: la validazione
+> `/mnt/project-files/montecarlo/R0-validazione.md` (§ 3–5bis, decisioni V-D1…V-D10) e la ricerca
+> `/mnt/project-files/montecarlo/R0-bis-valori-in-euro.md` (§ 0, § 4–7, § 10, § 12), con script e dati in
+> `r0-bis/`. I valori di riferimento di questa sezione sono ricalcolati dalla tabella **arrotondata** dei default da
+> `/mnt/project-files/montecarlo/spec-ipotesi/s1_controllo.py` (forma chiusa contro simulazione) e `s2_riferimenti.py`
+> (le cifre esatte che i test devono ritrovare). Base di codice analizzata: commit `80c4a14` (10/10/2026, `main` del
+> fork, merge della PR #93).
+>
+> **Sostituisce**: § 2 (valori in dollari, inflazione 3,04%, regola Orso/Toro in due rami, tabella dei default), D3, le
+> righe di § 4.2 sul formato di `monteCarloMarket`, i criteri A14–A16. Il resto del dossier (R1, R3–R6, T2–T6) resta.
+>
+> Letture obbligatorie, oltre a § 0: § 1.5 e § 4 di questo dossier; `doc/fire-ipotesi/README.md` § 1.5 (RP1–RP7) e § 9
+> (RC1–RC4, D-C2); `doc/guide/fire-monte-carlo.md`, `doc/guide/fire-proiezione.md`, `doc/guide/impostazioni.md` §
+> Settings — the FIVE places. DESIGN.md: The Declaration-Tile Rule, The Input Tile Rule, The Stale-Run Rule, The
+> Narrative Honesty Rule, The Risk-vs-Fact Rule, The Comma Rule.
+
+### 14.1 Obiettivo
+
+Che le ipotesi di mercato delle simulazioni siano quelle di **chi investe in euro**, in **termini reali**, e che
+dichiarino **quanto sono incerte**. Oggi sono CAGR nominali in dollari con l'inflazione USA (3,04%): cambiare
+l'inflazione in Impostazioni sposta anche i rendimenti reali, Obbligazioni e Liquidità non c'entrano con i tassi in
+euro, Orso e Toro mescolano due incertezze e nel Monte Carlo ne contano una due volte (R0-validazione § 3.2). Dopo:
+- un **Base reale** per classe, con la sua volatilità e la sua **incertezza sul parametro**, e **un'inflazione attesa**;
+- Obbligazioni e Liquidità **ancorate ai tassi BCE di oggi**, Trend e Carry come **premio sopra la liquidità**;
+- nei motori deterministici **Bear e Bull del portafoglio** (15° e 85° percentile a 30 anni, con l'incertezza);
+- nei motori stocastici l'incertezza **dentro il Base**, e Bear e Bull come **stress dichiarato**;
+- l'opzione **coperto / non coperto** per le classi in valuta, e un **archivio** che permette di ricalcolare i default.
+
+### 14.2 Stato di partenza (verificato nel codice, 10/10/2026)
+
+| Fatto | Dove |
+| --- | --- |
+| I default sono CAGR **nominali** in dollari, tre scenari per classe (42 numeri), un'inflazione 3,04% ripetuta nei tre scenari | `lib/constants/monteCarloMarketDefaults.ts` (`DEFAULT_TABLE`, `MONTE_CARLO_DEFAULT_INFLATION`) |
+| Il formato salvato è `monteCarloMarket` v1: `scenarios.{bear,base,bull}.classes[cls].{cagr,volatility}` e `inflationRate` per scenario | `types/assets.ts:694-710` |
+| **Il primo «Salva» congela tutti i 42 numeri**: `toMonteCarloMarketSettings` scrive sempre gli scenari interi (correlazioni e spread invece solo se diversi dai default) | `lib/utils/monteCarloMarket.ts` (`toMonteCarloMarketSettings`) |
+| **Un solo risolutore**: ogni lettura passa da `resolveMonteCarloMarket` / `resolveMonteCarloMarketForPortfolio` (salvato → v0 migrato con R2 → default) | `lib/utils/monteCarloMarket.ts` |
+| I motori deterministici (Calcolatore, Coast, What If) leggono un tasso per scenario: RP1 sul portafoglio con le classi **dello scenario** (`buildPortfolioScenarios`), netto di costi (RC4); l'inflazione è quella dello scenario | `lib/utils/fireAssumptions.ts` (`portfolioCompoundReturn`, `buildPortfolioScenarios`) |
+| Obiettivi e «Spesa sostenibile» leggono solo il Base (`market.scenarios.base`) | `lib/utils/goalTrajectory.ts:115,146`, `components/fire-simulations/plan/FirePlanBlock.tsx:116`, `FireCalculatorTab.tsx:442` |
+| I motori stocastici lavorano in **nominale**: `buildDrawPlan(market, correlations)` una volta per esecuzione, `drawYear` per anno (due uniformi per classe, sempre); un generatore seminato nuovo per scenario | `lib/utils/monteCarloDraw.ts`, `lib/services/monteCarloService.ts` (`drawPathFactors`, `runAccumulationSimulation`), `MONTE_CARLO_SEED` in `lib/utils/monteCarloParams.ts` |
+| Monte Carlo e Proiezione eseguono tre scenari con le classi di Bear, Base e Bull; con la leva il Base gira anche senza (`unleveragedBase`), stesso seme | `components/fire-simulations/{MonteCarloTab,ProjectionTab}.tsx` |
+| Il tile «Ipotesi di mercato» ha il selettore Bear · Base · Bull, sette righe CAGR · volatilità · media, l'inflazione dello scenario, la riga «Il portafoglio target rende» | `components/settings/MonteCarloMarketTile.tsx` |
+| Le letture dicono «valori storici in dollari» | `lib/utils/settingsNarrative.ts:975-1001`, `lib/utils/monteCarloNarrative.ts:532` |
+| Il test S10 congela un'esecuzione seminata **costruita sui default**: ogni cambio dei default lo rompe, e sul Mac è rosso per l'ultima cifra | `__tests__/monteCarloSeededRegression.test.ts`, CLAUDE.md § Known Issues |
+| Trend e Carry hanno TER 0 nel modello perché i loro default sono netti (D-C2) | `lib/utils/fireCosts.ts` (`NET_OF_TER`) |
+| Esiste già un dato BCE condiviso: `ecb-rate-cache/deposit-rate` (FRED ECBDFR), scritto dal cron giornaliero via Admin SDK; la regola Firestore permette la lettura a ogni utente autenticato su **tutta** la collezione `ecb-rate-cache` | `lib/server/ecbRatesService.ts`, `app/api/cron/monthly-snapshot/route.ts:151`, `firestore.rules:263` |
+
+### 14.3 Perimetro
+
+**Incluso**
+- Formato v2 di `monteCarloMarket`: per classe Base **reale**, volatilità reale e incertezza; un'inflazione; si
+  salvano **solo i campi scritti dall'utente** (RQ0, RQ8).
+- I valori in euro della ricerca R0-bis (§ 14.6) e la matrice non coperta (V-D4, V-D9, V-D12).
+- Bear e Bull dei motori deterministici sul portafoglio (RQ3, V-D2, V-D11); lo stress per classe nei motori
+  stocastici (RQ5, DQ4); l'incertezza sul parametro nel Base dei motori stocastici (RQ6).
+- Le ancore BCE (€STR, curva AAA a 10 anni, SPF) lette dal cron, con valore e data dichiarati (RQ2, RQ9, V-D5, DQ2).
+- L'opzione «coperto / non coperto» per Azioni, Oro, Trend e Carry (RQ7, V-D10).
+- L'archivio dei dati con impronta e il test che ricalcola i default (RQ10, V-D7).
+- I limiti dichiarati nel Dettaglio: code grasse (M7) e persistenza dei tassi (M8) non modellate (V-D8), costo della
+  copertura nullo in media, errori sul parametro indipendenti fra classi.
+
+**Escluso**
+- M7 (code grasse) e M8 (tassi persistenti): card proprie in Backlog (V-D8).
+- La matrice di stress per l'Orso (M4 c): rinviata (V-D4).
+- Un orizzonte di Bear e Bull che segue il piano: fisso a 30 anni (§ 14.7, scelta dell'agente).
+- Il bootstrap storico (D3 di FIRE ipotesi) e la FEAT «Futures e margin account».
+- Spec Playwright: nessuna, come nel resto del dossier (§ 9); il collaudo è sull'anteprima Vercel e sul mirror.
+
+### 14.4 Casi d'uso
+
+1. **Chi non ha mai toccato le ipotesi.** Apre Impostazioni › Simulazioni: sette classi in euro, reali, con la fonte
+   di ciascuna; inflazione attesa 2,04% (BCE). Il suo 60/40 rende 4,49% reale nel Base (era circa 5%), Bear 1,61% e
+   Bull 7,46% sul portafoglio (§ 14.6).
+2. **Chi cambia l'inflazione.** Scrive 3%: Azioni, Oro e Materie prime non cambiano in reale; Obbligazioni e
+   Liquidità scendono, perché partono da un tasso nominale di mercato (RQ2), e con la Liquidità anche Trend e Carry.
+3. **Chi aveva salvato le ipotesi.** I numeri mai toccati prendono i nuovi default; il CAGR delle Azioni che aveva
+   scritto a mano resta, convertito in reale con l'inflazione che aveva; la pagina dice che Bear e Bull scritti a mano
+   non si usano più (RQ8, DQ3).
+4. **Il Monte Carlo con l'incertezza.** Lo stesso piano dà una probabilità di successo un po' più bassa nel Base: ogni
+   traiettoria ha la sua media, e quelle con la media bassa falliscono più spesso (RQ6). Bear e Bull dicono «stress».
+5. **I tassi cambiano.** La BCE taglia e l'€STR scende al 2%: il giorno dopo il Base della Liquidità scende, e con lui
+   Trend, Carry e il costo del debito della leva; la riga del tile dice il valore e la data (RQ9).
+6. **Chi si copre dal cambio.** Attiva «coperto» sul Trend: la volatilità del Trend passa da 14,76% a 11,00% e la sua
+   correlazione con il Carry da 0,50 a 0 (RQ7).
+
+### 14.5 Regole di calcolo
+
+**RQ0 — Il formato v2** (percentuali; reale = deflazionato con l'inflazione attesa):
+
+```
+per classe c:   g_c  = CAGR reale del Base            σ_c = volatilità reale (dev. std dei rendimenti annui semplici, il σa di R1)
+                u_c  = incertezza sul parametro: dev. std dell'errore sulla media dei log-rendimenti (punti)
+                Trend e Carry: p_c = premio sopra la liquidità, e g_c = (1 + g_Liquidità)(1 + p_c) − 1      (V-D13)
+una sola        π    = inflazione attesa
+```
+
+Non esistono più Bear e Bull per classe: si ricavano (RQ3, RQ5).
+
+**RQ1 — Dal reale al nominale dei motori.** I motori restano nominali (nessun cambio di R1–R4). Per ogni classe:
+
+```
+G_c = (1 + g_c)(1 + π) − 1          Σ_c = σ_c · (1 + π)          // R1 su (G_c, Σ_c) dà lo stesso s di (g_c, σ_c), m spostato di ln(1+π)
+```
+
+Così cambiare π non cambia nessun esito reale delle classi storiche (V-D1). `ResolvedMonteCarloMarket.scenarios`
+resta la forma che i motori leggono, nominale (`MonteCarloMarketScenario`), con un'inflazione uguale nei tre scenari.
+
+**RQ2 — Le ancore** (V-D5): con `E` = €STR, `Y` = rendimento spot a 10 anni della curva AAA dell'area euro, entrambi
+nominali in percentuale, e π:
+
+```
+g_Liquidità    = (1 + E)/(1 + π) − 1                    salvo un valore scritto dall'utente
+g_Obbligazioni = (1 + Y)/(1 + π) − 1                    salvo un valore scritto dall'utente
+g_Trend        = (1 + g_Liquidità)(1 + p_Trend) − 1      p_Trend = 3,52% (V-D13, DQ1)
+g_Carry        = (1 + g_Liquidità)(1 + p_Carry) − 1      p_Carry = 3,28% (V-D13, DQ5)
+π              = SPF BCE (inflazione attesa di lungo periodo) salvo un valore scritto dall'utente
+```
+
+Il nominale di Obbligazioni e Liquidità coincide quindi con il tasso di mercato (`G = Y`, `G = E`). Con un'inflazione
+scritta a mano i loro reali si spostano: è la conseguenza voluta (il tasso nominale è il dato, il reale dipende dalla
+previsione d'inflazione), e la lettura del tile lo dice. Fino a Q3 le ancore sono **congelate** ai valori dell'08/10/2026
+(`MONTE_CARLO_FROZEN_ANCHORS`, § 14.6).
+
+**RQ3 — Bear e Bull dei motori deterministici** (V-D2, V-D11): sul portafoglio, dai pesi della pagina (RP4), in forma
+chiusa. Con R1 sulle classi **nominali** del Base (RQ1), `v` i pesi in decimali (il debito di una leva come Liquidità
+negativa, come RP1), `G_i = 1 + μa_i`, `s_i` da R1, `M` e `V` di RP1:
+
+```
+g_p   = M / √(1 + V/M²) − 1                       // il Base di oggi (RP1), invariato
+m_p   = ln(1 + g_p)
+s_p²  = ln(1 + V/M²)                              // dispersione annua del portafoglio
+SE_p² = Σ_i (v_i · G_i / M)² · u_i²               // incertezza sul parametro del portafoglio (delta, errori indipendenti); u_i in decimali
+Bear  = exp(m_p − z · √(s_p²/H + SE_p²)) − 1       Bull = exp(m_p + z · √(s_p²/H + SE_p²)) − 1
+H = 30,  z = Φ⁻¹(0,85) = 1,0364333894937898
+```
+
+È il 15° e l'85° percentile del CAGR a 30 anni del portafoglio con l'incertezza sul parametro (R0-bis § 12, regola del
+KID del PEPP). Contro 200.000 percorsi simulati lo scarto è ≤ 0,05 punti senza leva e 0,43 punti con leva 1,5×
+(`s1_controllo.py`): la forma chiusa ignora la non lognormalità del portafoglio a leva, ed è dichiarato. Il reale di
+ogni scenario resta Fisher (RP2) con la π unica.
+
+**RQ4 — Costi e leva in RQ3.** I costi (RC4) moltiplicano il fattore di ogni anno per `f = 1 − c/100`: `SE_p` si
+calcola sul **lordo**, poi `Bear_netto = (1 + Bear_lordo)·f − 1` (lo stesso per Bull e per il Base, come oggi). Lo
+spread della leva entra in `M` come in RP1. I campi `arithmeticMean` e `volatility` di Bear e Bull sono quelli del
+Base (la dispersione annua non cambia; cambia la mediana del lungo periodo).
+
+**RQ5 — Bear e Bull nei motori stocastici** (V-D2, DQ4): uno **stress**. Ogni classe con la media dei log al 15°
+(Bear) o all'85° (Bull) percentile della sua incertezza, tutte insieme, e la stessa dispersione annua:
+
+```
+G'_c = exp(ln(1 + G_c) ∓ z · u_c) − 1          Σ'_c = Σ_c · (1 + G'_c)/(1 + G_c)      // s invariato
+```
+
+Nessuna estrazione della media per percorso (RQ6) negli stress. Lo stress è più severo del Bear deterministico per un
+portafoglio diversificato (tutte le classi al loro peggio insieme): è il «caso brutto dentro il caso brutto» di
+R0-validazione § 3.2, dichiarato come tale.
+
+**RQ6 — L'incertezza nel Base dei motori stocastici** (V-D2, Q2): per ogni percorso, **prima** degli anni, la media dei
+log di ogni classe si estrae una volta da `N(m_c, u_c²)`:
+
+```
+m_c,percorso = m_c + u_c · η_c          η_c normali standard indipendenti, da un generatore SEPARATO (MONTE_CARLO_PARAMETER_SEED)
+```
+
+poi gli anni come oggi (`drawYear` con `m_c,percorso` al posto di `m_c`). Il generatore separato fa sì che con `u = 0`
+(o assente) le estrazioni annue siano **identiche a prima, float per float**, e che Base con e senza leva vedano le
+stesse medie e gli stessi `ε` (A13). Vale per Monte Carlo, «Dopo il FIRE» e Spesa sostenibile (che rilegge i fattori
+del Base), Ventaglio del Calcolatore e Proiezione. Gli errori sono **indipendenti fra classi**, come nella ricerca
+(R0-bis § 7): dichiarato nei limiti.
+
+**RQ7 — Copertura del cambio** (V-D10, Q4): per Azioni, Oro, Trend e Carry un interruttore «coperto»; predefinito «non
+coperto». Il Base non cambia. Cambiano la volatilità predefinita (§ 14.6, colonna «coperto») e le coppie predefinite
+della matrice, coppia per coppia secondo la versione delle due classi (§ 14.6). Un valore scritto dall'utente (una
+volatilità, una matrice personalizzata) **resta com'è** quando si cambia la copertura: la copertura cambia solo i
+predefiniti. Il costo della copertura (la differenza dei tassi a breve USD ed EUR) è nullo in media nel modello:
+dichiarato.
+
+**RQ8 — Migrazione dei salvati v1 → v2** (DQ3). Si legge il v1 (o il v0 di `monteCarloScenarios`, prima migrato con
+R2 come oggi); `π₁` = inflazione del Base salvato:
+- per classe e per campo dello scenario **Base**: un valore uguale (|Δ| < 1e-9) al default v1 di quella classe **non
+  diventa nulla** (prenderà il default nuovo); uno diverso diventa un valore scritto, convertito: CAGR reale
+  `(1 + G)/(1 + π₁) − 1`, volatilità reale `Σ/(1 + π₁)`. Per Trend e Carry il CAGR reale diventa premio sopra la
+  Liquidità **in vigore** al momento della lettura: `p = (1 + g)/(1 + g_Liquidità) − 1`;
+- l'inflazione: uguale a 3,04 → nulla (prende l'ancora SPF); diversa → scritta;
+- Bear e Bull: se anche un solo numero differisce dai default v1, la lettura lo dice una volta (`bearBullDropped`); i
+  valori si scartano;
+- correlazioni: coppia per coppia, uguale al default v1 → default nuovo, diversa → resta; se almeno una resta, si
+  salva la matrice intera (oggi il formato è l'array di 21), corretta da R5 al salvataggio come oggi;
+- spread e sottocategoria dell'oro: invariati.
+
+La migrazione è **in lettura** (il documento non si riscrive da solo); il primo «Salva» di Impostazioni scrive il v2.
+Fino ad allora `origin: 'migrated'` e la lettura del tile lo dice.
+
+**RQ9 — Aggiornamento delle ancore** (V-D5, DQ2, Q3): il cron giornaliero legge tre serie della BCE (API
+`data-api.ecb.europa.eu`, CSV senza chiave) e le scrive in `ecb-rate-cache/market-anchors`:
+
+| Ancora | Serie BCE | Frequenza |
+| --- | --- | --- |
+| €STR | `EST.B.EU000A2X2A25.WT` | giornaliera |
+| AAA spot 10 anni | `YC.B.U2.EUR.4F.G_N_A.SV_C_YM.SR_10Y` | giornaliera |
+| Inflazione attesa | `SPF.Q.U2.HICP.POINT.LT.Q.AVG` | trimestrale |
+
+Ultima osservazione di ciascuna, con la sua data. Un valore fuori da [−2, 15] (tassi) o [−2, 10] (inflazione) si
+scarta; una serie che fallisce lascia il valore precedente **di quella serie**; documento assente o illeggibile →
+le ancore congelate. L'app legge il documento dal client (la regola esiste già). Le ancore valgono per tutto
+l'orizzonte: i tassi non cambiano nel modello (M8, rinviata).
+
+**RQ10 — Archivio e controllo** (V-D7, Q5): ogni file da cui escono i default è archiviato con data, fonte e impronta
+SHA-256; uno script ricalcola la tabella del § 14.6 e un test fallisce se `monteCarloMarketDefaults.ts` non coincide
+entro l'arrotondamento dichiarato (2 decimali per CAGR, volatilità e incertezza; 0,05 per le correlazioni).
+
+### 14.6 Valori predefiniti
+
+**Classi** (R0-bis § 0, § 4, § 7.1; `b6_tabella.csv`). Reali, in euro; volatilità = deviazione standard dei rendimenti
+annui semplici reali; incertezza in punti del log. Le ancore congelate: €STR **2,439%**, AAA spot 10 anni
+**3,5192%** (BCE, 08/10/2026), inflazione attesa **2,0369%** (SPF BCE, 3° trimestre 2026; mostrata 2,04%).
+
+| Classe | Base reale | Come si ottiene | Vol. non coperto | Vol. coperto | Incertezza | Fonte (`source`) |
+| --- | ---: | --- | ---: | ---: | ---: | --- |
+| Azioni | **5,74** | storico | 19,49 | 17,15 | 2,70 | VTSIM (azioni mondo) in EUR, 1972–2025 |
+| Obbligazioni | **1,4527** | ancora AAA 10 anni (RQ2) | 8,00 | — | 0,98 | Base: curva AAA BCE; vol.: Bund 10 anni ricostruito 1972–2025; incertezza: errore dell'ancora a 10 anni |
+| Oro | **1,79** | storico | 15,82 | 17,98 | 2,30 | GLDSIM in EUR, 1981–2025 |
+| Materie prime | **0,52** | storico | 23,88 | — | 3,50 | S&P GSCI (GSGSIM) in EUR, 1980–2025 |
+| Liquidità | **0,3941** | ancora €STR (RQ2) | 2,82 | — | 2,37 | Base: €STR; vol.: CASHEUR 1972–2025; incertezza: errore dell'ancora a 10 anni |
+| Trend | **3,9279** | Liquidità + premio **3,52** | 14,76 | 11,00 | 2,50 | premio = Sharpe 0,375 × vol. dell'eccesso 11% − σ²/2; controlli DBMFSIM e KMLMSIM |
+| Carry | **3,6870** | Liquidità + premio **3,28** | 12,26 | 10,03 | 2,91 | UEQC, tratto ufficiale 31/12/2014 → 07/10/2026 senza il salto del 24/01/2020, TER 0,34% solo sull'indice |
+
+Nel codice si scrivono i numeri della colonna «Come si ottiene» (5,74; 1,79; 0,52; premi 3,52 e 3,28; le tre ancore) e
+le colonne di volatilità e incertezza: i Base di Obbligazioni, Liquidità, Trend e Carry si **calcolano** (RQ2).
+`MONTE_CARLO_DEFAULTS_LAST_YEAR` resta 2025. Trend e Carry restano **al netto dei costi** (D-C2 invariata): il premio del
+Carry viene dall'ETF e dall'indice al netto del TER, quello del Trend è tarato su DBMF, una serie al netto.
+
+**Correlazioni, tutto non coperto** (R0-bis § 5.2; V-D4, V-D9, V-D12): tutte le coppie a 0 tranne Azioni–Materie
+prime 0,35, Obbligazioni–Liquidità 0,50, Oro–Liquidità −0,30, Trend–Carry 0,50. Triangolo superiore nell'ordine di
+`MONTE_CARLO_CLASSES`:
+
+```
+0, 0, 0.35, 0, 0, 0,     // Azioni con Obbligazioni, Oro, Materie prime, Liquidità, Trend, Carry
+0, 0, 0.5, 0, 0,         // Obbligazioni con Oro … Carry
+0, -0.3, 0, 0,           // Oro con Materie prime … Carry
+0, 0, 0,                 // Materie prime con Liquidità, Trend, Carry
+0, 0,                    // Liquidità con Trend, Carry
+0.5                      // Trend con Carry
+```
+
+Semidefinita positiva così com'è, autovalore minimo **0,417** (ricalcolato qui sulla matrice scritta: R0-bis § 5.2
+riporta 0,295). `MONTE_CARLO_CORRELATIONS_SOURCE`: «log-rendimenti annui
+reali in euro, periodo comune di ogni coppia (oro dal 1981, materie prime dal 1980, Trend DBMF dal 2001, Carry
+2002–2025); valore misurato arrotondato a 0,05 dove significativo al 5% o meccanico, altrimenti 0».
+
+**Correlazioni con la copertura** (Q4; R0-bis § 5.3, `b4_correlazioni_dbmfsim.csv`, 51 combinazioni): coppia per
+coppia secondo la versione delle due classi. Tutte 0 tranne:
+
+| Coppia | Valore | Quando |
+| --- | ---: | --- |
+| Azioni–Materie prime | 0,35 | Azioni non coperte (coperte: 0) |
+| Obbligazioni–Liquidità | 0,50 | sempre |
+| Oro–Liquidità | −0,30 | Oro non coperto (coperto: 0) |
+| Trend–Carry | 0,50 | entrambi non coperti (altrimenti 0) |
+| Azioni–Trend | −0,40 | Azioni coperte e Trend non coperto (altrimenti 0) |
+| Materie prime–Carry | −0,40 | Carry coperto (non coperto: 0) |
+| Liquidità–Trend | 0,10 | Trend coperto (non coperto: 0) |
+| Liquidità–Carry | 0,45 | Carry coperto (non coperto: 0) |
+
+Tutte le 16 combinazioni sono semidefinite positive (autovalore minimo 0,198, con Trend e Carry coperti e le altre no):
+R5 non le tocca.
+
+**Spread della leva**: 2,0%, invariato (è già misurato sull'€STR).
+
+**Effetto sui portafogli** (CAGR **reale** a 30 anni; Bear e Bull = RQ3; ancore congelate; nessun costo):
+
+| Portafoglio | Oggi (Base a π 3,04%) | Bear · Base · Bull (RQ3) |
+| --- | ---: | --- |
+| 100% Azioni | 6,79 | 1,1816 · 5,7400 · 10,5038 |
+| 60/40 | 5,07 | 1,6113 · 4,4934 · 7,4573 |
+| 50 Azioni · 20 Obbligazioni · 10 Oro · 10 Trend · 10 Carry | 5,79 | 2,3536 · 4,8217 · 7,3492 |
+
+### 14.7 Decisioni
+
+Le decisioni V-D sono della validazione e della ricerca, numerate come lì; le DQ sono di questa spec.
+
+| # | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| V-D1 | Presa (08/10/2026) | **Parametri reali** più **un'inflazione attesa unica** (SPF BCE): il nominale si ricava (RQ1). | Tenere il 3,04% USA: nominali lontani dai tassi in euro e campo inflazione che sposta i reali. HICP storico: un dato passato, non un'aspettativa. |
+| V-D2 | Presa (08/10/2026) | **Bear e Bull sul portafoglio** nei motori deterministici (RQ3); nei motori stocastici **incertezza sul parametro per percorso** (RQ6) e Bear/Bull solo come **stress dichiarato** (RQ5). | La regola in due rami: doppio conteggio nel Monte Carlo, bande non omogenee fra classi. Percentili per classe ovunque: stesso doppio conteggio. |
+| V-D3 | Presa (08/10/2026) | **Carry sul tratto ufficiale intero**, senza il salto del 24/01/2020, TER tolto solo sull'indice (R0-bis § 4.7, § 9: 5,45% nominale USD, non «circa 5,3%»). | 5,60/18,41 di R0 (due finestre diverse); ricostruzione intera (superciclo). |
+| V-D4 | Presa (08/10/2026) | Correlazioni **arrotondate a 0,05 e ridotte a 0** dove non significative al 5% (salvo le meccaniche); matrice di stress dell'Orso rinviata. | `corr_v3` a quattro decimali (precisione non sostenuta); identità ovunque (perde le coppie meccaniche). |
+| V-D5 | Presa (08/10/2026) | **Obbligazioni e Liquidità dai tassi BCE di oggi**, aggiornati in automatico (RQ2, RQ9). | Media storica: errore medio 2,09 punti contro 0,95 dell'ancora sul Bund (R0-bis § 4.2). |
+| V-D6 | Presa (08/10/2026) | **Oro dal 1981**; azioni dall'**indice mondiale** (R0-bis § 4.4: toglie la sopravvivenza USA invece di dichiararla). | Oro dal 1972 (un episodio fa metà del Base); S&P 500 con una nota (−1 punto reale non detto nei numeri). |
+| V-D7 | Presa (08/10/2026) | **Archivio dei grezzi con impronta** e controllo automatico dei valori (RQ10). | Lasciare il controllo a mano: la pipeline non si rifà identica. |
+| V-D8 | Presa (08/10/2026) | **M7 e M8 rinviati**, dichiarati come limiti nel Dettaglio. | Implementarli subito: costo alto, beneficio concentrato su leva e Liquidità. |
+| V-D9 | Presa (08/10/2026) | **Valuta per classe**: serie EUR non coperte per Azioni, Oro, Materie prime, Trend, Carry; Obbligazioni e Liquidità da fonti in euro; deflatore europeo. | Tutto in USD (volatilità e correlazioni sbagliate per chi investe in euro); tutto convertito (Treasury e T-bill con 5–9 punti di volatilità di cambio). |
+| V-D10 | Presa (08/10/2026) | **«Coperto / non coperto»** per Azioni, Oro, Trend, Carry, predefinito **non coperto** (RQ7). | Solo non coperto (chi si copre vede numeri sbagliati); solo coperto (non sono gli strumenti di oggi). |
+| V-D11 | Presa (10/10/2026) | Bear e Bull deterministici al **15° e 85° percentile** del CAGR reale a 30 anni del portafoglio, **con l'incertezza sul parametro** (la regola del KID del PEPP). | 10°/90° (somma due prudenze: Bear delle azioni 0,13%); 25°/75° (troppo vicino alla mediana per un Bear). |
+| V-D12 | Presa (10/10/2026) | **Trend misurato con DBMF** per le correlazioni; **Trend–Carry 0,50**. | KMLM (0,75): un'altra strategia, più volatile e più legata al Carry. |
+| V-D13 | Presa (10/10/2026) | **Premio sopra la liquidità in forma parametrica**: Base di Trend e Carry = Liquidità + premio, classi lognormali come oggi, motore invariato. | Strutturale (`r = r_liquidità estratto + premio estratto`): matrice da rifare sugli eccessi e motore da cambiare, stesso risultato medio. |
+| DQ1 | Presa (10/10/2026) | Volatilità dell'eccesso del Trend **11%** (DBMF dal vivo, 11,5%): premio 3,52%, volatilità non coperta 14,76%. | 15% (KMLM 1988–2025): premio circa 4,5% e volatilità circa 18%, una strategia diversa da quella che V-D12 misura. |
+| DQ2 | Presa (10/10/2026) | Ancore aggiornate **dal cron ogni giorno, inflazione SPF compresa** (RQ9); il tile mostra valore e data. | Cron con inflazione ferma: il reale di Obbligazioni e Liquidità si sposterebbe per metà del dato. A mano: le ancore invecchiano, il motivo di V-D5 sparisce. |
+| DQ3 | Presa (10/10/2026) | Migrazione che **tiene solo le modifiche** (RQ8): i valori uguali ai vecchi default prendono i nuovi, gli altri restano convertiti in reali, Bear/Bull scritti a mano si scartano con un avviso. | Tutto ai nuovi default: si perdono scelte fatte a mano senza che l'utente lo sappia. |
+| DQ4 | Presa (10/10/2026) | Bear e Bull nei motori stocastici come **stress per classe** (RQ5), con il nome di sempre e la nota «stress». | Solo il Base: la pagina perde la risposta a «e se va male?» e cambiano tre tile. Stress pesato sul portafoglio (lo spostamento condizionato ai pesi): più fedele, ma dipende dai pesi della scheda e non si spiega in una riga. |
+| DQ5 | **Proposta** | TER di UEQC **0,34%** (il più prudente delle due fonti terze); il factsheet UBS chiuderà il punto in modo formale. | 0,30%: sposta il Base del Carry di 0,02 punti, sotto l'arrotondamento. |
+
+**Scelte di default prese dall'agente** (dichiarate, il proprietario può rovesciarle):
+- **Q1 unisce due card** («rendimenti reali» e la tabella di «nuovi valori in euro»): il formato reale con l'incertezza
+  ha bisogno dei valori nuovi (i vecchi non hanno né reale né incertezza), e separarle farebbe due migrazioni dei dati
+  salvati. La card «nuovi valori in euro» diventa Q4 «copertura del cambio».
+- **Bear/Bull deterministici in Q1**, non in Q2: tolti Bear e Bull per classe, i motori deterministici ne hanno bisogno
+  subito. Q2 resta la parte stocastica (il motore e il test con il seme).
+- **Orizzonte fisso a 30 anni** in RQ3, per tutte le schede: è quello della ricerca e della regola PEPP; con
+  l'orizzonte del piano Bear e Bull cambierebbero da una scheda all'altra (100% Azioni: 0,56/11,19 a 20 anni, 1,75/9,89
+  a 50).
+- **Errori sul parametro indipendenti fra classi** (RQ3, RQ6), come la ricerca; dichiarato nei limiti.
+- **Trend e Carry si modificano come premio**; un valore scritto in Obbligazioni o Liquidità sostituisce l'ancora finché
+  non si ripristina.
+- **Generatore separato** per le medie dei percorsi (RQ6): S10 non cambia con l'incertezza a zero.
+- **S10 su parametri scritti nel test**, non sui default (Q1): così un cambio dei default non tocca il test del motore,
+  e il confronto passa a una tolleranza relativa di 1e-9 (chiude il punto noto del Mac in CLAUDE.md).
+
+### 14.8 Punti aperti
+
+- DQ5 (TER di UEQC 0,34%) proposta senza obiezioni; non cambia nessun valore.
+- Il factsheet UBS di UEQC (DQ5) e i PDF delle norme di R0-bis § 12 (PEPP, PRIIPs, ACO): passano le fonti da secondarie
+  a primarie, non cambiano nessun valore.
+- Q5: quali serie si possono tenere nella repo dipende dalle loro licenze (§ 14.13).
+
+### 14.9 Q1 — Formato reale e valori in euro (card «rendimenti reali e inflazione unica attesa» + tabella di «nuovi valori predefiniti in euro»)
+
+**Modello**: Sonnet 5.5. **Decisioni**: V-D1, V-D2 (parte deterministica e stress), V-D3, V-D4, V-D6, V-D8 (limiti),
+V-D9, V-D11–V-D13, DQ1, DQ3–DQ5. **Prerequisiti**: nessuno.
+
+#### Cosa vede l'utente
+
+- **Impostazioni › Simulazioni › Ipotesi di mercato**: niente più selettore Bear · Base · Bull. Sette righe: classe con
+  la fonte sotto (come oggi) · **CAGR reale** · **Volatilità** · **Incertezza ±**. La media aritmetica passa nel
+  `title` della riga («media 7,5%»). Trend e Carry: il campo è il **premio** («+ 3,52»), e sotto la classe «Base 3,93%
+  = liquidità 0,39% + premio». Obbligazioni e Liquidità: il campo è il Base reale, e sotto «dal tasso AAA 10 anni
+  3,52% dell'08/10/2026, meno l'inflazione» / «dall'€STR 2,44% dell'08/10/2026»; un valore scritto sostituisce l'ancora
+  e la riga dice «scritto a mano» con un pulsante «Usa il tasso BCE». Ogni riga scritta ha il suo «Ripristina» (icona,
+  con `aria-label`); in fondo «Ripristina default» per tutto il tile.
+- Sotto le righe, **un** campo «Inflazione attesa %» con «SPF BCE, 3° trimestre 2026».
+- La riga del portafoglio: «Il portafoglio target rende (reale, composto, 30 anni): Bear 1,6% · Base 4,5% · Bull 7,5%
+  · al netto di costi 0,20%» (RQ3 e RQ4, in reale).
+- **Lettura del tile** (`describeMonteCarloMarket`): default → «Sette classi in euro, in termini reali, valori storici
+  fino al 2025; Obbligazioni e Liquidità dai tassi BCE, Trend e Carry come premio sopra la liquidità.»; modificate →
+  «… modificate in N classi.»; migrate → «Ipotesi portate in termini reali: N valori scritti a mano restano, convertiti
+  con l'inflazione del 3,04% che avevano. Rileggile e salva.», più «Bear e Bull scritti a mano non si usano più: ora si
+  calcolano sul portafoglio.» se `bearBullDropped`. La frase dell'oro resta.
+- **Correlazioni** (lettura): «Valori predefiniti: log-rendimenti annui reali in euro, ogni coppia sul suo periodo
+  comune; 0 dove la correlazione non è distinguibile da zero.»
+- **FIRE, schede deterministiche**: Bear e Bull cambiano (RQ3). Il chip Rendimenti: «Bear 3,7%, Bull 9,6% (15° e 85°
+  percentile a 30 anni del portafoglio, con l'incertezza sulle stime)»; «Inflazione 2,04%».
+- **Monte Carlo e Proiezione**: le colonne e le serie Bear e Bull sono lo stress RQ5. Il footer del tile Scenari (e del
+  confronto del Monte Carlo) aggiunge: «Bear e Bull sono stress: ogni classe con la media al 15° o all'85° percentile
+  della sua incertezza, tutte insieme.» La dichiarazione delle ipotesi (`monteCarloNarrative.ts:532`): «valori
+  predefiniti, in euro e reali».
+- **Dettaglio, «La simulazione»** (Monte Carlo e Proiezione): «… estratto da una lognormale con il CAGR reale e la
+  volatilità della classe, portato in nominale con l'inflazione attesa …». **«I limiti»**: aggiungere «code grasse non
+  modellate (gli anni peggiori delle azioni sono più frequenti di quanto dica la lognormale), tassi fermi al valore di
+  oggi per tutto l'orizzonte, costo della copertura del cambio nullo in media».
+
+#### Dettagli tecnici
+
+1. `types/assets.ts`: `MonteCarloMarketSettings` diventa l'unione `MonteCarloMarketSettingsV1 | MonteCarloMarketSettingsV2`
+   (il v1 è il tipo di oggi rinominato, letto solo per migrare). Il v2:
+   ```ts
+   export interface MonteCarloClassOverride { cagr?: number; premium?: number; volatility?: number; uncertainty?: number } // percent; `premium` only for trendFollowing/carry, `cagr` never for them
+   export interface MonteCarloMarketSettingsV2 {
+     version: 2;
+     classes?: Partial<Record<MonteCarloClass, MonteCarloClassOverride>>; // ONLY what the user typed
+     inflationRate?: number;            // absent = the anchor (SPF)
+     hedged?: Partial<Record<'equity' | 'gold' | 'trendFollowing' | 'carry', boolean>>; // Q4
+     correlations?: number[];           // as today: written only when different from the defaults in force
+     leverageSpread?: number;
+     goldSubCategory?: string | null;
+   }
+   ```
+2. `lib/constants/monteCarloMarketDefaults.ts` riscritto con § 14.6: `MONTE_CARLO_CLASS_DEFAULTS` (per classe: `kind:
+   'historical' | 'anchor' | 'premium'`, `cagr` o `premium`, `volatility`, `volatilityHedged?`, `uncertainty`),
+   `MONTE_CARLO_FROZEN_ANCHORS = { estr: 2.439, aaa10y: 3.5192, inflation: 2.0369, asOf: '08/10/2026' }`, la matrice,
+   `MONTE_CARLO_CLASS_SOURCES` riscritte (senza `branch`), `MONTE_CARLO_DEFAULT_LEVERAGE_SPREAD` invariato. Il v1 dei
+   default resta nel file come `LEGACY_V1_DEFAULT_TABLE` + `LEGACY_V1_DEFAULT_CORRELATIONS` + 3,04, **solo** per RQ8.
+3. `lib/utils/monteCarloMarket.ts`: `resolveMonteCarloMarket(settings, commoditySubCategories, anchors =
+   MONTE_CARLO_FROZEN_ANCHORS)` restituisce, oltre ai campi di oggi:
+   `classes: Record<MonteCarloClass, { cagr; volatility; uncertainty; premium?; origin: 'default' | 'anchor' | 'saved' }>`
+   (reali), `inflationRate` e `inflationOrigin`, `anchors` (quelle usate, con la data), `hedged` (tutto `false` fino a
+   Q4), `migration?: { keptCount; bearBullDropped }`; e `scenarios` **nominali** per i motori: `base` = RQ1, `bear`/`bull`
+   = RQ5 (stress). `migrateV1(settings, anchors)` (RQ8) e `toMonteCarloMarketSettings(draft, resolvedDefaults)` che
+   scrive solo i campi diversi dal valore predefinito in vigore. `countEditedClasses` → classi con almeno un campo scritto.
+4. `lib/utils/fireAssumptions.ts`: `buildPortfolioScenarios(weights, market, costPct)` → Base = RP1 su
+   `market.scenarios.base` come oggi; Bear e Bull = RQ3–RQ4 (`portfolioScenarioBand`, nuova, pura, accanto a
+   `portfolioCompoundReturn`; riceve le incertezze da `market.classes`). Nessun consumatore cambia firma.
+5. `lib/utils/monteCarloMarketValidation.ts`: CAGR reale in [−50, 100], premio in [−20, 30], volatilità in [0, 200],
+   incertezza in [0, 20], inflazione in [−5, 20]; messaggi per classe, senza scenario («Trend: premio oltre 30%»).
+6. `components/settings/MonteCarloMarketTile.tsx` e la tab in `app/dashboard/settings/page.tsx`: la bozza è il v2 risolto
+   (valori in vigore + quali sono scritti); dirty, salvataggio unico e «Annulla modifiche» come oggi. `settingsNarrative.ts`:
+   le due letture.
+7. Le sedi (§ Settings — the FIVE places): il nome del campo non cambia; `settingsRoundTrip.test.ts` con un fixture v2;
+   `dashboardOverviewService.ts` lo passa com'è.
+8. `__tests__/monteCarloSeededRegression.test.ts` (S10): i parametri del test si scrivono nel test (la tabella v1 di
+   oggi, così lo snapshot attuale resta valido), e il confronto diventa a tolleranza relativa 1e-9. Togliere la voce
+   «S10 rosso sul Mac» da CLAUDE.md § Known Issues se il test passa anche lì.
+9. Testi: `monteCarloNarrative.ts` (`EXPLAINER`, dichiarazione delle ipotesi, footer degli scenari),
+   `projectionNarrative.ts` (`EXPLAINER`, footer di Scenari), `fireAssumptionsNarrative.ts` (`describeReturnsChip`).
+
+#### File
+
+**Modificati**: `types/assets.ts`, `lib/constants/monteCarloMarketDefaults.ts`, `lib/utils/{monteCarloMarket,
+monteCarloMarketValidation,fireAssumptions,fireAssumptionsNarrative,settingsNarrative,monteCarloNarrative,
+projectionNarrative}.ts`, `components/settings/{MonteCarloMarketTile,MonteCarloCorrelationsTile}.tsx`,
+`app/dashboard/settings/page.tsx`, i tile degli scenari di `components/monte-carlo/tiles/ScenariConfrontoTile.tsx` e
+`components/projection/tiles/ScenariTile.tsx` (solo il footer); test `__tests__/{monteCarloMarket,monteCarloMarketDefaults,
+monteCarloMarketValidation,fireAssumptions,fireAssumptionsNarrative,settingsNarrative,settingsRoundTrip,
+monteCarloSeededRegression,monteCarloNarrative,projectionNarrative,goalAssumptionsFixture}.ts` e quelli che costruiscono
+un mercato a mano.
+
+#### Criteri di accettazione (valori da `s2_riferimenti.py`)
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| AQ1 | Classi risolte con le ancore congelate, reali | Azioni 5,74 · Obbligazioni 1,452710 · Oro 1,79 · Materie prime 0,52 · Liquidità 0,394073 · Trend 3,927944 · Carry 3,686999 (± 1e-6) |
+| AQ2 | RQ1, nominali del Base | Azioni 7,893818 · Obbligazioni **3,5192** · Liquidità **2,439** · Trend 6,044853 · Carry 5,798999; vol. nominale Azioni 19,886992; `s` di R1 identico sul reale e sul nominale (± 1e-12) |
+| AQ3 | RQ1: π da 2,0369 a 3 | reali di Azioni, Oro, Materie prime invariati (± 1e-12); Obbligazioni (1,035192/1,03 − 1) = 0,504078 |
+| AQ4 | RQ2 con €STR 3,00, AAA 3,00, π 2,50 | Obbligazioni e Liquidità 0,487805 · Trend 4,024976 · Carry 3,783805 |
+| AQ5 | RQ5, stress nominale Bear / Bull | Azioni 4,916403 / 10,955728 con vol. 19,338195 / 20,451363 · Liquidità −0,046605 / 4,986416 · Carry 2,655718 / 9,038526 |
+| AQ6 | RQ3, reale, senza costi: 100% Azioni | Bear 1,1816 · Base 5,7400 · Bull 10,5038 (± 0,0001) |
+| AQ7 | RQ3: 60/40 | 1,6113 · 4,4934 · 7,4573; nominali 3,6810 · 6,6218 · 9,6461 |
+| AQ8 | RQ3: 50 Az · 20 Obb · 10 Oro · 10 Trend · 10 Carry | 2,3536 · 4,8217 · 7,3492 |
+| AQ9 | RQ3: 100% Liquidità | −2,0975 · 0,3941 · 2,9491 |
+| AQ10 | RQ3–RQ4: Azioni 150% (leva), spread 2% | nominali 1,6163 · 8,4671 · 15,7799; reali −0,4123 · 6,3019 · 13,4686 |
+| AQ11 | RQ4: costo 0,3%, 60/40 | nominali 3,3700 · 6,3020 · 9,3171 (= lordo × 0,997) |
+| AQ12 | RQ3 con incertezza 0 (60/40) | reali 2,2464 · 4,4934 · 6,7898 (solo dispersione a 30 anni) |
+| AQ13 | Volatilità 0 e incertezza 0 | Bear = Base = Bull = il CAGR; A6 (coerenza del Ventaglio) resta verde |
+| AQ14 | Forma chiusa contro simulazione (un ciclo scritto nel test: 100.000 percorsi seminati, 30 anni, media per percorso da `N(m, u²)`, ribilanciamento annuo) | scarto ≤ 0,1 punti su AQ6–AQ8 |
+| AQ15 | RQ8: v1 tutto ai default | nessun campo scritto; `origin: 'migrated'`, `keptCount` 0, `bearBullDropped` falso |
+| AQ16 | RQ8: Base Azioni 9% / 18% con π 3,04 | CAGR reale 5,784161, volatilità 17,468944, scritti |
+| AQ17 | RQ8: Base Trend 7% con π 3,04 (Liquidità in vigore 0,394073) | premio scritto 3,435556 |
+| AQ18 | RQ8: un Bear modificato | `bearBullDropped` vero, nessun valore Bear nel v2; la lettura lo dice |
+| AQ19 | RQ8: una coppia di correlazione modificata nel v1 | quella coppia resta, le altre 20 prendono la matrice nuova |
+| AQ20 | Salvataggio | il v2 contiene solo i campi diversi dal predefinito in vigore; un v2 vuoto (`{ version: 2 }`) si risolve nei default |
+| AQ21 | Matrice predefinita | semidefinita positiva così com'è, autovalore minimo 0,417 ± 0,005 |
+| AQ22 | S10 | verde sui parametri scritti nel test, a tolleranza relativa 1e-9 |
+
+### 14.10 Q2 — Incertezza sul parametro nei motori stocastici (card «Orso/Toro sul portafoglio e incertezza sul parametro»)
+
+**Modello**: Opus 5.5 effort medium (V-D2, la parte che tocca il cuore del motore e il test con il seme).
+**Decisioni**: V-D2, V-D11. **Prerequisiti**: Q1 unita.
+
+#### Cosa vede l'utente
+
+- Monte Carlo, «Dopo il FIRE», Spesa sostenibile, Ventaglio del Calcolatore, Proiezione: il Base ha più dispersione
+  (percentili più larghi, probabilità di successo un po' più bassa). Bear e Bull non cambiano (stress, RQ5).
+- Dettaglio, «La simulazione»: «Ogni traiettoria ha la sua media per classe, estratta una volta dalla sua incertezza
+  (le stime di lungo periodo sono incerte: le classi con poca storia, come Trend e Carry, lo sono di più).» «I limiti»:
+  «gli errori sulle stime sono indipendenti fra classi».
+
+#### Dettagli tecnici
+
+1. `lib/utils/monteCarloDraw.ts`: `DrawPlan.uncertainty: number[]` (log, decimali; 0 = nessuna); `buildDrawPlan(market,
+   correlations, uncertainty?)`; `drawPathMeans(plan, random): number[]` (RQ6; con tutte le incertezze a 0 restituisce
+   `plan.m` e **non consuma** il generatore); `drawYear(plan, random, means = plan.m)`.
+2. `types/assets.ts`: `MonteCarloParams` e `AccumulationSimulationParams` aggiungono `uncertainty?: Record<MonteCarloClass,
+   number>` (punti) e `parameterRandom?: () => number`.
+3. `lib/services/monteCarloService.ts`: in `runSingleSimulation`/`drawPathFactors` e in `runAccumulationSimulation`, per
+   ogni percorso prima gli `η` (da `parameterRandom`), poi gli anni (da `random`). Il numero di estrazioni annue per
+   percorso resta fisso (A13).
+4. `lib/utils/monteCarloParams.ts`: `MONTE_CARLO_PARAMETER_SEED` (una costante diversa da `MONTE_CARLO_SEED`). I tab
+   passano `uncertainty` **solo al Base** (da `market.classes`) e un generatore nuovo `createSeededRandom(
+   MONTE_CARLO_PARAMETER_SEED)` per ogni esecuzione, compresa quella senza leva; il Ventaglio lo stesso con il suo seme.
+5. S10: un terzo caso con l'incertezza; i due casi di Q1 restano identici (incertezza assente).
+
+#### File
+
+**Modificati**: `lib/utils/{monteCarloDraw,monteCarloParams,monteCarloNarrative,projectionNarrative}.ts`,
+`lib/services/monteCarloService.ts`, `types/assets.ts`, `components/fire-simulations/{MonteCarloTab,ProjectionTab,
+FireCalculatorTab}.tsx`; test `__tests__/{monteCarloDraw,monteCarloService,monteCarloSeededRegression}.test.ts`.
+
+#### Criteri di accettazione
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| AQ23 | `drawPathMeans` con incertezza 0 | restituisce `m`, nessuna uniforme consumata; esecuzione identica a Q1 float per float (S10, due casi) |
+| AQ24 | 100.000 percorsi seminati, 100% Azioni, 30 anni, solo `drawPathMeans` + `drawYear` (reale) | 15° · 50° · 85° percentile del CAGR = 1,18 · 5,74 · 10,50 ± 0,15 punti (la simulazione di controllo dà 1,19 · 5,76 · 10,52) |
+| AQ25 | Idem, 60/40 | 1,61 · 4,49 · 7,46 ± 0,15 punti |
+| AQ26 | Media campionaria di `m_c,percorso` su 100.000 percorsi | `m_c` ± 3·`u_c`/√100.000; dev. std `u_c` ± 1% |
+| AQ27 | Leva | Base con e senza leva: stesse medie e stessi `ε` per percorso (A13 resta verde con l'incertezza) |
+| AQ28 | Stress (RQ5) | Bear e Bull non consumano il generatore delle medie: le loro cifre sono quelle di Q1 |
+| AQ29 | Tempi | 10.000 percorsi × 3 scenari × 50 anni: la differenza con Q1 è misurata e scritta nella guida (atteso trascurabile: 7 normali per percorso) |
+
+### 14.11 Q3 — Ancore BCE aggiornate (card «Obbligazioni e Liquidità ancorate ai tassi BCE di oggi»)
+
+**Modello**: Sonnet 5.5. **Decisioni**: V-D5, DQ2. **Prerequisiti**: Q1 unita (le ancore ci sono già, congelate).
+
+#### Cosa vede l'utente
+
+- Le righe di Obbligazioni e Liquidità dicono il valore e la data dell'ultimo dato («dall'€STR 2,41% del 09/10/2026»),
+  l'inflazione «SPF BCE, 3° trimestre 2026». Un dato più vecchio di 10 giorni (tassi) o di 120 (SPF): «non aggiornato
+  dal …». Nessun dato mai letto: le ancore congelate, e la riga dice «valori dell'08/10/2026».
+- Le cifre di tutte le schede si muovono con i tassi senza che nessuno salvi nulla; l'esecuzione precedente del Monte
+  Carlo diventa stantia se il mercato risolto è cambiato (The Stale-Run Rule, già vera per `MonteCarloRunInputs`).
+
+#### Dettagli tecnici
+
+1. `lib/server/marketAnchorsService.ts` (nuovo, accanto a `ecbRatesService.ts`): `fetchEcbSeriesLast(key)` sull'API
+   `https://data-api.ecb.europa.eu/service/data/{flow}/{key}?lastNObservations=1&format=csvdata`, parser CSV puro e
+   testato (`lib/utils/ecbCsv.ts`), i limiti di RQ9, `refreshMarketAnchorsIfStale()` (più vecchio di 20 ore) che
+   scrive `ecb-rate-cache/market-anchors`:
+   `{ estr: { value, date }, aaa10y: { value, date }, inflation: { value, period }, fetchedAt }`.
+2. `app/api/cron/monthly-snapshot/route.ts`: chiamata accanto a `refreshEcbRatesIfStale()`, in un `try` proprio (un
+   errore qui non ferma il cron).
+3. Client: `lib/hooks/useMarketAnchors.ts` (React Query, lettura del documento con il client SDK; la regola Firestore
+   esiste già) → `resolveMonteCarloMarketForPortfolio(settings, assets, anchors)`. Ogni consumatore del risolutore
+   passa le ancore; nessuno le legge per conto suo.
+4. Demo: legge le ancore come gli altri (il documento è globale). Landing: le ancore congelate.
+
+#### File
+
+**Nuovi**: `lib/server/marketAnchorsService.ts`, `lib/utils/ecbCsv.ts`, `lib/hooks/useMarketAnchors.ts`, test.
+**Modificati**: `app/api/cron/monthly-snapshot/route.ts`, `lib/utils/monteCarloMarket.ts`, i consumatori del risolutore
+(`useFireAssumptions`, tab di FIRE, Impostazioni), `settingsNarrative.ts`.
+
+#### Criteri di accettazione
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| AQ30 | Parser sui CSV archiviati della ricerca (`r0-bis/raw/ecb_estr_2026-10-10.csv` e simili, copiati come fixture) | ultima osservazione e data giuste per le tre serie |
+| AQ31 | Valori fuori intervallo / serie fallita | scartati; la serie tiene il valore precedente, le altre si aggiornano |
+| AQ32 | Documento assente | il risolutore usa le ancore congelate: AQ1 invariato |
+| AQ33 | Ancore €STR 3,00 · AAA 3,00 · SPF 2,50 | le cifre di AQ4 in Impostazioni e in RQ3 |
+| AQ34 | Un'inflazione scritta | vince sull'SPF; le ancore dei tassi restano |
+| AQ35 | Cron | una seconda chiamata entro 20 ore non scarica nulla; un errore non fa fallire il cron |
+
+### 14.12 Q4 — Copertura del cambio (card «nuovi valori in euro», da rinominare «copertura del cambio»)
+
+**Modello**: Sonnet 5.5. **Decisioni**: V-D10. **Prerequisiti**: Q1 unita.
+
+#### Cosa vede l'utente
+
+- Impostazioni › Simulazioni › Ipotesi di mercato: sotto le righe, «Copertura del cambio» con quattro interruttori
+  (Azioni, Oro, Trend, Carry; righe con `Label` cliccabile). Lettura: «Nessuna classe coperta: volatilità e correlazioni
+  di chi tiene strumenti in dollari senza copertura.» / «Coperte: Trend, Carry.» Accanto, «Il Base non cambia: la
+  copertura costa la differenza fra i tassi a breve in dollari e in euro, nulla in media nel modello.»
+- Una volatilità predefinita cambia con l'interruttore; una scritta no (e la riga dice «scritta a mano»).
+- Correlazioni: le coppie predefinite seguono la copertura (§ 14.6); una matrice personalizzata resta, e la lettura
+  del tile Correlazioni dice «personalizzate: la copertura non le cambia».
+- La riga «Ipotesi usate» del FIRE (chip Rendimenti) aggiunge «Coperte: Trend, Carry» quando ce n'è almeno una.
+
+#### Dettagli tecnici
+
+1. `monteCarloMarketDefaults.ts`: `volatilityHedged` per le quattro classi; la regola delle coppie come tabella
+   (`HEDGE_PAIR_RULES`) e `defaultCorrelations(hedged)` che costruisce le 21 coppie.
+2. `monteCarloMarket.ts`: `hedged` dal v2; volatilità predefinita e matrice predefinita secondo `hedged`;
+   `countEditedCorrelations` confronta con la matrice predefinita **della combinazione in vigore**.
+3. Tile e bozza: i quattro interruttori; `toMonteCarloMarketSettings` scrive `hedged` solo con almeno un `true`.
+
+#### Criteri di accettazione
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| AQ36 | Tutto coperto | volatilità reali 17,15 · 17,98 · 11,00 · 10,03; matrice: Obb–Liq 0,50, Mat. prime–Carry −0,40, Liq–Trend 0,10, Liq–Carry 0,45, il resto 0 |
+| AQ37 | Le 16 combinazioni | tutte semidefinite positive così come sono, autovalore minimo ≥ 0,19 |
+| AQ38 | Solo Azioni coperte | Azioni–Materie prime 0, Azioni–Trend −0,40, Trend–Carry 0,50 |
+| AQ39 | Copertura e Base | il Base delle quattro classi non cambia (± 1e-12) |
+| AQ40 | Una volatilità scritta | resta uguale cambiando l'interruttore |
+| AQ41 | Una matrice personalizzata | resta uguale cambiando l'interruttore; `countEditedCorrelations` conta sulla combinazione in vigore |
+
+### 14.13 Q5 — Archivio dei dati e controllo dei valori (card «archivio dei dati grezzi»)
+
+**Modello**: Sonnet 5.5. **Decisioni**: V-D7. **Prerequisiti**: Q1 unita (i valori da controllare).
+
+#### Cosa vede l'utente
+
+Nulla nell'app. Chi sviluppa: `npm run montecarlo:defaults` ricalcola la tabella del § 14.6 dai dati archiviati e la
+confronta con `monteCarloMarketDefaults.ts`; un test Vitest fa lo stesso controllo.
+
+#### Dettagli tecnici
+
+1. **Primo passo, le licenze**: per ogni fonte (testfolio, BCE, FRED, Damodaran) dire nel README della cartella se può
+   stare nella repo. Proposta di partenza: nella repo il **manifest** (file, fonte, URL, data, SHA-256: quello di
+   `r0-bis/MANIFEST.sha256` esteso), le **serie annue derivate** (rendimenti reali annui per classe, poche centinaia di
+   numeri) e gli script; i giornalieri grezzi restano in `/mnt/project-files/montecarlo/` con la loro impronta. Se una
+   licenza non permette nemmeno le serie annue, il test controlla solo il manifest e lo dice. Da unire con la card
+   «RICERCA bootstrap storico: serie salvabili nella repo» (stesse serie, stessa domanda).
+2. `data/montecarlo/` (manifest, serie annue, README) e `scripts/monteCarloDefaults.mts` (porta in TypeScript i calcoli
+   di `b2`, `b4`, `b6` sulle serie annue: CAGR reale, volatilità, incertezza `s/√N`, correlazioni con la regola di
+   V-D4); `__tests__/monteCarloDefaultsArchive.test.ts`.
+3. Le ancore e i premi sono **dati in ingresso**, non ricalcolati (vengono dalla BCE e da una scelta di giudizio,
+   DQ1): il test li legge dal manifest.
+
+#### Criteri di accettazione
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| AQ42 | Impronte | ogni file del manifest presente ha l'impronta scritta; un file cambiato fa fallire il test con il suo nome |
+| AQ43 | Ricalcolo | CAGR reale, volatilità e incertezza delle classi storiche entro 0,005 dai default; correlazioni uguali dopo la regola di V-D4 |
+| AQ44 | Default cambiato a mano | il test fallisce e dice quale classe e quale campo |
+
+### 14.14 Documentazione, ordine delle PR e fine
+
+- In ogni task, per la sua parte: `doc/guide/fire-monte-carlo.md`, `doc/guide/fire-proiezione.md`, `doc/guide/fire.md`
+  (§ FIRE, What If and Goals: Bear e Bull da RQ3), `doc/guide/impostazioni.md` (la tab Simulazioni), questo § 14 (riga
+  «Stato» della task), `doc/guide/fork-scelte-ui.md`, `CLAUDE.md` (riga «Latest» e, con Q1, la voce S10 di Known
+  Issues), `Draft Release Temp.md`.
+- Ordine: **Q1 → Q2**, poi **Q3** e **Q4** (indipendenti fra loro, mai in parallelo: toccano lo stesso risolutore),
+  poi **Q5**. Ogni task è un thread «impl» con un branch da `main` e una PR in bozza verso
+  `Ciocc128/net-worth-tracker:main`. Dopo ogni merge l'app è coerente: dopo Q1 manca solo l'incertezza nel Base dei
+  motori stocastici, dopo Q2 le ancore sono ferme all'08/10/2026.
+- Fine di ogni task: `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__`,
+  `TZ=Europe/Rome npx vitest run` verdi; collaudo una fase per messaggio (WORKFLOW.md § 2) sull'anteprima Vercel, e sul
+  mirror dei dati di produzione (Q1: la migrazione delle ipotesi salvate) in un thread sul computer del proprietario.
