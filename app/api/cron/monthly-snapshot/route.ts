@@ -16,6 +16,7 @@ import {
 } from '@/lib/server/monthlyEmailService';
 import { getItalyMonthYear } from '@/lib/utils/dateHelpers';
 import { refreshEcbRatesIfStale } from '@/lib/server/ecbRatesService';
+import { refreshMarketAnchorsIfStale } from '@/lib/server/marketAnchorsService';
 import { isWeeklyBudgetDayItaly, buildAndSendWeeklyBudget } from '@/lib/server/weeklyBudgetEmailService';
 import { evaluateActiveGoals } from '@/lib/server/assistant/goalEvaluationService';
 import { captureBudgetHistory } from '@/lib/server/budgetHistoryService';
@@ -152,6 +153,14 @@ export async function GET(request: NextRequest) {
       console.log('[cron] ECB rate cache refreshed');
     } catch (ecbError) {
       console.error('[cron] ECB rate cache refresh failed (non-blocking):', ecbError);
+    }
+
+    // The Monte Carlo market's ECB anchors (Q3): €STR, AAA 10y, SPF — a failure here stops nothing either.
+    try {
+      const fetched = await refreshMarketAnchorsIfStale();
+      console.log(`[cron] market anchors ${fetched ? 'refreshed' : 'still fresh'}`);
+    } catch (anchorsError) {
+      console.error('[cron] market anchors refresh failed (non-blocking):', anchorsError);
     }
 
     // Phases 2-5: the period emails, SIDE BY SIDE (F6b, 2026-10-06). Each one waits on its AI

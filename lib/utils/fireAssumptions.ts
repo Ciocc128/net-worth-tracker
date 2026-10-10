@@ -26,6 +26,7 @@ import { resolveEffectiveTargets } from './allocationComparison';
 import { expandUpperTriangle, identityMatrix, nearestCorrelation, pairCount } from './correlationMatrix';
 import { toLogNormal } from './monteCarloDraw';
 import { resolveFireCapitalDetail, type FireCapital, type FireCapitalDetail } from './fireCapital';
+import type { MonteCarloAnchors } from '@/lib/constants/monteCarloMarketDefaults';
 import { MONTE_CARLO_BAND_YEARS, MONTE_CARLO_BAND_Z, marketUncertainty, resolveMonteCarloMarketForPortfolio, type ResolvedMonteCarloMarket } from './monteCarloMarket';
 import { realReturn } from './realReturn';
 import { seedWeightsFromTargets, weightsForFireCapital, weightsFromHoldings, type SeededWeights } from './monteCarloWeights';
@@ -230,6 +231,8 @@ export interface ResolveFireAssumptionsInput {
   assetValue?: (asset: Asset) => number;
   /** The Cashflow's yearly figures (`getAnnualCashflowData`); absent = not read (yet), so no `expenses` unless typed. */
   cashflowData?: Pick<AnnualCashflowData, 'annualExpensesFromCashflow' | 'referenceYear' | 'isAnnualized'> | null;
+  /** The ECB anchors in force (Q3, `useMarketAnchors`); absent = the frozen ones. */
+  anchors?: MonteCarloAnchors;
 }
 
 /**
@@ -302,7 +305,7 @@ export function buildPortfolioScenarios(weights: Readonly<Record<MonteCarloClass
 
 /** The ONE call every tab of the FIRE page makes. */
 export function resolveFireAssumptions(input: ResolveFireAssumptionsInput): FireAssumptions {
-  const market = resolveMonteCarloMarketForPortfolio(input.settings, input.assets ? [...input.assets] : undefined);
+  const market = resolveMonteCarloMarketForPortfolio(input.settings, input.assets ? [...input.assets] : undefined, input.anchors);
   const hasValues = !!input.assetValue && !!input.assets;
   // K1: the capital reads the effective targets (RK2), so they are resolved once and shared with the weights.
   const targets = hasValues && input.assets!.length > 0 ? resolveEffectiveTargets({ settings: input.settings, goalData: input.goalData, assets: [...input.assets!] }).targets : null;

@@ -113,6 +113,20 @@
   declared in «I limiti». The personal SWR of «Il mio piano» (RS5) stays without it: the spec does not name it. Cost (AQ29, cloud container,
   10.000 paths × 3 scenarios × 50 years, median of 5): 2,20 s without, 2,16 s with — within the noise (7 normals per path against 350 for the years).
   The fourth S10 case pins a run with the uncertainty; the three of Q1 run without it and did not move.
+- **Q3 «ancore BCE aggiornate»** (2026-10-10, doc/montecarlo/README.md § 14.11, RQ9): the daily cron (`app/api/cron/monthly-snapshot/route.ts`, its own `try`)
+  calls `refreshMarketAnchorsIfStale()` (`lib/server/marketAnchorsService.ts`): €STR, AAA spot 10 years and the SPF long-run inflation are read from the
+  ECB Data API (`lastNObservations=1&format=csvdata`, parser `lib/utils/ecbCsv.ts`) and written to `ecb-rate-cache/market-anchors`
+  (`{ estr:{value,date}, aaa10y:{value,date}, inflation:{value,period}, fetchedAt }`; the collection's rule already reads for any signed-in user and
+  writes for nobody). A second call within 20 hours downloads nothing; a value outside [−2, 15] (rates) / [−2, 10] (inflation) is discarded and a
+  failed series keeps its previous value, the others update (`mergeStoredAnchors`, `lib/utils/marketAnchors.ts`). The client reads the document through
+  `useMarketAnchors()` (React Query, key `['market-anchors']`, 1 h) → `toMonteCarloAnchors` (series by series over `MONTE_CARLO_FROZEN_ANCHORS`: no
+  document, no permission or a failed read = the frozen figures of 08/10/2026) and EVERY consumer passes them to the resolver:
+  `useFireAssumptions` → `resolveFireAssumptions({ anchors })`, `MonteCarloTab` and `ProjectionTab` → `resolveMonteCarloMarketForPortfolio(settings,
+  assets, anchors)`, the Impostazioni tile (`describeAnchorLines`: value and date of each ECB figure, «non aggiornato dal …» past 10 days for the rates
+  and 120 for the SPF, «valori dell'08/10/2026» for a series never read). The saved runs go stale by themselves when the anchors move (the Stale-Run
+  Rule already compares the RESOLVED scenarios). Left on the frozen anchors on purpose: the Landing, the assistant's server context
+  (`assistantMonthContextService`, no client read there) and the Impostazioni load that migrates a v1 (a transient reading: the first save writes the v2).
+  A written inflation wins over the SPF; the rate anchors stay (AQ34).
 - **The classes move together through ONE correlation matrix** (T2, 2026-10-03; README § 6): 21 pairs of log-returns, the
   same for Bear, Base and Bull (D6), saved in `monteCarloMarket.correlations` ONLY when they differ from the research
   defaults (`MONTE_CARLO_DEFAULT_CORRELATIONS`), so an improved default reaches whoever never touched them. `buildDrawPlan`

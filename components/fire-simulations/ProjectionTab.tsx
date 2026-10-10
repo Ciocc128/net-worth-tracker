@@ -86,6 +86,7 @@ import { PageVerdict } from '@/components/ui/page-verdict';
 import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
 import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
+import { useMarketAnchors } from '@/lib/hooks/useMarketAnchors';
 import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
 import { buildFlowSchedule, type DatedFlowsInput } from '@/lib/utils/datedFlows';
 import { describeSimulationFlowsRow } from '@/lib/utils/datedFlowsNarrative';
@@ -168,7 +169,8 @@ export function ProjectionTab() {
   );
 
   // The market assumptions, saved in Impostazioni › Simulazioni (the legacy field migrated, else the defaults).
-  const market = useMemo(() => resolveMonteCarloMarketForPortfolio(settings, assets), [settings, assets]);
+  const anchors = useMarketAnchors();
+  const market = useMemo(() => resolveMonteCarloMarketForPortfolio(settings, assets, anchors), [settings, assets, anchors]);
   const scenarios = market.scenarios;
 
   const lockedAssetIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);

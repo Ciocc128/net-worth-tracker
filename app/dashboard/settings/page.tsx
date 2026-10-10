@@ -104,6 +104,7 @@ import { ExpenseCategory, ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expen
 import { Asset } from '@/types/assets';
 import { getAllAssets, calculateAssetValue } from '@/lib/services/assetService';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
+import { useMarketAnchors } from '@/lib/hooks/useMarketAnchors';
 import { TaxBracketsTile } from '@/components/settings/TaxBracketsTile';
 import { buildTaxBracketSnapshotKey, parseTaxBracketDrafts, toTaxBracketDrafts, type CoastFireTaxBracketDraft } from '@/lib/utils/coastFireView';
 import { MonteCarloMarketTile, type MonteCarloMarketDraft } from '@/components/settings/MonteCarloMarketTile';
@@ -775,6 +776,7 @@ export default function SettingsPage() {
   });
   // The weights the FIRE page simulates, for the «Il portafoglio target rende» line of Simulazioni (saved targets).
   const { assumptions: fireAssumptions } = useFireAssumptions();
+  const marketAnchors = useMarketAnchors();
   const [deleteDialogOrigin, setDeleteDialogOrigin] = useState<string | undefined>(
     undefined
   );
@@ -4101,6 +4103,7 @@ export default function SettingsPage() {
                   commoditySubCategories={commoditySubCategories}
                   effectiveGoldSubCategory={effectiveGoldSubCategory}
                   portfolio={fireAssumptions ? { weights: fireAssumptions.weights, origin: fireAssumptions.weightsOrigin, costPct: fireAssumptions.cost?.total } : null}
+                  anchors={marketAnchors}
                   disabled={isDemo}
                 />
               </div>
