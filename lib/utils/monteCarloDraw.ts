@@ -19,7 +19,7 @@
  * run in `buildDrawPlan`. Without a matrix (or with the identity) `z = ε`, float for float.
  */
 import type { MonteCarloClassParams, MonteCarloMarketScenario } from '@/types/assets';
-import { MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
+import { MONTE_CARLO_CLASSES, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { cholesky, expandUpperTriangle, nearestCorrelation, pairCount, type Matrix } from './correlationMatrix';
 
 export interface LogNormalParams {
@@ -64,6 +64,11 @@ export interface DrawPlan {
   medianGrowth: number[];
   /** Lower Cholesky factor of the correlation matrix; `null` = independent classes (`C = I`). */
   cholesky: Matrix | null;
+  /**
+   * RQ6 (Q2): per class, the standard deviation of the error on `m` (log, decimals); 0 = none. A path draws its own
+   * means from `N(m, u²)` once, before its years (`drawPathMeans`).
+   */
+  uncertainty: number[];
 }
 
 /**
@@ -83,14 +88,25 @@ export function buildCorrelationFactor(correlations: readonly number[] | undefin
   }
 }
 
-/** Prepares what a run draws from, once per run. `correlations` is the upper triangle (21 values); absent = independent. */
-export function buildDrawPlan(market: MonteCarloMarketScenario, correlations?: readonly number[]): DrawPlan {
+/**
+ * Prepares what a run draws from, once per run. `correlations` is the upper triangle (21 values); absent = independent.
+ * `uncertainty` (RQ6) in points per class; absent = none, and the run is the one of before, float for float.
+ */
+export function buildDrawPlan(
+  market: MonteCarloMarketScenario,
+  correlations?: readonly number[],
+  uncertainty?: Readonly<Partial<Record<MonteCarloClass, number>>>,
+): DrawPlan {
   const logNormals = MONTE_CARLO_CLASSES.map((cls) => toLogNormal(market.classes[cls]));
   return {
     m: logNormals.map((entry) => entry.m),
     s: logNormals.map((entry) => entry.s),
     medianGrowth: logNormals.map((entry) => entry.medianGrowth),
     cholesky: buildCorrelationFactor(correlations),
+    uncertainty: MONTE_CARLO_CLASSES.map((cls) => {
+      const value = uncertainty?.[cls];
+      return value !== undefined && Number.isFinite(value) && value > 0 ? value / 100 : 0;
+    }),
   };
 }
 
@@ -103,11 +119,29 @@ export function standardNormal(random: () => number): number {
 }
 
 /**
+ * RQ6 (Q2): the means of the log-returns ONE path uses, `m_c + u_c·η_c` with `η_c` independent standard normals drawn
+ * from `random` — the parameter generator, separate from the years' one, so the yearly shocks never move. With every
+ * uncertainty at 0 it returns `plan.m` itself and consumes nothing (the run is the one of before, float for float);
+ * otherwise it consumes two uniforms per class, whatever each class's uncertainty, so the count does not depend on them.
+ * The errors are independent across classes (R0-bis § 7), declared in the tab's limits.
+ */
+export function drawPathMeans(plan: DrawPlan, random: () => number = Math.random): number[] {
+  if (!plan.uncertainty.some((u) => u > 0)) return plan.m;
+  const out = new Array<number>(plan.m.length);
+  for (let i = 0; i < plan.m.length; i++) {
+    const eta = standardNormal(random);
+    out[i] = plan.m[i] + plan.uncertainty[i] * eta;
+  }
+  return out;
+}
+
+/**
  * One year of simple returns (decimals) for the seven classes, in `MONTE_CARLO_CLASSES` order.
  * Always consumes two uniforms per class, whatever the volatility or the correlations — the number
  * of draws per path must not depend on the parameters (a seeded run stays comparable across plans).
+ * `means` is the path's own (`drawPathMeans`); the default is the plan's, as before Q2.
  */
-export function drawYear(plan: DrawPlan, random: () => number = Math.random): number[] {
+export function drawYear(plan: DrawPlan, random: () => number = Math.random, means: readonly number[] = plan.m): number[] {
   const n = plan.m.length;
   const epsilon = new Array<number>(n);
   for (let i = 0; i < n; i++) epsilon[i] = standardNormal(random);
@@ -120,7 +154,9 @@ export function drawYear(plan: DrawPlan, random: () => number = Math.random): nu
       z = 0;
       for (let k = 0; k <= i; k++) z += row[k] * epsilon[k];
     }
-    out[i] = plan.s[i] === 0 ? plan.medianGrowth[i] - 1 : Math.exp(plan.m[i] + plan.s[i] * z) - 1;
+    // At zero volatility a class returns its median exactly; a path's own mean (RQ6) moves that median.
+    if (plan.s[i] === 0) out[i] = means[i] === plan.m[i] ? plan.medianGrowth[i] - 1 : Math.exp(means[i]) - 1;
+    else out[i] = Math.exp(means[i] + plan.s[i] * z) - 1;
   }
   return out;
 }

@@ -43,6 +43,13 @@ export const DEFAULT_MONTE_CARLO_SIMULATIONS = 10000;
  */
 export const MONTE_CARLO_SEED = 20261003;
 
+/**
+ * The seed of the paths' own means (RQ6, Q2, README § 14.10): a SEPARATE generator from `MONTE_CARLO_SEED`, so the
+ * yearly shocks are the same with and without the uncertainty, and with and without leverage (A13). Every stochastic
+ * Base run — Monte Carlo, its unleveraged twin, the Ventaglio, the Proiezione — starts a fresh `createSeededRandom` from it.
+ */
+export const MONTE_CARLO_PARAMETER_SEED = 20261010;
+
 export interface SimulatedCapital {
   /** EUR per Monte Carlo class. */
   byClass: Record<MonteCarloClass, number>;

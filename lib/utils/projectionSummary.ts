@@ -278,6 +278,8 @@ export interface ProjectionRunInputs {
   inflows: MonteCarloCapitalInflow[];
   /** § 12 (RF10): the dated flows the run read; absent = none. */
   datedFlows?: DatedFlowsInput;
+  /** RQ6 (Q2): the uncertainty per class (points) the Base drew its paths' means from; absent = none. */
+  uncertainty?: Record<MonteCarloClass, number>;
 }
 
 /**
@@ -295,6 +297,7 @@ export function haveProjectionInputsChanged(last: ProjectionRunInputs, current: 
     if (a.inflationRate !== b.inflationRate) return true;
     if (MONTE_CARLO_CLASSES.some((cls) => a.classes[cls].cagr !== b.classes[cls].cagr || a.classes[cls].volatility !== b.classes[cls].volatility)) return true;
   }
+  if (MONTE_CARLO_CLASSES.some((cls) => (last.uncertainty?.[cls] ?? 0) !== (current.uncertainty?.[cls] ?? 0))) return true;
   const lastCorrelations = last.correlations ?? [];
   const currentCorrelations = current.correlations ?? [];
   if (lastCorrelations.length !== currentCorrelations.length || lastCorrelations.some((value, index) => value !== currentCorrelations[index])) return true;

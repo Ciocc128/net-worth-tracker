@@ -869,3 +869,104 @@ describe('S4–S5 — the sustainable withdrawal on the seeded default plan', ()
     }
   });
 });
+
+// ─── Q2 · RQ6: each path draws its own means (doc/montecarlo/README.md § 14.10) ──────────────
+
+describe('the uncertainty on the parameter (Q2, rule RQ6)', () => {
+  const volatile: MonteCarloMarketScenario = { classes: monteCarloClassRecord(() => ({ cagr: 6, volatility: 18 })), inflationRate: 2 };
+  const uncertainty = monteCarloClassRecord(() => 2.5);
+  const counting = (seed: number) => {
+    let calls = 0;
+    const source = createSeededRandom(seed);
+    return { random: () => (calls++, source()), calls: () => calls };
+  };
+
+  it('AQ23: an uncertainty at 0 everywhere is the run of before, float for float, and never touches the parameter generator', () => {
+    const params = makeDeterministicParams({ market: volatile, numberOfSimulations: 200, retirementYears: 25, annualWithdrawal: 45_000 });
+    const before = runMonteCarloSimulation({ ...params, random: createSeededRandom(5) });
+    const parameters = counting(7);
+    const zero = runMonteCarloSimulation({ ...params, random: createSeededRandom(5), uncertainty: monteCarloClassRecord(() => 0), parameterRandom: parameters.random });
+    expect(zero.simulations).toEqual(before.simulations);
+    expect(zero.percentiles).toEqual(before.percentiles);
+    expect(parameters.calls()).toBe(0);
+
+    const accumulation = makeAccumulationParams({ market: volatile, numberOfSimulations: 100, years: 30 });
+    const fanBefore = runAccumulationSimulation({ ...accumulation, random: createSeededRandom(5) });
+    const fanZero = runAccumulationSimulation({ ...accumulation, random: createSeededRandom(5), uncertainty: monteCarloClassRecord(() => 0), parameterRandom: parameters.random });
+    expect(fanZero.paths).toEqual(fanBefore.paths);
+    expect(parameters.calls()).toBe(0);
+  });
+
+  it('widens the Base: same median, a lower 10th and a higher 90th percentile at the horizon', () => {
+    const params = makeDeterministicParams({ market: volatile, numberOfSimulations: 4000, retirementYears: 30, annualWithdrawal: 0 });
+    const without = runMonteCarloSimulation({ ...params, random: createSeededRandom(11) });
+    const withIt = runMonteCarloSimulation({ ...params, random: createSeededRandom(11), uncertainty, parameterRandom: createSeededRandom(12) });
+    const last = (result: typeof without) => result.percentiles[result.percentiles.length - 1];
+    expect(last(withIt).p10).toBeLessThan(last(without).p10);
+    expect(last(withIt).p90).toBeGreaterThan(last(without).p90);
+    expect(Math.abs(last(withIt).p50 / last(without).p50 - 1)).toBeLessThan(0.1);
+  });
+
+  it('AQ27: the years draw the same uniforms with and without the uncertainty, with and without leverage (A13)', () => {
+    const run = (weights: Record<MonteCarloClass, number>, withUncertainty: boolean) => {
+      const years = counting(9);
+      const parameters = counting(10);
+      runMonteCarloSimulation(
+        makeDeterministicParams({
+          weights,
+          market: { classes: monteCarloClassRecord(() => ({ cagr: 5, volatility: 40 })), inflationRate: 0 },
+          annualWithdrawal: 80_000,
+          numberOfSimulations: 50,
+          retirementYears: 25,
+          random: years.random,
+          ...(withUncertainty ? { uncertainty, parameterRandom: parameters.random } : {}),
+        }),
+      );
+      return { years: years.calls(), parameters: parameters.calls() };
+    };
+    const equity = (weight: number) => monteCarloClassRecord((cls) => (cls === 'equity' ? weight : 0));
+    for (const weights of [equity(100), equity(250)]) {
+      expect(run(weights, false)).toEqual({ years: 7 * 2 * 25 * 50, parameters: 0 });
+      // Seven normals per path for the means, before its years.
+      expect(run(weights, true)).toEqual({ years: 7 * 2 * 25 * 50, parameters: 7 * 2 * 50 });
+    }
+  });
+
+  it('AQ27: the leveraged and the unleveraged Base meet the same means: scaling the weights back to 100 reproduces the unleveraged run', () => {
+    const mix = (equity: number) => monteCarloClassRecord((cls) => (cls === 'equity' ? equity : 0));
+    const run = (weights: Record<MonteCarloClass, number>, spread: number) =>
+      runMonteCarloSimulation(
+        makeDeterministicParams({
+          weights,
+          market: volatile,
+          leverageSpread: spread,
+          numberOfSimulations: 500,
+          retirementYears: 30,
+          random: createSeededRandom(21),
+          uncertainty,
+          parameterRandom: createSeededRandom(22),
+        }),
+      );
+    expect(run(mix(150 / 1.5), 0).simulations).toEqual(run(mix(100), 2).simulations);
+  });
+
+  it('AQ28: a run without the uncertainty (Bear and Bull, the RQ5 stress) ignores the parameter generator', () => {
+    const params = makeDeterministicParams({ market: volatile, numberOfSimulations: 100, retirementYears: 20, annualWithdrawal: 40_000 });
+    const parameters = counting(3);
+    const stress = runMonteCarloSimulation({ ...params, random: createSeededRandom(5), parameterRandom: parameters.random });
+    expect(stress.simulations).toEqual(runMonteCarloSimulation({ ...params, random: createSeededRandom(5) }).simulations);
+    expect(parameters.calls()).toBe(0);
+  });
+
+  it('the Ventaglio draws one set of means per path, the years unchanged', () => {
+    const years = counting(4);
+    const parameters = counting(5);
+    runAccumulationSimulation(
+      makeAccumulationParams({ market: volatile, numberOfSimulations: 30, years: 20, random: years.random, uncertainty, parameterRandom: parameters.random }),
+    );
+    expect(parameters.calls()).toBe(7 * 2 * 30);
+    const yearsOnly = counting(4);
+    runAccumulationSimulation(makeAccumulationParams({ market: volatile, numberOfSimulations: 30, years: 20, random: yearsOnly.random }));
+    expect(years.calls()).toBe(yearsOnly.calls());
+  });
+});

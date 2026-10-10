@@ -343,6 +343,8 @@ export interface MonteCarloRunInputs {
   params: MonteCarloParams;
   scenarios: MonteCarloMarketScenarios;
   inflows: MonteCarloCapitalInflow[];
+  /** RQ6 (Q2): the uncertainty per class (points) the Base drew its paths' means from; absent = none. */
+  uncertainty?: Record<MonteCarloClass, number>;
 }
 
 /** The plan fields a run reads (the weights are compared class by class below). The `market` on the shared params is NOT among them: the scenarios carry it. */
@@ -370,6 +372,7 @@ export function haveRunInputsChanged(last: MonteCarloRunInputs, current: MonteCa
     if (a.inflationRate !== b.inflationRate) return true;
     if (MONTE_CARLO_CLASSES.some((cls) => a.classes[cls].cagr !== b.classes[cls].cagr || a.classes[cls].volatility !== b.classes[cls].volatility)) return true;
   }
+  if (MONTE_CARLO_CLASSES.some((cls) => (last.uncertainty?.[cls] ?? 0) !== (current.uncertainty?.[cls] ?? 0))) return true;
   // The correlations ride on the shared params: a save in Impostazioni › Simulazioni makes the last run stale too.
   const lastCorrelations = last.params.correlations ?? [];
   const currentCorrelations = current.params.correlations ?? [];

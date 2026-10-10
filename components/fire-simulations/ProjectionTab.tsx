@@ -37,9 +37,9 @@ import { runAccumulationSimulation } from '@/lib/services/monteCarloService';
 import { resolveProjectionFireSeries } from '@/lib/services/whatIfService';
 import { useWhatIfBaseline } from '@/lib/hooks/useWhatIfBaseline';
 import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
-import { DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
+import { DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_PARAMETER_SEED, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
 import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
-import { resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
+import { marketUncertainty, resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
 import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_NOUNS, monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { formatInputAmount, parseItalianNumber, SCENARIO_KEYS, type ScenarioKey } from '@/lib/utils/monteCarloSummary';
@@ -277,9 +277,11 @@ export function ProjectionTab() {
             costRate: portfolioCost(typed.weights, assumptions?.costs).total,
             inflows: pensionInflows,
             datedFlows,
+            // RQ6 (Q2): the Base draws each path's means from it; Bear and Bull are the RQ5 stress.
+            uncertainty: marketUncertainty(market),
           }
         : null,
-    [typed, scenarios, market.correlations, market.leverageSpread, assumptions?.costs, pensionInflows, datedFlows],
+    [typed, scenarios, market, assumptions?.costs, pensionInflows, datedFlows],
   );
 
   // ─── The run: the three scenarios in one go ──────────────────────────────────
@@ -327,6 +329,9 @@ export function ProjectionTab() {
             collectPaths: false,
             snapshotYears,
             random: createSeededRandom(MONTE_CARLO_SEED),
+            ...(key === 'base' && inputs.uncertainty
+              ? { uncertainty: inputs.uncertainty, parameterRandom: createSeededRandom(MONTE_CARLO_PARAMETER_SEED) }
+              : {}),
           });
           data.scenarios[key] = { snapshots: result.snapshots ?? {}, leverageZeroedCount: result.leverageZeroedCount ?? 0 };
           data.inflation[key] = scenario.inflationRate;

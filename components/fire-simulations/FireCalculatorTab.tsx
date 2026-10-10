@@ -73,6 +73,8 @@ import {
 } from '@/lib/services/fireService';
 import { runAccumulationSimulation, type AccumulationSimulationParams } from '@/lib/services/monteCarloService';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
+import { MONTE_CARLO_PARAMETER_SEED } from '@/lib/utils/monteCarloParams';
+import { marketUncertainty } from '@/lib/utils/monteCarloMarket';
 import { targetYearsOf, findDepletion, depletionCause } from '@/lib/utils/fireDepletion';
 import { summarizeTargetAge, yearsToTargetAge, type FireWalk } from '@/lib/utils/fireTargetAge';
 import { DEFAULT_FIRE_TARGET_AGE } from '@/lib/utils/firePlan';
@@ -440,6 +442,8 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       expenseInflationRate: scenarios.base.inflationRate,
       weights,
       market: monteCarloMarket.scenarios.base,
+      // RQ6 (Q2): the fan is a Base, so each path draws its own means from the uncertainty per class.
+      uncertainty: marketUncertainty(monteCarloMarket),
       correlations: monteCarloMarket.correlations,
       leverageSpread: monteCarloMarket.leverageSpread,
       // RC4: the fan takes the target portfolio's costs off every year, like the deterministic Base.
@@ -489,6 +493,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
         fireTargets: span?.fireTargets ?? fanFireTargets,
         retirement: fanRetirement,
         random: createSeededRandom(FAN_SEED),
+        parameterRandom: createSeededRandom(MONTE_CARLO_PARAMETER_SEED),
       }),
     [fanYears, retirementHorizonYears, fanFireTargets, fanRetirement],
   );
