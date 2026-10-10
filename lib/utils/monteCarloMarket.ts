@@ -76,7 +76,7 @@ export interface MarketNumbers {
 export interface ResolvedMonteCarloMarket extends MarketNumbers {
   /** What the user wrote (after the migration of an old document). */
   overrides: MonteCarloMarketOverrides;
-  /** The anchors used (frozen until Q3), with their date. */
+  /** The ECB anchors used (the daily cron's, else the frozen ones), with their date. */
   anchors: MonteCarloAnchors;
   /** Q4 switches; all false until then. */
   hedged: Record<'equity' | 'gold' | 'trendFollowing' | 'carry', boolean>;
@@ -462,6 +462,7 @@ export function collectCommoditySubCategories(
 export function resolveMonteCarloMarketForPortfolio(
   settings: Pick<AssetAllocationSettings, 'monteCarloMarket' | 'monteCarloScenarios' | 'targets'> | null | undefined,
   assets: readonly Asset[] | undefined,
+  anchors: MonteCarloAnchors = MONTE_CARLO_FROZEN_ANCHORS,
 ): ResolvedMonteCarloMarket {
-  return resolveMonteCarloMarket(settings, collectCommoditySubCategories(assets, settings));
+  return resolveMonteCarloMarket(settings, collectCommoditySubCategories(assets, settings), anchors);
 }

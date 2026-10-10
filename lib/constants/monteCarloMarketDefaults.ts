@@ -104,11 +104,21 @@ export const MONTE_CARLO_CLASS_DEFAULTS: Record<MonteCarloClass, MonteCarloClass
 
 /**
  * The ECB anchors frozen on 08/10/2026 (RQ2): €STR, the AAA euro-area 10-year spot yield and the long-run
- * expected inflation of the SPF, nominal percent. Used until Q3 reads them daily.
+ * expected inflation of the SPF, nominal percent. The fallback of any series the daily cron (Q3) has not read.
  */
 export const MONTE_CARLO_FROZEN_ANCHORS = { estr: 2.439, aaa10y: 3.5192, inflation: 2.0369, asOf: '08/10/2026' } as const;
 
-export type MonteCarloAnchors = { estr: number; aaa10y: number; inflation: number; asOf: string };
+export type MonteCarloAnchors = {
+  estr: number;
+  aaa10y: number;
+  inflation: number;
+  asOf: string;
+  /** Q3: the date of each series' last observation when it was read from the ECB; absent = the frozen value. */
+  estrDate?: string;
+  aaa10yDate?: string;
+  /** `YYYY-Qn`. */
+  inflationPeriod?: string;
+};
 
 /**
  * Default correlations of the real euro log-returns, not hedged (§ 14.6; V-D4, V-D9, V-D12): the 21 pairs of the

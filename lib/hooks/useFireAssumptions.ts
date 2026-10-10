@@ -13,6 +13,7 @@ import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
 import { getAnnualCashflowData } from '@/lib/services/fireService';
 import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { getGoalData } from '@/lib/services/goalService';
+import { useMarketAnchors } from '@/lib/hooks/useMarketAnchors';
 import { resolveFireAssumptions, type FireAssumptions } from '@/lib/utils/fireAssumptions';
 
 export interface UseFireAssumptionsResult {
@@ -54,13 +55,14 @@ export function useFireAssumptions(lockedAssetIds?: ReadonlySet<string>, { withC
     staleTime: 300000,
   });
 
+  const anchors = useMarketAnchors();
   const assets = assetsQuery.data;
   const goalData = goalQuery.data;
   const cashflowData = withCashflow ? cashflowQuery.data : undefined;
   const ready = !settingsQuery.isLoading && !settingsQuery.isError && assetsQuery.isSuccess && (!withCashflow || cashflowQuery.isSuccess);
   const assumptions = useMemo(
-    () => (ready ? resolveFireAssumptions({ settings, assets, lockedAssetIds, goalData: goalDriven ? goalData : null, assetValue: calculateAssetValue, cashflowData }) : null),
-    [ready, settings, assets, lockedAssetIds, goalDriven, goalData, cashflowData],
+    () => (ready ? resolveFireAssumptions({ settings, assets, lockedAssetIds, goalData: goalDriven ? goalData : null, assetValue: calculateAssetValue, cashflowData, anchors }) : null),
+    [ready, settings, assets, lockedAssetIds, goalDriven, goalData, cashflowData, anchors],
   );
   return {
     assumptions,

@@ -20,6 +20,7 @@ import { RotateCcw } from 'lucide-react';
 import type { MonteCarloClassOverride } from '@/types/assets';
 import type { Narrative } from '@/lib/utils/narrative';
 import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_LABELS, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
+import { describeAnchorLines } from '@/lib/utils/marketAnchors';
 import { MONTE_CARLO_CLASS_DEFAULTS, MONTE_CARLO_CLASS_SOURCES, MONTE_CARLO_FROZEN_ANCHORS, type MonteCarloAnchors } from '@/lib/constants/monteCarloMarketDefaults';
 import { buildMarketNumbers, type MonteCarloMarketOverrides } from '@/lib/utils/monteCarloMarket';
 import { toLogNormal } from '@/lib/utils/monteCarloDraw';
@@ -52,7 +53,7 @@ interface MonteCarloMarketTileProps {
   effectiveGoldSubCategory: string | null;
   /** The weights the FIRE page simulates (targets of Allocazione, else the portfolio held): the tile shows what they return on the typed numbers. */
   portfolio?: { weights: Record<MonteCarloClass, number>; origin: FireWeightsOrigin; /** Percent a year of TER and stamp duty (RC3); the rates shown are net of it. */ costPct?: number } | null;
-  /** The ECB anchors in force and their date (frozen until Q3). */
+  /** The ECB anchors in force and their dates (the daily cron's, else the frozen ones). */
   anchors?: MonteCarloAnchors;
   disabled?: boolean;
   className?: string;
@@ -172,14 +173,13 @@ export function MonteCarloMarketTile({
     : null;
   const portfolioReal = band ? (['bear', 'base', 'bull'] as const).map((key) => ({ key, value: realReturn(band[key], numbers.inflationRate) })) : [];
 
+  const anchorLines = describeAnchorLines(anchors, new Date(), fmt2);
   const anchorLine = (cls: MonteCarloClass): string | null => {
     const entry = numbers.classes[cls];
     const kind = MONTE_CARLO_CLASS_DEFAULTS[cls].kind;
     if (kind === 'anchor') {
       if (entry.origin === 'saved') return 'scritto a mano';
-      return cls === 'bonds'
-        ? `dal tasso AAA 10 anni ${fmt2(anchors.aaa10y)}% del ${anchors.asOf}, meno l’inflazione`
-        : `dall’€STR ${fmt2(anchors.estr)}% del ${anchors.asOf}, meno l’inflazione`;
+      return `${cls === 'bonds' ? anchorLines.aaa10y : anchorLines.estr}, meno l’inflazione`;
     }
     if (kind === 'premium') return `Base ${fmt2(entry.cagr)}% = liquidità ${fmt2(numbers.classes.cash.cagr)}% + premio`;
     return null;
@@ -281,7 +281,7 @@ export function MonteCarloMarketTile({
           <div className="min-w-0">
             <span className="text-[13px] font-medium">Inflazione attesa %</span>
             <p className="text-[10.5px] leading-[1.35] text-muted-foreground">
-              {numbers.inflationOrigin === 'anchor' ? `SPF BCE, 3° trimestre 2026 (${anchors.asOf})` : 'scritta a mano'}
+              {numbers.inflationOrigin === 'anchor' ? anchorLines.inflation : 'scritta a mano'}
               {numbers.inflationOrigin === 'saved' ? (
                 <button type="button" className="ml-1.5 underline underline-offset-2" onClick={() => setOverrides({ ...draft.overrides, inflationRate: undefined })} disabled={disabled}>
                   Usa il dato BCE
