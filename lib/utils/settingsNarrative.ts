@@ -28,7 +28,8 @@ import type { AssetClass, IdealAllocationSettings, ObjectivePriority } from '@/t
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import { INDEX_PROFILES } from '@/lib/constants/instrumentProfiles';
 import type { TargetProblem } from '@/lib/utils/allocationTargetValidation';
-import { MONTE_CARLO_DEFAULTS_LAST_YEAR } from '@/lib/constants/monteCarloMarketDefaults';
+import { MONTE_CARLO_DEFAULTS_LAST_YEAR, type MonteCarloHedgeSwitches, hedgedClassList } from '@/lib/constants/monteCarloMarketDefaults';
+import { MONTE_CARLO_CLASS_LABELS } from '@/lib/constants/monteCarloClasses';
 import type { MonteCarloMarketOrigin } from '@/lib/utils/monteCarloMarket';
 
 // ─── Segment helpers ──────────────────────────────────────────────────────────
@@ -1005,9 +1006,23 @@ export function describeMonteCarloMarket({ origin, editedClassCount, dirty, gold
   return out;
 }
 
+/**
+ * «Copertura del cambio» — what the switches mean, in one sentence (Q4, RQ7): nothing hedged is the default of someone
+ * who holds dollar instruments unhedged; the Base never changes with the hedge.
+ */
+export function describeHedgeReading(hedged: MonteCarloHedgeSwitches): string {
+  const list = hedgedClassList(hedged);
+  const first = list.length === 0
+    ? 'Nessuna classe coperta: volatilità e correlazioni di chi tiene strumenti in dollari senza copertura.'
+    : `Coperte: ${list.map((cls) => MONTE_CARLO_CLASS_LABELS[cls]).join(', ')}.`;
+  return `${first} Il Base non cambia: la copertura costa la differenza fra i tassi a breve in dollari e in euro, nulla in media nel modello.`;
+}
+
 export interface MonteCarloCorrelationsInput {
-  /** Pairs (of 21) whose value differs from the defaults, in the draft. */
+  /** Pairs (of 21) whose value differs from the defaults in force (the hedge included), in the draft. */
   editedPairCount: number;
+  /** Q4: the hedged classes, by label; empty or absent = none. */
+  hedgedLabels?: string[];
   /** Pairs the last Save adapted to keep the matrix valid (R5), still shown. */
   correctedPairCount: number;
 }
@@ -1016,12 +1031,14 @@ export interface MonteCarloCorrelationsInput {
  * «Correlazioni» — where the 21 pairs come from, in one line: the defaults' source, or how many
  * pairs were edited; after a correction, how many the Save adapted. No verdict (it is Impostazioni).
  */
-export function describeMonteCarloCorrelations({ editedPairCount, correctedPairCount }: MonteCarloCorrelationsInput): Narrative {
+export function describeMonteCarloCorrelations({ editedPairCount, hedgedLabels = [], correctedPairCount }: MonteCarloCorrelationsInput): Narrative {
   const out: Narrative = [];
   if (editedPairCount === 0) {
     out.push({ text: 'Valori predefiniti: log-rendimenti annui reali in euro, ogni coppia sul suo periodo comune; 0 dove la correlazione non è distinguibile da zero.' });
+    if (hedgedLabels.length > 0) out.push({ text: ` Seguono la copertura scelta (${hedgedLabels.join(', ')}).` });
   } else {
     out.push({ text: 'Modificate ' }, { text: `${editedPairCount} coppie su 21`, mono: true }, { text: ' rispetto ai valori predefiniti.' });
+    if (hedgedLabels.length > 0) out.push({ text: ' Personalizzate: la copertura non le cambia.' });
   }
   if (correctedPairCount > 0) {
     out.push({ text: ' Il salvataggio ne ha adattate ' }, { text: String(correctedPairCount), mono: true }, { text: ' per rendere la matrice coerente.' });

@@ -110,7 +110,8 @@ import { buildTaxBracketSnapshotKey, parseTaxBracketDrafts, toTaxBracketDrafts, 
 import { MonteCarloMarketTile, type MonteCarloMarketDraft } from '@/components/settings/MonteCarloMarketTile';
 import { MonteCarloCorrelationsTile, type CorrectionsByIndex } from '@/components/settings/MonteCarloCorrelationsTile';
 import { changedPairs, correctUpperTriangle } from '@/lib/utils/correlationMatrix';
-import { MONTE_CARLO_CLASSES, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
+import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_LABELS, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
+import { hedgedClassList, normalizeHedge } from '@/lib/constants/monteCarloMarketDefaults';
 import { computeSimulatedCapital } from '@/lib/utils/monteCarloParams';
 import { collectCommoditySubCategories, countEditedClasses, countEditedCorrelations, findDefaultGoldSubCategory, resolveMonteCarloMarket, toMonteCarloMarketSettings, type MonteCarloMarketOrigin } from '@/lib/utils/monteCarloMarket';
 import { findMonteCarloMarketProblems } from '@/lib/utils/monteCarloMarketValidation';
@@ -4110,12 +4111,14 @@ export default function SettingsPage() {
               <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-8')}>
                 <MonteCarloCorrelationsTile
                   reading={describeMonteCarloCorrelations({
-                    editedPairCount: countEditedCorrelations(marketDraft.correlations),
+                    editedPairCount: countEditedCorrelations(marketDraft.correlations, marketDraft.overrides.hedged),
+                    hedgedLabels: hedgedClassList(normalizeHedge(marketDraft.overrides.hedged)).map((cls) => MONTE_CARLO_CLASS_LABELS[cls]),
                     correctedPairCount: Object.keys(correlationCorrections).length,
                   })}
                   correlations={marketDraft.correlations}
                   onChange={(correlations) => setMarketDraft({ ...marketDraft, correlations })}
                   heldClasses={heldMarketClasses}
+                  hedged={marketDraft.overrides.hedged}
                   corrections={correlationCorrections}
                   disabled={isDemo}
                 />

@@ -45,6 +45,15 @@ describe('the Rendimenti chip (RC3, A3, A10)', () => {
   });
 });
 
+describe('the Rendimenti chip and the currency hedge (Q4)', () => {
+  it('names the hedged classes only when there is at least one', () => {
+    expect(describeReturnsChip(build({})).lines.some((line) => line.startsWith('Coperte'))).toBe(false);
+    const hedgedMarket = resolveMonteCarloMarket({ monteCarloMarket: { version: 2, hedged: { trendFollowing: true, carry: true } } });
+    const chip = describeReturnsChip(build({ market: hedgedMarket }));
+    expect(chip.lines.at(-1)).toBe('Coperte: Trend, Carry');
+  });
+});
+
 describe('the other chips and the capital row (RC1–RC5, T11)', () => {
   const capital = { total: 430_000, portfolio: 400_000, cashToInvest: { used: 30_000 }, outside: { cash: 30_000, cashIsFund: true, otherExcluded: 0, realestate: 250_000, crypto: 10_000 } } as never;
 

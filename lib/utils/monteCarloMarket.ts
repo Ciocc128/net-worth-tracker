@@ -24,9 +24,13 @@ import {
   MONTE_CARLO_CLASS_DEFAULTS,
   MONTE_CARLO_DEFAULT_LEVERAGE_SPREAD,
   MONTE_CARLO_FROZEN_ANCHORS,
-  getDefaultMonteCarloCorrelations,
+  MONTE_CARLO_HEDGEABLE_CLASSES,
+  defaultCorrelations,
   getLegacyV1DefaultMarket,
+  normalizeHedge,
   type MonteCarloAnchors,
+  type MonteCarloHedgeSwitches,
+  type MonteCarloHedgeableClass,
 } from '@/lib/constants/monteCarloMarketDefaults';
 import { DEFAULT_SUB_CATEGORIES } from '@/lib/constants/defaultSubCategories';
 import { cagrFromArithmeticMean } from './monteCarloDraw';
@@ -48,6 +52,8 @@ export interface MonteCarloMarketOverrides {
   classes: Partial<Record<MonteCarloClass, MonteCarloClassOverride>>;
   /** Percent; absent = the SPF anchor. */
   inflationRate?: number;
+  /** Q4: the classes whose currency is hedged (only `true` entries are meaningful); absent = nothing hedged. */
+  hedged?: Partial<Record<MonteCarloHedgeableClass, boolean>>;
 }
 
 /** A class as the engines and the tile read it, REAL percent (RQ0). */
@@ -78,8 +84,8 @@ export interface ResolvedMonteCarloMarket extends MarketNumbers {
   overrides: MonteCarloMarketOverrides;
   /** The ECB anchors used (the daily cron's, else the frozen ones), with their date. */
   anchors: MonteCarloAnchors;
-  /** Q4 switches; all false until then. */
-  hedged: Record<'equity' | 'gold' | 'trendFollowing' | 'carry', boolean>;
+  /** Q4 switches (RQ7): which classes' currency is hedged; the default is none. */
+  hedged: MonteCarloHedgeSwitches;
   /** The commodity sub-category simulated as Oro (RG); null = none. Resolved against `availableSubCategories` when given. */
   goldSubCategory: string | null;
   /** The 21 correlations of the log-returns, upper triangle in `MONTE_CARLO_CLASSES` order (saved, else the defaults). */
@@ -132,8 +138,8 @@ const isFiniteNumber = (value: unknown): value is number => typeof value === 'nu
 const sameNumber = (a: number, b: number): boolean => Math.abs(a - b) < 1e-9;
 
 /** Pairs whose value differs from the defaults (for «modificate 4 coppie su 21»). */
-export function countEditedCorrelations(correlations: readonly number[]): number {
-  const defaults = getDefaultMonteCarloCorrelations();
+export function countEditedCorrelations(correlations: readonly number[], hedged?: Partial<Record<MonteCarloHedgeableClass, boolean>>): number {
+  const defaults = defaultCorrelations(hedged);
   return defaults.filter((value, index) => correlations[index] !== value).length;
 }
 
@@ -143,6 +149,16 @@ export function countEditedClasses(overrides: Pick<MonteCarloMarketOverrides, 'c
     const entry = overrides.classes[cls];
     return !!entry && Object.values(entry).some(isFiniteNumber);
   });
+}
+
+/** The hedged classes written in the overrides, as the four switches. */
+const hedgeOf = (overrides: Pick<MonteCarloMarketOverrides, 'hedged'>): MonteCarloHedgeSwitches => normalizeHedge(overrides.hedged);
+
+/** The volatility default of a class under the hedge in force (RQ7): the hedged one where the class has it. */
+function defaultVolatility(cls: MonteCarloClass, hedged: MonteCarloHedgeSwitches): number {
+  const base = MONTE_CARLO_CLASS_DEFAULTS[cls];
+  const isHedged = (MONTE_CARLO_HEDGEABLE_CLASSES as readonly string[]).includes(cls) && hedged[cls as MonteCarloHedgeableClass];
+  return isHedged && base.volatilityHedged !== undefined ? base.volatilityHedged : base.volatility;
 }
 
 const pct = (decimal: number): number => decimal * 100;
@@ -161,10 +177,11 @@ export function buildMarketNumbers(overrides: MonteCarloMarketOverrides, anchors
     return isFiniteNumber(value) ? value : undefined;
   };
   const cashCagr = field('cash', 'cagr') ?? realOf(anchors.estr);
+  const hedged = hedgeOf(overrides);
 
   const classes = monteCarloClassRecord<ResolvedMonteCarloClass>((cls) => {
     const base = MONTE_CARLO_CLASS_DEFAULTS[cls];
-    const volatility = field(cls, 'volatility') ?? base.volatility;
+    const volatility = field(cls, 'volatility') ?? defaultVolatility(cls, hedged);
     const uncertainty = field(cls, 'uncertainty') ?? base.uncertainty;
     if (base.kind === 'premium') {
       const premium = field(cls, 'premium') ?? base.premium!;
@@ -278,14 +295,12 @@ export function migrateV1(settings: MonteCarloMarketSettingsV1, anchors: MonteCa
   if (Array.isArray(saved) && saved.length === pairCount(MONTE_CARLO_CLASSES.length) && saved.every(isFiniteNumber)) {
     const edited = saved.some((value, index) => !sameNumber(value, LEGACY_V1_DEFAULT_CORRELATIONS[index]));
     if (edited) {
-      const fresh = getDefaultMonteCarloCorrelations();
+      const fresh = defaultCorrelations();
       correlations = saved.map((value, index) => (sameNumber(value, LEGACY_V1_DEFAULT_CORRELATIONS[index]) ? fresh[index] : value));
     }
   }
   return { overrides, correlations, keptCount, bearBullDropped };
 }
-
-const NO_HEDGE = { equity: false, gold: false, trendFollowing: false, carry: false } as const;
 
 /**
  * v2 when present; otherwise a v1 or the legacy `monteCarloScenarios` migrated (RQ8, in reading: the document is
@@ -324,6 +339,9 @@ export function resolveMonteCarloMarket(
       if (Object.keys(clean).length > 0) overrides.classes[cls] = clean;
     }
     if (isFiniteNumber(saved.inflationRate)) overrides.inflationRate = saved.inflationRate;
+    // Q4: only a `true` is a choice; a document with every switch off carries none.
+    const savedHedge = normalizeHedge(saved.hedged);
+    if (Object.values(savedHedge).some(Boolean)) overrides.hedged = Object.fromEntries(MONTE_CARLO_HEDGEABLE_CLASSES.filter((cls) => savedHedge[cls]).map((cls) => [cls, true]));
     savedCorrelations = saved.correlations;
     goldSource = saved;
     leverageSource = saved.leverageSpread;
@@ -348,14 +366,15 @@ export function resolveMonteCarloMarket(
 
   // A saved matrix of the wrong length or with a non-number is not a matrix: the defaults stand in.
   const hasSavedCorrelations = Array.isArray(savedCorrelations) && savedCorrelations.length === pairCount(MONTE_CARLO_CLASSES.length) && savedCorrelations.every(isFiniteNumber);
-  const correlations = hasSavedCorrelations ? [...savedCorrelations!] : getDefaultMonteCarloCorrelations();
+  const hedged = hedgeOf(overrides);
+  const correlations = hasSavedCorrelations ? [...savedCorrelations!] : defaultCorrelations(hedged);
   const leverageSpread = isFiniteNumber(leverageSource) ? leverageSource : MONTE_CARLO_DEFAULT_LEVERAGE_SPREAD;
 
   return {
     ...numbers,
     overrides,
     anchors,
-    hedged: { ...NO_HEDGE },
+    hedged,
     goldSubCategory,
     correlations,
     correlationOrigin: hasSavedCorrelations ? 'saved' : 'default',
@@ -379,7 +398,9 @@ export function toMonteCarloMarketSettings(
 ): MonteCarloMarketSettingsV2 {
   // The defaults in force depend on the inflation the draft carries (Obbligazioni and Liquidità follow it).
   const inflationWritten = isFiniteNumber(overrides.inflationRate) && !sameNumber(overrides.inflationRate, anchors.inflation);
-  const inForce = buildMarketNumbers(inflationWritten ? { classes: {}, inflationRate: overrides.inflationRate } : { classes: {} }, anchors).classes;
+  const hedged = hedgeOf(overrides);
+  const hedgedWritten = MONTE_CARLO_HEDGEABLE_CLASSES.filter((cls) => hedged[cls]);
+  const inForce = buildMarketNumbers({ classes: {}, ...(inflationWritten ? { inflationRate: overrides.inflationRate } : {}), ...(hedgedWritten.length > 0 ? { hedged } : {}) }, anchors).classes;
   const classes: NonNullable<MonteCarloMarketSettingsV2['classes']> = {};
   for (const cls of MONTE_CARLO_CLASSES) {
     const entry = overrides.classes[cls];
@@ -388,17 +409,18 @@ export function toMonteCarloMarketSettings(
     const written: MonteCarloClassOverride = {};
     if (isFiniteNumber(entry.cagr) && def.kind !== 'premium' && !sameNumber(entry.cagr, inForce[cls].cagr)) written.cagr = entry.cagr;
     if (isFiniteNumber(entry.premium) && def.kind === 'premium' && !sameNumber(entry.premium, def.premium!)) written.premium = entry.premium;
-    if (isFiniteNumber(entry.volatility) && !sameNumber(entry.volatility, def.volatility)) written.volatility = entry.volatility;
+    if (isFiniteNumber(entry.volatility) && !sameNumber(entry.volatility, inForce[cls].volatility)) written.volatility = entry.volatility;
     if (isFiniteNumber(entry.uncertainty) && !sameNumber(entry.uncertainty, def.uncertainty)) written.uncertainty = entry.uncertainty;
     if (Object.keys(written).length > 0) classes[cls] = written;
   }
   // The matrix is written only when it differs from the defaults, the spread likewise.
-  const custom = correlations && countEditedCorrelations(correlations) > 0;
+  const custom = correlations && countEditedCorrelations(correlations, hedged) > 0;
   const customSpread = leverageSpread !== undefined && leverageSpread !== MONTE_CARLO_DEFAULT_LEVERAGE_SPREAD;
   return {
     version: 2,
     ...(Object.keys(classes).length > 0 ? { classes } : {}),
     ...(inflationWritten ? { inflationRate: overrides.inflationRate } : {}),
+    ...(hedgedWritten.length > 0 ? { hedged: Object.fromEntries(hedgedWritten.map((cls) => [cls, true])) } : {}),
     ...(goldSubCategory !== undefined ? { goldSubCategory } : {}),
     ...(custom ? { correlations: [...correlations] } : {}),
     ...(customSpread ? { leverageSpread } : {}),
@@ -421,7 +443,10 @@ export function monteCarloMarketForMergeWrite(market: MonteCarloMarketSettingsV2
     version: 2,
     classes,
     inflationRate: market.inflationRate ?? remove,
-    hedged: market.hedged ?? remove,
+    // Per key, like the classes: a switch turned off must not survive the merge. No switch on = the whole map goes.
+    hedged: MONTE_CARLO_HEDGEABLE_CLASSES.some((cls) => market.hedged?.[cls])
+      ? Object.fromEntries(MONTE_CARLO_HEDGEABLE_CLASSES.map((cls) => [cls, market.hedged?.[cls] ? true : remove]))
+      : remove,
     correlations: market.correlations ?? remove,
     leverageSpread: market.leverageSpread ?? remove,
     goldSubCategory: market.goldSubCategory === undefined ? remove : market.goldSubCategory,
