@@ -1017,22 +1017,23 @@ describe('describeColorTheme', () => {
 describe('describeMonteCarloMarket', () => {
   it('reads the defaults with their source and what Oro means', () => {
     expect(plain(describeMonteCarloMarket({ origin: 'default', editedClassCount: 0, dirty: false, goldSubCategory: 'Gold' }))).toBe(
-      'Sette classi, valori storici in dollari fino al 2025 (Damodaran, testfolio). Oro = sottocategoria «Gold».'
+      'Sette classi in euro, in termini reali, valori storici fino al 2025; Obbligazioni e Liquidità dai tassi BCE, Trend e Carry come premio sopra la liquidità. Oro = sottocategoria «Gold».'
     );
   });
 
   it('counts the edited classes and says when no sub-category is Oro', () => {
     expect(plain(describeMonteCarloMarket({ origin: 'saved', editedClassCount: 3, dirty: false, goldSubCategory: null }))).toBe(
-      "Sette classi, modificate in 3 rispetto ai valori storici in dollari. Nessuna sottocategoria dell'oro: tutte le materie prime restano Materie prime."
+      "Sette classi in euro, in termini reali, modificate in 3 rispetto ai predefiniti. Nessuna sottocategoria dell'oro: tutte le materie prime restano Materie prime."
     );
   });
 
-  it('asks to re-read a migrated market until the reader edits it', () => {
-    const migrated = { origin: 'migrated' as const, editedClassCount: 2, goldSubCategory: 'Gold' };
+  it('says what the conversion kept until the reader edits it (RQ8)', () => {
+    const migrated = { origin: 'migrated' as const, editedClassCount: 2, goldSubCategory: 'Gold', migration: { keptCount: 3, bearBullDropped: true }, legacyInflation: 3.04 };
     expect(plain(describeMonteCarloMarket({ ...migrated, dirty: false }))).toBe(
-      'Migrate dai parametri salvati prima (da media aritmetica a CAGR, immobili tolti): rileggile e salva. Oro = sottocategoria «Gold».'
+      'Ipotesi portate in termini reali: 3 valori scritti a mano restano, convertito con l’inflazione del 3,04% che aveva. Rileggi e salva. Bear e Bull scritti a mano non si usano più: ora si calcolano sul portafoglio. Oro = sottocategoria «Gold».'
     );
     expect(plain(describeMonteCarloMarket({ ...migrated, dirty: true }))).toContain('modificate in 2');
+    expect(plain(describeMonteCarloMarket({ origin: 'migrated', editedClassCount: 0, dirty: false, goldSubCategory: null, migration: { keptCount: 0, bearBullDropped: false } }))).toContain('nessun valore scritto a mano');
   });
 });
 

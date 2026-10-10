@@ -330,10 +330,11 @@ function idealAllocationSnapshotValue(settings: IdealAllocationSettings) {
   };
 }
 
-// Dirty-state value of the Simulazioni draft: the three scenarios as typed and the Oro choice
+// Dirty-state value of the Simulazioni draft: what the user wrote — normalised exactly as it is saved, so a value
+// typed back to the default is clean again — and the Oro choice
 // (`undefined` = never chosen, kept apart from an explicit «Nessuna» = null).
 function marketSnapshotKey(draft: MonteCarloMarketDraft | null): string {
-  return draft ? JSON.stringify({ scenarios: draft.scenarios, goldSubCategory: draft.goldSubCategory === undefined ? '__auto__' : draft.goldSubCategory, correlations: draft.correlations, leverageSpread: draft.leverageSpread }) : '';
+  return draft ? JSON.stringify({ written: toMonteCarloMarketSettings(draft.overrides, undefined), goldSubCategory: draft.goldSubCategory === undefined ? '__auto__' : draft.goldSubCategory, correlations: draft.correlations, leverageSpread: draft.leverageSpread }) : '';
 }
 
 // Module-level tab definitions drive both the mobile pill and the desktop underline tabs.
@@ -756,6 +757,9 @@ export default function SettingsPage() {
   // Simulazioni (Monte Carlo market assumptions): the draft, the origin of the loaded numbers and the dirty baseline.
   const [marketDraft, setMarketDraft] = useState<MonteCarloMarketDraft | null>(null);
   const [marketOrigin, setMarketOrigin] = useState<MonteCarloMarketOrigin>('default');
+  // RQ8: what the conversion of an old document did, only while it is still unsaved; the inflation it was written with.
+  const [marketMigration, setMarketMigration] = useState<{ keptCount: number; bearBullDropped: boolean } | null>(null);
+  const [marketLegacyInflation, setMarketLegacyInflation] = useState<number | undefined>(undefined);
   const [marketBaselineKey, setMarketBaselineKey] = useState('');
   // Simulazioni › Scaglioni IRPEF (RP8): the brackets the state pensions' net is computed with, edited here since 2026-10-05 (they lived in Coast FIRE).
   const [taxBracketDrafts, setTaxBracketDrafts] = useState<CoastFireTaxBracketDraft[]>([]);
@@ -903,13 +907,19 @@ export default function SettingsPage() {
       // Simulazioni: the market assumptions as the Monte Carlo and the Ventaglio will read them.
       const resolvedMarket = resolveMonteCarloMarket(settingsData, []);
       const loadedMarketDraft: MonteCarloMarketDraft = {
-        scenarios: resolvedMarket.scenarios,
+        overrides: resolvedMarket.overrides,
         goldSubCategory: settingsData?.monteCarloMarket ? settingsData.monteCarloMarket.goldSubCategory : undefined,
         correlations: resolvedMarket.correlations,
         leverageSpread: resolvedMarket.leverageSpread,
       };
       setMarketDraft(loadedMarketDraft);
       setMarketOrigin(resolvedMarket.origin);
+      setMarketMigration(resolvedMarket.migration ?? null);
+      setMarketLegacyInflation(
+        resolvedMarket.origin === 'migrated'
+          ? (settingsData?.monteCarloMarket as { scenarios?: { base?: { inflationRate?: number } } } | undefined)?.scenarios?.base?.inflationRate ?? settingsData?.monteCarloScenarios?.base?.inflationRate
+          : undefined,
+      );
       setMarketBaselineKey(marketSnapshotKey(loadedMarketDraft));
       const loadedBrackets = toTaxBracketDrafts(settingsData?.coastFireTaxBrackets);
       setTaxBracketDrafts(loadedBrackets);
@@ -1562,10 +1572,17 @@ export default function SettingsPage() {
     let correctedCorrelations: number[] | null = null;
     if (marketDirty && marketDraft) {
       // Out-of-range pairs are reported by name before R5 gets to hide them by correcting.
-      const rangeProblems = findMonteCarloMarketProblems({ ...toMonteCarloMarketSettings(marketDraft.scenarios, effectiveGoldSubCategory), correlations: marketDraft.correlations, leverageSpread: marketDraft.leverageSpread });
+      // The raw draft is checked, not the normalised document: a typed value out of range is reported, never dropped.
+      const rangeProblems = findMonteCarloMarketProblems({
+        version: 2,
+        classes: marketDraft.overrides.classes,
+        inflationRate: marketDraft.overrides.inflationRate,
+        correlations: marketDraft.correlations,
+        leverageSpread: marketDraft.leverageSpread,
+      });
       // R5: a matrix that is not valid is replaced by the nearest valid one, at full precision.
       correctedCorrelations = correctUpperTriangle(marketDraft.correlations, MONTE_CARLO_CLASSES.length);
-      marketPayload = toMonteCarloMarketSettings(marketDraft.scenarios, effectiveGoldSubCategory, correctedCorrelations, marketDraft.leverageSpread);
+      marketPayload = toMonteCarloMarketSettings(marketDraft.overrides, effectiveGoldSubCategory, correctedCorrelations, marketDraft.leverageSpread);
       const marketProblems = rangeProblems;
       if (marketProblems.length > 0) {
         handleTabChange('simulazioni');
@@ -1683,10 +1700,11 @@ export default function SettingsPage() {
       }
       if (marketPayload && marketDraft) {
         // The Oro choice is now explicit in the document: the draft says so, and stays clean.
-        const writtenMarketDraft: MonteCarloMarketDraft = { scenarios: marketDraft.scenarios, goldSubCategory: marketPayload.goldSubCategory, correlations: correctedCorrelations ?? marketDraft.correlations, leverageSpread: marketDraft.leverageSpread };
+        const writtenMarketDraft: MonteCarloMarketDraft = { overrides: marketDraft.overrides, goldSubCategory: marketPayload.goldSubCategory, correlations: correctedCorrelations ?? marketDraft.correlations, leverageSpread: marketDraft.leverageSpread };
         setMarketDraft(writtenMarketDraft);
         setMarketBaselineKey(marketSnapshotKey(writtenMarketDraft));
         setMarketOrigin('saved');
+        setMarketMigration(null);
       }
       // The allocation baseline is captured from what was WRITTEN (the cleaned tree), so a
       // dropped empty row does not leave the tab marked as unsaved.
@@ -4072,7 +4090,9 @@ export default function SettingsPage() {
                 <MonteCarloMarketTile
                   reading={describeMonteCarloMarket({
                     origin: marketOrigin,
-                    editedClassCount: countEditedClasses(marketDraft.scenarios).length,
+                    editedClassCount: countEditedClasses(marketDraft.overrides).length,
+                    migration: marketMigration ?? undefined,
+                    legacyInflation: marketLegacyInflation,
                     dirty: marketDirty,
                     goldSubCategory: effectiveGoldSubCategory,
                   })}

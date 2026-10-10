@@ -103,7 +103,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   above, because the Allocazione page already loads `settings` for `targets` and would otherwise fetch it twice.
 - **Simulazioni shows what the typed numbers do to the portfolio** (2026-10-03, doc/fire-ipotesi/README.md L1): `MonteCarloMarketTile` takes `portfolio`
   (the weights of `useFireAssumptions`, from the SAVED targets) and prints «Il portafoglio target rende (composto): Bear · Base · Bull» with
-  `portfolioCompoundReturn` over the DRAFT, so a typed CAGR moves it at once. Read-only: it saves nothing.
+  `portfolioScenarioBand` over the DRAFT, so a typed CAGR moves it at once (since Q1 2026-10-10: REAL, 30 years, Bear/Bull = 15th/85th percentile with the uncertainty). Read-only: it saves nothing.
 - **`fireDatedFlows`** (F1, 2026-10-04, doc/fire-ipotesi/README.md § 12): the dated flows of the FIRE plan (at most 20), typed in FIRE › Calcolatore › Parametri › «Flussi nel tempo», saved by its «Salva» (plain write in both `setSettings` chains; an empty list is a value, absent = none), declared read-only in «Parametri del piano» («Flussi nel tempo»: «4» / «nessuno»). The settings page's own save re-passes it with the other FIRE fields; `settingsRoundTrip` carries it in `STORED_SETTINGS`.
 - **`fireEmergencyFund`** (EF1, 2026-10-05, doc/fire-ipotesi/README.md § 14): the EUR (≥ 0) of the cash outside the portfolio the FIRE tabs keep out; typed in FIRE › Calcolatore › Parametri, saved by its «Salva», declared read-only in «Parametri del piano» («Fondo di emergenza»: the amount, «non impostato · …», or «da fissare nel Calcolatore (quota salvata 50%)»). USER-CLEARABLE like `plannedAnnualExpenses` (omitted in the `setDoc` chain, `deleteField()` in the merge chain); `0` is a value. The legacy **`fireCashToInvestPct`** (K1) is read ONLY by the RE5 conversion and is cleared (same two mechanisms) by the Calcolatore's first save; `settingsRoundTrip` carries both in `STORED_SETTINGS`.
 - **`plannedAnnualExpenses` is the plan's expenses and CLEARABLE** (2026-10-03, doc/fire-ipotesi/README.md D5): typed in FIRE › Calcolatore › Parametri («Spesa del piano»,
@@ -129,6 +129,11 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   default), a row at the foot of `MonteCarloMarketTile`, in the SAME snapshot key; `toMonteCarloMarketSettings` writes
   `leverageSpread` only when it differs from `MONTE_CARLO_DEFAULT_LEVERAGE_SPREAD`, like the correlations, and
   `findMonteCarloMarketProblems` bounds it to 0–20%. No new top-level key: it lives inside `monteCarloMarket`, so no new place.
+  **Q1 (2026-10-10) changed the shape**: `monteCarloMarket` is a v2 holding ONLY what the user typed (`classes` per class with `cagr` · `premium` · `volatility` ·
+  `uncertainty`, `inflationRate`, `correlations`, `leverageSpread`, `goldSubCategory`); the draft is `MonteCarloMarketDraft.overrides`, the snapshot key is the
+  NORMALISED document (a value typed back to the default is clean again), a saved v1 is migrated at read (`origin: 'migrated'`, `marketMigration` for the
+  reading) and rewritten only by the next «Salva» of this tab. **The merge branch of `setSettings` writes `monteCarloMarketForMergeWrite`** (every missing key
+  as `deleteField()`) — a plain v2 would leave the v1 body behind; `settingsRoundTrip` pins both chains.
 - **A user-clearable field needs a different shape per branch**: `delete docData.x` in the no-merge branch,
   `deleteField()` in the merge branch — and the guard is `'x' in settings`, not `x !== undefined`. **The bug this
   prevents is invisible until a hard refresh**: the write succeeds, the toast says «salvate», the form still shows the

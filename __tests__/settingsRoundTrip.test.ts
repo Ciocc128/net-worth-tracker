@@ -16,7 +16,6 @@
  * __tests__/compareAllocations.test.ts.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getDefaultMonteCarloMarket } from '@/lib/constants/monteCarloMarketDefaults';
 
 vi.mock('@/lib/firebase/config', () => ({ db: {} }));
 vi.mock('@/lib/utils/authFetch', () => ({ authenticatedFetch: vi.fn() }));
@@ -49,13 +48,15 @@ const STORED_IDEAL_ALLOCATION: IdealAllocationSettings = {
   groupLimits: [{ id: 'group-1', label: 'Leva', assetIds: ['asset-1', 'asset-2'], maxPct: 20, priority: 'high' }],
 };
 
-/** Un mercato Monte Carlo con un numero diverso dal default per classe e uno scenario, e la scelta «Nessuna» per l'oro. */
-const STORED_MONTE_CARLO_MARKET = (() => {
-  const market = getDefaultMonteCarloMarket();
-  market.scenarios.base.classes.equity.cagr = 6.5;
-  market.scenarios.bear.classes.carry.volatility = 21;
-  return { ...market, goldSubCategory: null, correlations: [0.3, ...new Array(20).fill(-0.05)] };
-})();
+/** Un mercato Monte Carlo v2 (Q1) con numeri scritti diversi dal default, l'inflazione, la scelta «Nessuna» per l'oro, la matrice e lo spread. */
+const STORED_MONTE_CARLO_MARKET = {
+  version: 2 as const,
+  classes: { equity: { cagr: 6.5, uncertainty: 3 }, carry: { premium: 2.5, volatility: 21 } },
+  inflationRate: 2.5,
+  goldSubCategory: null,
+  correlations: [0.3, ...new Array(20).fill(-0.05)],
+  leverageSpread: 3,
+};
 
 const STORED_DATED_FLOWS = [
   { id: 'f1', label: 'Eredità', kind: 'lumpIn', amount: 100_000, indexed: false, start: { anchor: 'year', year: 2036 }, durationYears: null },
@@ -437,8 +438,19 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
   });
 
   it('writes monteCarloMarket through both chains', async () => {
+    // The merge chain deletes every key the v2 does not carry, so no stale v1 body or restored field survives the recursive merge.
     await setSettings('user-1', { monteCarloMarket: STORED_MONTE_CARLO_MARKET } as AssetAllocationSettings);
-    expect(writtenPayload().monteCarloMarket).toEqual(STORED_MONTE_CARLO_MARKET);
+    const merged = writtenPayload().monteCarloMarket as { version: number; scenarios: unknown; hedged: unknown; inflationRate: number; goldSubCategory: unknown; classes: Record<string, unknown>; correlations: unknown; leverageSpread: number };
+    expect(merged.version).toBe(2);
+    expect(merged.scenarios).toBe(DELETE_SENTINEL);
+    expect(merged.hedged).toBe(DELETE_SENTINEL);
+    expect(merged.inflationRate).toBe(2.5);
+    expect(merged.goldSubCategory).toBeNull();
+    expect(merged.classes.equity).toEqual({ cagr: 6.5, premium: DELETE_SENTINEL, volatility: DELETE_SENTINEL, uncertainty: 3 });
+    expect(merged.classes.bonds).toEqual({ cagr: DELETE_SENTINEL, premium: DELETE_SENTINEL, volatility: DELETE_SENTINEL, uncertainty: DELETE_SENTINEL });
+    expect(merged.classes.carry).toEqual({ cagr: DELETE_SENTINEL, premium: 2.5, volatility: 21, uncertainty: DELETE_SENTINEL });
+    expect(merged.correlations).toEqual(STORED_MONTE_CARLO_MARKET.correlations);
+    expect(merged.leverageSpread).toBe(3);
 
     await setSettings('user-1', { targets: TARGETS, monteCarloMarket: STORED_MONTE_CARLO_MARKET } as AssetAllocationSettings);
     expect(writtenPayload().monteCarloMarket).toEqual(STORED_MONTE_CARLO_MARKET);

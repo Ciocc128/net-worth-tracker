@@ -1,28 +1,23 @@
-/**
- * Bounds of the Monte Carlo market assumptions (doc/montecarlo/README.md § 4.2). Returns the
- * fields out of range BY NAME — «Trend, Bull: volatilità oltre 200%» — the way
- * `allocationTargetValidation.ts` names a broken target, so the toast and the tile say where.
- */
-import type { MonteCarloMarketSettings } from '@/types/assets';
+import type { MonteCarloMarketSettingsV2 } from '@/types/assets';
 import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_LABELS } from '@/lib/constants/monteCarloClasses';
 import { pairIndices } from './correlationMatrix';
 
 export const MONTE_CARLO_BOUNDS = {
   cagr: { min: -50, max: 100 },
+  premium: { min: -20, max: 30 },
   volatility: { min: 0, max: 200 },
+  uncertainty: { min: 0, max: 20 },
   inflation: { min: -5, max: 20 },
   correlation: { min: -1, max: 1 },
   spread: { min: 0, max: 20 },
 } as const;
 
-const SCENARIO_NAMES = { bear: 'Bear', base: 'Base', bull: 'Bull' } as const;
-
 const fmt = (value: number) => value.toLocaleString('it-IT');
 
 export interface MonteCarloMarketProblem {
-  /** «Trend, Bull» — where. */
+  /** «Trend» — where. */
   where: string;
-  field: 'cagr' | 'volatility' | 'inflation' | 'correlation' | 'spread';
+  field: 'cagr' | 'premium' | 'volatility' | 'uncertainty' | 'inflation' | 'correlation' | 'spread';
   message: string;
 }
 
@@ -33,42 +28,28 @@ function outside(value: number, bounds: { min: number; max: number }): 'below' |
   return null;
 }
 
-/** Every field out of range, in reading order (class by class, scenario by scenario, then the rest). */
-export function findMonteCarloMarketProblems(market: MonteCarloMarketSettings): MonteCarloMarketProblem[] {
+const FIELD_NAMES = { cagr: 'CAGR', premium: 'premio', volatility: 'volatilità', uncertainty: 'incertezza', inflation: 'inflazione' } as const;
+
+/** Every field out of range, in reading order (class by class, then the rest). Only what is written is checked. */
+export function findMonteCarloMarketProblems(market: MonteCarloMarketSettingsV2): MonteCarloMarketProblem[] {
   const problems: MonteCarloMarketProblem[] = [];
+  const check = (where: string, field: 'cagr' | 'premium' | 'volatility' | 'uncertainty' | 'inflation', value: number | undefined) => {
+    if (value === undefined) return;
+    const result = outside(value, MONTE_CARLO_BOUNDS[field]);
+    if (!result) return;
+    const limit = result === 'below' ? MONTE_CARLO_BOUNDS[field].min : MONTE_CARLO_BOUNDS[field].max;
+    problems.push({ where, field, message: `${where}: ${FIELD_NAMES[field]} ${result === 'below' ? 'sotto' : 'oltre'} ${fmt(limit)}%` });
+  };
   for (const cls of MONTE_CARLO_CLASSES) {
-    for (const key of ['bear', 'base', 'bull'] as const) {
-      const params = market.scenarios[key].classes[cls];
-      const where = `${MONTE_CARLO_CLASS_LABELS[cls]}, ${SCENARIO_NAMES[key]}`;
-      const cagr = outside(params.cagr, MONTE_CARLO_BOUNDS.cagr);
-      if (cagr) {
-        problems.push({
-          where,
-          field: 'cagr',
-          message: `${where}: CAGR ${cagr === 'below' ? 'sotto' : 'oltre'} ${fmt(cagr === 'below' ? MONTE_CARLO_BOUNDS.cagr.min : MONTE_CARLO_BOUNDS.cagr.max)}%`,
-        });
-      }
-      const volatility = outside(params.volatility, MONTE_CARLO_BOUNDS.volatility);
-      if (volatility) {
-        problems.push({
-          where,
-          field: 'volatility',
-          message: `${where}: volatilità ${volatility === 'below' ? 'sotto' : 'oltre'} ${fmt(volatility === 'below' ? MONTE_CARLO_BOUNDS.volatility.min : MONTE_CARLO_BOUNDS.volatility.max)}%`,
-        });
-      }
-    }
+    const entry = market.classes?.[cls];
+    if (!entry) continue;
+    const where = MONTE_CARLO_CLASS_LABELS[cls];
+    check(where, 'cagr', entry.cagr);
+    check(where, 'premium', entry.premium);
+    check(where, 'volatility', entry.volatility);
+    check(where, 'uncertainty', entry.uncertainty);
   }
-  for (const key of ['bear', 'base', 'bull'] as const) {
-    const inflation = outside(market.scenarios[key].inflationRate, MONTE_CARLO_BOUNDS.inflation);
-    if (inflation) {
-      const where = `Inflazione, ${SCENARIO_NAMES[key]}`;
-      problems.push({
-        where,
-        field: 'inflation',
-        message: `${where}: ${inflation === 'below' ? 'sotto' : 'oltre'} ${fmt(inflation === 'below' ? MONTE_CARLO_BOUNDS.inflation.min : MONTE_CARLO_BOUNDS.inflation.max)}%`,
-      });
-    }
-  }
+  check('Inflazione', 'inflation', market.inflationRate);
   (market.correlations ?? []).forEach((value, index) => {
     const result = outside(value, MONTE_CARLO_BOUNDS.correlation);
     if (result) {

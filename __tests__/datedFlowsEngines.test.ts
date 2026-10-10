@@ -15,7 +15,7 @@ import { buildFlowSchedule, buildFlowYearTables, datedFlowsSignature, resolveDat
 import { solveForRun } from '@/lib/utils/sustainableWithdrawal';
 import { MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
-import { getDefaultMonteCarloMarket, getDefaultMonteCarloCorrelations } from '@/lib/constants/monteCarloMarketDefaults';
+import { getDefaultMonteCarloMarket, getDefaultMonteCarloCorrelations } from './legacyMarketFixture';
 import { monteCarloClassRecord, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import type { DatedFlow, FIREProjectionScenarios, MonteCarloMarketScenario, MonteCarloParams } from '@/types/assets';
 

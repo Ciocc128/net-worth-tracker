@@ -176,11 +176,10 @@ export function describeProjectionScenarioNote(figures: ProjectionFigures, hasTh
 }
 
 export function projectionScenariFooter(threshold: VentaglioThresholdKind): Narrative {
+  const lead = threshold !== 'none' ? 'Mediana in euro di oggi e probabilità di superare la soglia, per ciascuno scenario.' : 'Mediana in euro di oggi per ciascuno scenario.';
   return [
     prose(
-      threshold !== 'none'
-        ? 'Mediana in euro di oggi e probabilità di superare la soglia, per ciascuno scenario. Le tre esecuzioni condividono capitale, versamenti, orizzonte e pesi; cambiano rendimenti, volatilità e inflazione.'
-        : 'Mediana in euro di oggi per ciascuno scenario. Le tre esecuzioni condividono capitale, versamenti, orizzonte e pesi; cambiano rendimenti, volatilità e inflazione.',
+      `${lead} Le tre esecuzioni condividono capitale, versamenti, orizzonte e pesi; cambiano rendimenti e volatilità. Bear e Bull sono stress: ogni classe con la media al 15° o all’85° percentile della sua incertezza, tutte insieme.`,
     ),
   ];
 }
@@ -286,7 +285,7 @@ export const PROJECTION_DETTAGLIO_DESCRIPTION = 'Come si calcola, e cosa la proi
 export const PROJECTION_EXPLAINER: { title: string; body: string }[] = [
   {
     title: 'La proiezione',
-    body: 'Ogni traiettoria parte dal capitale scritto in Parametri (più i fondi pensione già sbloccati) e, anno per anno, incassa gli afflussi che si sbloccano, applica un rendimento casuale per ciascuna delle sette classi (lognormale con il CAGR e la volatilità dello scenario) e aggiunge il versamento dell’anno, cresciuto con l’inflazione, finché dura. Nessun prelievo: quello è Dopo il FIRE. Il seme è fisso, quindi le cifre non cambiano tra un’apertura e l’altra.',
+    body: 'Ogni traiettoria parte dal capitale scritto in Parametri (più i fondi pensione già sbloccati) e, anno per anno, incassa gli afflussi che si sbloccano, applica un rendimento casuale per ciascuna delle sette classi (lognormale con il CAGR reale e la volatilità della classe, portato in nominale con l’inflazione attesa) e aggiunge il versamento dell’anno, cresciuto con l’inflazione, finché dura. Nessun prelievo: quello è Dopo il FIRE. Il seme è fisso, quindi le cifre non cambiano tra un’apertura e l’altra.',
   },
   {
     title: 'Percentili e probabilità',
@@ -302,6 +301,6 @@ export const PROJECTION_EXPLAINER: { title: string; body: string }[] = [
   },
   {
     title: 'I limiti',
-    body: 'Al netto di TER e bollo, come li dichiara la riga «Ipotesi usate» (ogni anno, dopo il rendimento, si toglie la loro quota del capitale); lordi della tassa sulla plusvalenza alla vendita, senza costi di transazione. Correlazioni fisse, lognormale senza code grasse, fondo pensione al valore di oggi, versamenti cresciuti con l’inflazione e non con lo stipendio. Crypto e immobili restano fuori dal capitale simulato.',
+    body: 'Al netto di TER e bollo, come li dichiara la riga «Ipotesi usate» (ogni anno, dopo il rendimento, si toglie la loro quota del capitale); lordi della tassa sulla plusvalenza alla vendita, senza costi di transazione. Correlazioni fisse, lognormale senza code grasse (gli anni peggiori delle azioni sono più frequenti di quanto dica la lognormale), tassi fermi al valore di oggi per tutto l’orizzonte, costo della copertura del cambio nullo in media, fondo pensione al valore di oggi, versamenti cresciuti con l’inflazione e non con lo stipendio. Crypto e immobili restano fuori dal capitale simulato.',
   },
 ];

@@ -33,9 +33,9 @@ describe('upper-triangle helpers', () => {
       expect(matrix[i][i]).toBe(1);
       for (let j = 0; j < N; j++) expect(matrix[i][j]).toBe(matrix[j][i]);
     }
-    // Azioni–Obbligazioni first, Trend–Carry last (README § 2.3).
-    expect(matrix[0][1]).toBe(0.0224);
-    expect(matrix[5][6]).toBe(-0.0008);
+    // Azioni–Materie prime is the third pair, Trend–Carry last (README § 14.6).
+    expect(matrix[0][3]).toBe(0.35);
+    expect(matrix[5][6]).toBe(0.5);
     expect(compressUpperTriangle(matrix)).toEqual([...MONTE_CARLO_DEFAULT_CORRELATIONS]);
   });
 });

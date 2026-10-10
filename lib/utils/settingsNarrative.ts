@@ -955,26 +955,47 @@ export function describeColorTheme(themeName: string): Narrative {
 export interface MonteCarloMarketInput {
   /** Where the loaded numbers came from. */
   origin: MonteCarloMarketOrigin;
-  /** Classes whose numbers now differ from the defaults, in the draft. */
+  /** Classes with at least one written field, in the draft. */
   editedClassCount: number;
   /** The draft differs from what was loaded (a migrated market stops being «da rileggere» once edited). */
   dirty: boolean;
   /** The commodity sub-category read as Oro; null = none. */
   goldSubCategory: string | null;
+  /** Only with `origin: 'migrated'`: what the conversion did (RQ8). */
+  migration?: { keptCount: number; bearBullDropped: boolean };
+  /** The inflation the migrated values were written with, percent (the v1 Base). */
+  legacyInflation?: number;
 }
 
 /**
  * «Ipotesi di mercato» — what the Monte Carlo and the Ventaglio will read, in one line: the
  * numbers' origin, then what «Oro» means. No verdict (it is Impostazioni): the effect downstream.
  */
-export function describeMonteCarloMarket({ origin, editedClassCount, dirty, goldSubCategory }: MonteCarloMarketInput): Narrative {
+export function describeMonteCarloMarket({ origin, editedClassCount, dirty, goldSubCategory, migration, legacyInflation }: MonteCarloMarketInput): Narrative {
   const out: Narrative = [];
   if (origin === 'migrated' && !dirty) {
-    out.push({ text: 'Migrate dai parametri salvati prima (da media aritmetica a CAGR, immobili tolti): ' }, { text: 'rileggile', mono: true }, { text: ' e salva.' });
+    const kept = migration?.keptCount ?? 0;
+    out.push({ text: 'Ipotesi portate in termini reali: ' });
+    if (kept > 0) {
+      const inflation = legacyInflation ?? 3.04;
+      out.push(
+        { text: kept === 1 ? '1 valore scritto a mano resta' : `${kept} valori scritti a mano restano`, mono: true },
+        { text: ', convertito con l’inflazione del ' },
+        { text: `${inflation.toLocaleString('it-IT', { maximumFractionDigits: 2 })}%`, mono: true },
+        { text: ' che aveva. Rileggi e salva.' },
+      );
+    } else {
+      out.push({ text: 'nessun valore scritto a mano, valgono i nuovi predefiniti. Salva per confermare.' });
+    }
+    if (migration?.bearBullDropped) out.push({ text: ' Bear e Bull scritti a mano non si usano più: ora si calcolano sul portafoglio.' });
   } else if (editedClassCount > 0) {
-    out.push({ text: 'Sette classi, ' }, { text: `modificate in ${editedClassCount}`, mono: true }, { text: ' rispetto ai valori storici in dollari.' });
+    out.push({ text: 'Sette classi in euro, in termini reali, ' }, { text: `modificate in ${editedClassCount}`, mono: true }, { text: ' rispetto ai predefiniti.' });
   } else {
-    out.push({ text: 'Sette classi, valori storici in dollari fino al ' }, { text: String(MONTE_CARLO_DEFAULTS_LAST_YEAR), mono: true }, { text: ' (Damodaran, testfolio).' });
+    out.push(
+      { text: 'Sette classi in euro, in termini reali, valori storici fino al ' },
+      { text: String(MONTE_CARLO_DEFAULTS_LAST_YEAR), mono: true },
+      { text: '; Obbligazioni e Liquidità dai tassi BCE, Trend e Carry come premio sopra la liquidità.' },
+    );
   }
   if (goldSubCategory) {
     out.push({ text: ' Oro = sottocategoria ' }, { text: `«${goldSubCategory}»`, mono: true }, { text: '.' });
@@ -998,7 +1019,7 @@ export interface MonteCarloCorrelationsInput {
 export function describeMonteCarloCorrelations({ editedPairCount, correctedPairCount }: MonteCarloCorrelationsInput): Narrative {
   const out: Narrative = [];
   if (editedPairCount === 0) {
-    out.push({ text: 'Valori predefiniti: log-rendimenti annui, ' }, { text: '1928–2025', mono: true }, { text: ', ogni coppia sul periodo comune più lungo (Damodaran, testfolio).' });
+    out.push({ text: 'Valori predefiniti: log-rendimenti annui reali in euro, ogni coppia sul suo periodo comune; 0 dove la correlazione non è distinguibile da zero.' });
   } else {
     out.push({ text: 'Modificate ' }, { text: `${editedPairCount} coppie su 21`, mono: true }, { text: ' rispetto ai valori predefiniti.' });
   }

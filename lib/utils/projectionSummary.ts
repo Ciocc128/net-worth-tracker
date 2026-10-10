@@ -9,7 +9,7 @@
  */
 
 import { MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
-import type { MonteCarloCapitalInflow, MonteCarloMarketSettings } from '@/types/assets';
+import type { MonteCarloCapitalInflow, MonteCarloMarketScenarios } from '@/types/assets';
 import type { MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { datedFlowsSignature, type DatedFlowsInput } from '@/lib/utils/datedFlows';
 import { SCENARIO_KEYS, type MonteCarloContext, type ScenarioKey } from '@/lib/utils/monteCarloSummary';
@@ -270,7 +270,7 @@ export interface ProjectionRunInputs {
   /** `H` the run kept (current: what a run made now would keep). */
   years: number;
   weights: Record<MonteCarloClass, number>;
-  scenarios: MonteCarloMarketSettings['scenarios'];
+  scenarios: MonteCarloMarketScenarios;
   correlations: number[] | undefined;
   leverageSpread: number | undefined;
   /** RC3 on the run's weights: percent a year of TER and stamp duty (absent = 0). */

@@ -19,7 +19,7 @@ import {
 } from '@/lib/services/monteCarloService';
 import { calculateFIREProjection, getDefaultScenarios, resolveFanFireTargets, resolveFireRequirement } from '@/lib/services/fireService';
 import { solveForRun, SUSTAINABLE_PROBABILITIES } from '@/lib/utils/sustainableWithdrawal';
-import { getDefaultMonteCarloMarket, getDefaultMonteCarloCorrelations } from '@/lib/constants/monteCarloMarketDefaults';
+import { getDefaultMonteCarloMarket, getDefaultMonteCarloCorrelations } from './legacyMarketFixture';
 import { MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import type { MonteCarloMarketScenario, MonteCarloParams } from '@/types/assets';

@@ -6,7 +6,7 @@ vi.mock('@/lib/services/chartService', () => ({
 
 import { countSuccesses, runMonteCarloSimulation } from '@/lib/services/monteCarloService';
 import { solveSustainableWithdrawal, solveForRun, solvePersonalSwr, resolvePersonalSwrHorizon, SUSTAINABLE_PROBABILITIES } from '@/lib/utils/sustainableWithdrawal';
-import { getDefaultMonteCarloMarket, getDefaultMonteCarloCorrelations } from '@/lib/constants/monteCarloMarketDefaults';
+import { getDefaultMonteCarloMarket, getDefaultMonteCarloCorrelations } from './legacyMarketFixture';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
 import { monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';

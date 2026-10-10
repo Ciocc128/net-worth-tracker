@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getDefaultMonteCarloCorrelations, getDefaultMonteCarloMarket } from '@/lib/constants/monteCarloMarketDefaults';
+import { getDefaultMonteCarloCorrelations, getDefaultMonteCarloMarket } from './legacyMarketFixture';
 import { MONTE_CARLO_CLASSES, monteCarloClassRecord, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { buildPortfolioScenarios, portfolioCompoundReturn, realReturn, resolveFireAssumptions, resolveFireCapital, resolvePlanExpenses } from '@/lib/utils/fireAssumptions';
 import { portfolioCost, resolveClassCosts } from '@/lib/utils/fireCosts';
@@ -104,11 +104,14 @@ describe('realReturn (RP2)', () => {
 
   it('A10: the real return of the 60/40 scenarios', () => {
     const scenarios = buildPortfolioScenarios(weights({ equity: 60, bonds: 40 }), resolveMonteCarloMarket(null));
-    near(scenarios.bear.realReturnRate, 2.8406);
-    near(scenarios.base.realReturnRate, 5.0682);
-    near(scenarios.bull.realReturnRate, 7.8081);
-    expect(scenarios.base.inflationRate).toBe(3.04);
-    near(scenarios.base.growthRate, 8.2623);
+    // Q1 (AQ7): Bear and Bull are the 15th and 85th percentile of the 30-year CAGR with the uncertainty on the parameter.
+    near(scenarios.bear.realReturnRate, 1.6113);
+    near(scenarios.base.realReturnRate, 4.4934);
+    near(scenarios.bull.realReturnRate, 7.4573);
+    expect(scenarios.base.inflationRate).toBe(2.0369);
+    near(scenarios.bear.growthRate, 3.681);
+    near(scenarios.base.growthRate, 6.6218);
+    near(scenarios.bull.growthRate, 9.6461);
   });
 });
 
@@ -118,7 +121,7 @@ describe('resolveFireAssumptions (RP4)', () => {
     expect(result.weightsOrigin).toBe('default');
     expect(result.weights.equity).toBe(60);
     expect(result.leverage).toBe(1);
-    near(result.scenarios.base.growthRate, 8.2623);
+    near(result.scenarios.base.growthRate, 6.6218);
   });
 });
 
@@ -271,11 +274,11 @@ describe('recurring costs in the rates (RC4)', () => {
     near(net('bull'), 10.6856);
   });
 
-  it('C4: the real return is Fisher on the net one (π = 3,04%)', () => {
+  it('C4: the real return is Fisher on the net one (π = 2,0369%)', () => {
     const scenarios = buildPortfolioScenarios(w6040, resolveMonteCarloMarket(null), 0.36);
-    near(scenarios.bear.realReturnRate, 2.4703);
-    near(scenarios.base.realReturnRate, 4.69);
-    near(scenarios.bull.realReturnRate, 7.42);
+    near(scenarios.bear.realReturnRate, 1.2455);
+    near(scenarios.base.realReturnRate, 4.1172);
+    near(scenarios.bull.realReturnRate, 7.0704);
   });
 
   it('C5: the duty off, the 60/40 Base is 8,0891%', () => {
@@ -323,10 +326,10 @@ describe('recurring costs in the rates (RC4)', () => {
   it('resolveFireAssumptions carries the costs and the net rates when it has the values; without them the rates stay gross', () => {
     const withValues = resolveFireAssumptions({ settings, assets: costPortfolio, assetValue: valueOf });
     near(withValues.cost!.total, 0.36);
-    near(withValues.scenarios.base.growthRate, 7.8726);
+    near(withValues.scenarios.base.growthRate, 6.238);
     const without = resolveFireAssumptions({ settings, assets: costPortfolio });
     expect(without.cost).toBeUndefined();
-    near(without.scenarios.base.growthRate, 8.2623);
+    near(without.scenarios.base.growthRate, 6.6218);
   });
 
   it('C12: the line says the costs, the three readings', () => {
@@ -473,10 +476,10 @@ describe('K1 + EF1: the portfolio, the cash outside it, the emergency fund and t
       const result = resolve(q);
       expect(result.weights).toEqual(weights({ equity: 70, bonds: 30 }));
       expect(result.weightsOrigin).toBe('targets');
-      near(result.scenarios.bear.growthRate, 6.5158);
-      near(result.scenarios.base.growthRate, 8.7525);
-      near(result.scenarios.bull.growthRate, 11.4278);
-      near(result.scenarios.base.realReturnRate, 5.5439);
+      near(result.scenarios.bear.growthRate, 3.642);
+      near(result.scenarios.base.growthRate, 6.9953);
+      near(result.scenarios.bull.growthRate, 10.4572);
+      near(result.scenarios.base.realReturnRate, 4.8594);
     }
   });
 

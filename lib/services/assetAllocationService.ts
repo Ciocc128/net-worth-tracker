@@ -3,6 +3,7 @@ import { db } from '@/lib/firebase/config';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
 import { Asset, AssetAllocationTarget, AssetAllocationSettings, IdealAllocationSettings } from '@/types/assets';
 import { calculateAssetValue, calculateTotalValue } from './assetService';
+import { monteCarloMarketForMergeWrite } from '@/lib/utils/monteCarloMarket';
 
 const ALLOCATION_TARGETS_COLLECTION = 'assetAllocationTargets';
 
@@ -663,8 +664,13 @@ export async function setSettings(
       // Same shape as idealAllocation above — this branch merges, so omitting the key would leave a
       // stale monteCarloMarket in place; an explicit deleteField() is required.
       if ('monteCarloMarket' in settings) {
+        // A v2 over a stored v1 would keep the v1 body: merge writes recurse into maps, so the missing keys are deleted explicitly.
         docData.monteCarloMarket =
-          settings.monteCarloMarket !== undefined ? settings.monteCarloMarket : deleteField();
+          settings.monteCarloMarket === undefined
+            ? deleteField()
+            : settings.monteCarloMarket.version === 2
+              ? monteCarloMarketForMergeWrite(settings.monteCarloMarket, deleteField())
+              : settings.monteCarloMarket;
       }
 
       // Use merge: true to preserve existing fields

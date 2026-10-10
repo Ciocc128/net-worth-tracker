@@ -34,7 +34,7 @@ import {
   summarizeScenarios,
   type MonteCarloRunInputs,
 } from '@/lib/utils/monteCarloSummary';
-import { getDefaultMonteCarloMarket } from '@/lib/constants/monteCarloMarketDefaults';
+import { getDefaultMonteCarloMarket } from './legacyMarketFixture';
 import { monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
 
 const defaultScenarios = () => getDefaultMonteCarloMarket().scenarios;

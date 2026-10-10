@@ -35,30 +35,30 @@ const dateInMonths = (months: number) =>
 // ==================== goalAnnualReturn (D8, A14–A16) ====================
 
 describe('goalAnnualReturn', () => {
-  it('without an allocation it is the target portfolio\'s Base return (A3: 60/40 → 8,2623%)', () => {
+  it('without an allocation it is the target portfolio\'s Base return (A3: 60/40 → 6,6218%, nominale)', () => {
     const r = goalAnnualReturn(undefined, ASSUMPTIONS);
     expect(r.origin).toBe('portfolio');
-    expect(r.rate).toBeCloseTo(8.2623, 3);
+    expect(r.rate).toBeCloseTo(6.6218, 3);
     expect(goalAnnualReturn({}, ASSUMPTIONS).origin).toBe('portfolio');
   });
 
   it('a single class returns exactly its Base CAGR (A1)', () => {
-    expect(goalAnnualReturn({ equity: 100 }, ASSUMPTIONS).rate).toBeCloseTo(10.02, 4);
+    expect(goalAnnualReturn({ equity: 100 }, ASSUMPTIONS).rate).toBeCloseTo(7.893818, 4);
   });
 
-  it('A14: 80% equity + 20% bonds, Base → 9,2079%', () => {
+  it('A14: 80% equity + 20% bonds, Base → 7,3309%', () => {
     const r = goalAnnualReturn({ equity: 80, bonds: 20 }, ASSUMPTIONS);
     expect(r.origin).toBe('allocation');
-    expect(r.rate).toBeCloseTo(9.2079, 3);
+    expect(r.rate).toBeCloseTo(7.3309, 3);
   });
 
-  it('A15: 20% equity + 70% bonds + 10% cash, Base → 5,8300%', () => {
-    expect(goalAnnualReturn({ equity: 20, bonds: 70, cash: 10 }, ASSUMPTIONS).rate).toBeCloseTo(5.83, 3);
+  it('A15: 20% equity + 70% bonds + 10% cash, Base → 4,6272%', () => {
+    expect(goalAnnualReturn({ equity: 20, bonds: 70, cash: 10 }, ASSUMPTIONS).rate).toBeCloseTo(4.6272, 3);
   });
 
-  it('A16: 90% equity + 10% crypto → equity rescaled to 100 (10,0200%), crypto declared outside', () => {
+  it('A16: 90% equity + 10% crypto → equity rescaled to 100 (7,8938%), crypto declared outside', () => {
     const r = goalAnnualReturn({ equity: 90, crypto: 10 }, ASSUMPTIONS);
-    expect(r.rate).toBeCloseTo(10.02, 4);
+    expect(r.rate).toBeCloseTo(7.893818, 4);
     expect(r.outside).toEqual(['crypto']);
   });
 
@@ -69,7 +69,7 @@ describe('goalAnnualReturn', () => {
   it('an allocation made only of crypto and real estate falls back to the portfolio', () => {
     const r = goalAnnualReturn({ crypto: 60, realestate: 40 }, ASSUMPTIONS);
     expect(r.origin).toBe('portfolio');
-    expect(r.rate).toBeCloseTo(8.2623, 3);
+    expect(r.rate).toBeCloseTo(6.6218, 3);
   });
 });
 
@@ -202,7 +202,7 @@ describe('computeGoalTrajectory', () => {
       recommendedAllocation: { equity: 100 },
       now: NOW,
     });
-    expect(t.annualReturn).toBeCloseTo(10.02, 4);
+    expect(t.annualReturn).toBeCloseTo(7.893818, 4);
     expect(t.returnOrigin).toBe('allocation');
   });
 
@@ -361,12 +361,12 @@ describe('goalAnnualReturn — recurring costs (RC5, C10)', () => {
     { stampDutyEnabled: true, stampDutyRate: 0.2, checkingAccountSubCategory: 'Conto corrente' },
   );
 
-  it('C10: 80% equity + 20% bonds → c 0,38%, Base (1,092079 · 0,9962) − 1 = 8,7929% (gross 9,2079%)', () => {
-    expect(goalAnnualReturn({ equity: 80, bonds: 20 }, { ...ASSUMPTIONS, costs }).rate).toBeCloseTo(8.7929, 3);
+  it('C10: 80% equity + 20% bonds → c 0,38%, Base (1,073309 · 0,9962) − 1 = 6,9230% (gross 7,3309%)', () => {
+    expect(goalAnnualReturn({ equity: 80, bonds: 20 }, { ...ASSUMPTIONS, costs }).rate).toBeCloseTo(6.923, 3);
   });
 
   it('without costs the return is the gross one (A14)', () => {
-    expect(goalAnnualReturn({ equity: 80, bonds: 20 }, ASSUMPTIONS).rate).toBeCloseTo(9.2079, 3);
+    expect(goalAnnualReturn({ equity: 80, bonds: 20 }, ASSUMPTIONS).rate).toBeCloseTo(7.3309, 3);
   });
 });
 
