@@ -197,6 +197,10 @@ export function WhatIfAnalysisTab() {
     }
   }, [eventType, form, whenYear, hasIncomeSources, selectedAnnualIncome]);
 
+  // ─── The numbers (pure layer over the service) ───────────────────────────────
+  const impact = useMemo(() => (hasBaseline ? calculateWhatIfImpact(baseline, scenario) : null), [hasBaseline, baseline, scenario]);
+  const event = useMemo(() => (impact ? summarizeWhatIfEvent(scenario, baseline, impact.adjusted) : null), [impact, scenario, baseline]);
+  const baseYears = impact?.fire.yearsToFIRE.before ?? null;
   // «Aggiungi al piano» (§ 22): the event becomes the plan's dated flows (the draft of «Il mio piano», saved there), and the
   // event is cleared: the baseline now carries the flows, so keeping it would count the event twice.
   const plan = useFirePlan();
@@ -204,7 +208,7 @@ export function WhatIfAnalysisTab() {
   const planFull = (planFlows?.length ?? 0) >= MAX_DATED_FLOWS;
   const addToPlan = useCallback(() => {
     if (!plan || !hasBaseline) return;
-    const added = eventToDatedFlows(baseline, scenario, whenYear ?? currentYear);
+    const added = eventToDatedFlows(baseline, scenario, whenYear ?? currentYear, baseYears === null ? null : currentYear + baseYears);
     if (added.length === 0) return;
     const next = [...plan.form.datedFlows, ...added];
     if (next.length > MAX_DATED_FLOWS) {
@@ -214,11 +218,8 @@ export function WhatIfAnalysisTab() {
     plan.onFormChange({ datedFlows: next });
     setForm(EMPTY_FORM);
     toast.success(added.length === 1 ? 'Evento aggiunto a Il mio piano: salvalo lì per tenerlo.' : 'Eventi aggiunti a Il mio piano: salvali lì per tenerli.');
-  }, [plan, hasBaseline, baseline, scenario, whenYear, currentYear]);
+  }, [plan, hasBaseline, baseline, scenario, whenYear, currentYear, baseYears]);
 
-  // ─── The numbers (pure layer over the service) ───────────────────────────────
-  const impact = useMemo(() => (hasBaseline ? calculateWhatIfImpact(baseline, scenario) : null), [hasBaseline, baseline, scenario]);
-  const event = useMemo(() => (impact ? summarizeWhatIfEvent(scenario, baseline, impact.adjusted) : null), [impact, scenario, baseline]);
   const summary = useMemo(() => (impact ? summarizeWhatIf(impact, baseline, currentYear, WHAT_IF_HORIZON_YEARS) : null), [impact, baseline, currentYear]);
   const series = useMemo(() => (impact ? buildWhatIfComparisonSeries(impact.projections.before, impact.projections.after) : []), [impact]);
   const divergence = useMemo(() => (summary ? summarizeDivergence(series, summary.timeline) : null), [series, summary]);

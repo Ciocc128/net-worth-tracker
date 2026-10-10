@@ -8,7 +8,7 @@ import type { WhatIfBaseline, WhatIfScenario } from '@/types/whatIf';
 const YEAR = 2026;
 const baseline = { annualIncome: 60000, annualExpenses: 30000, annualSavings: 20000 } as WhatIfBaseline;
 let n = 0;
-const make = (scenario: WhatIfScenario, year = YEAR + 3) => eventToDatedFlows(baseline, scenario, year, () => `id${n++}`);
+const make = (scenario: WhatIfScenario, year = YEAR + 3, fireYear: number | null = null) => eventToDatedFlows(baseline, scenario, year, fireYear, () => `id${n++}`);
 
 describe('eventToDatedFlows', () => {
   it('WP1: a purchase is one lump out at the year', () => {
@@ -30,6 +30,15 @@ describe('eventToDatedFlows', () => {
   });
   it('WP2: a falling savings delta becomes an expense of the same size', () => {
     expect(make({ eventType: 'cashflowChange', annualSavingsDelta: -2000 })[0]).toMatchObject({ kind: 'expense', amount: 2000 });
+  });
+  it('WP2: the savings voice stops at the FIRE year, the expenses voice does not', () => {
+    const flows = make({ eventType: 'cashflowChange', annualSavingsDelta: 3000, annualExpensesDelta: 500 }, YEAR + 3, YEAR + 13);
+    expect(flows[0]).toMatchObject({ kind: 'income', durationYears: 10 });
+    expect(flows[1]).toMatchObject({ kind: 'expense', durationYears: null });
+  });
+  it('WP2: an event on or after the FIRE year adds no savings voice', () => {
+    expect(make({ eventType: 'cashflowChange', annualSavingsDelta: 3000 }, YEAR + 3, YEAR + 3)).toEqual([]);
+    expect(make({ eventType: 'cashflowChange', annualSavingsDelta: 3000, annualExpensesDelta: 500 }, YEAR + 3, YEAR + 2)).toHaveLength(1);
   });
   it('WP3: an event that moves nothing adds nothing', () => {
     expect(make({ eventType: 'majorPurchase', lumpSumAmount: 0 })).toEqual([]);
