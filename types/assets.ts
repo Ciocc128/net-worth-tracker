@@ -701,13 +701,37 @@ export interface MonteCarloMarketScenario {
   inflationRate: number; // percent
 }
 
-export interface MonteCarloMarketSettings {
+export type MonteCarloMarketScenarios = { bear: MonteCarloMarketScenario; base: MonteCarloMarketScenario; bull: MonteCarloMarketScenario };
+
+/** Format v1 of `monteCarloMarket` (nominal USD CAGR per scenario); read only to migrate (doc/montecarlo/README.md § 14, RQ8). */
+export interface MonteCarloMarketSettingsV1 {
   version: 1;
-  scenarios: { bear: MonteCarloMarketScenario; base: MonteCarloMarketScenario; bull: MonteCarloMarketScenario };
+  scenarios: MonteCarloMarketScenarios;
   correlations?: number[];          // T2: 21 values, upper triangle in MONTE_CARLO_CLASSES order; absent = defaults
   leverageSpread?: number;          // T3: percent; absent = default
   goldSubCategory?: string | null;  // RG: the commodity sub-category simulated as Oro; null = none; absent = /^(gold|oro)$/i
 }
+
+/** What the user wrote for one class, percent; absent = the default in force. `premium` only for trendFollowing/carry, `cagr` never for them (RQ0). */
+export interface MonteCarloClassOverride {
+  cagr?: number;        // real CAGR of the Base
+  premium?: number;     // premium over the Liquidità (Trend, Carry)
+  volatility?: number;  // real, standard deviation of simple annual returns
+  uncertainty?: number; // standard deviation of the error on the mean of the log-returns, points
+}
+
+/** Format v2 (Q1): ONLY what the user typed is saved; everything else follows the defaults in force (RQ0, RQ8). */
+export interface MonteCarloMarketSettingsV2 {
+  version: 2;
+  classes?: Partial<Record<MonteCarloClass, MonteCarloClassOverride>>;
+  inflationRate?: number;           // absent = the anchor (SPF BCE)
+  hedged?: Partial<Record<'equity' | 'gold' | 'trendFollowing' | 'carry', boolean>>; // Q4
+  correlations?: number[];
+  leverageSpread?: number;
+  goldSubCategory?: string | null;
+}
+
+export type MonteCarloMarketSettings = MonteCarloMarketSettingsV1 | MonteCarloMarketSettingsV2;
 
 export interface MonteCarloScenarios {
   bear: MonteCarloScenarioParams;

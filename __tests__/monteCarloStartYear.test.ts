@@ -16,7 +16,7 @@ import { monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
 import type { ResolvedFlow } from '@/lib/utils/datedFlows';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
-import { getDefaultMonteCarloMarket } from '@/lib/constants/monteCarloMarketDefaults';
+import { getDefaultMonteCarloMarket } from './legacyMarketFixture';
 
 function market(cagr: number, inflationRate: number): MonteCarloMarketScenario {
   return { classes: monteCarloClassRecord((cls) => ({ cagr: cls === 'equity' ? cagr : 0, volatility: 0 })), inflationRate };

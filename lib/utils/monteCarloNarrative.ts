@@ -318,7 +318,8 @@ export const SCENARI_ASIDE = 'stesso piano, mercati diversi';
 
 export const SCENARI_FOOTER: Narrative = [
   prose(
-    'Le tre esecuzioni condividono patrimonio, prelievo, durata e allocazione; cambiano solo rendimenti, volatilità e inflazione (tessera Parametri). La riga Base è il riferimento delle altre tessere.',
+    'Le tre esecuzioni condividono patrimonio, prelievo, durata e allocazione; cambiano solo rendimenti e volatilità (tessera Parametri). La riga Base è il riferimento delle altre tessere.'
+      + ' Bear e Bull sono stress: ogni classe con la media al 15° o all’85° percentile della sua incertezza, tutte insieme.',
   ),
 ];
 
@@ -529,9 +530,9 @@ export function describeMarketDeclaration(market: Pick<ResolvedMonteCarloMarket,
 }
 
 function describeMarketOrigin(market: Pick<ResolvedMonteCarloMarket, 'origin' | 'editedClasses'>): Narrative {
-  if (market.origin === 'default') return [prose('Ipotesi di mercato: '), figure('valori predefiniti'), prose(', storici di lungo periodo in dollari.')];
+  if (market.origin === 'default') return [prose('Ipotesi di mercato: '), figure('valori predefiniti'), prose(', in euro e reali.')];
   if (market.origin === 'migrated') {
-    return [prose('Ipotesi di mercato: '), figure('migrate dai parametri salvati prima'), prose(' (da media aritmetica a CAGR): rileggile in Impostazioni.')];
+    return [prose('Ipotesi di mercato: '), figure('portate in termini reali dai parametri salvati prima'), prose(': rileggile in Impostazioni.')];
   }
   const edited = market.editedClasses.length;
   if (edited === 0) return [prose('Ipotesi di mercato: '), figure('salvate'), prose(', uguali ai valori predefiniti.')];
@@ -601,7 +602,7 @@ export function describePercentili(run: MonteCarloRun): Narrative {
 export const EXPLAINER: { title: string; body: string }[] = [
   {
     title: 'La simulazione',
-    body: 'Ogni traiettoria parte dal patrimonio iniziale e, anno per anno, incassa gli afflussi previsti, applica un rendimento casuale per ciascuna delle sette classi, estratto da una lognormale con il CAGR e la volatilità dello scenario (il CAGR è la crescita composta mediana, la media aritmetica è un po’ più alta), si toglie la quota di TER e bollo della riga «Ipotesi usate» (dopo il rendimento, prima del prelievo) e poi preleva la spesa annua indicizzata. Immobili e crypto non entrano nel capitale simulato. Se il capitale scende a zero la traiettoria fallisce.',
+    body: 'Ogni traiettoria parte dal patrimonio iniziale e, anno per anno, incassa gli afflussi previsti, applica un rendimento casuale per ciascuna delle sette classi, estratto da una lognormale con il CAGR reale e la volatilità della classe, portato in nominale con l’inflazione attesa (il CAGR è la crescita composta mediana, la media aritmetica è un po’ più alta), si toglie la quota di TER e bollo della riga «Ipotesi usate» (dopo il rendimento, prima del prelievo) e poi preleva la spesa annua indicizzata. Immobili e crypto non entrano nel capitale simulato. Se il capitale scende a zero la traiettoria fallisce.',
   },
   {
     title: 'La leva',
@@ -617,6 +618,6 @@ export const EXPLAINER: { title: string; body: string }[] = [
   },
   {
     title: 'I limiti',
-    body: 'Rendimenti indipendenti anno per anno, classi correlate con una matrice unica per i tre scenari (le correlazioni nelle crisi tendono a salire e qui non salgono), nessuna sequenza di crisi forzata, fondo pensione al valore di oggi: la simulazione misura la dispersione, non predice il futuro. Con la stessa allocazione il Ventaglio del Calcolatore mostra la fase di accumulo.',
+    body: 'Rendimenti indipendenti anno per anno, classi correlate con una matrice unica per i tre scenari (le correlazioni nelle crisi tendono a salire e qui non salgono), code grasse non modellate (gli anni peggiori delle azioni sono più frequenti di quanto dica la lognormale), tassi fermi al valore di oggi per tutto l’orizzonte, costo della copertura del cambio nullo in media, nessuna sequenza di crisi forzata, fondo pensione al valore di oggi: la simulazione misura la dispersione, non predice il futuro. Con la stessa allocazione il Ventaglio del Calcolatore mostra la fase di accumulo.',
   },
 ];

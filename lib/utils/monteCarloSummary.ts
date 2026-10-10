@@ -13,7 +13,7 @@
  * Pure and Firestore-free; `lib/utils/monteCarloNarrative.ts` puts these numbers into words.
  */
 
-import type { MonteCarloCapitalInflow, MonteCarloMarketSettings, MonteCarloParams, MonteCarloResults, PercentilesData } from '@/types/assets';
+import type { MonteCarloCapitalInflow, MonteCarloMarketScenarios, MonteCarloParams, MonteCarloResults, PercentilesData } from '@/types/assets';
 import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_NOUNS, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
 import { datedFlowsSignature } from '@/lib/utils/datedFlows';
@@ -341,7 +341,7 @@ export function summarizeMonteCarloPlan(params: MonteCarloParams, inflows: Monte
 
 export interface MonteCarloRunInputs {
   params: MonteCarloParams;
-  scenarios: MonteCarloMarketSettings['scenarios'];
+  scenarios: MonteCarloMarketScenarios;
   inflows: MonteCarloCapitalInflow[];
 }
 

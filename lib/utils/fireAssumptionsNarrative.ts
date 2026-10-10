@@ -119,7 +119,7 @@ export function describeCapitalRow(assumptions: FireAssumptions): { figure: stri
 /** RC3, Rendimenti: «Rendimento Base 8,3% · reale 5,1%»; the popover says where the weights come from, Bear and Bull, the inflation and the leverage. */
 export function describeReturnsChip(assumptions: FireAssumptions): FireChip {
   const { bear, base, bull } = assumptions.scenarios;
-  const lines = [describeWeights(assumptions), `Bear ${pct(bear.growthRate)}, Bull ${pct(bull.growthRate)}`, `Inflazione ${pct(base.inflationRate)}`];
+  const lines = [describeWeights(assumptions), `Bear ${pct(bear.growthRate)}, Bull ${pct(bull.growthRate)} (15° e 85° percentile a 30 anni del portafoglio, con l’incertezza sulle stime)`, `Inflazione ${pct(base.inflationRate)}`];
   if (assumptions.leverage > 1) lines.push(`Leva ${formatLeverage(assumptions.leverage)}`);
   return {
     id: 'returns',

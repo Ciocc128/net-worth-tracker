@@ -26,7 +26,7 @@ import { resolveEffectiveTargets } from './allocationComparison';
 import { expandUpperTriangle, identityMatrix, nearestCorrelation, pairCount } from './correlationMatrix';
 import { toLogNormal } from './monteCarloDraw';
 import { resolveFireCapitalDetail, type FireCapital, type FireCapitalDetail } from './fireCapital';
-import { resolveMonteCarloMarketForPortfolio, type ResolvedMonteCarloMarket } from './monteCarloMarket';
+import { MONTE_CARLO_BAND_YEARS, MONTE_CARLO_BAND_Z, resolveMonteCarloMarketForPortfolio, type ResolvedMonteCarloMarket } from './monteCarloMarket';
 import { realReturn } from './realReturn';
 import { seedWeightsFromTargets, weightsForFireCapital, weightsFromHoldings, type SeededWeights } from './monteCarloWeights';
 import { portfolioCost, resolveClassCosts, type FireCosts, type PortfolioCost } from './fireCosts';
@@ -97,25 +97,24 @@ export interface PortfolioReturn {
 /** The weights when nothing is known (no assets yet): the classic 60/40, declared as a default. */
 export const DEFAULT_FIRE_WEIGHTS: Readonly<Record<MonteCarloClass, number>> = monteCarloClassRecord<number>((cls) => (cls === 'equity' ? 60 : cls === 'bonds' ? 40 : 0));
 
-/**
- * RP1. `weightsPct` in percent per class (they may sum above 100: that is leverage, the debt being
- * negative Liquidità, R4), `correlations` the 21 upper-triangle values of Impostazioni (absent or of
- * the wrong length = independent classes), `leverageSpreadPct` the spread on the debt.
- *
- *   M = Σ v_i·G_i − max(W−1, 0)·sp         G_i = 1 + μa_i, the arithmetic mean of the factor (R1)
- *   V = Σ_ij v_i·v_j·G_i·G_j·(exp(ρ_ij·s_i·s_j) − 1)
- *   g_p = M / √(1 + V/M²) − 1               R2 on M and √V
- *
- * RC4: `costPct` (percent) scales the factor of every year by `f = 1 − c/100`, so `M` and `√V` both scale by
- * `f` and `g_net = (1 + g_p)·f − 1` exactly. Zero = gross, float for float.
- */
-export function portfolioCompoundReturn(
+interface PortfolioMoments {
+  /** Weights in decimals, the debt of a leverage as negative Liquidità (R4). */
+  v: number[];
+  logNormals: ReturnType<typeof toLogNormal>[];
+  /** `G_i = 1 + μa_i`. */
+  growth: number[];
+  /** Gross `M`: the arithmetic mean factor of the portfolio, after the leverage spread. */
+  mean: number;
+  /** Gross `V`: the variance of the annual factor. */
+  variance: number;
+}
+
+function portfolioMoments(
   weightsPct: Readonly<Record<MonteCarloClass, number>>,
   scenario: MonteCarloMarketScenario,
-  correlations?: readonly number[],
-  leverageSpreadPct = 0,
-  costPct = 0,
-): PortfolioReturn {
+  correlations: readonly number[] | undefined,
+  leverageSpreadPct: number,
+): PortfolioMoments {
   const n = MONTE_CARLO_CLASSES.length;
   const logNormals = MONTE_CARLO_CLASSES.map((cls) => toLogNormal(scenario.classes[cls]));
   const v = MONTE_CARLO_CLASSES.map((cls) => (weightsPct[cls] || 0) / 100);
@@ -138,6 +137,30 @@ export function portfolioCompoundReturn(
       variance += v[i] * v[j] * growth[i] * growth[j] * (Math.exp(matrix[i][j] * logNormals[i].s * logNormals[j].s) - 1);
     }
   }
+  return { v, logNormals, growth, mean, variance };
+}
+
+/**
+ * RP1. `weightsPct` in percent per class (they may sum above 100: that is leverage, the debt being
+ * negative Liquidità, R4), `correlations` the 21 upper-triangle values of Impostazioni (absent or of
+ * the wrong length = independent classes), `leverageSpreadPct` the spread on the debt.
+ *
+ *   M = Σ v_i·G_i − max(W−1, 0)·sp         G_i = 1 + μa_i, the arithmetic mean of the factor (R1)
+ *   V = Σ_ij v_i·v_j·G_i·G_j·(exp(ρ_ij·s_i·s_j) − 1)
+ *   g_p = M / √(1 + V/M²) − 1               R2 on M and √V
+ *
+ * RC4: `costPct` (percent) scales the factor of every year by `f = 1 − c/100`, so `M` and `√V` both scale by
+ * `f` and `g_net = (1 + g_p)·f − 1` exactly. Zero = gross, float for float.
+ */
+export function portfolioCompoundReturn(
+  weightsPct: Readonly<Record<MonteCarloClass, number>>,
+  scenario: MonteCarloMarketScenario,
+  correlations?: readonly number[],
+  leverageSpreadPct = 0,
+  costPct = 0,
+): PortfolioReturn {
+  const moments = portfolioMoments(weightsPct, scenario, correlations, leverageSpreadPct);
+  let { mean, variance } = moments;
   if (costPct) {
     const factor = 1 - costPct / 100;
     mean *= factor;
@@ -147,6 +170,50 @@ export function portfolioCompoundReturn(
   if (!(mean > 0)) return { cagr: -100, arithmeticMean: (mean - 1) * 100, volatility: Math.sqrt(Math.max(variance, 0)) * 100 };
   const cagr = mean / Math.sqrt(1 + variance / (mean * mean)) - 1;
   return { cagr: cagr * 100, arithmeticMean: (mean - 1) * 100, volatility: Math.sqrt(variance) * 100 };
+}
+
+/** Compound return of the portfolio in the three scenarios, nominal percent (RQ3). */
+export interface PortfolioBand {
+  bear: number;
+  base: number;
+  bull: number;
+}
+
+/**
+ * RQ3–RQ4: Bear and Bull of the portfolio, closed form — the 15th and 85th percentile of its 30-year CAGR WITH the
+ * uncertainty on the parameter (the PEPP KID rule, V-D11). With `m_p = ln(1 + g_p)` the Base on the nominal classes,
+ * `s_p² = ln(1 + V/M²)` its annual dispersion and `SE_p² = Σ (v_i·G_i/M)²·u_i²` the delta-method error on the mean
+ * (independent errors across classes):
+ *
+ *   Bear/Bull = exp(m_p ∓ z·√(s_p²/H + SE_p²)) − 1       H = 30,  z = Φ⁻¹(0,85)
+ *
+ * The costs scale the factor of every year, `(1 + x)·f − 1` (RQ4), after the band is computed gross. The Base is
+ * `portfolioCompoundReturn`'s, untouched. `uncertaintyPct` in points per class.
+ */
+export function portfolioScenarioBand(
+  weightsPct: Readonly<Record<MonteCarloClass, number>>,
+  baseScenario: MonteCarloMarketScenario,
+  uncertaintyPct: Readonly<Record<MonteCarloClass, number>>,
+  correlations?: readonly number[],
+  leverageSpreadPct = 0,
+  costPct = 0,
+): PortfolioBand {
+  const base = portfolioCompoundReturn(weightsPct, baseScenario, correlations, leverageSpreadPct, costPct).cagr;
+  const { v, growth, mean, variance } = portfolioMoments(weightsPct, baseScenario, correlations, leverageSpreadPct);
+  // Without a positive mean there is no compound return, nor a band around it.
+  if (!(mean > 0)) return { bear: base, base, bull: base };
+  const gross = mean / Math.sqrt(1 + variance / (mean * mean)) - 1;
+  const m = Math.log(1 + gross);
+  const annualVariance = Math.log(1 + variance / (mean * mean));
+  let standardError2 = 0;
+  MONTE_CARLO_CLASSES.forEach((cls, i) => {
+    const u = (uncertaintyPct[cls] || 0) / 100;
+    standardError2 += ((v[i] * growth[i]) / mean) ** 2 * u * u;
+  });
+  const spread = MONTE_CARLO_BAND_Z * Math.sqrt(annualVariance / MONTE_CARLO_BAND_YEARS + standardError2);
+  const factor = 1 - costPct / 100;
+  const net = (x: number) => ((1 + x) * factor - 1) * 100;
+  return { bear: net(Math.exp(m - spread) - 1), base, bull: net(Math.exp(m + spread) - 1) };
 }
 
 /** RP2: the Fisher real return, percent in, percent out (the leaf module re-exported: one function for the page). */
@@ -216,20 +283,21 @@ export function resolveFireWeights(
   return fallback;
 }
 
-/** The three scenarios of the page, from the weights and the resolved market. */
+/**
+ * The three scenarios of the page, from the weights and the resolved market. Base = RP1 on the nominal Base classes; Bear
+ * and Bull = the portfolio band (RQ3), not RP1 on a stress.
+ */
 export function buildPortfolioScenarios(weights: Readonly<Record<MonteCarloClass, number>>, market: ResolvedMonteCarloMarket, costPct = 0): Record<FireScenarioKey, PortfolioScenario> {
-  const one = (key: FireScenarioKey): PortfolioScenario => {
-    const scenario = market.scenarios[key];
-    const result = portfolioCompoundReturn(weights, scenario, market.correlations, market.leverageSpread, costPct);
-    return {
-      growthRate: result.cagr,
-      inflationRate: scenario.inflationRate,
-      realReturnRate: realReturn(result.cagr, scenario.inflationRate),
-      arithmeticMean: result.arithmeticMean,
-      volatility: result.volatility,
-    };
-  };
-  return { bear: one('bear'), base: one('base'), bull: one('bull') };
+  const base = portfolioCompoundReturn(weights, market.scenarios.base, market.correlations, market.leverageSpread, costPct);
+  const band = portfolioScenarioBand(weights, market.scenarios.base, monteCarloClassRecord((cls) => market.classes[cls].uncertainty), market.correlations, market.leverageSpread, costPct);
+  const one = (growthRate: number): PortfolioScenario => ({
+    growthRate,
+    inflationRate: market.inflationRate,
+    realReturnRate: realReturn(growthRate, market.inflationRate),
+    arithmeticMean: base.arithmeticMean,
+    volatility: base.volatility,
+  });
+  return { bear: one(band.bear), base: one(base.cagr), bull: one(band.bull) };
 }
 
 /** The ONE call every tab of the FIRE page makes. */
