@@ -1717,6 +1717,8 @@ Le decisioni V-D sono della validazione e della ricerca, numerate come lì; le D
 
 ### 14.9 Q1 — Formato reale e valori in euro (card «rendimenti reali e inflazione unica attesa» + tabella di «nuovi valori predefiniti in euro»)
 
+> **Stato**: implementata il 10/10/2026 (AQ1–AQ22 coperti in `__tests__/{monteCarloMarket,monteCarloMarketDefaults,portfolioScenarioBand,monteCarloMarketValidation,settingsRoundTrip}.test.ts`; guida in `doc/guide/fire-monte-carlo.md` § Q1). Scelte dell'implementazione: il documento salvato in merge cancella esplicitamente le chiavi non scritte (`monteCarloMarketForMergeWrite`); S10 confronta con una tolleranza relativa 1e-9 le cifre fissate in `__tests__/fixtures/monteCarloSeededDigests.json`.
+
 **Modello**: Sonnet 5.5. **Decisioni**: V-D1, V-D2 (parte deterministica e stress), V-D3, V-D4, V-D6, V-D8 (limiti),
 V-D9, V-D11–V-D13, DQ1, DQ3–DQ5. **Prerequisiti**: nessuno.
 

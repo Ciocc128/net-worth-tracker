@@ -24,8 +24,8 @@ const build = (partial: Partial<FireAssumptions>, weights = monteCarloClassRecor
 describe('the Rendimenti chip (RC3, A3, A10)', () => {
   it('reads the target portfolio: Base with its real return; Bear, Bull and inflation in the popover', () => {
     const chip = describeReturnsChip(build({}));
-    expect(chip.label).toBe('Rendimento Base 8,3% · reale 5,1%');
-    expect(chip.lines).toEqual(['Portafoglio target', 'Bear 6,0%, Bull 11,1%', 'Inflazione 3,0%']);
+    expect(chip.label).toBe('Rendimento Base 6,6% · reale 4,5%');
+    expect(chip.lines).toEqual(['Portafoglio target', 'Bear 3,7%, Bull 9,6% (15° e 85° percentile a 30 anni del portafoglio, con l’incertezza sulle stime)', 'Inflazione 2,0%']);
     expect(chip.links[0]).toMatchObject({ href: '/dashboard/settings?tab=simulazioni' });
   });
 
@@ -40,7 +40,7 @@ describe('the Rendimenti chip (RC3, A3, A10)', () => {
   it('names the leverage when the weights sum above 100% (A6)', () => {
     const weights = monteCarloClassRecord<number>((cls) => (cls === 'equity' ? 90 : cls === 'bonds' ? 60 : 0));
     const chip = describeReturnsChip(build({ leverage: 1.5 }, weights));
-    expect(chip.label).toBe('Rendimento Base 9,2% · reale 6,0%');
+    expect(chip.label).toBe('Rendimento Base 7,2% · reale 5,1%');
     expect(chip.lines.at(-1)).toBe('Leva 1,5×');
   });
 });

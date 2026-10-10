@@ -10,6 +10,7 @@ import { getDefaultMonteCarloMarket, getDefaultMonteCarloCorrelations } from './
 import { monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
 import { MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
 import type { MonteCarloParams } from '@/types/assets';
+import expected from './fixtures/monteCarloSeededDigests.json';
 
 /** A stable digest of a run: every figure that depends on the draws or on the ledger, in full float precision. */
 function digest(result: ReturnType<typeof runMonteCarloSimulation>) {
@@ -22,6 +23,25 @@ function digest(result: ReturnType<typeof runMonteCarloSimulation>) {
     pathLengthSum: result.simulations.reduce((sum, sim) => sum + sim.path.length, 0),
     p50: result.percentiles.map((p) => p.p50),
   };
+}
+
+/**
+ * Relative tolerance 1e-9 (doc/montecarlo/README.md § 14.9, AQ22): the run was pinned on Linux and the last digit of a
+ * few doubles differs on the Mac, so «float for float» is asserted to the precision the platforms agree on.
+ */
+function expectClose(actual: unknown, wanted: unknown, path = 'digest'): void {
+  if (typeof wanted === 'number') {
+    const value = actual as number;
+    const scale = Math.max(1, Math.abs(wanted));
+    expect(Math.abs(value - wanted) / scale, path).toBeLessThan(1e-9);
+  } else if (Array.isArray(wanted)) {
+    expect((actual as unknown[]).length, `${path}.length`).toBe(wanted.length);
+    wanted.forEach((item, index) => expectClose((actual as unknown[])[index], item, `${path}[${index}]`));
+  } else if (wanted && typeof wanted === 'object') {
+    for (const [key, item] of Object.entries(wanted)) expectClose((actual as Record<string, unknown>)[key], item, `${path}.${key}`);
+  } else {
+    expect(actual, path).toEqual(wanted);
+  }
 }
 
 function plan(overrides: Partial<MonteCarloParams> = {}): MonteCarloParams {
@@ -43,7 +63,7 @@ function plan(overrides: Partial<MonteCarloParams> = {}): MonteCarloParams {
 
 describe('S10 — the seeded run is the same float for float', () => {
   it('plain plan', () => {
-    expect(digest(runMonteCarloSimulation(plan()))).toMatchSnapshot();
+    expectClose(digest(runMonteCarloSimulation(plan())), expected['plain plan']);
   });
   it('leverage, tax, pensions, inflows and costs together', () => {
     const result = runMonteCarloSimulation(
@@ -56,9 +76,9 @@ describe('S10 — the seeded run is the same float for float', () => {
         capitalInflows: [{ year: 0, amount: 20_000 }, { year: 5, amount: 50_000 }],
       })
     );
-    expect(digest(result)).toMatchSnapshot();
+    expectClose(digest(result), expected['leverage, tax, pensions, inflows and costs together']);
   });
   it('fixed withdrawal', () => {
-    expect(digest(runMonteCarloSimulation(plan({ withdrawalAdjustment: 'fixed' })))).toMatchSnapshot();
+    expectClose(digest(runMonteCarloSimulation(plan({ withdrawalAdjustment: 'fixed' }))), expected['fixed withdrawal']);
   });
 });

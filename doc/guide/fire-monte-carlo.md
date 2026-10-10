@@ -79,6 +79,30 @@
   Impostazioni) is higher than the CAGR. The number of draws per year
   is fixed (7 classes × 2 uniforms) so T3's shared shocks hold. Defaults: `lib/constants/monteCarloMarketDefaults.ts`, the ONLY
   file the research numbers (R0) enter the code in, with a `source` per class.
+- **Q1 «ipotesi reali in euro»** (2026-10-10, doc/montecarlo/README.md § 14.9, RQ0–RQ5, RQ8): the market is typed **real, in euro, one Base per class**
+  (CAGR, volatility, uncertainty on the mean of the log-returns) plus ONE expected inflation; there is no Bear/Bull per class any more. The engines
+  still run **nominal**: `buildMarketNumbers(overrides, anchors)` (`lib/utils/monteCarloMarket.ts`) turns the real figures into `scenarios.base` with
+  `G = (1+g)(1+π)−1`, `Σ = σ(1+π)` (so changing π moves no historical class), and `scenarios.bear/bull` are a **stress per class**: every class at
+  the 15th/85th percentile of ITS uncertainty, together (`exp(ln(1+G) ∓ z·u) − 1`, same dispersion) — the footer of Scenari says so, the Dettaglio
+  lists what the lognormal does not model (fat tails, rates frozen, hedging cost). **Obbligazioni and Liquidità follow the ECB rates**
+  (`MONTE_CARLO_FROZEN_ANCHORS`: €STR 2,439, AAA 10 anni 3,5192, SPF 2,0369, 08/10/2026; Q3 will refresh them daily), **Trend and Carry are a
+  premium over the Liquidità in force** (V-D13): a written Liquidità moves both. `ResolvedMonteCarloMarket` also carries `classes` (the real
+  figures with their `origin`: default · anchor · saved), `overrides` (what the user wrote), `anchors`, `hedged` (all false until Q4) and, for an old
+  document, `migration`.
+- **The deterministic tabs (Calcolatore, Coast, What If, Obiettivi) read the portfolio's own Bear/Bull** (RQ3, `portfolioScenarioBand` in
+  `fireAssumptions.ts`): the 15th/85th percentile of the 30-year CAGR of the portfolio WITH the uncertainty on the parameter, closed form
+  (`exp(m_p ∓ z·√(s_p²/30 + SE_p²)) − 1`, costs as `(1+x)·f − 1`). The Base is untouched (RP1). Checked against 100.000 seeded paths in
+  `portfolioScenarioBand.test.ts` (≤ 0,1 points; the closed form ignores the non-lognormality of a leveraged portfolio, declared).
+- **A saved document holds only what the user typed** (format v2, RQ8): `toMonteCarloMarketSettings(overrides, …)` drops every field equal to the
+  default in force, so an improved default reaches whoever never touched it. A v1 (or the legacy field) is migrated **at read, never rewritten**
+  (`migrateV1`): values equal to the old default take the new one, different ones stay, converted with the inflation they were written with (Trend/Carry
+  as a premium); a hand-typed Bear/Bull is dropped and the tile says so (`bearBullDropped`). The first «Salva» of the tab writes the v2.
+  **Merge writes need explicit deletions**: `setSettings`' merge branch recurses into maps, so a v2 over a stored v1 would keep the 42 numbers of
+  `scenarios` and every field the user restored; `monteCarloMarketForMergeWrite` completes the v2 with `deleteField()` for every key it does not carry
+  (the `targets` branch replaces the document and needs nothing).
+- **S10 is pinned on parameters written in the test** (`__tests__/legacyMarketFixture.ts`, digests in `__tests__/fixtures/monteCarloSeededDigests.json`,
+  relative tolerance 1e-9): a change of the defaults never moves it, and it is portable (the Mac's last-ulp difference is gone). The engines'
+  tests import the fixture, not the product defaults.
 - **The classes move together through ONE correlation matrix** (T2, 2026-10-03; README § 6): 21 pairs of log-returns, the
   same for Bear, Base and Bull (D6), saved in `monteCarloMarket.correlations` ONLY when they differ from the research
   defaults (`MONTE_CARLO_DEFAULT_CORRELATIONS`), so an improved default reaches whoever never touched them. `buildDrawPlan`

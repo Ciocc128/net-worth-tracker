@@ -143,11 +143,13 @@ export function MonteCarloMarketTile({
   const setField = (cls: MonteCarloClass, field: keyof MonteCarloClassOverride, value: number) =>
     setOverrides({ ...draft.overrides, classes: { ...draft.overrides.classes, [cls]: { ...draft.overrides.classes[cls], [field]: value } } });
   const resetClass = (cls: MonteCarloClass) => {
-    const { [cls]: _removed, ...rest } = draft.overrides.classes;
-    setOverrides({ ...draft.overrides, classes: rest });
+    const classes = { ...draft.overrides.classes };
+    delete classes[cls];
+    setOverrides({ ...draft.overrides, classes });
   };
   const resetField = (cls: MonteCarloClass, field: keyof MonteCarloClassOverride) => {
-    const { [field]: _removed, ...rest } = draft.overrides.classes[cls] ?? {};
+    const rest = { ...draft.overrides.classes[cls] };
+    delete rest[field];
     const classes = { ...draft.overrides.classes };
     if (Object.keys(rest).length > 0) classes[cls] = rest;
     else delete classes[cls];
