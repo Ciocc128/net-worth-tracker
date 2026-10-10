@@ -1,0 +1,377 @@
+{
+  "description": "Archivio dei dati da cui escono i default del Monte Carlo (doc/montecarlo/README.md § 14.13, RQ10). I file con inRepo=false stanno in /mnt/project-files/montecarlo/ (percorso relativo a quella cartella); inRepo=true sono in questa cartella.",
+  "rawRoot": "/mnt/project-files/montecarlo",
+  "inputs": {
+    "note": "Dati in ingresso, non ricalcolati: vengono dalla BCE o da una scelta di giudizio (DQ1, DQ5, V-D13). Il test li confronta con i default, non li ricostruisce.",
+    "anchors": {
+      "estr": 2.439,
+      "aaa10y": 3.5192,
+      "inflation": 2.0369,
+      "asOf": "08/10/2026"
+    },
+    "uncertainty": {
+      "bonds": 0.98,
+      "cash": 2.37,
+      "trendFollowing": 2.5,
+      "carry": 2.91
+    },
+    "volatility": {
+      "trendFollowing": {
+        "unhedged": 14.76,
+        "hedged": 11.0
+      },
+      "carry": {
+        "unhedged": 12.26,
+        "hedged": 10.03
+      }
+    },
+    "premium": {
+      "trendFollowing": 3.52,
+      "carry": 3.28
+    }
+  },
+  "files": [
+    {
+      "file": "r0-bis/raw/ecb_estr_2026-10-10.csv",
+      "sha256": "07349b3ae8c4271da0dc27fe1d8a21d8dce18385babb8f0335d7e6b674104124",
+      "source": "BCE",
+      "url": "https://data.ecb.europa.eu/ (€STR)",
+      "asOf": "10/10/2026",
+      "note": "tasso overnight, serie giornaliera",
+      "inRepo": false
+    },
+    {
+      "file": "r0-bis/raw/ecb_spf_lt_2026-10-10.csv",
+      "sha256": "5b3e7dc8b3f88bdf18581081a9cd7c19a50e7743dd59b3995d479e2d96089c84",
+      "source": "BCE",
+      "url": "https://data.ecb.europa.eu/ (Survey of Professional Forecasters)",
+      "asOf": "10/10/2026",
+      "note": "inflazione attesa di lungo periodo",
+      "inRepo": false
+    },
+    {
+      "file": "r0-bis/raw/ecb_yc_G_N_A_10y_2026-10-10.csv",
+      "sha256": "14eb06695ed3c894dd91f183aff5da9f1a99933fda23d15792ad174140ed4bd6",
+      "source": "BCE",
+      "url": "https://data.ecb.europa.eu/ (curva dei rendimenti dell’area euro)",
+      "asOf": "10/10/2026",
+      "note": "tasso a 10 anni, AAA",
+      "inRepo": false
+    },
+    {
+      "file": "r0-bis/raw/ecb_yc_G_N_A_par10y_2026-10-10.csv",
+      "sha256": "7f6954f866973eb83a705d9e3519433a7f4e8c29b8ea3d7cde53816913072328",
+      "source": "BCE",
+      "url": "https://data.ecb.europa.eu/ (curva dei rendimenti dell’area euro)",
+      "asOf": "10/10/2026",
+      "note": "tasso a 10 anni, AAA",
+      "inRepo": false
+    },
+    {
+      "file": "r0-bis/raw/ecb_yc_G_N_C_10y_2026-10-10.csv",
+      "sha256": "dd7bf6c1748e3abf2f284a51b2d44440fa10b33ed2a2e579a8635f9e16f732fd",
+      "source": "BCE",
+      "url": "https://data.ecb.europa.eu/ (curva dei rendimenti dell’area euro)",
+      "asOf": "10/10/2026",
+      "note": "tasso a 10 anni, tutti i titoli di Stato",
+      "inRepo": false
+    },
+    {
+      "file": "r0-bis/raw/fred_EXGEUS.csv",
+      "sha256": "534f5a7124ff0821048a6452b0fa3b2e2ca14eb93767ace6a6371e9f610026ea",
+      "source": "FRED",
+      "url": "https://fred.stlouisfed.org/series/EXGEUS",
+      "asOf": "non registrata",
+      "note": "cambio storico, usato per il controllo del cambio implicito",
+      "inRepo": false
+    },
+    {
+      "file": "r0-bis/raw/fred_EXUSEC.csv",
+      "sha256": "2b1277e336defb4f88ed360a50e2d73dce20162b994ea2aeadb59210982dc6df",
+      "source": "FRED",
+      "url": "https://fred.stlouisfed.org/series/EXUSEC",
+      "asOf": "non registrata",
+      "note": "cambio storico, usato per il controllo del cambio implicito",
+      "inRepo": false
+    },
+    {
+      "file": "r0-bis/raw/fred_EXUSEU.csv",
+      "sha256": "564a5b9162af037c4c064f0493fd0ee65d5d11eb84f6191cb384b4183cd5a7af",
+      "source": "FRED",
+      "url": "https://fred.stlouisfed.org/series/EXUSEU",
+      "asOf": "non registrata",
+      "note": "cambio storico, usato per il controllo del cambio implicito",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/casheur_eur.csv",
+      "sha256": "caaa4b2fe3353b7dfd18e7b6769e3cdd14c799c2cd559ee1f69610c93e60abd4",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, EUR",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/casheur_usd.csv",
+      "sha256": "d17e4451d7dd88965ac47ea34f80700bf68cd23fca0755d61c99992bded8d518",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, USD",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/cashx_eur.csv",
+      "sha256": "6edc2315323856002af1a6db27f3dd86f3df971f3590b51ac0cd4ab4e8f6d984",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, EUR",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/cashx_usd.csv",
+      "sha256": "f063889db0eee914faf6e866c0b0a26507b6f9b65ba0c4ce811405dcef77b905",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, USD",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/cosixplt.xlsx",
+      "sha256": "f09beda1ae43751d4bf096c9e73dcddf3029740e2d2f070d51cdf6829807ae53",
+      "source": "Giorgio",
+      "url": null,
+      "asOf": "non registrata",
+      "note": "indice COSIXPLT, tratto 2014–2020 del Carry",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/dbmfsim_eur.csv",
+      "sha256": "49e523e4c26b79ed02b002e2c4f5c30c1ead798fc9378795cfdc99617a4e703b",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, EUR",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/dbmfsim_usd.csv",
+      "sha256": "bd43b629be2593a4fc9749952cc8ef602fceebd7cb4a32324130df07b02e37f5",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, USD",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/gldsim_eur.csv",
+      "sha256": "11843408887a11c6a3596931e3af6ebe107ceb149fddc1d0b71de12657a7c11d",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, EUR",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/gldsim_usd.csv",
+      "sha256": "52b2e05e7ad9e08136b40aa2cb7c8d7bef3c624ed9af6db07d5e8fce5b6333fd",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, USD",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/gsgsim_eur.csv",
+      "sha256": "52ad75a0ccc3623c16c40d8968984b80198b819aeb1e8b0a0662549f7bdd272a",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, EUR",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/gsgsim_usd.csv",
+      "sha256": "9eb69ea14f401392fe996c915690ec33d49346ed84256234a422261ccdddff91",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, USD",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/iefsim_eur.csv",
+      "sha256": "22c4d35c9afcaedfe74f0a61e144e4f796423a91452198d1df0ece78bfe02c84",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, EUR",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/iefsim_usd.csv",
+      "sha256": "4151452b3c317ad989f2b709bc531d48302ab4bac42660df3539e0b2d01619d6",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, USD",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/kmlmsim_eur.csv",
+      "sha256": "da486cf9a0c3a25e8875c334c706b79d873d6288a4c3521ead45a82078b11add",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, EUR",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/kmlmsim_usd.csv",
+      "sha256": "6449c71975ce16c9d9838fa53c523fa4c21186ab7a9c0711f408247ea48aa096",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, USD",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/trend_following_testfolio_portfolio_backtester_kmlmsim.json",
+      "sha256": "277a94e686193cc58f4aee9a8fe1cd9e269a1a3e38436208a6d95727aa158bfa",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "esportazione del backtest del Trend",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/ueqcsim_eur.csv",
+      "sha256": "407ee3d807d1f0991db3459b383830ca48025f4e42e22491b811975650f2f58c",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, EUR",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/ueqcsim_grezza_giorgio.csv",
+      "sha256": "793e3046d4997291a7c736c33187461472c2c3975721482626454ead94327d7b",
+      "source": "Giorgio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "UEQCSIM grezza, prima del taglio del salto",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/ueqcsim_usd.csv",
+      "sha256": "d051145665b6597439b9227f813c74b610daaf64ba36fe4bac99bcdac2791d6b",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, USD",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/vtsim_eur.csv",
+      "sha256": "410444a8365fc8c9c6042a9bba8ba961ceba1854378011d591318ab7de7ca573",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, EUR",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati-2/vtsim_usd.csv",
+      "sha256": "54b109217a0100ff76d345740ab0381ef136734db99996e02b8c0206a4e0dc13",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, USD",
+      "inRepo": false
+    },
+    {
+      "file": "r0-validazione/fred_CP0000EZ19M086NEST.csv",
+      "sha256": "57b0a5587de4f51dfd8957c31541b08b9def157a9b8736e6ab611492d5825687",
+      "source": "FRED",
+      "url": "https://fred.stlouisfed.org/series/CP0000EZ19M086NEST",
+      "asOf": "non registrata",
+      "note": "rendimento del Bund 10 anni o indice dei prezzi (OECD / Eurostat via FRED)",
+      "inRepo": false
+    },
+    {
+      "file": "r0-validazione/fred_DEUCPIALLMINMEI.csv",
+      "sha256": "b684649030369875c947a94c25f523168138c9075e60903518192641226cdd23",
+      "source": "FRED",
+      "url": "https://fred.stlouisfed.org/series/DEUCPIALLMINMEI",
+      "asOf": "non registrata",
+      "note": "rendimento del Bund 10 anni o indice dei prezzi (OECD / Eurostat via FRED)",
+      "inRepo": false
+    },
+    {
+      "file": "r0-validazione/fred_IRLTLT01DEM156N.csv",
+      "sha256": "37a569bef54ee10a5fe4b0c4b2218cb62a17994ada631ed0f442b0f7e24f5e31",
+      "source": "FRED",
+      "url": "https://fred.stlouisfed.org/series/IRLTLT01DEM156N",
+      "asOf": "non registrata",
+      "note": "rendimento del Bund 10 anni o indice dei prezzi (OECD / Eurostat via FRED)",
+      "inRepo": false
+    },
+    {
+      "file": "r0-validazione/fred_IRLTLT01EZM156N.csv",
+      "sha256": "4a33d81ea38e7d98f7e83a4c2bda1cf50d4df602f40876187f81ac0faa4be64c",
+      "source": "FRED",
+      "url": "https://fred.stlouisfed.org/series/IRLTLT01EZM156N",
+      "asOf": "non registrata",
+      "note": "rendimento del Bund 10 anni o indice dei prezzi (OECD / Eurostat via FRED)",
+      "inRepo": false
+    },
+    {
+      "file": "r0-validazione/fred_ITACPIALLMINMEI.csv",
+      "sha256": "5fcb40eeb6528930aa4fb29cefcb9521d85829049cef4623852a9d46dccf9349",
+      "source": "FRED",
+      "url": "https://fred.stlouisfed.org/series/ITACPIALLMINMEI",
+      "asOf": "non registrata",
+      "note": "rendimento del Bund 10 anni o indice dei prezzi (OECD / Eurostat via FRED)",
+      "inRepo": false
+    },
+    {
+      "file": "r0-validazione/cpi_eur_annual.csv",
+      "sha256": "27d6430e927902c4061cf5f2330047335ecc5a0495d10e2f60d3f2ccb3ed4d0f",
+      "source": "testfolio",
+      "url": "https://testfol.io/",
+      "asOf": "non registrata",
+      "note": "serie simulata esportata da Giorgio, EUR",
+      "inRepo": false
+    },
+    {
+      "file": "r0-dati/annual_series.csv",
+      "sha256": "976bec59d599505a4aa9bda0144d9d0ad0f95af9df7957b00201ab583759ee2b",
+      "source": "derivata",
+      "url": null,
+      "asOf": "non registrata",
+      "note": "serie annue R0 (dollari), usata dal CPI USA",
+      "inRepo": false
+    },
+    {
+      "file": "r0-validazione/fonti/ubs-giry2026-summary-public.pdf",
+      "sha256": "63a56f8b0fcc787d112c41052164a8bb4204152461614570bf9043957cbf6b00",
+      "source": "UBS",
+      "url": "factsheet UBS di UEQC (sintesi pubblica)",
+      "asOf": "non registrata",
+      "note": "fonte del TER di UEQC (DQ5)",
+      "inRepo": false
+    },
+    {
+      "file": "data/montecarlo/annual_series.csv",
+      "sha256": "d7114c8b20f147376aa59fd4af76452d2bc9ac8dc6eb011c89cc74ec4a608ab9",
+      "source": "derivata",
+      "url": null,
+      "asOf": "10/10/2026",
+      "note": "rendimenti annui nominali in euro per classe (e coperti), più il CPI europeo: costruita da build_annual.py sui file qui sopra",
+      "inRepo": true
+    }
+  ]
+}
