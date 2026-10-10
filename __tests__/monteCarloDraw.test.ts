@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildDrawPlan, cagrFromArithmeticMean, drawYear, portfolioReturn, toLogNormal, weightsLeverage } from '@/lib/utils/monteCarloDraw';
+import { buildDrawPlan, cagrFromArithmeticMean, drawPathMeans, drawYear, portfolioReturn, toLogNormal, weightsLeverage } from '@/lib/utils/monteCarloDraw';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
-import { monteCarloClassRecord, MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
+import { monteCarloClassRecord, MONTE_CARLO_CLASSES, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { MONTE_CARLO_DEFAULT_CORRELATIONS } from '@/lib/constants/monteCarloMarketDefaults';
 import { pairIndices } from '@/lib/utils/correlationMatrix';
 import type { MonteCarloMarketScenario } from '@/types/assets';
@@ -198,4 +198,126 @@ describe('portfolioReturn — rule R4 (dossier A10, A11)', () => {
     expect(weightsLeverage(w)).toBe(1);
     expect(weightsLeverage(weights({ equity: 90, bonds: 60 }))).toBeCloseTo(1.5, 12);
   });
+});
+
+// ─── Q2 · RQ6: the uncertainty on the parameter (doc/montecarlo/README.md § 14.10) ──────────────
+
+describe('drawPathMeans — rule RQ6 (AQ23–AQ26)', () => {
+  /** The real Base of § 14.6, rounded as in the spec's control script (s1_controllo.py): CAGR, volatility, uncertainty. */
+  const REAL: Record<MonteCarloClass, [number, number, number]> = {
+    equity: [5.74, 19.49, 2.7],
+    bonds: [1.45, 8.0, 0.98],
+    gold: [1.79, 15.82, 2.3],
+    commodity: [0.52, 23.88, 3.5],
+    cash: [0.39, 2.82, 2.37],
+    trendFollowing: [3.93, 14.76, 2.5],
+    carry: [3.69, 12.26, 2.91],
+  };
+  const realMarket: MonteCarloMarketScenario = {
+    classes: monteCarloClassRecord((cls) => ({ cagr: REAL[cls][0], volatility: REAL[cls][1] })),
+    inflationRate: 0,
+  };
+  const realUncertainty = monteCarloClassRecord((cls) => REAL[cls][2]);
+  const counting = (seed: number) => {
+    let calls = 0;
+    const source = createSeededRandom(seed);
+    return { random: () => (calls++, source()), calls: () => calls };
+  };
+
+  it('AQ23: with no uncertainty (absent, or every class at 0) it returns the plan means and consumes nothing', () => {
+    for (const uncertainty of [undefined, monteCarloClassRecord(() => 0)]) {
+      const plan = buildDrawPlan(realMarket, MONTE_CARLO_DEFAULT_CORRELATIONS, uncertainty);
+      const source = counting(1);
+      expect(drawPathMeans(plan, source.random)).toBe(plan.m);
+      expect(source.calls()).toBe(0);
+    }
+  });
+
+  it('AQ23: a year drawn with the plan means is the year of before, float for float', () => {
+    const plan = buildDrawPlan(realMarket, MONTE_CARLO_DEFAULT_CORRELATIONS);
+    const a = createSeededRandom(4);
+    const b = createSeededRandom(4);
+    for (let i = 0; i < 100; i++) expect(drawYear(plan, a, drawPathMeans(plan, createSeededRandom(9)))).toEqual(drawYear(plan, b));
+  });
+
+  it('consumes two uniforms per class whenever one class has an uncertainty, whatever the others', () => {
+    const one = counting(2);
+    drawPathMeans(buildDrawPlan(realMarket, undefined, monteCarloClassRecord((cls) => (cls === 'carry' ? 1 : 0))), one.random);
+    const all = counting(2);
+    drawPathMeans(buildDrawPlan(realMarket, undefined, realUncertainty), all.random);
+    expect(one.calls()).toBe(7 * 2);
+    expect(all.calls()).toBe(7 * 2);
+  });
+
+  it('a class without uncertainty keeps its mean exactly', () => {
+    const plan = buildDrawPlan(realMarket, undefined, monteCarloClassRecord((cls) => (cls === 'carry' ? 1 : 0)));
+    const means = drawPathMeans(plan, createSeededRandom(3));
+    MONTE_CARLO_CLASSES.forEach((cls, index) => {
+      if (cls === 'carry') expect(means[index]).not.toBe(plan.m[index]);
+      else expect(means[index]).toBe(plan.m[index]);
+    });
+  });
+
+  it('at zero volatility a class returns the median of its own path mean', () => {
+    const flat: MonteCarloMarketScenario = { classes: monteCarloClassRecord(() => ({ cagr: 4, volatility: 0 })), inflationRate: 0 };
+    const plan = buildDrawPlan(flat, undefined, monteCarloClassRecord(() => 2));
+    const means = drawPathMeans(plan, createSeededRandom(8));
+    const year = drawYear(plan, createSeededRandom(1), means);
+    means.forEach((mean, index) => expect(year[index]).toBeCloseTo(Math.exp(mean) - 1, 14));
+  });
+
+  it('AQ26: on 100.000 paths the means are N(m, u²): sample mean m ± 3·u/√n, sample deviation u ± 1%', () => {
+    const plan = buildDrawPlan(realMarket, MONTE_CARLO_DEFAULT_CORRELATIONS, realUncertainty);
+    const random = createSeededRandom(2610);
+    const n = 100_000;
+    const sum = new Array<number>(7).fill(0);
+    const sumSq = new Array<number>(7).fill(0);
+    for (let path = 0; path < n; path++) {
+      const means = drawPathMeans(plan, random);
+      for (let i = 0; i < 7; i++) {
+        sum[i] += means[i];
+        sumSq[i] += means[i] * means[i];
+      }
+    }
+    MONTE_CARLO_CLASSES.forEach((cls, i) => {
+      const u = realUncertainty[cls] / 100;
+      const mean = sum[i] / n;
+      const sd = Math.sqrt(sumSq[i] / n - mean * mean);
+      expect(Math.abs(mean - plan.m[i]), cls).toBeLessThan((3 * u) / Math.sqrt(n));
+      expect(Math.abs(sd / u - 1), cls).toBeLessThan(0.01);
+    });
+  });
+
+  /** The 15th, 50th and 85th percentile of the 30-year real CAGR of a portfolio rebalanced every year (percent). */
+  function cagrPercentiles(weights: Record<MonteCarloClass, number>): [number, number, number] {
+    const plan = buildDrawPlan(realMarket, MONTE_CARLO_DEFAULT_CORRELATIONS, realUncertainty);
+    const vector = MONTE_CARLO_CLASSES.map((cls) => weights[cls]);
+    const years = createSeededRandom(1);
+    const parameters = createSeededRandom(2);
+    const n = 100_000;
+    const cagr = new Float64Array(n);
+    for (let path = 0; path < n; path++) {
+      const means = drawPathMeans(plan, parameters);
+      let logSum = 0;
+      for (let year = 0; year < 30; year++) logSum += Math.log(1 + portfolioReturn(vector, drawYear(plan, years, means)));
+      cagr[path] = Math.exp(logSum / 30) - 1;
+    }
+    cagr.sort();
+    const at = (p: number) => cagr[Math.floor((p / 100) * n)] * 100;
+    return [at(15), at(50), at(85)];
+  }
+
+  it('AQ24: 100% Azioni over 30 years — 15° · 50° · 85° of the real CAGR = 1,18 · 5,74 · 10,50 ± 0,15 points', () => {
+    const [p15, p50, p85] = cagrPercentiles(monteCarloClassRecord((cls) => (cls === 'equity' ? 100 : 0)));
+    expect(Math.abs(p15 - 1.18)).toBeLessThan(0.15);
+    expect(Math.abs(p50 - 5.74)).toBeLessThan(0.15);
+    expect(Math.abs(p85 - 10.5)).toBeLessThan(0.15);
+  }, 30_000);
+
+  it('AQ25: 60/40 over 30 years — 1,61 · 4,49 · 7,46 ± 0,15 points', () => {
+    const [p15, p50, p85] = cagrPercentiles(monteCarloClassRecord((cls) => (cls === 'equity' ? 60 : cls === 'bonds' ? 40 : 0)));
+    expect(Math.abs(p15 - 1.61)).toBeLessThan(0.15);
+    expect(Math.abs(p50 - 4.49)).toBeLessThan(0.15);
+    expect(Math.abs(p85 - 7.46)).toBeLessThan(0.15);
+  }, 30_000);
 });

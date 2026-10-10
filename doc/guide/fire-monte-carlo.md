@@ -103,6 +103,16 @@
 - **S10 is pinned on parameters written in the test** (`__tests__/legacyMarketFixture.ts`, digests in `__tests__/fixtures/monteCarloSeededDigests.json`,
   relative tolerance 1e-9): a change of the defaults never moves it, and it is portable (the Mac's last-ulp difference is gone). The engines'
   tests import the fixture, not the product defaults.
+- **Q2 «incertezza sul parametro»** (2026-10-10, doc/montecarlo/README.md § 14.10, RQ6): in the **Base** of every stochastic engine (Monte Carlo
+  and its unleveraged twin, «Dopo il FIRE», Spesa sostenibile, which replays the Base's factors, the Ventaglio, the Proiezione) each path draws its
+  own mean of the log-returns per class ONCE, before its years: `m_c + u_c·η_c` (`drawPathMeans` in `monteCarloDraw.ts`, `u` from
+  `marketUncertainty(market)`), then `drawYear(plan, random, means)`. The `η` come from a **separate generator**, a fresh
+  `createSeededRandom(MONTE_CARLO_PARAMETER_SEED)` per run (`parameterRandom`), so the yearly shocks never move: without uncertainty (absent or
+  all 0) `drawPathMeans` returns `plan.m` and consumes nothing — the run of Q1, float for float — and the leveraged and unleveraged Base meet the
+  same means and the same `ε` (A13). **Bear and Bull never receive it** (they are the RQ5 stress). The errors are independent across classes,
+  declared in «I limiti». The personal SWR of «Il mio piano» (RS5) stays without it: the spec does not name it. Cost (AQ29, cloud container,
+  10.000 paths × 3 scenarios × 50 years, median of 5): 2,20 s without, 2,16 s with — within the noise (7 normals per path against 350 for the years).
+  The fourth S10 case pins a run with the uncertainty; the three of Q1 run without it and did not move.
 - **The classes move together through ONE correlation matrix** (T2, 2026-10-03; README § 6): 21 pairs of log-returns, the
   same for Bear, Base and Bull (D6), saved in `monteCarloMarket.correlations` ONLY when they differ from the research
   defaults (`MONTE_CARLO_DEFAULT_CORRELATIONS`), so an improved default reaches whoever never touched them. `buildDrawPlan`

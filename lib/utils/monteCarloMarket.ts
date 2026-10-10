@@ -214,6 +214,14 @@ export interface MigratedV1 {
 }
 
 /**
+ * RQ6 (Q2): the uncertainty on the mean of each class, in points — what the stochastic engines' Base draws each path's
+ * means from. Bear and Bull never receive it: they are the RQ5 stress.
+ */
+export function marketUncertainty(market: Pick<MarketNumbers, 'classes'>): Record<MonteCarloClass, number> {
+  return monteCarloClassRecord((cls) => market.classes[cls].uncertainty);
+}
+
+/**
  * RQ8: v1 → what the user actually changed. A value equal to the v1 default is dropped (it takes the new
  * default), a different one is kept and converted to real terms with the inflation it was written with.
  */

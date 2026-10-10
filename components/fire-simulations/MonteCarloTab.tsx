@@ -53,10 +53,10 @@ import { portfolioCost } from '@/lib/utils/fireCosts';
 import { buildScenarioParams, runMonteCarloSimulation, type AnnualInflow } from '@/lib/services/monteCarloService';
 import { calculateCoastFireNetRealAnnualPension, normalizeCoastFirePensions, normalizeCoastFireTaxBrackets } from '@/lib/services/fireService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
-import { DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
+import { DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_PARAMETER_SEED, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
 import { summarizeSustainableSpending, SUSTAINABLE_VERDICT_PROBABILITY, type SustainableSpendingSummary } from '@/lib/utils/sustainableWithdrawal';
 import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
-import { resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
+import { marketUncertainty, resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
 import { MONTE_CARLO_CLASSES, monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { summarizeLock } from '@/lib/utils/fireSummary';
@@ -383,7 +383,12 @@ export function MonteCarloTab() {
   const leverage = weightsLeverage(MONTE_CARLO_CLASSES.map((cls) => (params ? params.weights[cls] : 0)));
   const canRun = fireStart?.kind !== 'depleted' && runnable && (totalState === 'plain' || totalState === 'leveraged') && !!params && params.retirementYears >= 1 && params.retirementYears <= 60;
 
-  const currentInputs = useMemo<MonteCarloRunInputs | null>(() => (params ? { params, scenarios, inflows: pensionInflows } : null), [params, scenarios, pensionInflows]);
+  // RQ6 (Q2): the uncertainty per class the Base draws each path's means from (Bear and Bull are the RQ5 stress).
+  const uncertainty = useMemo(() => marketUncertainty(market), [market]);
+  const currentInputs = useMemo<MonteCarloRunInputs | null>(
+    () => (params ? { params, scenarios, inflows: pensionInflows, uncertainty } : null),
+    [params, scenarios, pensionInflows, uncertainty],
+  );
 
   // ─── The run: the three scenarios in one go ──────────────────────────────────
   const [lastRun, setLastRun] = useState<MonteCarloRunState | null>(null);
@@ -397,8 +402,19 @@ export function MonteCarloTab() {
       try {
         // Seeded (T3): each run draws from a fresh generator on the SAME seed, so the three scenarios and the
         // unleveraged Base meet the same shocks and a re-run with the same inputs gives the same figures.
+        // RQ6 (Q2): the Base alone draws each path's means, from a fresh generator on its own seed — the leveraged
+        // and the unleveraged Base meet the same means too (A13).
         const run = (scenario: keyof typeof inputs.scenarios, params: MonteCarloParams, keepFactors = true): MonteCarloResults =>
-          runMonteCarloSimulation({ ...buildScenarioParams(params, inputs.scenarios[scenario]), random: createSeededRandom(MONTE_CARLO_SEED) }, { keepFactors });
+          runMonteCarloSimulation(
+            {
+              ...buildScenarioParams(params, inputs.scenarios[scenario]),
+              random: createSeededRandom(MONTE_CARLO_SEED),
+              ...(scenario === 'base' && inputs.uncertainty
+                ? { uncertainty: inputs.uncertainty, parameterRandom: createSeededRandom(MONTE_CARLO_PARAMETER_SEED) }
+                : {}),
+            },
+            { keepFactors },
+          );
         const results: ScenarioResults = {
           bear: run('bear', inputs.params),
           base: run('base', inputs.params),

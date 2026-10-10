@@ -8,7 +8,7 @@ import {
 } from '@/types/assets';
 import type { MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
-import { buildDrawPlan, drawYear, portfolioReturn, type DrawPlan } from '@/lib/utils/monteCarloDraw';
+import { buildDrawPlan, drawPathMeans, drawYear, portfolioReturn, type DrawPlan } from '@/lib/utils/monteCarloDraw';
 import { formatCurrencyCompact } from './chartService';
 import { withdrawGross } from '@/lib/utils/withdrawalTax';
 import { binSortedValues } from '@/lib/utils/valueHistogram';
@@ -60,10 +60,12 @@ function drawPathFactors(
 ): void {
   const spread = params.leverageSpread ?? 0;
   const costRate = params.annualCostRate ?? 0;
+  // RQ6: the path's own means first, from the parameter generator (none without uncertainty).
+  const means = drawPathMeans(plan, params.parameterRandom ?? Math.random);
   // One lognormal draw per class (rule R1), weighted into the portfolio's return (R3), the debt
   // of a leveraged portfolio taken off it at the drawn Liquidità return plus the spread (R4).
   for (let year = 0; year < params.retirementYears; year++) {
-    out[offset + year] = 1 + portfolioReturn(weights, drawYear(plan, random), spread, costRate);
+    out[offset + year] = 1 + portfolioReturn(weights, drawYear(plan, random, means), spread, costRate);
   }
 }
 
@@ -332,7 +334,7 @@ export function runMonteCarloSimulation(
   const simulations: SingleSimulationResult[] = [];
   // RS1: the factors of every path, row per path — `n × N × 8` bytes, kept only when asked (S1).
   const factors = new Float64Array(params.numberOfSimulations * params.retirementYears);
-  const plan = buildDrawPlan(params.market, params.correlations);
+  const plan = buildDrawPlan(params.market, params.correlations, params.uncertainty);
   const weights = MONTE_CARLO_CLASSES.map((cls) => params.weights[cls]);
 
   // Run all simulations
@@ -425,6 +427,10 @@ export interface AccumulationSimulationParams {
    * which is what a comparison between two plans needs (`lib/utils/fireDistribution.ts`).
    */
   random?: () => number;
+  /** RQ6 (Q2): per class, the uncertainty on the mean (points), as in `MonteCarloParams`; absent = none. */
+  uncertainty?: Record<MonteCarloClass, number>;
+  /** The uniform source of the paths' means, separate from `random`; `Math.random` by default. */
+  parameterRandom?: () => number;
   /**
    * How far the retirement ledger runs, in years from today (at least `years`, the default).
    * After its own FIRE year a path stops saving and withdraws the inflated expenses instead;
@@ -533,7 +539,7 @@ export function runAccumulationSimulation(
 ): AccumulationSimulationResult {
   const wrDecimal = params.withdrawalRate / 100;
   const random = params.random ?? Math.random;
-  const plan = buildDrawPlan(params.market, params.correlations);
+  const plan = buildDrawPlan(params.market, params.correlations, params.uncertainty);
   const weights = MONTE_CARLO_CLASSES.map((cls) => params.weights[cls]);
   const spread = params.leverageSpread ?? 0;
   const costRate = params.annualCostRate ?? 0;
@@ -571,7 +577,11 @@ export function runAccumulationSimulation(
   const byYear: Float64Array[] = collectPaths ? [] : Array.from({ length: params.years + 1 }, () => new Float64Array(params.numberOfSimulations));
   let leverageZeroedCount = 0;
 
+  const parameterRandom = params.parameterRandom ?? Math.random;
+
   for (let sim = 0; sim < params.numberOfSimulations; sim++) {
+    // RQ6: the path's own means, before its years (none without uncertainty: the run of before).
+    const means = drawPathMeans(plan, parameterRandom);
     let portfolio = params.initialPortfolio + startingInflow + startingLump;
     const path: { year: number; value: number }[] = collectPaths ? [{ year: 0, value: portfolio }] : [];
     if (!collectPaths) byYear[0][sim] = portfolio;
@@ -589,7 +599,7 @@ export function runAccumulationSimulation(
     for (let year = 1; year <= horizon; year++) {
       // R4: a leveraged year can lose more than the capital. The fan floors the growth at zero
       // (a path never fails here); the retirement ledger below counts it as ruin.
-      const rawGrowth = 1 + portfolioReturn(weights, drawYear(plan, random), spread, costRate);
+      const rawGrowth = 1 + portfolioReturn(weights, drawYear(plan, random, means), spread, costRate);
       const growth = Math.max(0, rawGrowth);
       if (rawGrowth <= 0 && year <= params.years) zeroed = true;
       const inflowThisYear = inflows.reduce((sum, inflow) => (inflow.year === year ? sum + inflow.amount : sum), 0);

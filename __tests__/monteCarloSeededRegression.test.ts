@@ -8,7 +8,7 @@ import { runMonteCarloSimulation } from '@/lib/services/monteCarloService';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { getDefaultMonteCarloMarket, getDefaultMonteCarloCorrelations } from './legacyMarketFixture';
 import { monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
-import { MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
+import { MONTE_CARLO_PARAMETER_SEED, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
 import type { MonteCarloParams } from '@/types/assets';
 import expected from './fixtures/monteCarloSeededDigests.json';
 
@@ -80,5 +80,15 @@ describe('S10 — the seeded run is the same float for float', () => {
   });
   it('fixed withdrawal', () => {
     expectClose(digest(runMonteCarloSimulation(plan({ withdrawalAdjustment: 'fixed' }))), expected['fixed withdrawal']);
+  });
+  // Q2 (AQ23): the cases above run without the uncertainty and stay the run of before; this one pins the paths' own means.
+  it('uncertainty on the parameter', () => {
+    const result = runMonteCarloSimulation(
+      plan({
+        uncertainty: { equity: 2.7, bonds: 0.98, gold: 2.3, commodity: 3.5, cash: 2.37, trendFollowing: 2.5, carry: 2.91 },
+        parameterRandom: createSeededRandom(MONTE_CARLO_PARAMETER_SEED),
+      })
+    );
+    expectClose(digest(result), expected['uncertainty on the parameter']);
   });
 });

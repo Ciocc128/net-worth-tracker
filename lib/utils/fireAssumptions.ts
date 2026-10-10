@@ -26,7 +26,7 @@ import { resolveEffectiveTargets } from './allocationComparison';
 import { expandUpperTriangle, identityMatrix, nearestCorrelation, pairCount } from './correlationMatrix';
 import { toLogNormal } from './monteCarloDraw';
 import { resolveFireCapitalDetail, type FireCapital, type FireCapitalDetail } from './fireCapital';
-import { MONTE_CARLO_BAND_YEARS, MONTE_CARLO_BAND_Z, resolveMonteCarloMarketForPortfolio, type ResolvedMonteCarloMarket } from './monteCarloMarket';
+import { MONTE_CARLO_BAND_YEARS, MONTE_CARLO_BAND_Z, marketUncertainty, resolveMonteCarloMarketForPortfolio, type ResolvedMonteCarloMarket } from './monteCarloMarket';
 import { realReturn } from './realReturn';
 import { seedWeightsFromTargets, weightsForFireCapital, weightsFromHoldings, type SeededWeights } from './monteCarloWeights';
 import { portfolioCost, resolveClassCosts, type FireCosts, type PortfolioCost } from './fireCosts';
@@ -289,7 +289,7 @@ export function resolveFireWeights(
  */
 export function buildPortfolioScenarios(weights: Readonly<Record<MonteCarloClass, number>>, market: ResolvedMonteCarloMarket, costPct = 0): Record<FireScenarioKey, PortfolioScenario> {
   const base = portfolioCompoundReturn(weights, market.scenarios.base, market.correlations, market.leverageSpread, costPct);
-  const band = portfolioScenarioBand(weights, market.scenarios.base, monteCarloClassRecord((cls) => market.classes[cls].uncertainty), market.correlations, market.leverageSpread, costPct);
+  const band = portfolioScenarioBand(weights, market.scenarios.base, marketUncertainty(market), market.correlations, market.leverageSpread, costPct);
   const one = (growthRate: number): PortfolioScenario => ({
     growthRate,
     inflationRate: market.inflationRate,

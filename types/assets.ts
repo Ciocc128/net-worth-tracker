@@ -598,6 +598,11 @@ export interface MonteCarloParams {
   numberOfSimulations: number;
   // The uniform source of the draws, `Math.random` by default; a seeded one makes the run reproducible.
   random?: () => number;
+  // RQ6 (Q2, doc/montecarlo/README.md § 14.10): per class, the uncertainty on the mean (points); each path draws its own
+  // means once from it. Only the Base receives it — Bear and Bull are stresses (RQ5). Absent = none, the run of before.
+  uncertainty?: Record<MonteCarloClass, number>;
+  // The uniform source of those means, separate from `random` so the yearly shocks never move; `Math.random` by default.
+  parameterRandom?: () => number;
 
   // One-off capital arrivals during the simulated horizon (a pension fund unlocking).
   // Applied at the START of their year, before that year's market return and withdrawal;

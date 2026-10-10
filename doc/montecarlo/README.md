@@ -1836,6 +1836,8 @@ un mercato a mano.
 
 ### 14.10 Q2 — Incertezza sul parametro nei motori stocastici (card «Orso/Toro sul portafoglio e incertezza sul parametro»)
 
+> **Stato**: implementata il 10/10/2026 (AQ23–AQ28 coperti in `__tests__/{monteCarloDraw,monteCarloService,monteCarloSeededRegression}.test.ts`, quarto caso S10 «uncertainty on the parameter»; AQ29 misurato: 2,20 s senza e 2,16 s con l'incertezza, 10.000 percorsi × 3 scenari × 50 anni, nel rumore; guida in `doc/guide/fire-monte-carlo.md` § Q2). Scelte dell'implementazione: `MONTE_CARLO_PARAMETER_SEED` = 20261010, lo stesso per il Ventaglio; `drawPathMeans` consuma due uniformi per classe appena una classe ha incertezza; la SWR personale di «Il mio piano» (RS5) resta senza incertezza, la spec non la nomina.
+
 **Modello**: Opus 5.5 effort medium (V-D2, la parte che tocca il cuore del motore e il test con il seme).
 **Decisioni**: V-D2, V-D11. **Prerequisiti**: Q1 unita.
 
