@@ -1,5 +1,5 @@
 /**
- * The macro side of the vault (doc/ai-open-models-wiki.md § 5.3, § 5.5): what the model extracts
+ * The macro side of the vault (doc/ai-open-models-wiki.md § 5.3; the vault's SCHEMA.md § 3, § 4.1): what the model extracts
  * from TheBull, the check that holds every item to its quote, and the pages the SERVER renders —
  * the model never writes a file. Pure: no I/O, no clock.
  */

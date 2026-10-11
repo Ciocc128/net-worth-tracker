@@ -88,7 +88,7 @@ La Wiki (§5) lo aggiunge; la ricerca web non entra nel nuovo disegno.
 | **F1 — Provider** ✔ | `lib/server/llm/` con due operazioni (§4), adattatore OpenRouter, le due email ci passano sopra; Assistente e Rendimenti nascosti quando non c'è un provider per loro. |
 | **F1b — Email allineate all'app** ✔ | Prima di F2 (§4.4): verdetto, tile e prompt leggono il Driver dello Storico, l'Allocazione sulla base allocata (regola 5/25), mercato e acquisti per classe, le operazioni e il TWR di Rendimenti. Budget di uscita dal contratto, con il ragionamento a parte (§4.5). |
 | **F2 — Eval rapido** ✔ | Sulle email di oggi, senza Wiki (§7, primo giro): scarta chi non regge l'italiano o inventa cifre e sceglie il **modello provvisorio** di produzione — **GLM 5.3 Flash**, 2026-09-28 (§7.2). |
-| **F3 — Vault e TheBull** | Repo privato `finance-wiki` con lo schema (✔ 2026-09-28), struttura (§5.1), operazioni (§5.5), ingestione e compilazione (✔ codice 2026-09-28, §5.2–5.3), Apps Script, endpoint di ingestione, compilazione col modello provvisorio, **recupero delle newsletter passate** (§5.2). Il 2026-09-28 GLM ha fallito 9 compilazioni su 13; dopo la sonda la compilazione passa a DeepSeek V4.1 Flash (2026-10-05, §7.3) e le 9 settimane si ricompilano. |
+| **F3 — Vault e TheBull** | Repo privato `finance-wiki` con lo schema (✔ 2026-09-28), struttura e operazioni (contratto: `SCHEMA.md` del vault, §5.1, §5.5), ingestione e compilazione (✔ codice 2026-09-28, §5.2–5.3), Apps Script, endpoint di ingestione, compilazione col modello provvisorio, **recupero delle newsletter passate** (§5.2). Il 2026-09-28 GLM ha fallito 9 compilazioni su 13; dopo la sonda la compilazione passa a DeepSeek V4.1 Flash (2026-10-05, §7.3) e le 9 settimane si ricompilano. |
 | **F4 — Il vault interrogabile** | Export dei dati (✔ 2026-09-30, §6.1), `CLAUDE.md` del vault (✔ § 3.1 «I dati»), prime pagine Principi in sessione per intervista (✔ `allocazione-e-leva`, 2026-09-30; restano costi e fiscalità, comportamento, FIRE e obiettivi, liquidità e risparmio). Da qui il canale dell'abbonamento è completo. |
 | **F5 — La Wiki nelle email** ✔ | Blocco macro per periodo e digest dei Principi nei prompt delle email (§5.4, 2026-10-05), e nella stessa sessione le spese per ruolo 50/30/20 nelle email. |
 | **F6 — Eval completo** ✔ | Due compiti (§7, secondo giro): email con la Wiki, compilazione di TheBull (§ 7.4). Poi **F6b** (§ 7.5–7.6, 2026-10-06): dati blindati, contratto narrativo e un prompt di sistema solo per l'email; modello definitivo delle email **DeepSeek V4.1 Flash con il ragionamento**, TheBull confermato su DeepSeek spento. |
@@ -209,36 +209,13 @@ percentuali («p.p.»).
 
 ### 5.1 Struttura
 
-Repo GitHub **privato** `Ciocc128/finance-wiki` (creato il 2026-09-28, con lo schema in `CLAUDE.md`), aperto in
-Obsidian con il plugin Obsidian Git. Schema ispirato alla «LLM Wiki» di Karpathy: le fonti grezze non si toccano, le
-pagine sono compilate da un LLM e riviste dal proprietario.
-
-```
-CLAUDE.md                      ← le regole per chi interroga il vault (§6.2)
-raw/
-  thebull/2026-09-28.md        ← testo della newsletter, scritto dall'ingestione (mai modificato)
-  sources/<slug>.md|.pdf       ← articoli, documenti, note del proprietario
-dati/
-  2026-09.md                   ← export dell'app (§6.1), mai scritto a mano
-  portafoglio.md               ← istantanea corrente, riscritta a ogni export
-wiki/
-  index.md                     ← una riga per pagina: slug, titolo, a cosa serve
-  principi/_digest.md          ← ≤ 3.000 token: ciò che entra nei prompt delle email
-  principi/<tema>.md           ← allocazione-e-leva, costi-e-fiscalita, comportamento, fire, …
-  macro/settimane/2026-W39.md  ← una pagina per settimana (frontmatter: settimana, fonte, date)
-  macro/mesi/2026-09.md        ← riassunto del mese, rigenerato a ogni settimana del mese
-  macro/temi/<tema>.md         ← tassi, inflazione, azionario, cambio EUR-USD, materie prime
-  analisi/<data>-<slug>.md     ← risposte tenute: la domanda, la risposta, le fonti (§5.5)
-log.md                         ← una riga per ingestione, compilazione, export
-```
-
-Chi scrive cosa: il server scrive `raw/thebull/`, `wiki/macro/settimane/`, `wiki/macro/mesi/`, `dati/` e
-`log.md`; `wiki/macro/temi/`, `wiki/principi/`, `wiki/analisi/` e `CLAUDE.md` li scrive solo il proprietario o
-una sua sessione Claude Code. **I temi non li scrive il server** (decisione del 2026-09-28): riscrivere cinque
-pagine a settimana con un modello piccolo accumula «falsa coerenza»; li aggiorna il lint mensile (§5.5),
-dalle settimane del mese, col modello dell'abbonamento. Ogni pagina compilata
-porta nel frontmatter le fonti da cui deriva. La copia grezza di TheBull resta nel repo privato: uso
-personale, mai esposta in UI, demo o export.
+Repo GitHub **privato** `Ciocc128/finance-wiki` (creato il 2026-09-28), aperto in Obsidian con il plugin Obsidian
+Git. Struttura delle cartelle, «chi scrive / chi legge / cosa si rompe» per ogni percorso e frontmatter per tipo
+sono il **contratto del vault**: stanno in `SCHEMA.md` del vault (§ 1–3), non qui. L'app ne ha il lato che legge e
+scrive (§ 5.2–5.4, § 6.1). **I temi non li scrive il server** (decisione del 2026-09-28): riscrivere cinque pagine a
+settimana con un modello piccolo accumula «falsa coerenza»; li aggiorna il lint mensile, dalle settimane del mese,
+con il modello dell'abbonamento. La copia grezza di TheBull resta nel repo privato: uso personale, mai esposta in UI,
+demo o export.
 
 ### 5.2 Ingestione
 
@@ -314,7 +291,7 @@ finestra, tutte `wiki/principi/_digest.md`. Il digest e le regole chiudono il **
 chiudono il **messaggio**, DOPO i dati del periodo (che restano la sola fonte delle cifre del portafoglio); non entrano
 in `buildEmailDataSections`, quindi `dati/` del vault resta il solo blocco dati. Le pagine arrivano senza frontmatter,
 titolo, preambolo ed elenco delle settimane, con i link di Obsidian ridotti a testo e i titoli scalati sotto
-«## Macro di <mese>».
+«## Macro di <mese>». Percorsi e intestazioni che l'app legge (`## Fatti` con `### <area>`, `## Tesi dell'autore`, `## Rendimenti degli indici …`, `## Le settimane` scartata) sono contratto in `SCHEMA.md` del vault § 4.2–4.3; `__tests__/emailWikiVaultPage.test.ts` li prova su una pagina mese vera del vault.
 
 **Decisioni del proprietario (2026-10-05):**
 
@@ -352,19 +329,9 @@ esiste nella pagina macro» del secondo giro (§7).
 ### 5.5 Le tre operazioni della Wiki (modello di Karpathy)
 
 Riferimento: il [gist «LLM Wiki»](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) —
-tre livelli (fonti immutabili, pagine compilate, uno schema che dice come lavorarci) e tre operazioni.
-Lo schema è il `CLAUDE.md` del vault; qui solo il disegno, le regole operative stanno lì.
-
-| Operazione | Chi | Cosa |
-| --- | --- | --- |
-| **Ingest** di TheBull | server + modello open, ogni domenica | Grezzo → settimana → mese (§5.2–5.3): una pipeline a schema rigido, senza discussione |
-| **Ingest** di una fonte | sessione Claude Code | La fonte in `raw/sources/`; la sessione ne **discute** 3–5 punti col proprietario prima di scrivere, poi aggiorna `principi/`, `_digest.md`, `index.md`, `log.md`; una contraddizione con un principio va in «In tensione», non sovrascrive |
-| **Query** | sessione Claude Code | `index.md` prima, poi le pagine; numeri solo da `dati/`; la risposta che merita si **archivia** in `wiki/analisi/` dopo il sì del proprietario |
-| **Lint** mensile | sessione Claude Code | Aggiorna i **temi** dalle settimane del mese; elenca contraddizioni, analisi superate da un export più recente, orfane e link rotti, pagine senza `fonti`, righe `failed`; applica solo ciò che il proprietario approva |
-
-Ogni pagina di `wiki/` porta `tipo`, `aggiornato` e `fonti` nel frontmatter: la provenienza si
-traccia dal primo ingest, perché una wiki che non sa da dove viene un'affermazione non si può più
-correggere.
+tre livelli (fonti immutabili, pagine compilate, uno schema che dice come lavorarci) e tre operazioni. Le
+operazioni (ingest, query, lint mensile) e il frontmatter delle pagine sono nel `SCHEMA.md` del vault (§ 5 e § 3);
+i passi operativi di una sessione, nel suo `CLAUDE.md`.
 
 ---
 
@@ -395,14 +362,8 @@ sono numeri dell'app, non riassunti.
 
 ### 6.2 `CLAUDE.md` del vault
 
-Scritto il 2026-09-28 insieme allo scheletro (F3): schema delle pagine, chi scrive cosa, le tre
-operazioni (§5.5), il formato di `index.md` e `log.md`. F4 lo rilegge quando arrivano `dati/` e i primi
-Principi. Le regole di `ASSISTANT_SYSTEM_CORE` adattate: i numeri si prendono **solo** da `dati/` e si citano
-con il file da cui vengono; il contesto macro solo da `wiki/macro/`; ogni giudizio che poggia su un
-principio cita la pagina; quando i dati smentiscono un principio, lo si dice; un dato assente si dice
-assente, non si stima. Più il flusso di manutenzione dei Principi: una fonte in `raw/sources/` → la
-sessione aggiorna le pagine pertinenti, segnala le contraddizioni, rigenera `_digest.md`, scrive in
-`log.md`; il proprietario rivede il diff prima del commit.
+Le regole di lavoro delle sessioni sono nel `CLAUDE.md` del vault, che rimanda allo `SCHEMA.md`. Dall'app non si
+scrive: la numerazione delle sezioni e il testo sono del vault.
 
 ### 6.3 MCP in sola lettura (facoltativa)
 

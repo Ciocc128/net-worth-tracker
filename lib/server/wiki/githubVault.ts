@@ -1,7 +1,7 @@
 import 'server-only';
 
 /**
- * The vault is a private GitHub repo (doc/ai-open-models-wiki.md § 5.1); the server reaches it
+ * The vault is a private GitHub repo (doc/ai-open-models-wiki.md § 5.1; the contract is the vault's SCHEMA.md); the server reaches it
  * through the REST API with a fine-grained token scoped to that repo alone (contents: write).
  *
  * Writes are ONE commit per operation, built with the Git Data API (tree → commit → ref), so a

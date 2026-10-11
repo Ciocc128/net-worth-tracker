@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { cleanTheBullText, isoWeekOf, parseIndexTable, parseTheBull, pointText, stripFrontmatter } from '@/lib/utils/thebullParse';
+import { cleanTheBullText, isTheBullIssue, isoWeekOf, parseIndexTable, parseTheBull, pointText, stripFrontmatter } from '@/lib/utils/thebullParse';
 import { DECOY_SUBSCRIBER, theBullPlainBody } from './thebullFixture';
 
 describe('cleanTheBullText — the fixed rule applied before the raw is written', () => {
@@ -119,5 +119,32 @@ describe('isoWeekOf', () => {
 describe('stripFrontmatter', () => {
   it('leaves a text without frontmatter as is', () => {
     expect(stripFrontmatter('abc\n---\n')).toBe('abc\n---\n');
+  });
+});
+
+describe('isTheBullIssue', () => {
+  it('accepts an issue with its «#n - date» line, and one that lost the line but kept the marker', () => {
+    expect(isTheBullIssue(parseTheBull(theBullPlainBody()))).toBe(true);
+    expect(isTheBullIssue(parseTheBull(theBullPlainBody({ issueLine: '' })))).toBe(true);
+  });
+
+  it('refuses an event invitation whose «** TITLE» lines parse as sections (vault, 2026-10-09)', () => {
+    const invitation = [
+      '** Mercoledì',
+      '------------------------------------------------------------',
+      '',
+      '** 18:30 - 21:00',
+      '------------------------------------------------------------',
+      '',
+      'Apertura ingresso alle ore 18:00',
+      '',
+      '** Talent Garden',
+      '------------------------------------------------------------',
+      '',
+      'Via Calabiana 6, Milano',
+    ].join('\n');
+    const parsed = parseTheBull(invitation);
+    expect(parsed.point.length).toBeGreaterThan(0);
+    expect(isTheBullIssue(parsed)).toBe(false);
   });
 });
