@@ -55,6 +55,8 @@ export interface TheBullIssue {
   brief: string[];
   /** «Il punto della settimana», its sub-sections in order. The only part a model reads. */
   point: TheBullSection[];
+  /** Whether the «IL PUNTO DELLA SETTIMANA» marker was found, not the fallback on unmarked sections. */
+  pointMarked: boolean;
   readings: TheBullReading[];
   episodes: TheBullEpisode[];
   indices: TheBullIndexTable | null;
@@ -252,6 +254,7 @@ export function parseTheBull(text: string): TheBullIssue {
     subtitle: head?.body ?? '',
     brief,
     point,
+    pointMarked: groups.has('point'),
     readings: parseReadings(markerBodies.get('readings') ?? ''),
     episodes: (groups.get('episodes') ?? []).map(parseEpisode),
     indices: indicesBody ? parseIndexTable(indicesBody) : null,
@@ -260,11 +263,13 @@ export function parseTheBull(text: string): TheBullIssue {
 }
 
 /**
- * Whether the text is a newsletter issue at all: it has the `#n - date` line or a point to read.
- * The same sender also mails the subscription confirmation and the like — those are not weeks.
+ * Whether the text is a newsletter issue at all: it has the `#n - date` line or the template's «Il punto
+ * della settimana» marker. Unmarked sections alone are not enough — the same sender also mails the
+ * subscription confirmation and event invitations, whose `** TITLE` lines fall back to a «point» (the
+ * 2026-10-09 invitation sat `pending` in the vault's log until the cron marked it `failed`).
  */
 export function isTheBullIssue(issue: TheBullIssue): boolean {
-  return issue.issue !== null || issue.point.length > 0;
+  return issue.issue !== null || issue.pointMarked;
 }
 
 /** «Il punto della settimana» as the model reads it: each sub-section's title, then its prose. */
