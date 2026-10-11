@@ -241,7 +241,7 @@ Not an email — F5 puts its month pages in the periodic prompt (above) — but 
 - **The month page is rebuilt from the weeks' `.json` records**, chosen by the issue's DATE (a week that straddles
   two months belongs to the month of its Sunday); quotes stay in the weeks, so the month stays short for F5.
 - **Themes, principles and the lint are NOT the server's**: a Claude Code session writes them (the vault's
-  `CLAUDE.md`, § 5.5 of the spec).
+  `CLAUDE.md` and its `SCHEMA.md`; spec § 5.5).
 
 ### The vault's `dati/` (F4, doc/ai-open-models-wiki.md § 6.1)
 

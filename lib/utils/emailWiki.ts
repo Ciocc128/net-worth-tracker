@@ -13,7 +13,7 @@
 import { MONTH_NAMES } from '@/lib/constants/months';
 import type { EmailPeriodicPeriodType } from '@/lib/server/assistant/prompts';
 
-/** Vault paths (doc/ai-open-models-wiki.md § 5.1). */
+/** Vault paths (the vault's SCHEMA.md § 4.2–4.3; doc/ai-open-models-wiki.md § 5.4). */
 export const PRINCIPLES_DIGEST_PATH = 'wiki/principi/_digest.md';
 export function macroMonthPath(month: string): string {
   return `wiki/macro/mesi/${month}.md`;
