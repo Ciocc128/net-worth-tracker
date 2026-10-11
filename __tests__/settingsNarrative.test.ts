@@ -1028,13 +1028,18 @@ describe('describeMonteCarloMarket', () => {
     );
   });
 
-  it('says what the conversion kept until the reader edits it (RQ8)', () => {
-    const migrated = { origin: 'migrated' as const, editedClassCount: 2, goldSubCategory: 'Gold', migration: { keptCount: 3, bearBullDropped: true }, legacyInflation: 3.04 };
+  it('says now what the conversion did and what to do, until the reader edits it (RQ8)', () => {
+    const migrated = { origin: 'migrated' as const, editedClassCount: 2, goldSubCategory: 'Gold', migration: { keptCount: 4, bearBullDropped: true }, legacyInflation: 3.04, inflationKept: true };
     expect(plain(describeMonteCarloMarket({ ...migrated, dirty: false }))).toBe(
-      'Ipotesi portate in termini reali: 3 valori scritti a mano restano, convertito con l’inflazione del 3,04% che aveva. Rileggi e salva. Bear e Bull scritti a mano non si usano più: ora si calcolano sul portafoglio. Oro = sottocategoria «Gold».'
+      'Le ipotesi salvate nel vecchio formato sono state convertite in termini reali: 3 valori sono tuoi, ricalcolati togliendo l’inflazione del 3,04%; gli altri seguono le stime. L’inflazione attesa resta al 3,04% che avevi scritto. Bear e Bull scritti a mano non servono più: ora si calcolano sul portafoglio. Premi Salva per fissarle. Oro = sottocategoria «Gold».'
     );
     expect(plain(describeMonteCarloMarket({ ...migrated, dirty: true }))).toContain('modificate in 2');
-    expect(plain(describeMonteCarloMarket({ origin: 'migrated', editedClassCount: 0, dirty: false, goldSubCategory: null, migration: { keptCount: 0, bearBullDropped: false } }))).toContain('nessun valore scritto a mano');
+    // Nothing of the reader's kept: the sentence says the estimates apply, and no Bear/Bull line.
+    expect(plain(describeMonteCarloMarket({ origin: 'migrated', editedClassCount: 0, dirty: false, goldSubCategory: null, migration: { keptCount: 0, bearBullDropped: false } }))).toContain('nessun valore era tuo, ora valgono le stime');
+    // Only the inflation kept.
+    const onlyInflation = plain(describeMonteCarloMarket({ origin: 'migrated', editedClassCount: 0, dirty: false, goldSubCategory: null, migration: { keptCount: 1, bearBullDropped: false }, legacyInflation: 2.5, inflationKept: true }));
+    expect(onlyInflation).toContain('gli altri valori seguono le stime. L’inflazione attesa resta al 2,5% che avevi scritto.');
+    expect(onlyInflation).not.toContain('Bear e Bull');
   });
 });
 

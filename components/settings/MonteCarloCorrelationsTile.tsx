@@ -36,7 +36,7 @@ interface MonteCarloCorrelationsTileProps {
   onChange: (correlations: number[]) => void;
   /** The classes the portfolio holds: their lists come first and open. */
   heldClasses: MonteCarloClass[];
-  /** Q4: the hedge in force — «Ripristina default» restores the defaults of THIS combination. */
+  /** Q4: the hedge in force — «Torna alle stime» restores the defaults of THIS combination. */
   hedged?: Partial<Record<MonteCarloHedgeableClass, boolean>>;
   corrections: CorrectionsByIndex;
   disabled?: boolean;
@@ -66,7 +66,7 @@ export function MonteCarloCorrelationsTile({ reading, correlations, onChange, he
         </p>
         <Button type="button" variant="ghost" size="sm" onClick={() => onChange(defaults)} disabled={disabled} className="h-8">
           <RotateCcw className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
-          Ripristina default
+          Torna alle stime
         </Button>
       </div>
 

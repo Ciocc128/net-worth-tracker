@@ -93,6 +93,7 @@ export function NumberField({
   step,
   min,
   max,
+  written,
 }: {
   value: number;
   onCommit: (value: number) => void;
@@ -105,6 +106,8 @@ export function NumberField({
   step?: number;
   min?: number;
   max?: number;
+  /** The reader typed this figure (it replaces the research's estimate): the box is tinted. */
+  written?: boolean;
 }) {
   const [text, setText] = useState<string | null>(null);
   return (
@@ -132,7 +135,8 @@ export function NumberField({
         if (Number.isFinite(parsed)) onCommit(parsed);
       }}
       onBlur={() => setText(null)}
-      className={cn('h-8 px-1 text-center font-mono text-[12px] tabular-nums', className)}
+      data-written={written ? 'true' : undefined}
+      className={cn('h-8 px-1 text-center font-mono text-[12px] tabular-nums', written && 'border-primary/50 bg-primary/15', className)}
     />
   );
 }
@@ -206,16 +210,26 @@ export function MonteCarloMarketTile({
       if (entry.origin === 'saved') return 'scritto a mano';
       return `${cls === 'bonds' ? anchorLines.aaa10y : anchorLines.estr}, meno l’inflazione`;
     }
-    if (kind === 'premium') return `Base ${fmt2(entry.cagr)}% = liquidità ${fmt2(numbers.classes.cash.cagr)}% + premio`;
+    if (kind === 'premium') return `CAGR = liquidità ${fmt2(numbers.classes.cash.cagr)}% + premio`;
     return null;
   };
 
   return (
     <Tile eyebrow="Ipotesi di mercato" aside="in euro, termini reali, %" reading={reading} ariaLabel="Ipotesi di mercato delle simulazioni" className={className}>
-      <div className="mt-3.5 flex flex-wrap items-center justify-end gap-3">
+      <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3">
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground" data-testid="mc-market-legend">
+          <span className="flex items-center gap-1.5">
+            <Input readOnly tabIndex={-1} aria-hidden="true" className="pointer-events-none h-4 w-8 px-0" />
+            Stima del lavoro
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Input readOnly tabIndex={-1} aria-hidden="true" className="pointer-events-none h-4 w-8 border-primary/50 bg-primary/15 px-0" />
+            Scritto da te
+          </span>
+        </p>
         <Button type="button" variant="ghost" size="sm" onClick={resetAll} disabled={disabled || !writtenAny} className="h-8">
           <RotateCcw className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
-          Ripristina default
+          Torna alle stime
         </Button>
       </div>
 
@@ -275,22 +289,35 @@ export function MonteCarloMarketTile({
                 ) : null}
               </div>
               {premiumClass ? (
-                <div className="flex items-center justify-center gap-0.5">
-                  <span className="font-mono text-[12px] text-muted-foreground" aria-hidden="true">
-                    +
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className="text-[10px] leading-none text-muted-foreground">premio</span>
+                  <div className="flex w-full items-center justify-center gap-0.5">
+                    <span className="font-mono text-[12px] text-muted-foreground" aria-hidden="true">
+                      +
+                    </span>
+                    <NumberField
+                      value={entry.premium ?? 0}
+                      onCommit={(value) => setField(cls, 'premium', value)}
+                      ariaLabel={`Premio ${label} sopra la liquidità (%)`}
+                      disabled={disabled}
+                      written={written?.premium !== undefined}
+                    />
+                  </div>
+                  <span className="font-mono text-[10.5px] leading-none tabular-nums text-muted-foreground" data-testid={`mc-market-resulting-cagr-${cls}`}>
+                    = {fmt2(entry.cagr)}%
                   </span>
-                  <NumberField value={entry.premium ?? 0} onCommit={(value) => setField(cls, 'premium', value)} ariaLabel={`Premio ${label} sopra la liquidità (%)`} disabled={disabled} />
                 </div>
               ) : (
-                <NumberField value={entry.cagr} onCommit={(value) => setField(cls, 'cagr', value)} ariaLabel={`CAGR reale ${label} (%)`} disabled={disabled} />
+                <NumberField value={entry.cagr} onCommit={(value) => setField(cls, 'cagr', value)} ariaLabel={`CAGR reale ${label} (%)`} disabled={disabled} written={written?.cagr !== undefined} />
               )}
-              <NumberField value={entry.volatility} onCommit={(value) => setField(cls, 'volatility', value)} ariaLabel={`Volatilità ${label} (%)`} disabled={disabled} />
-              <NumberField value={entry.uncertainty} onCommit={(value) => setField(cls, 'uncertainty', value)} ariaLabel={`Incertezza ${label} (punti)`} disabled={disabled} />
+              <NumberField value={entry.volatility} onCommit={(value) => setField(cls, 'volatility', value)} ariaLabel={`Volatilità ${label} (%)`} disabled={disabled} written={written?.volatility !== undefined} />
+              <NumberField value={entry.uncertainty} onCommit={(value) => setField(cls, 'uncertainty', value)} ariaLabel={`Incertezza ${label} (punti)`} disabled={disabled} written={written?.uncertainty !== undefined} />
               {written ? (
                 <button
                   type="button"
                   className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label={`Ripristina ${label}`}
+                  aria-label={`Torna alla stima: ${label}`}
+                  title="Torna alla stima"
                   onClick={() => resetClass(cls)}
                   disabled={disabled}
                 >
@@ -320,6 +347,7 @@ export function MonteCarloMarketTile({
             ariaLabel="Inflazione attesa (%)"
             disabled={disabled}
             className="w-20"
+            written={numbers.inflationOrigin === 'saved'}
           />
         </div>
       </div>
