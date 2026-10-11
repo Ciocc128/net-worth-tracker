@@ -35,7 +35,14 @@ const nextConfig: NextConfig = {
   // because the lock lives inside the build dir. The Playwright suite (`npm run dev:e2e`) sets this
   // to `.next-e2e` so it can run against the emulators while a normal dev server is still up.
   // Unset everywhere else → the default `.next`.
-  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
+  ...(process.env.NEXT_DIST_DIR
+    ? {
+        distDir: process.env.NEXT_DIST_DIR,
+        // The dev overlay's «N» badge sits bottom-left and, at 390px, covers the dialogs' action buttons
+        // (allocation.mobile › «Con vendite mirate» could not click «Calcola»). Production has no badge.
+        devIndicators: false as const,
+      }
+    : {}),
   allowedDevOrigins: ['192.168.1.114'],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
