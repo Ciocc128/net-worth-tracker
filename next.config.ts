@@ -36,6 +36,9 @@ const nextConfig: NextConfig = {
   // to `.next-e2e` so it can run against the emulators while a normal dev server is still up.
   // Unset everywhere else → the default `.next`.
   ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
+  // The dev-tools badge floats bottom-left and covers bottom-left buttons at 390px (a dialog's «Calcola»),
+  // so a click lands on `<nextjs-portal>` and times out. Off for the e2e server only (2026-10-11).
+  ...(process.env.NEXT_DIST_DIR === '.next-e2e' ? { devIndicators: false as const } : {}),
   allowedDevOrigins: ['192.168.1.114'],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
