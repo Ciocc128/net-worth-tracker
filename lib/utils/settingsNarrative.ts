@@ -966,29 +966,35 @@ export interface MonteCarloMarketInput {
   migration?: { keptCount: number; bearBullDropped: boolean };
   /** The inflation the migrated values were written with, percent (the v1 Base). */
   legacyInflation?: number;
+  /** Only with `origin: 'migrated'`: the expected inflation was typed by the reader (it counts in `migration.keptCount`, the sentence names it apart). */
+  inflationKept?: boolean;
 }
 
 /**
  * «Ipotesi di mercato» — what the Monte Carlo and the Ventaglio will read, in one line: the
  * numbers' origin, then what «Oro» means. No verdict (it is Impostazioni): the effect downstream.
  */
-export function describeMonteCarloMarket({ origin, editedClassCount, dirty, goldSubCategory, migration, legacyInflation }: MonteCarloMarketInput): Narrative {
+export function describeMonteCarloMarket({ origin, editedClassCount, dirty, goldSubCategory, migration, legacyInflation, inflationKept }: MonteCarloMarketInput): Narrative {
   const out: Narrative = [];
   if (origin === 'migrated' && !dirty) {
-    const kept = migration?.keptCount ?? 0;
-    out.push({ text: 'Ipotesi portate in termini reali: ' });
+    const inflation = legacyInflation?.toLocaleString('it-IT', { maximumFractionDigits: 2 });
+    const kept = Math.max(0, (migration?.keptCount ?? 0) - (inflationKept ? 1 : 0));
+    out.push({ text: 'Le ipotesi salvate nel vecchio formato sono state convertite in termini reali' });
     if (kept > 0) {
-      const inflation = legacyInflation ?? 3.04;
       out.push(
-        { text: kept === 1 ? '1 valore scritto a mano resta' : `${kept} valori scritti a mano restano`, mono: true },
-        { text: ', convertito con l’inflazione del ' },
-        { text: `${inflation.toLocaleString('it-IT', { maximumFractionDigits: 2 })}%`, mono: true },
-        { text: ' che aveva. Rileggi e salva.' },
+        { text: ': ' },
+        { text: kept === 1 ? '1 valore è tuo' : `${kept} valori sono tuoi`, mono: true },
+        ...(inflation ? [{ text: ', ricalcolati togliendo l’inflazione del ' }, { text: `${inflation}%`, mono: true }] : [{ text: ', ricalcolati' }]),
+        { text: '; gli altri seguono le stime.' },
       );
+    } else if (!inflationKept) {
+      out.push({ text: ': nessun valore era tuo, ora valgono le stime.' });
     } else {
-      out.push({ text: 'nessun valore scritto a mano, valgono i nuovi predefiniti. Salva per confermare.' });
+      out.push({ text: '; gli altri valori seguono le stime.' });
     }
-    if (migration?.bearBullDropped) out.push({ text: ' Bear e Bull scritti a mano non si usano più: ora si calcolano sul portafoglio.' });
+    if (inflationKept && inflation) out.push({ text: ' L’inflazione attesa resta al ' }, { text: `${inflation}%`, mono: true }, { text: ' che avevi scritto.' });
+    if (migration?.bearBullDropped) out.push({ text: ' Bear e Bull scritti a mano non servono più: ora si calcolano sul portafoglio.' });
+    out.push({ text: ' Premi Salva per fissarle.' });
   } else if (editedClassCount > 0) {
     out.push({ text: 'Sette classi in euro, in termini reali, ' }, { text: `modificate in ${editedClassCount}`, mono: true }, { text: ' rispetto ai predefiniti.' });
   } else {

@@ -1580,7 +1580,7 @@ R2 come oggi); `π₁` = inflazione del Base salvato:
   salva la matrice intera (oggi il formato è l'array di 21), corretta da R5 al salvataggio come oggi;
 - spread e sottocategoria dell'oro: invariati.
 
-La migrazione è **in lettura** (il documento non si riscrive da solo); il primo «Salva» di Impostazioni scrive il v2.
+La migrazione è **in lettura** (il documento non si riscrive da solo); il primo «Salva» di Impostazioni scrive il v2. Fino ad allora il tab Simulazioni conta come **modificato** (`marketPending`, 11/10/2026): senza questo il tab risultava pulito, «Salva» non scriveva e l'avviso tornava a ogni apertura. L'avviso parla al presente (cosa è stato convertito, cosa seguono le stime, «Premi Salva per fissarle»); l'inflazione tenuta si dice a parte.
 Fino ad allora `origin: 'migrated'` e la lettura del tile lo dice.
 
 **RQ9 — Aggiornamento delle ancore** (V-D5, DQ2, Q3): il cron giornaliero legge tre serie della BCE (API
@@ -1730,7 +1730,7 @@ V-D9, V-D11–V-D13, DQ1, DQ3–DQ5. **Prerequisiti**: nessuno.
   = liquidità 0,39% + premio». Obbligazioni e Liquidità: il campo è il Base reale, e sotto «dal tasso AAA 10 anni
   3,52% dell'08/10/2026, meno l'inflazione» / «dall'€STR 2,44% dell'08/10/2026»; un valore scritto sostituisce l'ancora
   e la riga dice «scritto a mano» con un pulsante «Usa il tasso BCE». Ogni riga scritta ha il suo «Ripristina» (icona,
-  con `aria-label`); in fondo «Ripristina default» per tutto il tile.
+  con `aria-label`); in fondo «Torna alle stime» per tutto il tile (11/10/2026: ex «Ripristina default»). Le caselle **scritte dall'utente** hanno lo sfondo di accento (`data-written`), le stime restano neutre, con una legenda in cima. Trend e Carry mostrano «premio» sopra il campo e «= CAGR» sotto, non modificabile.
 - Sotto le righe, **un** campo «Inflazione attesa %» con «SPF BCE, 3° trimestre 2026».
 - La riga del portafoglio: «Il portafoglio target rende (reale, composto, 30 anni): Bear 1,6% · Base 4,5% · Bull 7,5%
   · al netto di costi 0,20%» (RQ3 e RQ4, in reale).

@@ -991,9 +991,8 @@ export default function SettingsPage() {
 
       setAllocationBaselineKey(
         JSON.stringify({
-          // Età and risk-free are typed in the Auto-calcolo tile (moved back from Preferenze ›
-          // Profilo on 2026-09-22): the snapshot follows the tab that EDITS a field.
-          userAge: settingsData?.userAge ?? null,
+          // The risk-free rate is typed in the Auto-calcolo tile: the snapshot follows the tab that
+          // EDITS a field. Età lives in FIRE › Il mio piano since H1, so it is not in the live key either.
           riskFreeRate: settingsData?.riskFreeRate ?? null,
           autoCalculate:
             settingsData?.autoCalculateEquityBonds ??
@@ -1573,7 +1572,7 @@ export default function SettingsPage() {
     // defaults (or a migrated legacy field) into a saved market behind the reader's back.
     let marketPayload: ReturnType<typeof toMonteCarloMarketSettings> | null = null;
     let correctedCorrelations: number[] | null = null;
-    if (marketDirty && marketDraft) {
+    if (marketPending && marketDraft) {
       // Out-of-range pairs are reported by name before R5 gets to hide them by correcting.
       // The raw draft is checked, not the normalised document: a typed value out of range is reported, never dropped.
       const rangeProblems = findMonteCarloMarketProblems({
@@ -2040,6 +2039,8 @@ export default function SettingsPage() {
     return MONTE_CARLO_CLASSES.filter((cls) => byClass[cls] > 0);
   })();
   const marketDirty = marketBaselineKey.length > 0 && marketSnapshotKey(marketDraft) !== marketBaselineKey;
+  // A document still in the old format has something to write even when nothing was typed: the first «Salva» rewrites it as v2 (RQ8).
+  const marketPending = marketDirty || (marketBaselineKey.length > 0 && marketOrigin === 'migrated');
   const taxBracketsDirty = taxBracketsBaselineKey.length > 0 && buildTaxBracketSnapshotKey(parseTaxBracketDrafts(taxBracketDrafts)) !== taxBracketsBaselineKey;
 
   // One dirty flag per tab that has fields «Salva» writes — each snapshot holds the fields of
@@ -2049,7 +2050,7 @@ export default function SettingsPage() {
     generale: generalBaselineKey.length > 0 && generalSnapshotKey !== generalBaselineKey,
     spese: speseBaselineKey.length > 0 && speseSnapshotKey !== speseBaselineKey,
     dividendi: dividendBaselineKey.length > 0 && dividendSnapshotKey !== dividendBaselineKey,
-    simulazioni: (marketBaselineKey.length > 0 && marketSnapshotKey(marketDraft) !== marketBaselineKey) || taxBracketsDirty,
+    simulazioni: marketPending || taxBracketsDirty,
   };
   const settingsTabs = SETTINGS_TABS.map((tab) => ({ ...tab, unsaved: unsavedByTab[tab.value as SettingsTabId] ?? false }));
   const unsavedSentence = describeUnsavedChanges(settingsTabs.filter((tab) => tab.unsaved).map((tab) => tab.label));
@@ -4096,6 +4097,7 @@ export default function SettingsPage() {
                     editedClassCount: countEditedClasses(marketDraft.overrides).length,
                     migration: marketMigration ?? undefined,
                     legacyInflation: marketLegacyInflation,
+                    inflationKept: marketDraft.overrides.inflationRate !== undefined,
                     dirty: marketDirty,
                     goldSubCategory: effectiveGoldSubCategory,
                   })}

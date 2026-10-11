@@ -154,3 +154,50 @@ test('una lettura fallita degli accessi non diventa «nessun accesso»', async (
   await notice.getByRole('button', { name: 'Riprova' }).click();
   await expect(page.locator('section[aria-label="Condivisione account"]')).toBeVisible();
 });
+
+/**
+ * Un documento nel formato vecchio (`monteCarloScenarios`) viene convertito in lettura; il primo «Salva» lo
+ * riscrive come v2 anche senza che si sia toccato nulla (RQ8). Prima della correzione del 2026-10-11 il tab
+ * risultava «pulito», «Salva» non scriveva e l'avviso tornava a ogni apertura. Visto rosso togliendo `marketPending`.
+ * Il documento torna com'era alla fine (PATCH senza maschera = sostituzione intera): un «Salva» riscrive tutta la pagina e
+ * altrimenti i test che seguono (sottocategorie di Azioni) leggerebbero un albero cambiato.
+ */
+test('un documento nel formato vecchio si riscrive come v2 al primo «Salva» e l\'avviso sparisce', async ({ page }) => {
+  const num = (v: number) => ({ doubleValue: v });
+  const scenario = (e: number, ev: number, b: number, bv: number, c: number, cv: number, i: number) => ({
+    mapValue: { fields: { equityReturn: num(e), equityVolatility: num(ev), bondsReturn: num(b), bondsVolatility: num(bv), realEstateReturn: num(3), realEstateVolatility: num(12), commoditiesReturn: num(c), commoditiesVolatility: num(cv), inflationRate: num(i) } },
+  });
+  const patch = (fields: Record<string, unknown>, mask: string[]) =>
+    fetch(`${SETTINGS_DOC}?${mask.map((m) => `updateMask.fieldPaths=${m}`).join('&')}`, {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+    });
+  const read = async () => ((await (await fetch(SETTINGS_DOC, { headers: { Authorization: 'Bearer owner' } })).json()) as { fields: Record<string, unknown> }).fields;
+
+  // «Salva» writes the WHOLE page (allocation tree included): restore the document as it was, not just the two fields.
+  const before = await read();
+  await patch(
+    { monteCarloScenarios: { mapValue: { fields: { bear: scenario(3, 22, 2, 8, 0, 20, 3), base: scenario(8, 17, 4, 6, 3, 18, 2.5), bull: scenario(11, 15, 5, 5, 5, 16, 2) } } } },
+    ['monteCarloScenarios'],
+  );
+  try {
+    await openSettings(page, 'simulazioni');
+    await expect(page.locator('section[aria-label="Ipotesi di mercato delle simulazioni"]')).toContainText('convertite in termini reali');
+    await expect(visibleTab(page, 'Simulazioni, modifiche non salvate')).toBeVisible();
+    expect((await read()).monteCarloMarket).toBeUndefined();
+
+    await unsavedBar(page).getByRole('button', { name: 'Salva' }).click();
+    await expect(unsavedBar(page)).toHaveCount(0);
+    const market = (await read()).monteCarloMarket as { mapValue: { fields: { version: { integerValue: string } } } };
+    expect(market.mapValue.fields.version.integerValue).toBe('2');
+
+    await openSettings(page, 'simulazioni');
+    await expect(page.locator('section[aria-label="Ipotesi di mercato delle simulazioni"]')).not.toContainText('convertite in termini reali');
+    // The typed values stay tinted, the research's estimates do not.
+    await expect(page.getByRole('textbox', { name: 'Volatilità Azioni (%)' })).toHaveAttribute('data-written', 'true');
+    await expect(page.getByRole('textbox', { name: 'Volatilità Oro (%)' })).not.toHaveAttribute('data-written', 'true');
+  } finally {
+    await fetch(SETTINGS_DOC, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: before }) });
+  }
+});

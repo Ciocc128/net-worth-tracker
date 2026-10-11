@@ -532,7 +532,7 @@ export function describeMarketDeclaration(market: Pick<ResolvedMonteCarloMarket,
 function describeMarketOrigin(market: Pick<ResolvedMonteCarloMarket, 'origin' | 'editedClasses'>): Narrative {
   if (market.origin === 'default') return [prose('Ipotesi di mercato: '), figure('valori predefiniti'), prose(', in euro e reali.')];
   if (market.origin === 'migrated') {
-    return [prose('Ipotesi di mercato: '), figure('portate in termini reali dai parametri salvati prima'), prose(': rileggile in Impostazioni.')];
+    return [prose('Ipotesi di mercato: '), figure('convertite in termini reali dal vecchio formato'), prose(': fissale con «Salva» in Impostazioni › Simulazioni.')];
   }
   const edited = market.editedClasses.length;
   if (edited === 0) return [prose('Ipotesi di mercato: '), figure('salvate'), prose(', uguali ai valori predefiniti.')];
