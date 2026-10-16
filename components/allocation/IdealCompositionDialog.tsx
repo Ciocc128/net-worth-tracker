@@ -31,7 +31,7 @@ import {
   type OptimizerResult,
   type OptimizerSaleInput,
 } from '@/lib/utils/weightOptimizer';
-import { weightsToSeedPositions, seedDisposalsFromSale, unitPriceEur } from '@/lib/utils/accumulationPlanUtils';
+import { planMemberAssetIds, weightsToSeedPositions, seedDisposalsFromSale, unitPriceEur } from '@/lib/utils/accumulationPlanUtils';
 import { proposalToModelWeights, describeModelExclusions, MODEL_NO_TRADABLE_INSTRUMENTS } from '@/lib/utils/modelPortfolio';
 import { useSaveModelPortfolio } from '@/lib/hooks/useModelPortfolio';
 import { describeWriteError } from '@/lib/utils/dialogNarrative';
@@ -172,7 +172,10 @@ export function IdealCompositionDialog({
 
   const { referenceCountries, referenceAreas, referenceEstimatedShare } = useOptimizerGeographyReference(idealAllocation);
 
-  const evaluateAssetIds = useMemo(() => new Set((model?.weights ?? []).map((w) => w.assetId)), [model]);
+  // AL10: an open plan's instruments, even at 0 shares, are candidates beside the model's.
+  const plansQuery = useAccumulationPlans(ownerId);
+  const openPlan = selectOpenPlan(plansQuery.data);
+  const evaluateAssetIds = useMemo(() => new Set([...(model?.weights ?? []).map((w) => w.assetId), ...planMemberAssetIds(openPlan)]), [model, openPlan]);
   const standalone = useMemo(
     () => buildStandaloneCandidates(allAssets, baseEur, calculateAssetValue, evaluateAssetIds),
     [allAssets, baseEur, evaluateAssetIds]
@@ -214,8 +217,6 @@ export function IdealCompositionDialog({
     sale,
   ]);
 
-  const plansQuery = useAccumulationPlans(ownerId);
-  const openPlan = selectOpenPlan(plansQuery.data);
 
   const readingInput = buildIdealAllocationInput(idealAllocation, targetLeverageRatio);
 

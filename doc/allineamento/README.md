@@ -259,7 +259,18 @@ modale; **AL7** `modelPortfolios/{uid}` è un documento per utente come `assetAl
   Test in `accumulationPlanUtils.test.ts` sul fixture F del dossier PAC (§ 8) con un conto aggiunto e una vendita
   tolta: `L` atteso scritto nel test con il conto.
 
-**Esito**: —
+**Esito** (2026-10-16, IMPL-AL2): AL8–AL11 fatti, `tsc`, ESLint e Vitest (266 file, 6073 test) verdi sotto `Europe/Rome`
+(test in `__tests__/accumulationPlanReviewFlow.test.ts`). Default dell'agente: **AL8** il gruppo prende l'id della
+posizione dello strumento che compra e Separa lo restituisce a quello che compra, così le righe chiuse restano della
+posizione che le ha comprate; le righe di una posizione sparita si leggono col nome dello strumento
+(`installmentLineLabel`, nel Calendario); **AL9** «Sostituisci» dà alla posizione un id nuovo (le righe chiuse nominano il
+vecchio strumento), non vende nulla e il vecchio resta nel gruppo; su un gruppo il nuovo può essere un membro o uno
+strumento da fuori; **AL10** «Aggiungi uno strumento» ordina i mai comprati (Registro letto) prima degli azzerati e dei
+posseduti, e «Ricalcola» e «Prova» valutano anche gli strumenti del piano aperto (`planMemberAssetIds`), non solo quelli
+del modello: lo strumento abbandonato con la bozza si ritrova nel selettore dell'editor, in Ricalcola solo se è nel
+modello o in un piano aperto; **AL11** una vendita salvata con le quote cambiate in revisione è tolta e rifatta come
+vendita nuova al mese `k`, e le vendite spostate valgono da `k` all'ultima rata (altrimenti `sale_month_range`).
+Collaudo sull'anteprima: —
 
 ### 9.3 IMPL-AL3 — Riattiva e una sola rata (Onda 2: AL12–AL13, D-AL2)
 
