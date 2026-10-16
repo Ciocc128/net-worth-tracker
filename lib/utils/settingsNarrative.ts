@@ -28,7 +28,7 @@ import type { AssetClass, IdealAllocationSettings, ObjectivePriority } from '@/t
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import { INDEX_PROFILES } from '@/lib/constants/instrumentProfiles';
 import type { TargetProblem } from '@/lib/utils/allocationTargetValidation';
-import { MONTE_CARLO_DEFAULTS_LAST_YEAR, type MonteCarloHedgeSwitches, hedgedClassList } from '@/lib/constants/monteCarloMarketDefaults';
+import { MONTE_CARLO_DEFAULTS_LAST_YEAR, type MonteCarloHedgeSwitches, type MonteCarloHedgeableClass, hedgedClassList } from '@/lib/constants/monteCarloMarketDefaults';
 import { MONTE_CARLO_CLASS_LABELS } from '@/lib/constants/monteCarloClasses';
 import type { MonteCarloMarketOrigin } from '@/lib/utils/monteCarloMarket';
 
@@ -1022,6 +1022,15 @@ export function describeHedgeReading(hedged: MonteCarloHedgeSwitches): string {
     ? 'Nessuna classe coperta: volatilità e correlazioni di chi tiene strumenti in dollari senza copertura.'
     : `Coperte: ${list.map((cls) => MONTE_CARLO_CLASS_LABELS[cls]).join(', ')}.`;
   return `${first} Il Base non cambia: la copertura costa la differenza fra i tassi a breve in dollari e in euro, nulla in media nel modello.`;
+}
+
+/**
+ * AL20: the proposal under a hedge switch that is off while most of its class is held in instruments flagged
+ * «Coperto dal cambio in EUR». A sentence, never a switch: «Imposta coperto» is the reader's click.
+ */
+export function describeHedgeProposal(cls: MonteCarloHedgeableClass, share: number): string {
+  const subject: Record<MonteCarloHedgeableClass, string> = { equity: 'le azioni sono coperte', gold: "l'oro è coperto", trendFollowing: 'il Trend è coperto', carry: 'il Carry è coperto' };
+  return `Nel tuo portafoglio ${subject[cls]} per il ${Math.round(share * 100)}%.`;
 }
 
 export interface MonteCarloCorrelationsInput {

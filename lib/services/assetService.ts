@@ -238,6 +238,10 @@ export async function updateAsset(
     if ('leverageRatio' in updates && updates.leverageRatio === undefined) {
       cleanedUpdates.leverageRatio = deleteField();
     }
+    // currencyHedge (AL20) is user-clearable too: unchecking the switch sends the key undefined.
+    if ('currencyHedge' in updates && updates.currencyHedge === undefined) {
+      cleanedUpdates.currencyHedge = deleteField();
+    }
     // displayTicker is user-clearable (empty alias → fall back to ticker). The only real caller
     // is AssetDialog with a complete formData, so a bare undefined check is safe here (same
     // reasoning as averageCost/taxRate above, unlike leverageRatio's `in` guard).
@@ -324,6 +328,10 @@ export async function updateAssetMetadata(
     // leverageRatio is a metadata field for ledger types (etf) — clearable, same rule as updateAsset.
     if ('leverageRatio' in updates && updates.leverageRatio === undefined) {
       cleanedUpdates.leverageRatio = deleteField();
+    }
+    // currencyHedge (AL20) is user-clearable too: unchecking the switch sends the key undefined.
+    if ('currencyHedge' in updates && updates.currencyHedge === undefined) {
+      cleanedUpdates.currencyHedge = deleteField();
     }
     // displayTicker is a metadata field too — clearable, same rule as updateAsset.
     if (updates.displayTicker === undefined) cleanedUpdates.displayTicker = deleteField();

@@ -193,6 +193,9 @@ export interface Asset {
   // (lib/utils/assetExposureUtils.ts); `quantity`/`averageCost`/`pricePerUnit` stay per-quota and
   // independent of it.
   leverageRatio?: number;
+  // AL20 (D-AL6): 'EUR' = the instrument's dollar (or other) exposure is hedged into euro. Absent = not hedged.
+  // Read by Esposizione › Valute (it wins over the curated row) and offered to the Simulazioni's hedge switches.
+  currencyHedge?: 'EUR';
   isin?: string; // ISIN code for dividend scraping (optional)
   // The cash account this instrument's dividends and coupons credit (lib/utils/dividendAccount.ts).
   // Absent → the default in Impostazioni › Dividendi; neither → the income row moves no account.
@@ -221,6 +224,7 @@ export interface AssetFormData {
   averageCost?: number;
   taxRate?: number; // Tax rate percentage for unrealized gains (e.g., 26 for 26%)
   totalExpenseRatio?: number; // Total Expense Ratio (TER) as a percentage (e.g., 0.20 for 0.20%)
+  currencyHedge?: 'EUR'; // AL20: hedged into euro (absent = not hedged)
   stampDutyExempt?: boolean; // If true, asset is excluded from stamp duty (imposta di bollo) calculation
   includeInHistoryTables?: boolean; // If true, asset appears in Anno Corrente and Storico price/value tables regardless of cost basis tracking
   currentPrice: number;

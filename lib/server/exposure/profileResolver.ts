@@ -11,8 +11,7 @@
  *
  * `resolveCurrency`'s own precedence (the one place all four rules live, so the tile can trust
  * there's no second currency-derivation path anywhere else):
- *   hedgedTo (none of this portfolio's instruments are hedged, so this precedes but is currently
- *   always empty) → the curated `currencies` override → `asset.currency` for a stock/cash
+ *   [`withCurrencyHedge` sits ABOVE all of this, applied after the per-ticker cache: AL20] → the curated `currencies` override → `asset.currency` for a stock/cash
  *   instrument (a company's OWN currency always beats a country guess — BSP is domiciled in Italy
  *   but trades in USD on Nasdaq, so this step precedes country-derivation, not the reverse) →
  *   derived from the resolved EQUITY leg's `countries` (via `COUNTRY_TO_CURRENCY`) → 100% USD by
@@ -273,7 +272,21 @@ function writeCachedProfileFireAndForget(ticker: string, profile: InstrumentProf
  * `nonLetta` for an instrument that was covered yesterday — the tile's `oldestProfileAsOf` still
  * surfaces how old that fallback is.
  */
+/**
+ * AL20 (D-AL6): `asset.currencyHedge === 'EUR'` is the owner's declaration and beats every other currency rule
+ * (the curated row included): the instrument reads 100% EUR. Applied AFTER the 30-day per-ticker cache, never
+ * inside it — the cache is shared by every asset of that ticker and keyed on the curated tables, the flag is the
+ * asset's own.
+ */
+export function withCurrencyHedge(asset: Pick<Asset, 'currencyHedge'>, profile: InstrumentProfile): InstrumentProfile {
+  return asset.currencyHedge === 'EUR' ? { ...profile, currencies: [{ code: 'EUR', weight: 1 }] } : profile;
+}
+
 async function resolveWithCache(asset: Asset): Promise<InstrumentProfile> {
+  return withCurrencyHedge(asset, await resolveCachedProfile(asset));
+}
+
+async function resolveCachedProfile(asset: Asset): Promise<InstrumentProfile> {
   const cached = await readCachedProfile(asset.ticker);
   const fingerprint = curatedFingerprint(asset);
   // Two conditions, not one: the entry must be young enough AND describe the curated tables as

@@ -364,7 +364,15 @@ Collaudo sull'anteprima: —
 - Test: `profileResolver.test.ts` (uno strumento coperto senza riga curata legge EUR), la quota coperta per classe
   (pura). MFEH: il proprietario spunta il campo dopo il merge.
 
-**Esito**: —
+**Esito** (2026-10-16, IMPL-AL6): AL20 fatto, `tsc`, ESLint e Vitest (269 file, 6121 test) verdi sotto `Europe/Rome` (test in
+`__tests__/monteCarloHedgeShare.test.ts`, `profileResolver.test.ts`, `exposureCacheKey.test.ts`). Default dell'agente: il campo sta
+nel form dei soli ETF (come la leva) ed è un interruttore, spento = chiave assente (`deleteField` in `updateAsset` e
+`updateAssetMetadata`); la sostituzione a EUR è `withCurrencyHedge`, applicata DOPO la cache di profilo per ticker (la cache è
+condivisa fra gli asset dello stesso ticker, il campo è dell'asset) invece che dentro `resolveCurrency`; il tile propone sopra il
+50% del valore di mercato della classe (esattamente 50% non propone), le classi sono quelle dei quattro interruttori, l'Oro
+segue la sottocategoria in vigore, i fondi bloccati restano fuori come nei pesi; «Imposta coperto» imposta la bozza, si salva
+col Salva della pagina.
+Collaudo sull'anteprima: —
 
 ## 10. Prompt d'avvio dei thread
 
