@@ -398,7 +398,7 @@ export function describeTargetFooter(input: TargetFooterInput): Narrative | null
     const beyond: Narrative =
       distribution.neverCount > 0 ? [prose(', la classe grigia i percorsi che non ci arrivano entro il '), year(distribution.horizonCalendarYear)] : [];
     return [
-      prose(`${integer(input.simulationCount)} percorsi con l'allocazione attuale (${input.allocationLabel}), stessi rendimenti a ogni confronto`),
+      prose(`${integer(input.simulationCount)} percorsi con l'allocazione target (${input.allocationLabel}), stessi rendimenti a ogni confronto`),
       ...border,
       ...beyond,
       prose('.'),
@@ -417,7 +417,7 @@ export function describeTargetFooter(input: TargetFooterInput): Narrative | null
   // all of them: «probabilità entro il 2026: 100%» would be true and say nothing.
   if (input.fan.atStart) {
     return [
-      prose(`FIRE già raggiunto oggi, quindi in tutti i ${integer(input.simulationCount)} percorsi con l'allocazione attuale (${input.allocationLabel}): il ventaglio mostra come il patrimonio può evolvere da qui.`),
+      prose(`FIRE già raggiunto oggi, quindi in tutti i ${integer(input.simulationCount)} percorsi con l'allocazione target (${input.allocationLabel}): il ventaglio mostra come il patrimonio può evolvere da qui.`),
       ...inflows,
     ];
   }
@@ -426,7 +426,7 @@ export function describeTargetFooter(input: TargetFooterInput): Narrative | null
     year(input.fan.calendarYear),
     prose(input.fan.onHorizon ? ' (orizzonte della simulazione): ' : ': '),
     figure(`${input.fan.probabilityPct}%`),
-    prose(` su ${integer(input.simulationCount)} percorsi con l'allocazione attuale (${input.allocationLabel}).`),
+    prose(` su ${integer(input.simulationCount)} percorsi con l'allocazione target (${input.allocationLabel}).`),
     ...inflows,
   ];
 }
@@ -547,7 +547,7 @@ export function describeFireDistributionMethod(binWidthYears: number, honest?: F
   const pensionPart = honest?.pensionsConsidered ? 'meno le pensioni statali dal loro avvio' : 'nessuna pensione statale (non ne risulta una datata in Coast FIRE)';
   const taxPart = honest?.taxConsidered ? 'ogni prelievo vende quanto serve a pagare la tassa sulla plusvalenza' : 'nessuna tassa sui prelievi (nessun PMC in euro da cui stimarla)';
   return [
-    "Ogni percorso è una sequenza di rendimenti annui estratti a caso con l'allocazione attuale, al netto ogni anno di TER e bollo (la riga «Ipotesi usate»); il suo anno FIRE è il primo in cui il patrimonio supera quanto serve in quell'anno — lo stesso requisito del verdetto, anno per anno.",
+    "Ogni percorso è una sequenza di rendimenti annui estratti a caso con l'allocazione target, al netto ogni anno di TER e bollo (la riga «Ipotesi usate»); il suo anno FIRE è il primo in cui il patrimonio supera quanto serve in quell'anno — lo stesso requisito del verdetto, anno per anno.",
     `Le classi raccolgono i percorsi per anno FIRE, ${perBin} per classe; l'ultima, in grigio, quelli che non ci arrivano entro l'orizzonte della simulazione. I percentili sono anni: il 90° è l'anno entro cui nove percorsi su dieci sono FIRE.`,
     "La leva ripete la simulazione con più risparmio, sugli stessi rendimenti estratti, finché anche nove percorsi su dieci sono FIRE entro l'anno del base; la cifra è arrotondata ai 100 € l'anno. Il seme è fisso, quindi la distribuzione non cambia tra un'apertura e l'altra.",
     `Dal FIRE in poi: dal suo anno FIRE ogni percorso smette di risparmiare e preleva le spese, che continuano a crescere con l'inflazione, con gli stessi rendimenti; ${pensionPart}; ${taxPart}.`,

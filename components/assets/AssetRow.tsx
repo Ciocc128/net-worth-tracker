@@ -21,6 +21,7 @@ import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { getMetricValueColor } from '@/lib/utils/metricColors';
 import type { AssetPerformanceData } from '@/lib/utils/assetPerformanceDeltas';
 import { cn } from '@/lib/utils';
+import { describeZeroQuantityChip } from '@/lib/utils/zeroQuantityChip';
 import { AssetSparkline } from '@/components/assets/AssetSparkline';
 
 /** "+1,2%" / "−3,4%" / "—" — it-IT decimals, typographic minus (The Comma Rule). */
@@ -173,6 +174,8 @@ interface AssetRowProps {
   performance?: AssetPerformanceData;
   /** Trade-ledger row actions — shown only for ledger asset types once migration has run. */
   showLedgerActions?: boolean;
+  /** Ids with an operation in the Registro; null while it is unread — the zero-quantity chip's word. */
+  tradedAssetIds?: ReadonlySet<string> | null;
   onRegisterTrade?: (asset: Asset) => void;
   onMovements?: (asset: Asset) => void;
 }
@@ -198,6 +201,7 @@ export function AssetRow({
   sparklineData,
   performance,
   showLedgerActions = false,
+  tradedAssetIds = null,
   onRegisterTrade,
   onMovements,
 }: AssetRowProps) {
@@ -231,6 +235,7 @@ export function AssetRow({
   const showTicker = !!asset.ticker && asset.type !== 'pensionFund';
   // The actions sit in a two-column grid; with an odd count the last one (Elimina) would be
   // alone in its row, so it takes the whole row instead of leaving a hole beside it.
+  const zeroChip = describeZeroQuantityChip(asset, tradedAssetIds);
   const actionCount = 2 + (onCalculateTaxes ? 1 : 0) + (showLedgerActions ? 2 : 0) + (asset.type === 'pensionFund' ? 1 : 0);
   const deleteSpansRow = actionCount % 2 === 1;
 
@@ -278,9 +283,9 @@ export function AssetRow({
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex min-w-0 items-center gap-2">
             <span className="line-clamp-2 break-words text-[13px] font-medium text-foreground">{asset.name}</span>
-            {asset.quantity === 0 && (
+            {zeroChip && (
               <span className="shrink-0 rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                Azzerato
+                {zeroChip}
               </span>
             )}
           </span>

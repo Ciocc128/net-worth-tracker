@@ -120,6 +120,7 @@ import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { BilanciamentoTile } from '@/components/allocation/tiles/BilanciamentoTile';
 import { PianoTile } from '@/components/allocation/tiles/PianoTile';
 import { AccumuloTab } from '@/components/allocation/AccumuloTab';
+import { useModelPortfolio } from '@/lib/hooks/useModelPortfolio';
 import { PerClasseTile } from '@/components/allocation/tiles/PerClasseTile';
 import { EsposizioneTile } from '@/components/allocation/tiles/EsposizioneTile';
 import { PrevidenzaTile } from '@/components/allocation/tiles/PrevidenzaTile';
@@ -169,6 +170,7 @@ export default function AllocationPage() {
   /** A failed load is not an empty set: it gets an alert, never a verdict about zeros. */
   const [loadFailed, setLoadFailed] = useState(false);
   const [usingGoalTargets, setUsingGoalTargets] = useState(false);
+  const modelQuery = useModelPortfolio(ownerId);
 
   // Per-instrument rows of everything IN the allocation — tradable and frozen alike. Each carries
   // its own `tradable` flag: the frozen ones count in every total and percentage but are never
@@ -389,7 +391,7 @@ export default function AllocationPage() {
   const headerDescription = describeAllocazioneHeader({
     marketValue: bandedAllocation?.marketValue ?? 0,
     classCount,
-    targetSource: usingGoalTargets ? 'goals' : 'settings',
+    targetSource: activeTab === 'accumulo' ? (modelQuery.data ? 'model' : 'plan') : usingGoalTargets ? 'goals' : 'settings',
   });
 
   const header = (
@@ -397,13 +399,17 @@ export default function AllocationPage() {
       label="Pianificazione"
       title="Allocazione"
       description={headerDescription}
+      // «Modifica target» edits the Impostazioni targets: on Accumulo the weights come from the model
+      // and the plan, so the action would point at something the tab does not read.
       actions={
-        <Button asChild variant="outline" className="hidden h-8 gap-1.5 px-2.5 text-xs desktop:inline-flex">
-          <Link href="/dashboard/settings">
-            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-            Modifica target
-          </Link>
-        </Button>
+        activeTab === 'accumulo' ? undefined : (
+          <Button asChild variant="outline" className="hidden h-8 gap-1.5 px-2.5 text-xs desktop:inline-flex">
+            <Link href="/dashboard/settings">
+              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+              Modifica target
+            </Link>
+          </Button>
+        )
       }
     />
   );

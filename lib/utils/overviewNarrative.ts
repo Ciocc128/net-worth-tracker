@@ -225,7 +225,7 @@ function resolveHeadline(input: OverviewVerdictInput): ResolvedHeadline {
     if (taxedGrowth) {
       return { headline: taxedGrowthHeadline(month, taxedGrowth, input.sales), tone: 'warning', taxIsTheStory: true };
     }
-    if (input.savingsRate !== null && input.savingsRate < 0) {
+    if ((input.savingsRate !== null && input.savingsRate < 0) || overspendInEuro(input) !== null) {
       return { headline: `${month} cresce, ma le spese superano le entrate.`, tone: 'warning', taxIsTheStory: false };
     }
     return { headline: `${month} sta andando bene.`, tone: 'positive', taxIsTheStory: false };
@@ -263,6 +263,19 @@ function describeCalendarAside(cashflow: LivedCashflow | null | undefined): Narr
   if (expenses) return [prose(' (altri '), euro(expenses), prose(' di spese in calendario)')];
   if (income) return [prose(' (altri '), euro(income), prose(' di entrate in calendario)')];
   return [];
+}
+
+/**
+ * The euros by which the lived expenses exceed the lived income, when the savings RATE cannot say it
+ * (income so far ≤ 0, or a rate under −100%); null otherwise. Needs the lived cashflow: the rate alone
+ * has no euros behind it.
+ */
+export function overspendInEuro(input: Pick<OverviewVerdictInput, 'savingsRate' | 'cashflow'>): number | null {
+  const cashflow = input.cashflow;
+  if (!cashflow || cashflow.savings >= 0) return null;
+  const rate = input.savingsRate;
+  if (rate !== null && rate >= -100) return null;
+  return -cashflow.savings;
 }
 
 /**
@@ -331,8 +344,17 @@ export function buildOverviewVerdict(input: OverviewVerdictInput): OverviewVerdi
   }
   if (taxIsTheStory) sentence.push(...saleClause);
 
-  const hasSavingsClause = input.savingsRate !== null;
-  if (input.savingsRate !== null) {
+  // Past the point where a percentage means anything (income so far near zero: «−1926%») the clause
+  // says the euros instead; the calendar is still named as ever.
+  const overspendEur = overspendInEuro(input);
+  const hasSavingsClause = overspendEur !== null || input.savingsRate !== null;
+  if (overspendEur !== null) {
+    sentence.push(
+      prose(' Finora le spese superano le entrate di '),
+      figure(cachedFormatCurrencyEUR(overspendEur, true)),
+      ...describeCalendarAside(input.cashflow),
+    );
+  } else if (input.savingsRate !== null) {
     sentence.push(
       prose(' Hai messo da parte il '),
       figure(`${Math.round(input.savingsRate)}%`),

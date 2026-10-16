@@ -300,7 +300,7 @@ test.describe('Composizione ideale › Con vendite mirate', () => {
     await openAccumulo(page);
     const tile = page.locator('section[aria-label="Portafoglio modello"]');
     await tile.getByRole('button', { name: 'Ricalcola' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Composizione ideale' });
+    const dialog = page.getByRole('dialog', { name: 'Ricalcola il portafoglio modello' });
     await expect(dialog).toBeVisible();
 
     await dialog.getByRole('radio', { name: 'Con vendite mirate' }).click();

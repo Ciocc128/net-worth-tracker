@@ -683,7 +683,7 @@ describe('describeIdealAllocation', () => {
           geography: null,
         })
       )
-    ).toBe('Spenta: nel PAC i pesi si inseriscono solo a mano.');
+    ).toBe('Spenta: nel portafoglio modello e nel PAC i pesi si inseriscono solo a mano.');
   });
 
   it('names the only active objective when just the classes are on', () => {
@@ -698,7 +698,7 @@ describe('describeIdealAllocation', () => {
           geography: null,
         })
       )
-    ).toBe('Il PAC può proporre i pesi da 1 obiettivo: classi (essenziale).');
+    ).toBe('Il portafoglio modello e il PAC possono proporre i pesi da 1 obiettivo: classi (essenziale).');
   });
 
   it('lists all four objectives with their priorities', () => {
@@ -714,7 +714,7 @@ describe('describeIdealAllocation', () => {
         })
       )
     ).toBe(
-      'Il PAC può proporre i pesi da 4 obiettivi: classi (essenziale), leva 1,23× (alta), secondo livello di Azioni (Equity) (alta), geografia come FTSE All-World (media).'
+      'Il portafoglio modello e il PAC possono proporre i pesi da 4 obiettivi: classi (essenziale), leva 1,23× (alta), secondo livello di Azioni (Equity) (alta), geografia come FTSE All-World (media).'
     );
   });
 });

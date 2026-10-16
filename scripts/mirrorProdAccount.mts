@@ -32,7 +32,7 @@ const EMULATOR_ENV = {
   GCLOUD_PROJECT: 'demo-net-worth',
 };
 const USER_COLLECTIONS = ['assets', 'expenses', 'expenseCategories', 'monthly-snapshots', 'assetTransactions', 'pensionContributions', 'dividends', 'costCenters', 'goals', 'assistantThreads', 'accumulationPlans'];
-const PER_USER_DOCS = ['users', 'assetAllocationTargets', 'assetTransactionsMeta', 'budgets', 'hall-of-fame', 'userPreferences', 'performance-cache', 'exposure-cache', 'dashboardOverviewSummaries'];
+const PER_USER_DOCS = ['users', 'modelPortfolios', 'assetAllocationTargets', 'assetTransactionsMeta', 'budgets', 'hall-of-fame', 'userPreferences', 'performance-cache', 'exposure-cache', 'dashboardOverviewSummaries'];
 
 type AnyRecord = Record<string, unknown>;
 const [command, argument] = process.argv.slice(2);

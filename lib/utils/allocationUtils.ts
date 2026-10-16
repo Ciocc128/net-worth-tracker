@@ -824,6 +824,10 @@ export function findOrphanedTargets(
     if (parts.length !== 2) continue;
     const [assetClass, subCategory] = parts;
     if (data.targetPercentage <= 0) continue;
+    // A sub-category looks at its class: inside a class at target 0 the share is moot (nothing is asked
+    // of the class), so the target is not «unreachable», it is simply not in play.
+    const classTarget = byAssetClass[assetClass]?.targetPercentage;
+    if (classTarget !== undefined && classTarget <= 0) continue;
     if (data.currentValue > NEGLIGIBLE_VALUE) continue;
     if ((excludedBySubCategory[key] ?? 0) <= 0) continue;
 

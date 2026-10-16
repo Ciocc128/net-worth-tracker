@@ -1011,6 +1011,18 @@ describe('sumHoldingsBySubCategory', () => {
 });
 
 describe('findOrphanedTargets', () => {
+  it('should not flag a sub-category inside a class at target 0 (AL4 · R5)', () => {
+    // Liquidità 0%, «Conti Correnti» 100% of it, the whole value excluded: nothing is asked of the class.
+    const byAssetClass: Record<string, AllocationData> = {
+      cash: makeAllocationData({ currentValue: 0, targetPercentage: 0 }),
+      equity: makeAllocationData({ currentValue: 100000, targetPercentage: 100 }),
+    };
+    const bySubCategory: Record<string, AllocationData> = {
+      'cash:Conti Correnti': makeAllocationData({ currentValue: 0, targetPercentage: 100 }),
+    };
+    expect(findOrphanedTargets(byAssetClass, bySubCategory, { cash: 30000 }, { 'cash:Conti Correnti': 30000 })).toEqual([]);
+  });
+
   it('should flag a class whose whole value is excluded and which has no sub-targets', () => {
     // The trap: the house leaves the denominator, the 25% realestate target stays behind,
     // and the page would otherwise demand "COMPRA 25% Immobili" forever.
