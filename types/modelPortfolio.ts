@@ -6,7 +6,10 @@ import type { OptimizerSnapshot } from '@/types/accumulationPlan';
 
 /** One instrument of the model portfolio. */
 export interface ModelPortfolioWeight {
+  /** The instrument that BUYS: for a group of equivalent instruments, the buyer (AL16). */
   assetId: string;
+  /** AL16 — a group of equivalent instruments, the buyer included; absent = the instrument alone. */
+  memberAssetIds?: string[];
   /** Market weight; Σ over the model === 100 (±0.01). */
   targetPercentage: number;
   /** True for an instrument held at 0 shares only to be evaluated (PO10, D7). */

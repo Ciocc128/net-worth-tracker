@@ -379,6 +379,11 @@ export const MODEL_COL_MODEL = 'Modello';
 export const MODEL_COL_DIFF = 'Differenza';
 export const MODEL_CANDIDATE_TAG = 'da valutare';
 export const MODEL_OUTSIDE_LABEL = 'Fuori dal modello';
+/** AL16: a group's other members, under the buyer in the tile and in «Modifica a mano». */
+export const MODEL_GROUP_NO_BUY = 'non riceve acquisti';
+export function describeModelGroupMembers(otherLabels: string[]): string {
+  return `Gruppo con ${otherLabels.join(', ')}: compra solo il primo.`;
+}
 export const MODEL_TARGETED_HINT =
   'Per avvicinarti al modello vendendo poco, «Ricalcola» ha la modalità «Con vendite mirate», con un tetto di tasse.';
 
@@ -418,6 +423,8 @@ export function describeModelSalesHint(overweightLabels: string[]): string {
 
 export const MODEL_SAVE_ACTION = 'Salva come portafoglio modello';
 export const MODEL_SAVED_TOAST = 'Portafoglio modello salvato';
+/** AL14: with an active plan and no model, the tile offers the plan's weights as the model. */
+export const MODEL_ACTION_USE_PLAN = 'Usa i pesi del piano';
 export const MODEL_SAVE_REPLACES_NOTE = 'Sostituisce il portafoglio modello attuale.';
 
 export const MODEL_EDIT_TITLE = 'Modifica il portafoglio modello';

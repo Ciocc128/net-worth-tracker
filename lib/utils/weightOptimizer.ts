@@ -1643,7 +1643,9 @@ export function buildStandaloneCandidates(
   baseEur: number,
   valueOf: (a: Asset) => number,
   /** The model portfolio's instruments to evaluate at 0 shares (RO1, PO10): in even with no value. */
-  evaluateAssetIds: ReadonlySet<string> = new Set()
+  evaluateAssetIds: ReadonlySet<string> = new Set(),
+  /** AL16 — the model's groups of equivalent instruments: ONE candidate each, as the PAC treats them. */
+  groups: ReadonlyArray<{ buyAssetId: string; memberAssetIds: string[] }> = []
 ): StandaloneCandidates {
   const scoped = assets.filter((a) => {
     const role = resolveAllocationRole(a);
@@ -1656,8 +1658,21 @@ export function buildStandaloneCandidates(
     scoped.filter((a) => resolveAllocationRole(a) === 'frozen').map((a) => [a.id, valueOf(a)])
   );
 
+  const scopedIds = new Set(scoped.map((a) => a.id));
+  const groupByBuyer = new Map<string, string[]>();
+  const grouped = new Set<string>();
+  for (const group of groups) {
+    if (!scopedIds.has(group.buyAssetId) || grouped.has(group.buyAssetId)) continue;
+    const members = group.memberAssetIds.filter((id) => scopedIds.has(id) && (id === group.buyAssetId || !grouped.has(id)));
+    if (members.length < 2) continue;
+    groupByBuyer.set(group.buyAssetId, [group.buyAssetId, ...members.filter((id) => id !== group.buyAssetId)]);
+    for (const id of members) grouped.add(id);
+  }
+
   return {
-    positions: scoped.map((a) => ({ key: a.id, label: a.name, memberAssetIds: [a.id], buyAssetId: a.id })),
+    positions: scoped
+      .filter((a) => !grouped.has(a.id) || groupByBuyer.has(a.id))
+      .map((a) => ({ key: a.id, label: a.name, memberAssetIds: groupByBuyer.get(a.id) ?? [a.id], buyAssetId: a.id })),
     fixBounds: (candidate) => {
       const frozenValue = frozenValueById.get(candidate.buyAssetId);
       if (frozenValue === undefined || baseEur <= 0) return {};

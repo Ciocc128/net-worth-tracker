@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Asset, AssetAllocationSettings, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { ModelPortfolio } from '@/types/modelPortfolio';
+import { groupMembers, modelGroups } from '@/lib/utils/modelPortfolio';
 import { setSettings } from '@/lib/services/assetAllocationService';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
@@ -86,10 +87,10 @@ export function ObiettiviDialog({ open, onClose, ownerId, allAssets, targets, ta
       }, 0),
     [allAssets],
   );
-  const evaluateAssetIds = useMemo(() => new Set([...(model?.weights ?? []).map((weight) => weight.assetId), ...planMemberAssetIds(plan)]), [model, plan]);
+  const evaluateAssetIds = useMemo(() => new Set([...(model?.weights ?? []).flatMap((weight) => groupMembers(weight)), ...planMemberAssetIds(plan)]), [model, plan]);
   const standalone = useMemo(
-    () => buildStandaloneCandidates(allAssets, baseEur, calculateAssetValue, evaluateAssetIds),
-    [allAssets, baseEur, evaluateAssetIds],
+    () => buildStandaloneCandidates(allAssets, baseEur, calculateAssetValue, evaluateAssetIds, modelGroups(model?.weights ?? [])),
+    [allAssets, baseEur, evaluateAssetIds, model],
   );
   const candidateAssetIds = useMemo(() => standalone.positions.map((position) => position.buyAssetId), [standalone.positions]);
   const profilesQuery = useInstrumentProfiles(tryRequested ? ownerId : undefined, candidateAssetIds);

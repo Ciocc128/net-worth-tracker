@@ -240,6 +240,8 @@ ha peso corrente 0 e l'ottimizzatore gli dà un peso solo se un obiettivo lo chi
   PAC, il modale degli Obiettivi e il tile Obiettivi (che lo legge dallo snapshot del modello, con la prima frase dei
   conflitti). I conflitti restano frasi.
 
+- **I gruppi nel modello (AL16, D-AL3)**: una riga può essere un gruppo di strumenti equivalenti — `memberAssetIds` (il buyer incluso, `assetId` resta lo strumento che compra; assente = lo strumento da solo). `validateModelWeights` rifiuta uno strumento in due righe e controlla i membri come il buyer; `toModelWeights` toglie il membro che non può starci (e lo dice). Lo strumento a sé (`IdealCompositionDialog`, `ObiettiviDialog`) passa i gruppi a `buildStandaloneCandidates(…, groups)`: un gruppo è UN candidato con la chiave del buyer (profilo del buyer, avviso `proxy_mismatch` invariato), gli altri restano strumenti singoli; il risultato salvato riporta i membri. Il valore di oggi di un gruppo è la somma dei membri, `candidate` solo se nessun membro ha quote, e un membro non è mai «fuori dal modello». Il tile disegna il gruppo come il passo Target (testa = chi compra, gli altri rientrati con «non riceve acquisti»); «Modifica a mano» conserva i membri. Un modello senza gruppi si legge e si salva come prima.
+
 ## Limiti noti
 
 - **I gruppi proxy assumono la stessa esposizione per euro del buy asset per tutti i membri** (§5.1

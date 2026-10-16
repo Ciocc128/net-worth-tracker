@@ -198,6 +198,7 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
               targetLeverageRatio={targetLeverageRatio}
               idealAllocation={idealAllocation}
               model={model}
+              plan={plan}
               readFailed={modelQuery.isError}
               onAssetsChanged={onAssetsChanged}
             />

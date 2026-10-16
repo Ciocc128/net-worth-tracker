@@ -312,7 +312,15 @@ Collaudo sull'anteprima: —
   «Parti da › Portafoglio modello». Test con il caso di prova (modello salvato dai pesi del piano → nessuna riga; un
   peso spostato di 1 punto → una).
 
-**Esito**: —
+**Esito** (2026-10-16, IMPL-AL4): AL16, AL14, AL15 fatti, `tsc`, ESLint e Vitest (268 file, 6100 test) verdi sotto
+`Europe/Rome` (test in `__tests__/modelPortfolioGroups.test.ts`). Default dell'agente: **AL16** la riga del gruppo ha il
+buyer in `assetId` e i membri in `memberAssetIds` (buyer incluso); nel PAC il modello si applica con
+`applyModelToPositions`, che non spezza una posizione che esce dal gruppo; il membro frozen sparisce dal gruppo con
+l'avviso di RM2. **AL14** «Usa i pesi del piano» solo con un piano attivo; il modello si scrive dopo il piano e un
+errore tiene l'editor aperto su «Chiudi»; «Aggiorna anche il portafoglio modello» si accende da solo quando i pesi
+differiscono, spento in demo. **AL15** la riga sta in Questo mese solo con un piano attivo e un modello; soglia 0,5
+punti; i candidati a 0 non contano; «Rivedi dal modello» apre `reviseFromModel`.
+Collaudo sull'anteprima: —
 
 ### 9.5 IMPL-AL5 — Bilanciamento, criteri e nomi (Onda 3: AL17–AL19, D-AL4, D-AL5, D-AL7)
 

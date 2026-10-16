@@ -19,6 +19,7 @@ import type {
   PlanPosition,
 } from '@/types/accumulationPlan';
 import type { ModelPortfolio } from '@/types/modelPortfolio';
+import { modelGroups } from '@/lib/utils/modelPortfolio';
 import { splitTowardTarget, bandForTarget, resolveAllocationRole, type RebalanceBand } from './allocationUtils';
 import { unitPriceEur } from './costBasisEur';
 import { getItalyMonthYear } from './dateHelpers';
@@ -1085,14 +1086,14 @@ export function seedDisposalsFromSale(
 }
 
 export function weightsToSeedPositions(
-  weights: Array<{ key: string; label: string; proposedPct: number }>,
+  weights: Array<{ key: string; label: string; proposedPct: number; /** AL16: a group's members, the buyer (`key`) included. */ memberAssetIds?: string[] }>,
   generateId: () => string = () => crypto.randomUUID()
 ): PlanPosition[] {
   return weights.map((w) => ({
     id: generateId(),
     label: w.label,
     targetPercentage: w.proposedPct,
-    memberAssetIds: [w.key],
+    memberAssetIds: w.memberAssetIds && w.memberAssetIds.length > 1 ? orderGroupMembers({ memberAssetIds: w.memberAssetIds, buyAssetId: w.key }) : [w.key],
     buyAssetId: w.key,
   }));
 }
@@ -1146,6 +1147,38 @@ export function applyWeightsToPositions(
       buyAssetId: assetId,
     }));
   return [...updated, ...added];
+}
+
+/**
+ * AL16 — the model portfolio onto the positions: its groups of equivalent instruments become ONE
+ * position that buys the group's buyer (a position keeps its id when it already was that group), then
+ * the weights (`applyWeightsToPositions`). A group whose members sit in a position that reaches outside
+ * the group is left to the per-instrument weights: it never splits a position the user built.
+ */
+export function applyModelToPositions(
+  positions: PlanPosition[],
+  model: ModelPortfolio,
+  soldAssetIds: Set<string>,
+  labelOf: (assetId: string) => string,
+  generateId: () => string = () => crypto.randomUUID()
+): PlanPosition[] {
+  let next = positions;
+  for (const group of modelGroups(model.weights)) {
+    const members = new Set(group.memberAssetIds);
+    const overlapping = next.filter((position) => position.memberAssetIds.some((id) => members.has(id)));
+    if (overlapping.length === 0 || overlapping.some((position) => position.memberAssetIds.some((id) => !members.has(id)))) continue;
+    const first = next.indexOf(overlapping[0]);
+    const kept = overlapping.find((position) => position.buyAssetId === group.buyAssetId);
+    const grouped: PlanPosition = {
+      id: kept?.id ?? generateId(),
+      label: kept?.label ?? labelOf(group.buyAssetId),
+      targetPercentage: 0,
+      memberAssetIds: orderGroupMembers({ memberAssetIds: group.memberAssetIds, buyAssetId: group.buyAssetId }),
+      buyAssetId: group.buyAssetId,
+    };
+    next = next.flatMap((position, index) => (index === first ? [grouped] : overlapping.includes(position) ? [] : [position]));
+  }
+  return applyWeightsToPositions(next, modelWeightMap(model), soldAssetIds, labelOf, generateId);
 }
 
 /** The model portfolio as a per-instrument weight map (candidates at 0 are left out). */
