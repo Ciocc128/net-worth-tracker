@@ -18,6 +18,7 @@
 import {
   addDoc,
   collection,
+  deleteField,
   doc,
   getDocs,
   query,
@@ -30,7 +31,8 @@ import { toDate } from '@/lib/utils/dateHelpers';
 import { removeUndefinedDeep } from '@/lib/utils/firestoreData';
 import { userFacingError } from '@/lib/utils/dialogNarrative';
 import { accumulationPlanDraftSchema, validateDraftAgainstAssets } from '@/lib/utils/accumulationPlanSchema';
-import { describeDraftIssue } from '@/lib/utils/accumulationNarrative';
+import { describeDraftIssue, ACCUMULO_REACTIVATE_REFUSED } from '@/lib/utils/accumulationNarrative';
+import { canReactivatePlan } from '@/lib/utils/accumuloSummary';
 import {
   resolvePositionStates,
   proceedsOfDisposal,
@@ -496,6 +498,27 @@ export async function closePlan(
   const ref = doc(db, ACCUMULATION_PLANS_COLLECTION, planId);
   const now = new Date();
   await updateDoc(ref, removeUndefinedDeep({ status, closedAt: now, updatedAt: now }));
+}
+
+/**
+ * AL12 «Riattiva»: an interrupted plan goes back to `active`, `closedAt` removed. The transaction re-reads
+ * the plan and re-checks its own conditions (`cancelled`, stopped under 30 days ago); "no other plan is open"
+ * is read just before it, because a client transaction cannot run a query. The months already past come
+ * back `late` for the matcher, as they were before the stop.
+ */
+export async function reactivatePlan(ownerId: string, planId: string, today: Date): Promise<void> {
+  const plans = await getAccumulationPlans(ownerId);
+  const ref = doc(db, ACCUMULATION_PLANS_COLLECTION, planId);
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw userFacingError('Il piano non esiste più.');
+    const plan = docToAccumulationPlan(snap.id, snap.data() as Record<string, unknown>);
+    if (!canReactivatePlan(plan, plans.filter((other) => other.id !== planId), today)) {
+      throw userFacingError(ACCUMULO_REACTIVATE_REFUSED);
+    }
+    tx.update(ref, { status: 'active' as AccumulationPlanStatus, closedAt: deleteField(), updatedAt: new Date() });
+  });
 }
 
 /** Delete a plan still in `draft` — refused once it has been activated. */

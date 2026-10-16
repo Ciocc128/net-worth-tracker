@@ -113,7 +113,7 @@ describe('describeAccumulationActive', () => {
       }),
     );
     expect(text).toBe(
-      `Dicembre: ${eur(3868.1)} in 5 acquisti, 1 già eseguito e 4 da eseguire. Sei in linea col calendario.`,
+      `Rata di dicembre: ${eur(3868.1)} in 5 acquisti, 1 già eseguito e 4 da eseguire. Sei in linea col calendario.`,
     );
   });
 
@@ -128,7 +128,7 @@ describe('describeAccumulationActive', () => {
         furthestDrift: { label: 'Obbligazioni', deltaPp: -2.1 },
       }),
     );
-    expect(text).toBe(`Gennaio: ${eur(500)} in 1 acquisto. Sei a −2,1 pp dal previsto su Obbligazioni.`);
+    expect(text).toBe(`Rata di gennaio: ${eur(500)} in 1 acquisto. Sei a −2,1 pp dal previsto su Obbligazioni.`);
   });
 
   it('drops the drift clause entirely when it is unknown, never prints a false zero', () => {
@@ -142,7 +142,7 @@ describe('describeAccumulationActive', () => {
         furthestDrift: null,
       }),
     );
-    expect(text).toBe(`Giugno: ${eur(0)} in 0 acquisti.`);
+    expect(text).toBe(`Rata di giugno: ${eur(0)} in 0 acquisti.`);
   });
 });
 

@@ -283,7 +283,15 @@ Collaudo sull'anteprima: —
   4455 € al mese; la prima, ottobre, 4207 €») al passo 1 (ora L/N, che diventa «Liquidità per mese»), nel pannello del
   passo Target e nella sintesi del passo 3. Un solo modulo di parole in `accumulationNarrative.ts`.
 
-**Esito**: —
+**Esito** (2026-10-16, IMPL-AL3): AL12–AL13 fatti, `tsc`, ESLint e Vitest (267 file, 6082 test) verdi sotto
+`Europe/Rome` (test in `__tests__/accumulationReactivate.test.ts`; le attese «Rata di …» aggiornate in
+`accumulationNarrative` e `accumuloSummary`). Default dell'agente: **AL12** il bottone sta in una colonna di Piani
+conclusi che compare solo se c'è una riga riattivabile; «nessun altro piano aperto» si legge prima della transazione
+(il client non può fare query dentro `runTransaction`), le altre due condizioni dentro; un rifiuto mostra l'errore nella
+riga. **AL13** «Rata di ottobre» vale anche per il verdetto di Accumulo; al passo 1, che non ha pesi e quindi nessuna rata,
+L ÷ N si chiama «Liquidità per mese» con una riga che rimanda ai pesi; nel pannello del passo Target la cifra grande è la
+prima rata e la media sta sotto (se coincidono si dice una cifra sola).
+Collaudo sull'anteprima: —
 
 ### 9.4 IMPL-AL4 — Il modello comanda (Onda 3: AL14–AL16, D-AL3)
 

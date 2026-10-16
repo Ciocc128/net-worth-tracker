@@ -15,7 +15,7 @@ import { cachedFormatCurrencyEUR, formatNumberIt, formatPercentageIt } from '@/l
 import { TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { ClassDriftChart } from '@/components/allocation/ClassDriftChart';
 import { TargetTick } from '@/components/allocation/TargetTick';
-import { describeBandReentry } from '@/lib/utils/accumulationNarrative';
+import { describeBandReentry, describeInstallmentAverage, monthLabelLong } from '@/lib/utils/accumulationNarrative';
 
 type DraftPreview = ReturnType<typeof buildDraftPreview>;
 
@@ -48,7 +48,12 @@ export function PlanDraftSidePanel({ preview, months, band, weightsSum, targetLe
   }
 
   const { liquidity, outcome, trajectory } = preview;
-  const monthly = months > 0 ? liquidity.L / months : 0;
+  const installments = preview.schedule.installments;
+  const firstInstallment = installments[0];
+  const firstEur = (firstInstallment?.lines ?? []).reduce((sum, line) => sum + line.plannedAmountEur, 0);
+  const averageEur =
+    installments.reduce((sum, installment) => sum + installment.lines.reduce((acc, line) => acc + line.plannedAmountEur, 0), 0) /
+    Math.max(installments.length, 1);
   const finalPoint = trajectory[trajectory.length - 1];
   const classRows = Object.entries(finalPoint?.byClass ?? {}).filter(
     ([, data]) => data && (Math.abs(data.currentPct) >= 0.05 || Math.abs(data.targetPct) >= 0.05),
@@ -58,8 +63,15 @@ export function PlanDraftSidePanel({ preview, months, band, weightsSum, targetLe
 
   return (
     <aside aria-label="Effetto dei pesi" className="flex flex-col gap-2 self-start rounded-xl bg-muted p-3.5">
-      <p className={TILE_SUB_EYEBROW_CLASS}>Rata mensile</p>
-      <p className="font-mono text-[22px] font-semibold tabular-nums text-foreground">{cachedFormatCurrencyEUR(monthly)}</p>
+      <p className={TILE_SUB_EYEBROW_CLASS}>
+        {firstInstallment ? `Rata di ${monthLabelLong(firstInstallment.month, false)}` : 'Rata mensile'}
+      </p>
+      <p className="font-mono text-[22px] font-semibold tabular-nums text-foreground">{cachedFormatCurrencyEUR(firstInstallment ? firstEur : liquidity.L / Math.max(months, 1))}</p>
+      {firstInstallment && (
+        <p className="text-[12px] text-muted-foreground">
+          {describeInstallmentAverage({ averageEur, firstEur, firstMonth: firstInstallment.month })}
+        </p>
+      )}
       <Line label="dai conti, tolta la riserva" value={cachedFormatCurrencyEUR(liquidity.availableNowEur)} />
       {liquidity.disposalProceedsEur > 0 && <Line label="vendite al mese 1" value={cachedFormatCurrencyEUR(liquidity.disposalProceedsEur)} />}
       {liquidity.inflowTotalEur > 0 && (

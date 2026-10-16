@@ -316,10 +316,17 @@ stessa console, ora con anche `match /modelPortfolios/{ownerId}`).
   e `AccumulationRecalibrateDialog` non esistono più.
 - **Piani conclusi (RP6)** (`PianiConclusiTile`, `summarizeClosedPlan`): nome · periodo · rate chiuse («2 / 3 · interrotto») ·
   investito su `L` all'attivazione · scostamento maggiore all'ultima misura contro i target di oggi, per CLASSE («+0,6 pp su
-  Azioni»; «—» senza misure). Nessuna azione.
+  Azioni»; «—» senza misure). **«Riattiva» (AL12, D-AL2)**: su un piano `cancelled` con `closedAt` da meno di 30 giorni e
+  nessun altro piano aperto (`canReactivatePlan`, `PLAN_REACTIVATION_DAYS`), bottone armato (due click) →
+  `reactivatePlan(ownerId, planId, today)`: in `runTransaction` rilegge il piano e ricontrolla le condizioni, `status:
+  'active'`, `closedAt` tolto. «Nessun altro piano aperto» si legge subito prima della transazione (il client non fa query
+  in transazione). Un piano `completed` non si riattiva; le rate dei mesi passati tornano `late` per l'abbinamento.
 - **Entrata suggerita (RP7).** Al passo 1, `suggestMonthlyInflow` (risparmio annuo del Cashflow ÷ 12, per difetto alle decine)
   con «Usa»; mai riempita da sola; nessuna riga con risparmio 0.
-- **Parole (RP8).** «Rata mensile», «Entrate nei N mesi», «Liquidità da spendere»; colonne Strumento · Tieni o vendi · Oggi ·
+- **Una sola «rata» (AL13).** «Rata di ottobre: 4207 €» è la rata del mese (tile, verdetto, pannello del passo Target); la
+  media si dice con il primo mese (`describeInstallmentAverage`: «in media 4455 € al mese; la prima, ottobre, 4207 €», nel
+  pannello del passo Target e nella sintesi del passo 3). Il passo 1 non ha ancora pesi: L ÷ N si chiama «Liquidità per mese».
+- **Parole (RP8).** «Liquidità per mese» (passo 1), «Entrate nei N mesi», «Liquidità da spendere»; colonne Strumento · Tieni o vendi · Oggi ·
   Target · Da comprare · Al mese (euro con le quote sotto, tutto sulla base B del passo); «Raggruppa due strumenti» sotto la
   tabella accende le caselle (non più davanti a ogni nome).
 
