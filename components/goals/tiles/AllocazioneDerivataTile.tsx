@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * ALLOCAZIONE DERIVATA — «che mix chiedono gli obiettivi?»: the target the goals still to fill
+ * ALLOCAZIONE DERIVATA — «che mix chiedono i traguardi?»: the target the goals still to fill
  * derive (gap × priority) over the allocation the assigned quotas actually hold, as two bars on
  * ONE legend (Allocazione's Bilanciamento rule). Only rendered with goal-driven allocation on.
  *
@@ -43,8 +43,8 @@ export function AllocazioneDerivataTile({ reading, aside, rows, footer, classNam
     <Tile eyebrow="Allocazione derivata" aside={aside} reading={reading} ariaLabel="Allocazione derivata" className={className}>
       <div className="mt-3.5 flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
-          <p className={TILE_SUB_EYEBROW_CLASS}>Derivata dagli obiettivi</p>
-          <CompositionBar segments={derived} ariaLabel="Allocazione derivata dagli obiettivi" showLegend={false} />
+          <p className={TILE_SUB_EYEBROW_CLASS}>Derivata dai traguardi</p>
+          <CompositionBar segments={derived} ariaLabel="Allocazione derivata dai traguardi" showLegend={false} />
         </div>
         <div className="flex flex-col gap-1.5">
           <p className={TILE_SUB_EYEBROW_CLASS}>Assegnata oggi</p>

@@ -621,7 +621,7 @@ export const ACCUMULO_STEP2_FROM_HINT: Record<'plan' | 'model' | 'today' | 'opti
   plan: 'I pesi salvati nel piano, com’erano quando l’hai aperto.',
   model: 'I pesi del portafoglio modello.',
   today: 'Target = Oggi: i nuovi soldi mantengono le proporzioni di adesso tra gli strumenti del piano.',
-  optimizer: 'I pesi che l’ottimizzatore propone dagli obiettivi.',
+  optimizer: 'I pesi che l’ottimizzatore propone dai criteri del modello.',
 };
 export const ACCUMULO_STEP2_FROM_TODAY = 'Pesi di oggi';
 export const ACCUMULO_STEP2_REDISTRIBUTE = 'Distribuisci il resto';

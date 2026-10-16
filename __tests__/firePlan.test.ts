@@ -199,8 +199,8 @@ describe('«Agisce su» (RP1, T12) and the links (RP10)', () => {
     expect(FIRE_PLAN_AFFECTS.age).toBe('Agisce su: tutte le schede');
     expect(FIRE_PLAN_AFFECTS.targetAge).toBe('Agisce su: Calcolatore, Coast FIRE, What If');
     expect(FIRE_PLAN_AFFECTS.expenses).toBe('Agisce su: tutte le schede');
-    expect(FIRE_PLAN_AFFECTS.pensions).toBe("Agisce su: Calcolatore, Coast FIRE, What If, Dopo il FIRE (negli Obiettivi solo l'Effetto sul FIRE)");
-    expect(FIRE_PLAN_AFFECTS.flows).toBe("Agisce su: tutte le schede (negli Obiettivi solo l'Effetto sul FIRE)");
+    expect(FIRE_PLAN_AFFECTS.pensions).toBe("Agisce su: Calcolatore, Coast FIRE, What If, Dopo il FIRE (nei Traguardi solo l'Effetto sul FIRE)");
+    expect(FIRE_PLAN_AFFECTS.flows).toBe("Agisce su: tutte le schede (nei Traguardi solo l'Effetto sul FIRE)");
   });
 
   it('knows the fields and the tabs a link can name', () => {

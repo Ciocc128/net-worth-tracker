@@ -503,7 +503,7 @@ describe('tile readings', () => {
 
   it('describeGoal should state what is still missing', () => {
     expect(plain(describeGoal(38000, 100000)!)).toBe('Mancano 62.000 €.');
-    expect(plain(describeGoal(100000, 100000)!)).toBe('Obiettivo raggiunto.');
+    expect(plain(describeGoal(100000, 100000)!)).toBe('Traguardo raggiunto.');
   });
 });
 

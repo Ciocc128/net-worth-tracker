@@ -157,7 +157,7 @@ export interface FireTogglesInput {
   goalDrivenAllocationEnabled: boolean;
 }
 
-/** FIRE e obiettivi — the three toggles this page owns. */
+/** FIRE e traguardi — the three toggles this page owns. */
 export function describeFireToggles({
   includePrimaryResidenceInFIRE,
   goalBasedInvestingEnabled,
@@ -167,10 +167,10 @@ export function describeFireToggles({
     ? 'La casa è dentro il patrimonio FIRE'
     : 'La casa resta fuori dal patrimonio FIRE';
   const goals = !goalBasedInvestingEnabled
-    ? '; obiettivi di investimento spenti.'
+    ? '; traguardi di investimento spenti.'
     : goalDrivenAllocationEnabled
-      ? '; obiettivi attivi e target di allocazione derivati dagli obiettivi.'
-      : '; obiettivi attivi, con target di allocazione manuali.';
+      ? '; traguardi attivi e target di allocazione derivati dai traguardi.'
+      : '; traguardi attivi, con target di allocazione manuali.';
   return [prose(house), prose(goals)];
 }
 
@@ -661,7 +661,7 @@ export function describeIdealAllocation(input: IdealAllocationInput): Narrative 
   const count = objectiveTexts.length;
   return [
     prose(
-      `Il portafoglio modello e il PAC possono proporre i pesi da ${count} obiettiv${count === 1 ? 'o' : 'i'}: ${objectiveTexts.join(', ')}.`
+      `Il portafoglio modello e il PAC possono proporre i pesi da ${count} ${count === 1 ? 'criterio' : 'criteri'}: ${objectiveTexts.join(', ')}.`
     ),
   ];
 }
@@ -674,7 +674,7 @@ export function describeIdealAllocation(input: IdealAllocationInput): Narrative 
  */
 export function describeIdealComposition(input: IdealAllocationInput): Narrative {
   const objectiveTexts = listIdealObjectives(input);
-  const whose = objectiveTexts.length === 1 ? 'il tuo obiettivo' : `i tuoi ${objectiveTexts.length} obiettivi`;
+  const whose = objectiveTexts.length === 1 ? 'il tuo criterio' : `i tuoi ${objectiveTexts.length} criteri`;
   return [prose(`Il portafoglio che rispetta meglio ${whose}, strumento per strumento: ${objectiveTexts.join(', ')}.`)];
 }
 

@@ -186,7 +186,7 @@ describe('describeFireToggles', () => {
           goalDrivenAllocationEnabled: false,
         })
       )
-    ).toBe('La casa resta fuori dal patrimonio FIRE; obiettivi attivi, con target di allocazione manuali.');
+    ).toBe('La casa resta fuori dal patrimonio FIRE; traguardi attivi, con target di allocazione manuali.');
   });
 
   it('reads house in and goal-derived targets', () => {
@@ -198,7 +198,7 @@ describe('describeFireToggles', () => {
           goalDrivenAllocationEnabled: true,
         })
       )
-    ).toBe('La casa è dentro il patrimonio FIRE; obiettivi attivi e target di allocazione derivati dagli obiettivi.');
+    ).toBe('La casa è dentro il patrimonio FIRE; traguardi attivi e target di allocazione derivati dai traguardi.');
   });
 
   it('reads goals off', () => {
@@ -210,7 +210,7 @@ describe('describeFireToggles', () => {
           goalDrivenAllocationEnabled: false,
         })
       )
-    ).toBe('La casa resta fuori dal patrimonio FIRE; obiettivi di investimento spenti.');
+    ).toBe('La casa resta fuori dal patrimonio FIRE; traguardi di investimento spenti.');
   });
 });
 
@@ -698,7 +698,7 @@ describe('describeIdealAllocation', () => {
           geography: null,
         })
       )
-    ).toBe('Il portafoglio modello e il PAC possono proporre i pesi da 1 obiettivo: classi (essenziale).');
+    ).toBe('Il portafoglio modello e il PAC possono proporre i pesi da 1 criterio: classi (essenziale).');
   });
 
   it('lists all four objectives with their priorities', () => {
@@ -714,7 +714,7 @@ describe('describeIdealAllocation', () => {
         })
       )
     ).toBe(
-      'Il portafoglio modello e il PAC possono proporre i pesi da 4 obiettivi: classi (essenziale), leva 1,23× (alta), secondo livello di Azioni (Equity) (alta), geografia come FTSE All-World (media).'
+      'Il portafoglio modello e il PAC possono proporre i pesi da 4 criteri: classi (essenziale), leva 1,23× (alta), secondo livello di Azioni (Equity) (alta), geografia come FTSE All-World (media).'
     );
   });
 });
@@ -765,7 +765,7 @@ describe('describeIdealComposition', () => {
         })
       )
     ).toBe(
-      'Il portafoglio che rispetta meglio i tuoi 4 obiettivi, strumento per strumento: classi (essenziale), leva 1,3× (alta), secondo livello di Azioni (alta), geografia come FTSE All-World (media).'
+      'Il portafoglio che rispetta meglio i tuoi 4 criteri, strumento per strumento: classi (essenziale), leva 1,3× (alta), secondo livello di Azioni (alta), geografia come FTSE All-World (media).'
     );
   });
 
@@ -781,7 +781,7 @@ describe('describeIdealComposition', () => {
           geography: null,
         })
       )
-    ).toBe('Il portafoglio che rispetta meglio il tuo obiettivo, strumento per strumento: classi (bassa).');
+    ).toBe('Il portafoglio che rispetta meglio il tuo criterio, strumento per strumento: classi (bassa).');
   });
 });
 

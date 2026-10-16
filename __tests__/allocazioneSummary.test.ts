@@ -18,6 +18,8 @@ import {
   buildPlanView,
   collapseRepeatedLevels,
   estimatePlanSaleTax,
+  findPacSubstitutions,
+  listPlanBuyAssetIds,
   isDormantClass,
   largestGapByValue,
   offTargetGaps,
@@ -727,5 +729,59 @@ describe('buildPensionLookThrough', () => {
     expect(look!.combinedSlices[0].assetClass).toBe('realestate');
     expect(look!.hasExcluded).toBe(true);
     expect(look!.allFrozen).toBe(true);
+  });
+});
+
+// AL17 (D-AL4): the Piano buys an instrument the open plan replaced with another member of its group.
+describe('listPlanBuyAssetIds / findPacSubstitutions', () => {
+  const instrument = (key: string, amount = 100): PlanNode => ({
+    key,
+    label: key,
+    amount,
+    currentValue: 0,
+    newValue: amount,
+    newPercentage: 100,
+    targetPercentage: 0,
+    children: [],
+    isInstrument: true,
+  });
+  const klass = (key: string, children: PlanNode[]): PlanNode => ({ ...instrument(key), isInstrument: false, children });
+  const holdings = [holding({ id: 'dbmfe', assetId: 'dbmfe' }), holding({ id: 'ntsg-0', assetId: 'ntsg' })];
+  const positions = [
+    { id: 'p1', label: 'Managed futures', targetPercentage: 18, memberAssetIds: ['dbmfe', 'mfeh'], buyAssetId: 'mfeh' },
+    { id: 'p2', label: 'Mondo', targetPercentage: 82, memberAssetIds: ['vwce'], buyAssetId: 'vwce' },
+  ];
+
+  it('reads the instruments Versa buys, through classes, and maps a sleeve back to its asset', () => {
+    const view = { mode: 'contribute', amount: 200, nodes: [klass('trendFollowing', [instrument('dbmfe')]), klass('equity', [instrument('ntsg-0')])], trades: null, overTarget: [] } as never;
+    expect(listPlanBuyAssetIds(view, holdings).sort()).toEqual(['dbmfe', 'ntsg']);
+  });
+
+  it('reads only the COMPRA legs of a rebalance, and nothing from a withdrawal', () => {
+    const rebalance = {
+      mode: 'rebalance',
+      moves: [
+        { assetClass: 'trendFollowing', action: 'COMPRA', children: [instrument('dbmfe')] },
+        { assetClass: 'equity', action: 'VENDI', children: [instrument('ntsg-0')] },
+      ],
+      trades: null,
+      resultingLeverageRatio: null,
+    } as never;
+    expect(listPlanBuyAssetIds(rebalance, holdings)).toEqual(['dbmfe']);
+    expect(listPlanBuyAssetIds({ mode: 'withdraw', nodes: [klass('equity', [instrument('ntsg-0')])], trades: null } as never, holdings)).toEqual([]);
+  });
+
+  it('uses the leverage engine\'s positive trades when it ran', () => {
+    const view = { mode: 'contribute', amount: 100, nodes: [], trades: [{ assetId: 'dbmfe', ticker: 'DBMFE', name: 'x', amount: 50 }, { assetId: 'vwce', ticker: 'VWCE', name: 'y', amount: 0 }], overTarget: [] } as never;
+    expect(listPlanBuyAssetIds(view, holdings)).toEqual(['dbmfe']);
+  });
+
+  it('flags a group member that the Piano buys although the plan buys another one', () => {
+    expect(findPacSubstitutions(positions, ['dbmfe'])).toEqual([{ replacedAssetId: 'dbmfe', buyAssetId: 'mfeh' }]);
+  });
+
+  it('says nothing when the Piano buys the plan\'s own buyer, a single instrument or nothing', () => {
+    expect(findPacSubstitutions(positions, ['mfeh', 'vwce'])).toEqual([]);
+    expect(findPacSubstitutions(positions, [])).toEqual([]);
   });
 });

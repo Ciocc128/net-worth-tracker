@@ -1,10 +1,10 @@
 /**
  * Tests for lib/utils/idealAllocationEditor.ts — what the objectives' editor (Allocazione ›
  * Accumulo, doc/pac-ottimizzatore § RV6) reads from the saved targets and the portfolio, and the
- * range checks «Salva gli obiettivi» runs.
+ * range checks «Salva i criteri» runs.
  */
 import { describe, it, expect } from 'vitest';
-import { buildObjectivesEditorContext, findIdealAllocationProblem } from '@/lib/utils/idealAllocationEditor';
+import { buildObjectivesEditorContext, describeClassTargets, findIdealAllocationProblem } from '@/lib/utils/idealAllocationEditor';
 import type { Asset, AssetAllocationTarget } from '@/types/assets';
 
 const asset = (overrides: Partial<Asset>): Asset =>
@@ -42,5 +42,27 @@ describe('findIdealAllocationProblem', () => {
     expect(findIdealAllocationProblem({ instrumentLimits: [{ minPct: 50, maxPct: 40 }], groupLimits: [] })).toMatch(/minimo/);
     expect(findIdealAllocationProblem({ instrumentLimits: [{ maxPct: 120 }], groupLimits: [] })).toMatch(/tra 0 e 100/);
     expect(findIdealAllocationProblem({ instrumentLimits: [], groupLimits: [{ label: '', maxPct: -1 }] })).toMatch(/senza etichetta/);
+  });
+});
+
+// AL18 (D-AL5): the class targets, read-only, inside the criteria's modal.
+describe('describeClassTargets', () => {
+  it('lists the classes with a target, in the targets\' order, with the leverage they imply', () => {
+    const view = describeClassTargets({ equity: { targetPercentage: 70 }, bonds: { targetPercentage: 20 }, commodity: { targetPercentage: 0 } } as unknown as AssetAllocationTarget, 0.9);
+    expect(view.rows.map((row) => [row.label, row.assetClass])).toEqual([['Azioni', 'equity'], ['Obbligazioni', 'bonds']]);
+    expect(view.rows[0].valueText).toContain('70');
+    expect(view.leverageText).toContain('nessuna leva');
+  });
+
+  it('names the leverage when the targets add up to more than 100%', () => {
+    const view = describeClassTargets({ equity: { targetPercentage: 90 }, bonds: { targetPercentage: 20 } } as unknown as AssetAllocationTarget, 1.1);
+    expect(view.leverageText).toBe('Somma 110%: leva 1,10×.');
+  });
+
+  it('says «importo fisso» for a cash target held as an amount, and nothing without targets', () => {
+    const view = describeClassTargets({ equity: { targetPercentage: 100 }, cash: { targetPercentage: 5, useFixedAmount: true, fixedAmount: 5000 } } as unknown as AssetAllocationTarget, 1);
+    expect(view.rows.map((row) => row.valueText)[1]).toBe('importo fisso');
+    expect(describeClassTargets(null, 1)).toEqual({ rows: [], leverageText: null });
+    expect(describeClassTargets({} as AssetAllocationTarget, 1).leverageText).toBeNull();
   });
 });

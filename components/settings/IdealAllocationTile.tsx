@@ -530,7 +530,7 @@ export function IdealAllocationTile({
 
   if (bare) return <div className="min-w-0">{content}</div>;
   return (
-    <Tile eyebrow="Allocazione ideale" reading={describeIdealAllocation(readingInput)}>
+    <Tile eyebrow="Criteri del modello" reading={describeIdealAllocation(readingInput)}>
       {content}
     </Tile>
   );

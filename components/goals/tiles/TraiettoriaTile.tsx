@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * TRAIETTORIA — «dove arriva l'obiettivo selezionato?»: the projected value at the deadline as the
+ * TRAIETTORIA — «dove arriva il traguardo selezionato?»: the projected value at the deadline as the
  * hero figure, four grouped chips (the pace paid, the pace required, the months left, the return)
  * and the glide path filling the tile's free height. The chart is passed in as `chart` so this
  * tile knows nothing about Recharts: a shell with a reading, a number, chips and a footer.
@@ -80,7 +80,7 @@ function DeleteButton({ onDelete, disabled }: { onDelete: () => void; disabled: 
         {armed ? 'Conferma eliminazione' : 'Elimina'}
       </button>
       <span className="sr-only" role="status" aria-live="polite">
-        {armed ? "Premi di nuovo per eliminare l'obiettivo" : wasArmed ? 'Eliminazione annullata' : ''}
+        {armed ? "Premi di nuovo per eliminare il traguardo" : wasArmed ? 'Eliminazione annullata' : ''}
       </span>
     </>
   );

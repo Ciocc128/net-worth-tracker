@@ -89,7 +89,7 @@ describe('describeConflict', () => {
       improvements: [{ objectiveId: 'geo:us', fromGapPp: 0, toGapPp: -4.1 }],
     };
     expect(describeConflict(conflict, objectives)).toBe(
-      "Senza l'obiettivo «Leva»: Stati Uniti nell'azionario da 66,1% a 62,0%."
+      "Senza il criterio «Leva»: Stati Uniti nell'azionario da 66,1% a 62,0%."
     );
   });
 
@@ -99,7 +99,7 @@ describe('describeConflict', () => {
       removedObjectiveId: 'leverage',
       improvements: [{ objectiveId: 'unknown', fromGapPp: 0, toGapPp: -1 }],
     };
-    expect(describeConflict(conflict, objectives)).toBe("Senza l'obiettivo «Leva»: .");
+    expect(describeConflict(conflict, objectives)).toBe("Senza il criterio «Leva»: .");
   });
 });
 
@@ -130,7 +130,7 @@ describe('describeOptimizerWarning', () => {
 
   it('factor_unmapped names the class and the sub-category without labelOf', () => {
     expect(describeOptimizerWarning({ code: 'factor_unmapped', assetClass: 'equity', subCategory: 'Momentum' }, labelOf)).toBe(
-      '«Momentum» (Azioni) non ha un peso tra i sotto-obiettivi: pesa zero nel calcolo.'
+      '«Momentum» (Azioni) non ha un peso tra i sotto-criteri: pesa zero nel calcolo.'
     );
   });
 });

@@ -86,7 +86,7 @@ describe('the clause of «Ipotesi usate»', () => {
     expect(chip?.lines.join(' | ')).toContain('Esclusi: Figlio: ');
   });
 
-  it('should say in the Obiettivi that the flows are read only by the effect on the FIRE', () => {
+  it('should say in the Traguardi that the flows are read only by the effect on the FIRE', () => {
     expect(describeFlowsChip(assumptions, 'goals')?.label).toBe("Flussi: solo nell'Effetto sul FIRE");
   });
 });
@@ -151,7 +151,7 @@ describe('describeSimulationFlowsRow (Monte Carlo and Proiezione › Parametri)'
 describe('describeGoalFlowRow (doc/fire-ipotesi/README.md § 13.7)', () => {
   it('should write the amount and the year of a goal that counts, and the reason of one left out', async () => {
     const { describeGoalFlowRow } = await import('@/lib/utils/datedFlowsNarrative');
-    expect(describeGoalFlowRow('Acquisto Casa', { amount: 50_000, year: 2029 })).toMatch(/^Acquisto Casa · obiettivo · 50\.000\s€ · 2029 · si modifica in Obiettivi$/);
-    expect(describeGoalFlowRow('Auto', { reason: 'scadenza passata' })).toBe('Auto · obiettivo · escluso: scadenza passata · si modifica in Obiettivi');
+    expect(describeGoalFlowRow('Acquisto Casa', { amount: 50_000, year: 2029 })).toMatch(/^Acquisto Casa · traguardo · 50\.000\s€ · 2029 · si modifica in Traguardi$/);
+    expect(describeGoalFlowRow('Auto', { reason: 'scadenza passata' })).toBe('Auto · traguardo · escluso: scadenza passata · si modifica in Traguardi');
   });
 });

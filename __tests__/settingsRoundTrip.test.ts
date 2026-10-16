@@ -467,7 +467,7 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
     expect(writtenPayload().idealAllocation).toEqual(STORED_IDEAL_ALLOCATION);
   });
 
-  // RV6 / PT7: «Salva gli obiettivi» (Allocazione › Accumulo) sends ONLY idealAllocation.
+  // RV6 / PT7: «Salva i criteri» (Allocazione › Accumulo) sends ONLY idealAllocation.
   it('writes the objectives alone: no other setting is in the payload', async () => {
     await setSettings('user-1', { idealAllocation: STORED_IDEAL_ALLOCATION } as AssetAllocationSettings);
 
