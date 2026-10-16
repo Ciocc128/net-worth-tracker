@@ -676,6 +676,18 @@ export function describeWeightsTotal(sum: number): string {
 export const ACCUMULO_STEP3_COL_MONTH = 'Mese';
 export const ACCUMULO_STEP3_COL_TOTAL = 'Totale €';
 export const ACCUMULO_STEP3_SECTION_WEIGHTS = 'Pesi a fine piano';
+/** AL14: step 3 writes the plan's weights into the model portfolio in the same action. */
+export const ACCUMULO_STEP3_UPDATE_MODEL = 'Aggiorna anche il portafoglio modello';
+export const ACCUMULO_ACTION_CLOSE_EDITOR = 'Chiudi';
+/** AL14: the plan is written, the model's write failed — the error row says both. */
+export function describeModelWriteAfterPlan(reason: string): string {
+  return `Il piano è salvato, ma il portafoglio modello non si è aggiornato: ${reason}`;
+}
+/** AL15: the plan and the model no longer say the same (the row in Questo mese). */
+export function describePlanModelDivergence(count: number): string {
+  return `Il piano differisce dal portafoglio modello su ${count} strument${count === 1 ? 'o' : 'i'}.`;
+}
+export const ACCUMULO_ACTION_REVIEW_FROM_MODEL = 'Rivedi dal modello';
 export const ACCUMULO_STEP3_SECTION_EXPOSURE = 'Esposizione implicita';
 export const ACCUMULO_STEP3_SECTION_CLASSES = 'Classi mese per mese';
 export const ACCUMULO_ELLIPSIS = '…';

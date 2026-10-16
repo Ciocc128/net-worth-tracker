@@ -13,16 +13,16 @@
  * `AccumulationPlanDialog` so two modals are never stacked. No calculation and no network call before
  * the reader asks.
  */
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
-import type { PlanPosition, PlanDisposal, OptimizerSnapshot } from '@/types/accumulationPlan';
+import type { AccumulationPlan, PlanPosition, PlanDisposal, OptimizerSnapshot } from '@/types/accumulationPlan';
 import type { ModelPortfolio } from '@/types/modelPortfolio';
 import type { RebalanceBand } from '@/lib/utils/allocationUtils';
 import { calculateAssetValue, getAssetById } from '@/lib/services/assetService';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
-import { addModelCandidate, describeModelVsToday } from '@/lib/utils/modelPortfolio';
+import { addModelCandidate, describeModelExclusions, describeModelVsToday, groupMembers, MODEL_NO_TRADABLE_INSTRUMENTS, planPositionsToModelWeights } from '@/lib/utils/modelPortfolio';
 import { describeWriteError } from '@/lib/utils/dialogNarrative';
 import { cachedFormatCurrencyEUR, formatPercentageIt } from '@/lib/utils/formatters';
 import {
@@ -32,12 +32,15 @@ import {
   MODEL_ACTION_ADD_CANDIDATE,
   MODEL_ACTION_EDIT,
   MODEL_ACTION_RECALCULATE,
+  MODEL_ACTION_USE_PLAN,
+  MODEL_SAVED_TOAST,
   MODEL_ADD_CANDIDATE_NEEDS_MODEL,
   MODEL_CANDIDATE_TAG,
   MODEL_COL_DIFF,
   MODEL_COL_INSTRUMENT,
   MODEL_COL_MODEL,
   MODEL_COL_TODAY,
+  MODEL_GROUP_NO_BUY,
   MODEL_OUTSIDE_LABEL,
   MODEL_RECALCULATE_NEEDS_OBJECTIVES,
   MODEL_TILE_EMPTY_READING,
@@ -66,6 +69,8 @@ interface PortafoglioModelloTileProps {
   band: RebalanceBand;
   /** The saved model, `null` when none; `readFailed` when the read itself failed (rule not deployed). */
   model: ModelPortfolio | null;
+  /** The open plan: an active one with no model saved offers «Usa i pesi del piano» (AL14). */
+  plan?: AccumulationPlan | null;
   readFailed: boolean;
   onAssetsChanged: () => void;
 }
@@ -89,6 +94,7 @@ export function PortafoglioModelloTile({
   idealAllocation,
   band,
   model,
+  plan = null,
   readFailed,
   onAssetsChanged,
 }: PortafoglioModelloTileProps) {
@@ -112,16 +118,39 @@ export function PortafoglioModelloTile({
   const barScale = comparison ? Math.max(1, ...comparison.rows.flatMap((row) => [row.todayPct, row.modelPct])) * 1.12 : 1;
   const overweightLabels = comparison ? comparison.rows.filter((row) => row.diffEur < -1).map((row) => labelOf(row.assetId)) : [];
 
+  const instrumentCount = model ? model.weights.reduce((sum, weight) => sum + groupMembers(weight).length, 0) : 0;
+
   const reading: Narrative = readFailed
     ? [{ text: MODEL_TILE_READ_FAILURE_READING }]
     : !model || !comparison
       ? [{ text: MODEL_TILE_EMPTY_READING }]
       : [
-          { text: `${model.weights.length} strument${model.weights.length === 1 ? 'o' : 'i'}. ${describeModelOrigin(model.origin, model.updatedAt, model.optimizerSnapshot)} ` },
+          { text: `${instrumentCount} strument${instrumentCount === 1 ? 'o' : 'i'}. ${describeModelOrigin(model.origin, model.updatedAt, model.optimizerSnapshot)} ` },
           ...(toBuyEur >= 1
             ? ([{ text: 'Per portare il portafoglio sul modello servono ' }, { text: cachedFormatCurrencyEUR(toBuyEur, true), mono: true }, { text: ' di acquisti.' }] as Narrative)
             : ([{ text: 'Il portafoglio è già sul modello.' }] as Narrative)),
         ];
+
+  // AL14: with an active plan and no model, the plan's weights (and groups) become the model.
+  const canUsePlan = !model && !readFailed && !!plan && plan.status === 'active';
+  const handleUsePlan = async () => {
+    if (!plan) return;
+    const fit = planPositionsToModelWeights(plan.positions, assetsById, (asset) => asset.quantity);
+    if (fit.portfolioWeights.length === 0) {
+      toast.error(MODEL_NO_TRADABLE_INSTRUMENTS);
+      return;
+    }
+    try {
+      await saveModel.mutateAsync({
+        input: { weights: fit.portfolioWeights, origin: 'manual', optimizerSnapshot: plan.optimizerSnapshot },
+        allAssets,
+      });
+      toast.success(MODEL_SAVED_TOAST);
+      if (fit.excluded.length > 0) toast.info(describeModelExclusions(fit.excluded, labelOf));
+    } catch (error) {
+      toast.error(describeWriteError(error));
+    }
+  };
 
   const handleCandidateCreated = async (assetId: string) => {
     setView('closed');
@@ -163,7 +192,8 @@ export function PortafoglioModelloTile({
               </thead>
               <tbody>
                 {comparison.rows.map((row) => (
-                  <tr key={row.assetId} className="border-b border-border last:border-0">
+                  <Fragment key={row.assetId}>
+                  <tr className="border-b border-border last:border-0">
                     <th scope="row" className="py-1.5 pr-2 text-left font-normal text-foreground">
                       {nameOf(row.assetId)}
                       <span className="block text-[11px] text-muted-foreground">
@@ -185,6 +215,19 @@ export function PortafoglioModelloTile({
                     </td>
                     <td className={`${NUM_CELL_CLASS} pr-0 ${row.diffEur >= 1 ? 'text-positive' : 'text-muted-foreground'}`}>{signedEur(row.diffEur)}</td>
                   </tr>
+                  {/* AL16: a group is drawn as in the Target step — the buyer is the head, the others indented. */}
+                  {row.memberAssetIds.slice(1).map((memberId) => (
+                    <tr key={memberId} className="border-b border-border last:border-0">
+                      <th scope="row" className="py-1.5 pl-5 pr-2 text-left font-normal text-foreground">
+                        {nameOf(memberId)}
+                        <span className="block text-[11px] text-muted-foreground">
+                          {labelOf(memberId)} · {MODEL_GROUP_NO_BUY}
+                        </span>
+                      </th>
+                      <td colSpan={3} />
+                    </tr>
+                  ))}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -213,6 +256,11 @@ export function PortafoglioModelloTile({
           <Button className={TILE_ACTION_CLASS} onClick={() => setView('composition')} disabled={!targets || !objectivesOn}>
             {MODEL_ACTION_RECALCULATE}
           </Button>
+          {canUsePlan && (
+            <Button className={TILE_ACTION_CLASS} onClick={() => void handleUsePlan()} disabled={isDemo || saveModel.isPending}>
+              {MODEL_ACTION_USE_PLAN}
+            </Button>
+          )}
           <Button variant="outline" className={TILE_ACTION_CLASS} onClick={() => setView('edit')} disabled={isDemo || readFailed}>
             {MODEL_ACTION_EDIT}
           </Button>

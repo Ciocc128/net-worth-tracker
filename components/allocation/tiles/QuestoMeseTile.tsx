@@ -107,7 +107,10 @@ import {
   describeRegisterNote,
   describeRegisterSaleNote,
   describeReserveWarning,
+  describePlanModelDivergence,
+  ACCUMULO_ACTION_REVIEW_FROM_MODEL,
 } from '@/lib/utils/accumulationNarrative';
+import { comparePlanToModel } from '@/lib/utils/modelPortfolio';
 
 interface QuestoMeseTileProps {
   ownerId: string;
@@ -146,6 +149,7 @@ export function QuestoMeseTile({
 
   const [planDialogOpen, setPlanDialogOpen] = useState(false);
   const [reviseOpen, setReviseOpen] = useState(false);
+  const [reviseFromModel, setReviseFromModel] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarFocusIndex, setCalendarFocusIndex] = useState<number | undefined>(undefined);
   const [registerTarget, setRegisterTarget] = useState<
@@ -349,6 +353,7 @@ export function QuestoMeseTile({
       ownerId={ownerId}
       plan={plan}
       revise
+      reviseFromModel={reviseFromModel}
       allAssets={allAssets}
       targets={targets}
       band={band}
@@ -530,6 +535,8 @@ export function QuestoMeseTile({
     const state = effectiveLineState(matchResult.lineStates[`${currentIndex}:${line.positionId}`] ?? 'todo', `${currentIndex}:${line.positionId}`, ignoredMatches, false);
     return state === 'todo' || state === 'toConfirm' || state === 'late';
   });
+  // AL15: does the plan still say what the model says?
+  const divergence = model ? comparePlanToModel(plan.positions, model) : null;
   const monthReading = describeMonthReading(
     openMonthLines.length,
     openMonthLines.reduce((sum, line) => sum + line.plannedAmountEur, 0),
@@ -563,6 +570,25 @@ export function QuestoMeseTile({
                   {ACCUMULO_ACTION_KEEP_AS_IS}
                 </Button>
               </div>
+            )}
+          </div>
+        )}
+
+        {divergence && divergence.count > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-muted/40 p-3">
+            <p className="text-[12px] leading-[1.5] text-foreground">{describePlanModelDivergence(divergence.count)}</p>
+            {!isDemo && (
+              <Button
+                variant="outline"
+                className={ROW_ACTION_CLASS}
+                disabled={!findFirstIntactInstallment(plan)}
+                onClick={() => {
+                  setReviseFromModel(true);
+                  setReviseOpen(true);
+                }}
+              >
+                {ACCUMULO_ACTION_REVIEW_FROM_MODEL}
+              </Button>
             )}
           </div>
         )}
@@ -813,7 +839,7 @@ export function QuestoMeseTile({
             <Button variant="outline" className={TILE_ACTION_CLASS} onClick={() => { setCalendarFocusIndex(undefined); setCalendarOpen(true); }}>
               {ACCUMULO_ACTION_CALENDAR}
             </Button>
-            <Button variant="outline" className={TILE_ACTION_CLASS} disabled={isDemo || !findFirstIntactInstallment(plan)} onClick={() => setReviseOpen(true)}>
+            <Button variant="outline" className={TILE_ACTION_CLASS} disabled={isDemo || !findFirstIntactInstallment(plan)} onClick={() => { setReviseFromModel(false); setReviseOpen(true); }}>
               {ACCUMULO_ACTION_REVISE}
             </Button>
             <Button
