@@ -11,6 +11,7 @@
  * The draft never leaks out: closing the modal drops it.
  */
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Asset, AssetAllocationSettings, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
@@ -19,7 +20,7 @@ import { groupMembers, modelGroups } from '@/lib/utils/modelPortfolio';
 import { setSettings } from '@/lib/services/assetAllocationService';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
-import { buildObjectivesEditorContext, findIdealAllocationProblem } from '@/lib/utils/idealAllocationEditor';
+import { buildObjectivesEditorContext, describeClassTargets, findIdealAllocationProblem } from '@/lib/utils/idealAllocationEditor';
 import type { AccumulationPlan } from '@/types/accumulationPlan';
 import { planMemberAssetIds } from '@/lib/utils/accumulationPlanUtils';
 import { buildStandaloneCandidates, runOptimizer, type OptimizerResult } from '@/lib/utils/weightOptimizer';
@@ -31,6 +32,11 @@ import {
   OBJECTIVES_ACTION_CANCEL,
   OBJECTIVES_ACTION_SAVE,
   OBJECTIVES_ACTION_TRY,
+  OBJECTIVES_CLASS_TARGETS_EMPTY,
+  OBJECTIVES_CLASS_TARGETS_EYEBROW,
+  OBJECTIVES_CLASS_TARGETS_HREF,
+  OBJECTIVES_CLASS_TARGETS_LINK,
+  OBJECTIVES_CLASS_TARGETS_READING,
   OBJECTIVES_DIALOG_READING,
   OBJECTIVES_DIALOG_TITLE,
   OBJECTIVES_SAVED_TOAST,
@@ -44,6 +50,7 @@ import {
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Button } from '@/components/ui/button';
+import { TILE_FOOTER_ACTION_CLASS } from '@/components/ui/tile';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { IdealAllocationTile } from '@/components/settings/IdealAllocationTile';
 import { OptimizerObjectivesReport } from '@/components/allocation/OptimizerReport';
@@ -74,6 +81,7 @@ export function ObiettiviDialog({ open, onClose, ownerId, allAssets, targets, ta
   const [saving, setSaving] = useState(false);
 
   const editorContext = useMemo(() => buildObjectivesEditorContext(targets, allAssets, calculateAssetValue), [targets, allAssets]);
+  const classTargets = useMemo(() => describeClassTargets(targets, targetLeverageRatio), [targets, targetLeverageRatio]);
   const assetsById = useMemo(() => new Map(allAssets.map((asset) => [asset.id, asset])), [allAssets]);
 
   // The «Prova» base is the whole allocable portfolio: no amount to invest, the objectives alone.
@@ -164,6 +172,26 @@ export function ObiettiviDialog({ open, onClose, ownerId, allAssets, targets, ta
       }
     >
       <div className="space-y-4">
+        <section aria-label={OBJECTIVES_CLASS_TARGETS_EYEBROW} className="rounded-[10px] bg-muted px-3.5 py-3">
+          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{OBJECTIVES_CLASS_TARGETS_EYEBROW}</p>
+          <p className="mt-1 text-[12px] text-muted-foreground">{classTargets.rows.length > 0 ? OBJECTIVES_CLASS_TARGETS_READING : OBJECTIVES_CLASS_TARGETS_EMPTY}</p>
+          {classTargets.rows.length > 0 && (
+            <ul className="mt-2 divide-y divide-border">
+              {classTargets.rows.map((row) => (
+                <li key={row.assetClass} className="flex items-baseline justify-between gap-3 py-1.5 text-[13px] text-foreground">
+                  <span>{row.label}</span>
+                  <span className="font-mono tabular-nums">{row.valueText}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[12px]">
+            {classTargets.leverageText && <span className="text-muted-foreground">{classTargets.leverageText}</span>}
+            <Link href={OBJECTIVES_CLASS_TARGETS_HREF} className={TILE_FOOTER_ACTION_CLASS}>
+              {OBJECTIVES_CLASS_TARGETS_LINK}
+            </Link>
+          </div>
+        </section>
         <IdealAllocationTile
           bare
           value={draft}

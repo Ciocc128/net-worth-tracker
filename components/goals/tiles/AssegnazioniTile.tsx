@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * ASSEGNAZIONI — «quale strumento serve quale obiettivo?»: the quotas grouped by goal, each group
+ * ASSEGNAZIONI — «quale strumento serve quale traguardo?»: the quotas grouped by goal, each group
  * headed by the goal's dot, name, total and its «Aggiungi», and — beside them — the free shares,
  * closed by the «Non assegnato» residual so the tile visibly adds up to the portfolio (The
  * Narrative Honesty Rule). From `desktop:` two tables at the tile's cadence (sub-eyebrow
@@ -100,7 +100,7 @@ export function AssegnazioniTile({ reading, aside, view, onAdd, onRemove, footer
               </tr>
               {group.rows.length === 0 ? (
                 <tr className="border-t border-border">
-                  <td colSpan={4} className="py-2 text-[12px] italic text-muted-foreground">Nessuna quota assegnata a questo obiettivo.</td>
+                  <td colSpan={4} className="py-2 text-[12px] italic text-muted-foreground">Nessuna quota assegnata a questo traguardo.</td>
                 </tr>
               ) : (
                 group.rows.map((row) => (
@@ -157,7 +157,7 @@ export function AssegnazioniTile({ reading, aside, view, onAdd, onRemove, footer
               <GroupHead group={group} onAdd={() => onAdd(group.goalId)} disabled={isDemo} />
             </div>
             {group.rows.length === 0 ? (
-              <p className="pb-3 text-[12px] italic text-muted-foreground">Nessuna quota assegnata a questo obiettivo.</p>
+              <p className="pb-3 text-[12px] italic text-muted-foreground">Nessuna quota assegnata a questo traguardo.</p>
             ) : (
               <ul className="flex flex-col divide-y divide-border">
                 {group.rows.map((row) => (

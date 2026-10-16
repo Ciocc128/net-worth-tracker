@@ -172,12 +172,12 @@ export function GoalFormDialog({
     <ResponsiveModal
       open={open}
       onClose={onClose}
-      eyebrow="FIRE · Obiettivi"
-      title={isEditing ? 'Modifica obiettivo' : 'Nuovo obiettivo'}
+      eyebrow="FIRE · Traguardi"
+      title={isEditing ? 'Modifica traguardo' : 'Nuovo traguardo'}
       reading={
         targetDate
-          ? 'Con una scadenza l’obiettivo entra nel verdetto: la pagina dirà se sei in rotta e quanto manca al ritmo attuale.'
-          : 'Senza scadenza l’obiettivo resta fuori dal verdetto: la pagina ne stima l’arrivo, ma non giudica un ritardo che nessuna data definisce.'
+          ? 'Con una scadenza il traguardo entra nel verdetto: la pagina dirà se sei in rotta e quanto manca al ritmo attuale.'
+          : 'Senza scadenza il traguardo resta fuori dal verdetto: la pagina ne stima l’arrivo, ma non giudica un ritardo che nessuna data definisce.'
       }
       width="md"
       footer={
@@ -196,7 +196,7 @@ export function GoalFormDialog({
             }
           >
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
-            {saving ? 'Salvataggio...' : isEditing ? 'Salva modifiche' : 'Crea obiettivo'}
+            {saving ? 'Salvataggio...' : isEditing ? 'Salva modifiche' : 'Crea traguardo'}
           </Button>
         </>
       }
@@ -241,7 +241,7 @@ export function GoalFormDialog({
 
           {/* Target amount */}
           <div className="space-y-1">
-            <Label htmlFor="goalTarget">Importo Obiettivo (EUR)</Label>
+            <Label htmlFor="goalTarget">Importo del traguardo (EUR)</Label>
             <Input
               id="goalTarget"
               type="number"
@@ -255,7 +255,7 @@ export function GoalFormDialog({
 
           {/* Target date */}
           <div className="space-y-1">
-            <Label htmlFor="goalDate">Data Obiettivo (opzionale)</Label>
+            <Label htmlFor="goalDate">Data del traguardo (opzionale)</Label>
             <Input
               id="goalDate"
               type="date"
@@ -278,7 +278,7 @@ export function GoalFormDialog({
             />
             <p className="text-xs text-muted-foreground">
               Quanto pensi di versare ogni mese: serve a stimare quando raggiungerai
-              l&apos;obiettivo.
+              il traguardo.
             </p>
           </div>
 
@@ -342,7 +342,7 @@ export function GoalFormDialog({
           <div className="space-y-2">
             <Label className="text-sm">Allocazione Consigliata (opzionale)</Label>
             <p className="text-xs text-muted-foreground">
-              Definisci il mix ideale di asset class per questo obiettivo
+              Definisci il mix ideale di asset class per questo traguardo
             </p>
             <div className="grid grid-cols-2 gap-2">
               {ALLOCATION_CLASSES.map((cls) => (
@@ -385,7 +385,7 @@ export function GoalFormDialog({
               maxLength={500}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Note sull'obiettivo..."
+              placeholder="Note sul traguardo..."
             />
             <p
               className={`text-xs ${

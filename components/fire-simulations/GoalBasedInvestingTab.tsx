@@ -8,14 +8,14 @@
  * some late, all late, nothing to judge — and gives each goal its clause, over a 12-column grid of
  * tiles that each answer one question with a reading line above their figures.
  *
- *   Desktop (12 col): Obiettivi(5, 2 rows) | Traiettoria(7)
+ *   Desktop (12 col): Traguardi(5, 2 rows) | Traiettoria(7)
  *                                          | Allocazione derivata(7)
  *                     Assegnazioni(12)
- *   Mobile (1 col):   Obiettivi → Traiettoria → Allocazione derivata → Assegnazioni
+ *   Mobile (1 col):   Traguardi → Traiettoria → Allocazione derivata → Assegnazioni
  *
  * Without goal-driven allocation the Allocazione derivata tile is absent. A «Dettaglio» disclosure below the grid holds the next contribution's split and the
  * explainer. The page has NO period axis — a goal is read today — and its one selection, the goal
- * the Traiettoria draws, is a row of the Obiettivi tile (`aria-current`).
+ * the Traiettoria draws, is a row of the Traguardi tile (`aria-current`).
  *
  * This file is the ORCHESTRATOR and computes nothing: the numbers come from
  * lib/utils/goalsSummary.ts over the trajectories `goalTrajectory.ts` already computes, the
@@ -290,20 +290,20 @@ export function GoalBasedInvestingTab() {
     setGoalDialogOpen(false);
     setEditingGoal(null);
     if (!isEditing) setSelectedGoalId(goal.id);
-    toast.success(isEditing ? 'Obiettivo aggiornato' : 'Obiettivo creato');
+    toast.success(isEditing ? 'Traguardo aggiornato' : 'Traguardo creato');
   };
 
   // «Conta nel FIRE» (the same write as Modifica, one field).
   const handleCountInFire = async (goal: InvestmentGoal) => {
     await saveMutation.mutateAsync({ goals: goals.map((g) => (g.id === goal.id ? { ...g, countsInFire: true, updatedAt: new Date() } : g)), assignments: cleanedAssignments });
-    toast.success('L’obiettivo conta nel FIRE');
+    toast.success('Il traguardo conta nel FIRE');
   };
 
   const handleDeleteGoal = async (goalId: string) => {
     const updatedGoals = goals.filter((g) => g.id !== goalId);
     const updatedAssignments = cleanedAssignments.filter((a) => a.goalId !== goalId);
     await saveMutation.mutateAsync({ goals: updatedGoals, assignments: updatedAssignments });
-    toast.success('Obiettivo eliminato');
+    toast.success('Traguardo eliminato');
   };
 
   // ─── Assignments ─────────────────────────────────────────────────────────────
@@ -328,8 +328,8 @@ export function GoalBasedInvestingTab() {
       <ErrorNotice
         className="max-w-[920px]"
         notice={describeReadFailure({
-          consequence: 'Obiettivi e strumenti non sono stati letti: senza di essi la pagina direbbe che non hai obiettivi.',
-          untouched: 'Gli obiettivi e le assegnazioni registrati non sono stati toccati.',
+          consequence: 'Traguardi e strumenti non sono stati letti: senza di essi la pagina direbbe che non hai traguardi.',
+          untouched: 'I traguardi e le assegnazioni registrati non sono stati toccati.',
         })}
       />
     );
@@ -344,13 +344,13 @@ export function GoalBasedInvestingTab() {
     return (
       <div className="space-y-4">
         <div className="pt-1">
-          <PageVerdict verdict={verdict} ariaLabel="Verdetto sugli obiettivi" />
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sui traguardi" />
         </div>
         <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
           <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-5')}>
-            <Tile eyebrow="Obiettivi" ariaLabel="Obiettivi">
+            <Tile eyebrow="Traguardi" ariaLabel="Traguardi">
               <p className="mt-3 text-[13px] leading-[1.45] text-muted-foreground">
-                Assegna quote del portafoglio a obiettivi come una casa, la pensione o un fondo emergenza, e la pagina dirà se ogni scadenza è in rotta.
+                Assegna quote del portafoglio a traguardi come una casa, la pensione o un fondo emergenza, e la pagina dirà se ogni scadenza è in rotta.
               </p>
               <Link href="/dashboard/settings" className={cn(ASIDE_BUTTON_CLASS, 'mt-4 w-fit')}>
                 <Settings className="h-3.5 w-3.5" aria-hidden="true" />
@@ -369,7 +369,7 @@ export function GoalBasedInvestingTab() {
       {isDemo && <span>non disponibile in demo</span>}
       <button type="button" onClick={handleCreateGoal} disabled={isDemo} className={ASIDE_BUTTON_CLASS}>
         <Plus className="h-3 w-3" aria-hidden="true" />
-        Nuovo obiettivo
+        Nuovo traguardo
       </button>
     </span>
   );
@@ -379,7 +379,7 @@ export function GoalBasedInvestingTab() {
     <div className="space-y-4">
       <div className="pt-1">
         <FireAssumptionsRow assumptions={assumptions} view="goals" />
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto sugli obiettivi" />
+        <PageVerdict verdict={verdict} ariaLabel="Verdetto sui traguardi" />
       </div>
 
       {/* Tablet (768-1439): every tile full width, in the phone's order. */}
@@ -392,7 +392,7 @@ export function GoalBasedInvestingTab() {
             selectedId={effectiveSelectedId}
             onSelect={setSelectedGoalId}
             footer={hasGoals ? describeObiettiviFooter(overview) : null}
-            emptyCopy="Nessun obiettivo ancora: crea il primo con «Nuovo obiettivo», poi assegnagli una quota di uno o più strumenti."
+            emptyCopy="Nessun traguardo ancora: crea il primo con «Nuovo traguardo», poi assegnagli una quota di uno o più strumenti."
           />
         </div>
 

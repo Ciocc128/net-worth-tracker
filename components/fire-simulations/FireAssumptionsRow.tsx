@@ -66,7 +66,7 @@ function Chip({ chip }: { chip: FireChip }) {
   );
 }
 
-/** `view="goals"`: the Obiettivi read no dated flows, and the Flussi chip says so (RC3). */
+/** `view="goals"`: the Traguardi read no dated flows, and the Flussi chip says so (RC3). */
 export function FireAssumptionsRow({ assumptions, view = 'default' }: { assumptions: FireAssumptions | null; view?: 'goals' | 'default' }) {
   if (!assumptions) return null;
   const capital = describeCapitalRow(assumptions);

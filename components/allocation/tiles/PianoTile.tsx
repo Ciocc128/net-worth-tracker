@@ -31,7 +31,8 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
 import { useActionColors } from '@/lib/hooks/useActionColors';
 import { Input } from '@/components/ui/input';
-import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { NarrativeText } from '@/components/ui/narrative-text';
+import { Tile, TILE_FOOTER_ACTION_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { AsideToggle, type AsideToggleOption } from '@/components/ui/aside-toggle';
 import { ActionChip } from '@/components/allocation/ActionChip';
 import { PlanRow } from '@/components/allocation/PlanRow';
@@ -48,6 +49,8 @@ interface PianoTileProps {
   view: PlanView;
   /** `describePlanFooter(mode, leveraged)` */
   footer: string;
+  /** AL17: with an active accumulation plan, what it does this month and that this Piano ignores it. */
+  pacNote?: { reading: Narrative; onOpenAccumulo: () => void } | null;
 }
 
 const MODE_OPTIONS: ReadonlyArray<AsideToggleOption<PlanMode>> = [
@@ -201,7 +204,7 @@ function FlowBody({
 
 // ─── Tile ─────────────────────────────────────────────────────────────────────
 
-export function PianoTile({ mode, onModeChange, amountInput, onAmountInputChange, reading, view, footer }: PianoTileProps) {
+export function PianoTile({ mode, onModeChange, amountInput, onAmountInputChange, reading, view, footer, pacNote }: PianoTileProps) {
   const actionColors = useActionColors();
 
   return (
@@ -210,6 +213,15 @@ export function PianoTile({ mode, onModeChange, amountInput, onAmountInputChange
       aside={<AsideToggle options={MODE_OPTIONS} value={mode} onChange={onModeChange} ariaLabel="Tipo di piano" />}
       reading={reading}
     >
+      {/* AL17 (D-AL4): the three engines ignore the accumulation plan; the line above the moves says so. */}
+      {pacNote && (
+        <div className="mt-3 rounded-[10px] bg-muted px-3 py-2.5 text-[12px] leading-[1.5] text-foreground">
+          <NarrativeText segments={pacNote.reading} className="inline" />{' '}
+          <button type="button" onClick={pacNote.onOpenAccumulo} className={TILE_FOOTER_ACTION_CLASS}>
+            Apri Accumulo
+          </button>
+        </div>
+      )}
       {/* The body follows the view, not the toggle: the two agree by construction, and the
           view's mode is what narrows the union. A Ribilancia with nothing to do draws no body at
           all — the reading already said «Tutto in linea» — so the footer sits right under it. */}

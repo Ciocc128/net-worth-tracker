@@ -59,7 +59,7 @@ function GoalRow({ goal, hero }: { goal: DashboardOverviewGoalProgress; hero: bo
 }
 
 /**
- * "A che punto sono gli obiettivi?" — the featured goal large, the next ones under it as
+ * "A che punto sono i traguardi?" — the featured goal large, the next ones under it as
  * compact rows, so the tile's desktop height is spent on goals rather than on air.
  */
 export function ObiettivoTile({ goals, className }: ObiettivoTileProps) {
@@ -69,7 +69,7 @@ export function ObiettivoTile({ goals, className }: ObiettivoTileProps) {
 
   return (
     <OverviewTile
-      eyebrow={single ? 'Obiettivo' : 'Obiettivi'}
+      eyebrow={single ? 'Traguardo' : 'Traguardi'}
       aside={
         single ? (
           <span className="truncate">{featured.goalName}</span>
@@ -80,7 +80,7 @@ export function ObiettivoTile({ goals, className }: ObiettivoTileProps) {
         )
       }
       reading={single ? describeGoal(featured.currentValue, featured.targetAmount) : undefined}
-      ariaLabel={single ? `Obiettivo ${featured.goalName}` : 'Obiettivi'}
+      ariaLabel={single ? `Traguardo ${featured.goalName}` : 'Traguardi'}
       className={className}
     >
       <div className="mt-4 flex flex-col divide-y divide-border">

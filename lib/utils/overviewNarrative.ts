@@ -514,7 +514,7 @@ export function rankingFromOverview(rows: DashboardOverviewCategoryAmount[], tot
 export function describeGoal(currentValue: number, targetAmount: number): Narrative | null {
   if (targetAmount <= 0) return null;
   const missing = targetAmount - currentValue;
-  if (missing <= 0) return [prose('Obiettivo raggiunto.')];
+  if (missing <= 0) return [prose('Traguardo raggiunto.')];
   return [prose('Mancano '), figure(cachedFormatCurrencyEUR(missing, true)), prose('.')];
 }
 

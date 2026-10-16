@@ -192,6 +192,33 @@ function pacClause(pac: PacVerdictInput): Narrative {
   ];
 }
 
+export interface PacSubstitutionLabels {
+  /** The instrument the Piano buys («DBMFE»). */
+  replaced: string;
+  /** The one the plan buys in its place («MFEH»). */
+  buying: string;
+}
+
+/**
+ * AL17, D-AL4 — the line above the Piano's moves while a plan is active: what the accumulation plan
+ * buys this month and that this Piano does not count it, plus, when the Piano buys an instrument
+ * the plan replaced, which one the plan buys instead. «Il piano di accumulo compra questo mese
+ * 4207 € in 7 strumenti; questo piano non ne tiene conto. Il piano di accumulo compra MFEH al posto di DBMFE.»
+ */
+export function describePacOverlap(pac: PacVerdictInput, substitutions: PacSubstitutionLabels[] = []): Narrative {
+  const head: Narrative = pac.allClosed
+    ? [prose(`La rata di ${pac.monthLabel} del piano di accumulo è chiusa, ma questo piano non ne tiene conto.`)]
+    : [
+        prose('Il piano di accumulo compra questo mese '),
+        amount(pac.monthTotalEur),
+        prose(pac.instrumentCount === 1 ? ' in 1 strumento' : ` in ${pac.instrumentCount} strumenti`),
+        prose('; questo piano non ne tiene conto.'),
+      ];
+  if (substitutions.length === 0) return head;
+  const items = substitutions.map((item) => [figure(item.buying), prose(' al posto di '), figure(item.replaced)]);
+  return [...head, prose(' Il piano di accumulo compra '), ...joinList(items), prose('.')];
+}
+
 function leverageClause(leverage: { current: number; target: number } | null): Narrative {
   if (!leverage) return [];
   const inLine = Math.abs(leverage.current - leverage.target) <= 0.01;
@@ -259,7 +286,7 @@ export function describeAllocazioneHeader(input: {
   if (input.classCount === 0) return undefined;
   const classes = input.classCount === 1 ? '1 classe' : `${input.classCount} classi`;
   const SOURCES = {
-    goals: 'target dagli obiettivi',
+    goals: 'target dai traguardi',
     settings: 'target dalle impostazioni',
     model: 'pesi dal portafoglio modello',
     plan: 'dai pesi del piano',

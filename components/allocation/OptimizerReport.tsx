@@ -82,7 +82,7 @@ export function ObjectiveBars({ objectives }: { objectives: ObjectiveReport[] })
                 {target} → <span className="font-semibold text-foreground">{achieved}</span> ({formatObjectiveGap(objective)})
               </span>
             </div>
-            <ObjectiveTrack achieved={objective.achievedValue} target={objective.targetValue} ariaLabel={`${objective.label}: obiettivo ${target}, raggiunto ${achieved}`} />
+            <ObjectiveTrack achieved={objective.achievedValue} target={objective.targetValue} ariaLabel={`${objective.label}: criterio ${target}, raggiunto ${achieved}`} />
           </li>
         );
       })}

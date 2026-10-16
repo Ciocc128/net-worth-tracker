@@ -2321,7 +2321,7 @@ export default function SettingsPage() {
                 </Tile>
               </div>
 
-              {/* Costi and FIRE e obiettivi stack beside Calcolo dei rendimenti: three tiles in one
+              {/* Costi and FIRE e traguardi stack beside Calcolo dei rendimenti: three tiles in one
                   row left ~300px empty in the two short ones (critique of 2026-09-22). Below
                   `desktop:` the wrapper dissolves and each tile is a cell of its own. */}
               <div className="contents desktop:col-span-6 desktop:flex desktop:flex-col desktop:gap-3">
@@ -2395,10 +2395,10 @@ export default function SettingsPage() {
                 </Tile>
               </div>
 
-              {/* FIRE e obiettivi — the three toggles this page OWNS; it takes the column's slack */}
+              {/* FIRE e traguardi — the three toggles this page OWNS; it takes the column's slack */}
               <div className={cn(TILE_CELL_CLASS, 'desktop:flex-1')}>
                 <Tile
-                  eyebrow="FIRE e obiettivi"
+                  eyebrow="FIRE e traguardi"
                   reading={describeFireToggles({
                     includePrimaryResidenceInFIRE,
                     goalBasedInvestingEnabled,
@@ -2423,10 +2423,10 @@ export default function SettingsPage() {
                     <div className="flex items-center justify-between gap-4 py-3">
                       <div className="min-w-0">
                         <Label htmlFor="goalBasedInvesting" className="text-[13px] font-medium">
-                          Obiettivi di investimento
+                          Traguardi di investimento
                         </Label>
                         <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
-                          Attiva FIRE › Obiettivi e le assegnazioni del portafoglio
+                          Attiva FIRE › Traguardi e le assegnazioni del portafoglio
                         </p>
                       </div>
                       <Switch
@@ -2444,10 +2444,10 @@ export default function SettingsPage() {
                       <div className="flex items-center justify-between gap-4 py-3">
                         <div className="min-w-0">
                           <Label htmlFor="goalDrivenAllocation" className="text-[13px] font-medium">
-                            Allocazione derivata dagli obiettivi
+                            Allocazione derivata dai traguardi
                           </Label>
                           <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
-                            Target dal gap di ogni obiettivo, pesato per priorità (Alta 3×, Media 2×, Bassa 1×)
+                            Target dal gap di ogni traguardo, pesato per priorità (Alta 3×, Media 2×, Bassa 1×)
                           </p>
                         </div>
                         <Switch

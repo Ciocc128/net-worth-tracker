@@ -2,6 +2,8 @@
 
 > **When to open this guide** — you are touching `components/fire-simulations/GoalBasedInvestingTab.tsx`, `components/goals/*` (`tiles/*`, `GoalsDettaglio`, the chart, the two dialogs, `goalVerdictMeta`), `lib/utils/{goalsSummary,goalsNarrative}.ts`, or the math underneath (`lib/utils/{goalTrajectory,goalMath}.ts`, `lib/services/goalService.ts`). The page-wide rules — the pension unlock, `respectPensionLockInFire`, the bridge model, the config-first collapse, the Ventaglio engine, `deriveMonteCarloAllocation`, the goal math — live in `doc/guide/fire.md § FIRE, What If and Goals` and are not repeated here. In `AGENTS.md` only the stub with the essentials remains (§ FIRE, What If and Goals); modules and files: `doc/guide/fire.md` § *Files*. The Assistant's side of goals — `goalProposal.ts`, `POST /api/goals` — is in `doc/guide/assistente.md`. No Playwright spec covers this tab.
 
+> **Rinominato (AL19, D-AL7, 2026-10-16)**: nell'interfaccia la scheda, il tile, i verdetti, il modale, l'interruttore di Impostazioni («FIRE e traguardi») e la Panoramica dicono **«Traguardi»** (un traguardo, «Nuovo traguardo»); questa guida e i nomi dei file, degli identificatori e dei campi salvati restano «Obiettivi». «Età obiettivo» è un'altra cosa e non cambia. L'assistente AI, le email e i prompt (`prompts.ts`, `monthlyEmailService.ts`, `aiEvalChecks.ts`) dicono ancora «obiettivi di investimento».
+
 ## FIRE › Obiettivi — a verdict over tiles (`components/fire-simulations/GoalBasedInvestingTab.tsx`, `components/goals/tiles/*`, `lib/utils/{goalsSummary,goalsNarrative}.ts`)
 
 - The tab answers «sono in rotta?» and computes nothing: `computeGoalTrajectory` (per goal, ONE `now` per mount) and `calculateGoalProgress` run as

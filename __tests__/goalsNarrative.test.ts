@@ -1,5 +1,5 @@
 /**
- * Tests for lib/utils/goalsNarrative.ts — the words of FIRE › Obiettivi: the verdict that answers
+ * Tests for lib/utils/goalsNarrative.ts — the words of FIRE › Traguardi: the verdict that answers
  * «sono in rotta?» with its tone from the dated goals, and the reading line of every tile. Every
  * phrasing is pinned; a missing input drops its clause instead of printing a placeholder (The
  * Narrative Honesty Rule).
@@ -49,7 +49,7 @@ const plain = (narrative: Narrative | null) => (narrative ? narrativeToText(narr
 function line(overrides: Partial<GoalLine>): GoalLine {
   return {
     id: 'g',
-    name: 'Obiettivo',
+    name: 'Traguardo',
     color: '#3B82F6',
     priority: 'media',
     verdict: 'onTrack',
@@ -115,45 +115,45 @@ describe('formatGoalDate', () => {
 describe('buildGoalsVerdict', () => {
   it('says the feature is off, in the neutral tone, when it is', () => {
     const verdict = buildGoalsVerdict({ enabled: false, overview: null });
-    expect(verdict.headline).toBe('Gli obiettivi non sono attivi.');
+    expect(verdict.headline).toBe('I traguardi non sono attivi.');
     expect(verdict.tone).toBe('neutral');
-    expect(plain(verdict.sentence)).toBe('Attiva il Goal-Based Investing nelle Impostazioni per assegnare quote del portafoglio a un obiettivo e sapere se sei in rotta.');
+    expect(plain(verdict.sentence)).toBe('Attiva il Goal-Based Investing nelle Impostazioni per assegnare quote del portafoglio a un traguardo e sapere se sei in rotta.');
   });
 
   it('asks for the first goal when there is none', () => {
     const verdict = buildGoalsVerdict({ enabled: true, overview: overview([]) });
-    expect(verdict.headline).toBe('Nessun obiettivo ancora.');
+    expect(verdict.headline).toBe('Nessun traguardo ancora.');
     expect(verdict.tone).toBe('neutral');
-    expect(plain(verdict.sentence)).toBe('Crea il primo obiettivo e assegnagli una quota del portafoglio per sapere se sei in rotta.');
+    expect(plain(verdict.sentence)).toBe('Crea il primo traguardo e assegnagli una quota del portafoglio per sapere se sei in rotta.');
   });
 
   it('one late goal out of three dated ones: the warning tone and a clause per goal', () => {
     const verdict = buildGoalsVerdict({ enabled: true, overview: FOUR });
-    expect(verdict.headline).toBe('Un obiettivo su tre è in ritardo.');
+    expect(verdict.headline).toBe('Un traguardo su tre è in ritardo.');
     expect(verdict.tone).toBe('warning');
     expect(plain(verdict.sentence)).toBe(
-      '3 obiettivi in corso e 1 raggiunto: Casa richiede 270 € al mese in più per arrivare a giugno 2029; Auto è in rotta per marzo 2028 e Studi figli per settembre 2034; Fondo emergenza è raggiunto.',
+      '3 traguardi in corso e 1 raggiunto: Casa richiede 270 € al mese in più per arrivare a giugno 2029; Auto è in rotta per marzo 2028 e Studi figli per settembre 2034; Fondo emergenza è raggiunto.',
     );
   });
 
   it('every dated goal late: the negative tone', () => {
     const verdict = buildGoalsVerdict({ enabled: true, overview: overview([CASA, { ...AUTO, verdict: 'offTrack', requiredMonthly: 420 }]) });
-    expect(verdict.headline).toBe('Ogni obiettivo datato è in ritardo.');
+    expect(verdict.headline).toBe('Ogni traguardo datato è in ritardo.');
     expect(verdict.tone).toBe('negative');
-    expect(plain(verdict.sentence)).toBe('2 obiettivi in corso: Casa richiede 270 € al mese in più per arrivare a giugno 2029 e Auto 70 € al mese in più per arrivare a marzo 2028.');
+    expect(plain(verdict.sentence)).toBe('2 traguardi in corso: Casa richiede 270 € al mese in più per arrivare a giugno 2029 e Auto 70 € al mese in più per arrivare a marzo 2028.');
   });
 
   it('the only dated goal late: singular headline', () => {
     const verdict = buildGoalsVerdict({ enabled: true, overview: overview([CASA]) });
-    expect(verdict.headline).toBe("L'obiettivo è in ritardo.");
+    expect(verdict.headline).toBe("Il traguardo è in ritardo.");
     expect(verdict.tone).toBe('negative');
   });
 
   it('every dated goal on track: the positive tone', () => {
     const verdict = buildGoalsVerdict({ enabled: true, overview: overview([AUTO, STUDI]) });
-    expect(verdict.headline).toBe('Sei in rotta su ogni obiettivo.');
+    expect(verdict.headline).toBe('Sei in rotta su ogni traguardo.');
     expect(verdict.tone).toBe('positive');
-    expect(plain(verdict.sentence)).toBe('2 obiettivi in corso: Auto è in rotta per marzo 2028 e Studi figli per settembre 2034.');
+    expect(plain(verdict.sentence)).toBe('2 traguardi in corso: Auto è in rotta per marzo 2028 e Studi figli per settembre 2034.');
   });
 
   it('one goal on track: «Sei in rotta.»', () => {
@@ -162,54 +162,54 @@ describe('buildGoalsVerdict', () => {
 
   it('two of four late: the count in words', () => {
     const verdict = buildGoalsVerdict({ enabled: true, overview: overview([CASA, { ...AUTO, verdict: 'offTrack', requiredMonthly: 420 }, STUDI, { ...STUDI, id: 'x', name: 'Viaggio', deadline: { year: 2027, month: 5 } }]) });
-    expect(verdict.headline).toBe('Due obiettivi su quattro sono in ritardo.');
+    expect(verdict.headline).toBe('Due traguardi su quattro sono in ritardo.');
     expect(verdict.tone).toBe('warning');
   });
 
   it('every goal reached: the positive tone and no in-progress count', () => {
     const verdict = buildGoalsVerdict({ enabled: true, overview: overview([EMERGENZA, { ...AUTO, verdict: 'reached', deadline: null, requiredMonthly: null }]) });
-    expect(verdict.headline).toBe('Hai raggiunto ogni obiettivo.');
+    expect(verdict.headline).toBe('Hai raggiunto ogni traguardo.');
     expect(verdict.tone).toBe('positive');
-    expect(plain(verdict.sentence)).toBe('2 obiettivi raggiunti: Fondo emergenza e Auto sono raggiunti.');
+    expect(plain(verdict.sentence)).toBe('2 traguardi raggiunti: Fondo emergenza e Auto sono raggiunti.');
   });
 
   it('no dated goal in progress: nothing to judge, said as such', () => {
     const verdict = buildGoalsVerdict({ enabled: true, overview: overview([PENSIONE, FIGLI, EMERGENZA]) });
-    expect(verdict.headline).toBe('Nessun obiettivo in corso ha una scadenza.');
+    expect(verdict.headline).toBe('Nessun traguardo in corso ha una scadenza.');
     expect(verdict.tone).toBe('neutral');
-    expect(plain(verdict.sentence)).toBe('2 obiettivi in corso e 1 raggiunto: Pensione non ha una scadenza (al ritmo attuale arriva a marzo 2041); Figli è aperto, senza un importo; Fondo emergenza è raggiunto.');
+    expect(plain(verdict.sentence)).toBe('2 traguardi in corso e 1 raggiunto: Pensione non ha una scadenza (al ritmo attuale arriva a marzo 2041); Figli è aperto, senza un importo; Fondo emergenza è raggiunto.');
   });
 
   it('a late goal with no contribution asks for the whole pace, not «in più»', () => {
     const verdict = buildGoalsVerdict({ enabled: true, overview: overview([{ ...CASA, plannedMonthly: 0 }]) });
-    expect(plain(verdict.sentence)).toBe('1 obiettivo in corso: Casa richiede 970 € al mese per arrivare a giugno 2029.');
+    expect(plain(verdict.sentence)).toBe('1 traguardo in corso: Casa richiede 970 € al mese per arrivare a giugno 2029.');
   });
 
   it('a late goal past its deadline says so instead of a pace over zero months', () => {
     const verdict = buildGoalsVerdict({ enabled: true, overview: overview([{ ...CASA, monthsToDeadline: 0, deadline: { year: 2025, month: 6 } }]) });
-    expect(plain(verdict.sentence)).toBe('1 obiettivo in corso: Casa ha superato la scadenza di giugno 2025 senza raggiungere il target.');
+    expect(plain(verdict.sentence)).toBe('1 traguardo in corso: Casa ha superato la scadenza di giugno 2025 senza raggiungere il target.');
   });
 
   it('an undated goal that is never reached drops the arrival clause', () => {
     const verdict = buildGoalsVerdict({ enabled: true, overview: overview([{ ...PENSIONE, projectedDate: null, monthsToTarget: null }]) });
-    expect(plain(verdict.sentence)).toBe('1 obiettivo in corso: Pensione non ha una scadenza.');
+    expect(plain(verdict.sentence)).toBe('1 traguardo in corso: Pensione non ha una scadenza.');
   });
 });
 
-// ─── Obiettivi ────────────────────────────────────────────────────────────────
+// ─── Traguardi ────────────────────────────────────────────────────────────────
 
 describe('describeObiettivi', () => {
   it('counts the goals, what is assigned and every verdict present', () => {
-    expect(plain(describeObiettivi(FOUR))).toBe('4 obiettivi, 111.400 € assegnati (il 48,9% del patrimonio): 2 in rotta, 1 in ritardo, 1 raggiunto.');
+    expect(plain(describeObiettivi(FOUR))).toBe('4 traguardi, 111.400 € assegnati (il 48,9% del patrimonio): 2 in rotta, 1 in ritardo, 1 raggiunto.');
   });
 
   it('drops the share without a portfolio and says when nothing is assigned yet', () => {
     const empty = overview([{ ...FIGLI, currentValue: 0 }], { allocatedShare: null });
-    expect(plain(describeObiettivi(empty))).toBe('1 obiettivo, niente ancora assegnato: 1 aperto.');
+    expect(plain(describeObiettivi(empty))).toBe('1 traguardo, niente ancora assegnato: 1 aperto.');
   });
 
   it('names the undated and the open ones', () => {
-    expect(plain(describeObiettivi(overview([PENSIONE, FIGLI], { allocatedShare: 20 })))).toBe('2 obiettivi, 42.000 € assegnati (il 20% del patrimonio): 1 senza scadenza, 1 aperto.');
+    expect(plain(describeObiettivi(overview([PENSIONE, FIGLI], { allocatedShare: 20 })))).toBe('2 traguardi, 42.000 € assegnati (il 20% del patrimonio): 1 senza scadenza, 1 aperto.');
   });
 });
 
@@ -253,7 +253,7 @@ describe('describeGoalStatus', () => {
   });
 
   it('open: no target to measure', () => {
-    expect(plain(describeGoalStatus(FIGLI))).toBe('senza un importo obiettivo');
+    expect(plain(describeGoalStatus(FIGLI))).toBe('senza un importo del traguardo');
   });
 
   it('late and past the deadline', () => {
@@ -333,7 +333,7 @@ describe('describeTraiettoria', () => {
 
   it('reached and open goals', () => {
     expect(plain(describeTraiettoria(trajectory({ name: 'Fondo emergenza', verdict: 'reached', currentValue: 15_000, targetAmount: 15_000, deadline: null, monthsToDeadline: null, projectedAtDeadline: null, gapAtDeadline: null, projectedDate: null, monthsToTarget: 0 })))).toBe('Fondo emergenza ha raggiunto i 15.000 € del target.');
-    expect(plain(describeTraiettoria(trajectory({ name: 'Figli', verdict: 'noTarget', targetAmount: null, deadline: null, projectedAtDeadline: null, gapAtDeadline: null, projectedDate: null, requiredMonthly: null, extraMonthly: null })))).toBe('Figli non ha un importo obiettivo: senza un target non c\'è una traiettoria da misurare.');
+    expect(plain(describeTraiettoria(trajectory({ name: 'Figli', verdict: 'noTarget', targetAmount: null, deadline: null, projectedAtDeadline: null, gapAtDeadline: null, projectedDate: null, requiredMonthly: null, extraMonthly: null })))).toBe('Figli non ha un importo del traguardo: senza un target non c\'è una traiettoria da misurare.');
   });
 
   it('a late goal past its deadline', () => {
@@ -370,7 +370,7 @@ describe('resolveTraiettoriaHero and buildTraiettoriaChips', () => {
 
 describe('describeTraiettoriaFooter', () => {
   it('names the allocation the return comes from, the scenario and the two dashed lines', () => {
-    expect(plain(describeTraiettoriaFooter(trajectory({})))).toBe('Rendimento nominale dall\'allocazione dell\'obiettivo (70% obbligazioni, 20% azioni, 10% liquidità) sulle ipotesi dello scenario Base di Impostazioni › Simulazioni: una stima, non un consiglio. Tratteggiata orizzontale: il target; verticale: la scadenza.');
+    expect(plain(describeTraiettoriaFooter(trajectory({})))).toBe('Rendimento nominale dall\'allocazione del traguardo (70% obbligazioni, 20% azioni, 10% liquidità) sulle ipotesi dello scenario Base di Impostazioni › Simulazioni: una stima, non un consiglio. Tratteggiata orizzontale: il target; verticale: la scadenza.');
   });
 
   it('declares what the hypotheses leave out (crypto, real estate)', () => {
@@ -378,7 +378,7 @@ describe('describeTraiettoriaFooter', () => {
   });
 
   it('without a usable allocation the target portfolio\'s Base return is named, and without a deadline the vertical line is not', () => {
-    expect(plain(describeTraiettoriaFooter(trajectory({ allocation: [], returnOrigin: 'portfolio', annualReturn: 4, deadline: null })))).toBe('Rendimento nominale del 4% l\'anno, quello dello scenario Base del portafoglio target, perché l\'obiettivo non ha un\'allocazione consigliata utilizzabile: una stima, non un consiglio. Tratteggiata orizzontale: il target.');
+    expect(plain(describeTraiettoriaFooter(trajectory({ allocation: [], returnOrigin: 'portfolio', annualReturn: 4, deadline: null })))).toBe('Rendimento nominale del 4% l\'anno, quello dello scenario Base del portafoglio target, perché il traguardo non ha un\'allocazione consigliata utilizzabile: una stima, non un consiglio. Tratteggiata orizzontale: il target.');
   });
 });
 
@@ -395,13 +395,13 @@ describe('describeAllocazioneDerivata', () => {
   };
 
   it('reads the derived target largest first, then the assigned shares in the same order', () => {
-    expect(plain(describeAllocazioneDerivata(view))).toBe('Gli obiettivi da colmare chiedono il 65% in obbligazioni, il 26,2% in azioni e l\'8,8% in liquidità; le quote assegnate sono al 64,6%, 6,2% e 29,2%.');
+    expect(plain(describeAllocazioneDerivata(view))).toBe('I traguardi da colmare chiedono il 65% in obbligazioni, il 26,2% in azioni e l\'8,8% in liquidità; le quote assegnate sono al 64,6%, 6,2% e 29,2%.');
     expect(ALLOCAZIONE_DERIVATA_ASIDE).toBe('gap × priorità');
   });
 
   it('a class the goals do not ask for but the quotas hold is named as such', () => {
     const withCrypto: DerivedAllocationView = { ...view, rows: [...view.rows, { assetClass: 'crypto', label: 'Criptovalute', derivedPct: 0, assignedPct: 10 }] };
-    expect(plain(describeAllocazioneDerivata(withCrypto))).toBe('Gli obiettivi da colmare chiedono il 65% in obbligazioni, il 26,2% in azioni e l\'8,8% in liquidità; le quote assegnate sono al 64,6%, 6,2% e 29,2%, più il 10% in criptovalute che nessun obiettivo chiede.');
+    expect(plain(describeAllocazioneDerivata(withCrypto))).toBe('I traguardi da colmare chiedono il 65% in obbligazioni, il 26,2% in azioni e l\'8,8% in liquidità; le quote assegnate sono al 64,6%, 6,2% e 29,2%, più il 10% in criptovalute che nessun traguardo chiede.');
   });
 });
 
@@ -434,7 +434,7 @@ describe('describeAssegnazioni', () => {
 
   it('the footer explains a quota, or warns about an instrument past 100%', () => {
     expect(describeAssegnazioniFooter(ASSEGNAZIONI).tone).toBe('neutral');
-    expect(plain(describeAssegnazioniFooter(ASSEGNAZIONI).narrative)).toBe('Una quota è la percentuale del valore di uno strumento; lo stesso strumento può servire più obiettivi fino al 100%.');
+    expect(plain(describeAssegnazioniFooter(ASSEGNAZIONI).narrative)).toBe('Una quota è la percentuale del valore di uno strumento; lo stesso strumento può servire più traguardi fino al 100%.');
     const over = describeAssegnazioniFooter({ ...ASSEGNAZIONI, overAssigned: [{ assetId: 'cc', name: 'Conto corrente', percentage: 130 }] });
     expect(over.tone).toBe('warning');
     expect(plain(over.narrative)).toBe('Conto corrente è assegnato al 130%: riduci una quota, il limite è il 100%.');
@@ -454,8 +454,8 @@ describe('describeVersamento', () => {
   });
 
   it('asks for an amount, or says that nothing is left to fill', () => {
-    expect(plain(describeVersamento([], 0))).toBe('Inserisci un importo per vedere come ripartirlo tra gli obiettivi sotto target.');
-    expect(plain(describeVersamento([], 500))).toBe('Nessun obiettivo con un importo ancora da colmare: i 500 € non hanno una destinazione.');
+    expect(plain(describeVersamento([], 0))).toBe('Inserisci un importo per vedere come ripartirlo tra i traguardi sotto target.');
+    expect(plain(describeVersamento([], 500))).toBe('Nessun traguardo con un importo ancora da colmare: i 500 € non hanno una destinazione.');
   });
 });
 

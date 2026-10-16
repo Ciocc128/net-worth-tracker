@@ -30,6 +30,7 @@ import {
   describeExposureCoverage,
   describeExposureEmpty,
   describeExposureFooter,
+  describePacOverlap,
   describeFrozen,
   describePension,
   describePensionAside,
@@ -253,7 +254,7 @@ describe('buildAllocazioneVerdict', () => {
 describe('describeAllocazioneHeader', () => {
   it('says the total, the class count and where the targets come from', () => {
     expect(flat(describeAllocazioneHeader({ marketValue: 245000, classCount: 5, targetSource: 'settings' }))).toBe('245.000 € allocati · 5 classi · target dalle impostazioni');
-    expect(flat(describeAllocazioneHeader({ marketValue: 12000, classCount: 1, targetSource: 'goals' }))).toBe('12.000 € allocati · 1 classe · target dagli obiettivi');
+    expect(flat(describeAllocazioneHeader({ marketValue: 12000, classCount: 1, targetSource: 'goals' }))).toBe('12.000 € allocati · 1 classe · target dai traguardi');
   });
 
   it('says where the Accumulo tab weights come from (AL6 · R9)', () => {
@@ -761,5 +762,26 @@ describe('describeFrozen / describeExcluded', () => {
     expect(plain(describeExcluded(holdings(2, 200000)))).toBe(
       '2 asset, 200.000 €: nel patrimonio, fuori da ogni calcolo di questa pagina; per questo il totale allocato è più basso del patrimonio netto.',
     );
+  });
+});
+
+// AL17 (D-AL4): the line above the Piano's moves while an accumulation plan is active.
+describe('describePacOverlap', () => {
+  const pac = { monthTotalEur: 4207, instrumentCount: 7, monthLabel: 'ottobre', allClosed: false };
+
+  it('says what the plan buys this month and that this plan does not count it', () => {
+    expect(plain(describePacOverlap(pac))).toBe('Il piano di accumulo compra questo mese 4207 € in 7 strumenti; questo piano non ne tiene conto.');
+    expect(plain(describePacOverlap({ ...pac, instrumentCount: 1 }))).toBe('Il piano di accumulo compra questo mese 4207 € in 1 strumento; questo piano non ne tiene conto.');
+  });
+
+  it('names the instrument the plan buys in place of one this Piano proposes', () => {
+    expect(plain(describePacOverlap(pac, [{ replaced: 'DBMFE', buying: 'MFEH' }]))).toBe(
+      'Il piano di accumulo compra questo mese 4207 € in 7 strumenti; questo piano non ne tiene conto. Il piano di accumulo compra MFEH al posto di DBMFE.',
+    );
+    expect(plain(describePacOverlap(pac, [{ replaced: 'DBMFE', buying: 'MFEH' }, { replaced: 'AAA', buying: 'BBB' }]))).toContain('compra MFEH al posto di DBMFE e BBB al posto di AAA.');
+  });
+
+  it('still says it when the month\'s installment is closed', () => {
+    expect(plain(describePacOverlap({ ...pac, allClosed: true }))).toBe('La rata di ottobre del piano di accumulo è chiusa, ma questo piano non ne tiene conto.');
   });
 });

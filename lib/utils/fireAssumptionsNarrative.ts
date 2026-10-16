@@ -176,10 +176,10 @@ export function withFlowsDetail(assumptions: FireAssumptions, resolved: readonly
   };
 }
 
-/** RC3, Flussi: «Flussi 4» / «Flussi: nessuno»; the Obiettivi read none of them, and say so. Null until a tab has set the count. */
+/** RC3, Flussi: «Flussi 4» / «Flussi: nessuno»; the Traguardi read none of them, and say so. Null until a tab has set the count. */
 export function describeFlowsChip(assumptions: FireAssumptions, view: 'goals' | 'default' = 'default'): FireChip | null {
   const link: FireChipLink = { text: 'Il mio piano', planField: 'flussi' };
-  if (view === 'goals') return { id: 'flows', label: "Flussi: solo nell'Effetto sul FIRE", lines: ['Gli obiettivi non leggono i flussi datati: li usa solo l\'effetto sul FIRE.'], links: [link] };
+  if (view === 'goals') return { id: 'flows', label: "Flussi: solo nell'Effetto sul FIRE", lines: ['I traguardi non leggono i flussi datati: li usa solo l\'effetto sul FIRE.'], links: [link] };
   if (assumptions.datedFlowsCount === undefined) return null;
   const count = assumptions.datedFlowsCount;
   const detail = assumptions.datedFlowsDetail;

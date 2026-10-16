@@ -194,4 +194,11 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 ## AL1 (2026-10-16)
 
 - **Una sottocategoria guarda la sua classe** (R5): `findOrphanedTargets` salta una sottocategoria la cui classe ha target ≤ 0 (Liquidità 0% con «Conti Correnti» 100% e tutto il valore escluso non è «irraggiungibile»: alla classe non si chiede nulla). Una classe senza riga in `byAssetClass` conserva il comportamento di prima.
-- L'intestazione della pagina dipende dalla scheda: Bilanciamento «target dalle impostazioni / dagli obiettivi», Accumulo «pesi dal portafoglio modello» o «dai pesi del piano» (`describeAllocazioneHeader`).
+- L'intestazione della pagina dipende dalla scheda: Bilanciamento «target dalle impostazioni / dai traguardi», Accumulo «pesi dal portafoglio modello» o «dai pesi del piano» (`describeAllocazioneHeader`).
+
+## AL5 «Bilanciamento, criteri e nomi» (2026-10-16)
+
+`doc/allineamento/README.md` § 9.5, onda 3, D-AL4: con un PAC attivo il Piano dice cosa fa il PAC; i motori non cambiano.
+
+- **Il Piano con un PAC attivo** (AL17): una riga sopra le mosse, nelle tre modalità, «Il piano di accumulo compra questo mese 4207 € in 7 strumenti; questo piano non ne tiene conto.» con «Apri Accumulo» (`describePacOverlap`, `PianoTile` `pacNote`; la cifra è `summarizePacMonth`, la stessa del verdetto). Se la rata del mese è chiusa: «La rata di ottobre del piano di accumulo è chiusa, ma questo piano non ne tiene conto.» Se il Piano compra un membro non acquirente di un gruppo del PAC, la riga aggiunge «Il piano di accumulo compra MFEH al posto di DBMFE.» (`listPlanBuyAssetIds` legge ciò che il Piano compra — le gambe COMPRA del Ribilancia, i nodi del Versa, i trade del motore a leva —, `findPacSubstitutions` lo confronta con i gruppi). Versa, Ribilancia e Preleva sono quelli di prima (motori di upstream non toccati). Il Preleva non compra: la sostituzione non scatta.
+- **Dove la riga non vede**: una gamba COMPRA del Ribilancia senza sottotarget non scende agli strumenti (come il Versa), quindi non nomina lo strumento e la sostituzione non si legge; il PAC e la sua cifra restano comunque dette.

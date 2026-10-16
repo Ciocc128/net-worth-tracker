@@ -92,7 +92,7 @@ export function GoalsDettaglio({ description, goals, progressList }: GoalsDettag
               </div>
 
               <p className="mt-3.5 border-t border-border pt-3.5 text-[11px] leading-[1.45] text-muted-foreground">
-                Ripartizione pesata su quanto manca a ciascun obiettivo per la sua priorità (Alta <span className="font-mono">3×</span> · Media <span className="font-mono">2×</span> · Bassa <span className="font-mono">1×</span>); un obiettivo non riceve mai più di quanto gli manca. Una stima, non un consiglio: nulla viene salvato.
+                Ripartizione pesata su quanto manca a ciascun traguardo per la sua priorità (Alta <span className="font-mono">3×</span> · Media <span className="font-mono">2×</span> · Bassa <span className="font-mono">1×</span>); un traguardo non riceve mai più di quanto gli manca. Una stima, non un consiglio: nulla viene salvato.
               </p>
             </Tile>
           </div>

@@ -60,8 +60,8 @@ export const FIRE_PLAN_AFFECTS = {
   expenses: 'Agisce su: tutte le schede',
   swr: 'Agisce su: tutte le schede',
   fund: 'Agisce su: tutte le schede',
-  flows: 'Agisce su: tutte le schede (negli Obiettivi solo l\'Effetto sul FIRE)',
-  pensions: 'Agisce su: Calcolatore, Coast FIRE, What If, Dopo il FIRE (negli Obiettivi solo l\'Effetto sul FIRE)',
+  flows: 'Agisce su: tutte le schede (nei Traguardi solo l\'Effetto sul FIRE)',
+  pensions: 'Agisce su: Calcolatore, Coast FIRE, What If, Dopo il FIRE (nei Traguardi solo l\'Effetto sul FIRE)',
   lock: 'Agisce su: tutte le schede',
   rita: 'Agisce su: tutte le schede, con il vincolo attivo',
 } as const;

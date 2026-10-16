@@ -101,9 +101,9 @@ export function AssetAssignmentDialog({
     <ResponsiveModal
       open={open}
       onClose={onClose}
-      eyebrow="FIRE · Obiettivi"
+      eyebrow="FIRE · Traguardi"
       title="Assegna uno strumento"
-      reading="Una quota assegnata esce dalle quote libere e finisce nella traiettoria di questo obiettivo. Lo strumento resta dov'è: cambia solo a chi è destinato."
+      reading="Una quota assegnata esce dalle quote libere e finisce nella traiettoria di questo traguardo. Lo strumento resta dov'è: cambia solo a chi è destinato."
       width="md"
       footer={
         <>

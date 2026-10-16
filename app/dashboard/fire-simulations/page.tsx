@@ -9,7 +9,7 @@
  * - What If: Simulate life events and their impact on FIRE and Coast FIRE
  * - Monte Carlo: Probabilistic portfolio simulations
  * - Proiezione: what the portfolio may be worth in N years, and with what probability
- * - Obiettivi: Goal-based investing (mental allocation of portfolio to financial goals)
+ * - Traguardi: Goal-based investing (mental allocation of portfolio to financial goals)
  *
  * «Il mio piano» (components/fire-simulations/plan/FirePlanBlock.tsx) sits between the header and the tab bar,
  * outside the panels: the plan's ONE draft is owned here (`useFirePlanDraft`) and read by every tab over the saved
@@ -21,7 +21,7 @@
  * No lazy loading needed - components load quickly.
  *
  * The container is `wide` (1920px, the tile grid's root): every tab is propagated to «Verdict
- * over Tiles» — Calcolatore, Coast FIRE, What If, Monte Carlo and, since 2026-08-26, Obiettivi.
+ * over Tiles» — Calcolatore, Coast FIRE, What If, Monte Carlo and, since 2026-08-26, Traguardi.
  */
 
 'use client';
@@ -53,7 +53,7 @@ const TABS: TabDef[] = [
   { value: 'whatif',     label: 'What If',          icon: Lightbulb },
   { value: 'montecarlo', label: 'Dopo il FIRE',      icon: Dices     },
   { value: 'proiezione', label: 'Proiezione',       icon: TrendingUp },
-  { value: 'goals',      label: 'Obiettivi',        icon: Target    },
+  { value: 'goals',      label: 'Traguardi',        icon: Target    },
 ];
 
 export default function FireSimulationsPage() {

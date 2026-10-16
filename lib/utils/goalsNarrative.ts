@@ -1,5 +1,5 @@
 /**
- * FIRE › Obiettivi's words: the verdict that answers «sono in rotta?» before any number, and the
+ * FIRE › Traguardi's words: the verdict that answers «sono in rotta?» before any number, and the
  * reading line under each tile of that tab.
  *
  * Same design as the other `*Narrative.ts` modules: every function is pure and returns a
@@ -111,13 +111,13 @@ function resolveHeadline(overview: GoalsOverview): { headline: string; tone: Ver
   const { total, reached, dated, offTrack } = overview.counts;
 
   if (dated === 0) {
-    if (reached === total) return { headline: total === 1 ? "Hai raggiunto l'obiettivo." : 'Hai raggiunto ogni obiettivo.', tone: 'positive' };
-    return { headline: 'Nessun obiettivo in corso ha una scadenza.', tone: 'neutral' };
+    if (reached === total) return { headline: total === 1 ? "Hai raggiunto il traguardo." : 'Hai raggiunto ogni traguardo.', tone: 'positive' };
+    return { headline: 'Nessun traguardo in corso ha una scadenza.', tone: 'neutral' };
   }
-  if (offTrack === 0) return { headline: dated === 1 ? 'Sei in rotta.' : 'Sei in rotta su ogni obiettivo.', tone: 'positive' };
-  if (offTrack === dated) return { headline: dated === 1 ? "L'obiettivo è in ritardo." : 'Ogni obiettivo datato è in ritardo.', tone: 'negative' };
+  if (offTrack === 0) return { headline: dated === 1 ? 'Sei in rotta.' : 'Sei in rotta su ogni traguardo.', tone: 'positive' };
+  if (offTrack === dated) return { headline: dated === 1 ? "Il traguardo è in ritardo." : 'Ogni traguardo datato è in ritardo.', tone: 'negative' };
   return {
-    headline: offTrack === 1 ? `Un obiettivo su ${numberWord(dated)} è in ritardo.` : `${capitalize(numberWord(offTrack))} obiettivi su ${numberWord(dated)} sono in ritardo.`,
+    headline: offTrack === 1 ? `Un traguardo su ${numberWord(dated)} è in ritardo.` : `${capitalize(numberWord(offTrack))} traguardi su ${numberWord(dated)} sono in ritardo.`,
     tone: 'warning',
   };
 }
@@ -169,16 +169,16 @@ function sharedClause(names: string[], singular: string, pluralForm: string): Na
 export function buildGoalsVerdict({ enabled, overview }: GoalsVerdictInput): PageVerdictModel {
   if (!enabled || !overview) {
     return {
-      headline: 'Gli obiettivi non sono attivi.',
+      headline: 'I traguardi non sono attivi.',
       tone: 'neutral',
-      sentence: [prose('Attiva il Goal-Based Investing nelle Impostazioni per assegnare quote del portafoglio a un obiettivo e sapere se sei in rotta.')],
+      sentence: [prose('Attiva il Goal-Based Investing nelle Impostazioni per assegnare quote del portafoglio a un traguardo e sapere se sei in rotta.')],
     };
   }
   if (overview.counts.total === 0) {
     return {
-      headline: 'Nessun obiettivo ancora.',
+      headline: 'Nessun traguardo ancora.',
       tone: 'neutral',
-      sentence: [prose('Crea il primo obiettivo e assegnagli una quota del portafoglio per sapere se sei in rotta.')],
+      sentence: [prose('Crea il primo traguardo e assegnagli una quota del portafoglio per sapere se sei in rotta.')],
     };
   }
 
@@ -188,8 +188,8 @@ export function buildGoalsVerdict({ enabled, overview }: GoalsVerdictInput): Pag
 
   const opening: Narrative =
     inProgress > 0
-      ? [count(inProgress), prose(` ${plural(inProgress, 'obiettivo', 'obiettivi')} in corso`), ...(reached > 0 ? [prose(' e '), count(reached), prose(` ${plural(reached, 'raggiunto', 'raggiunti')}`)] : []), prose(': ')]
-      : [count(reached), prose(` ${plural(reached, 'obiettivo raggiunto', 'obiettivi raggiunti')}: `)];
+      ? [count(inProgress), prose(` ${plural(inProgress, 'traguardo', 'traguardi')} in corso`), ...(reached > 0 ? [prose(' e '), count(reached), prose(` ${plural(reached, 'raggiunto', 'raggiunti')}`)] : []), prose(': ')]
+      : [count(reached), prose(` ${plural(reached, 'traguardo raggiunto', 'traguardi raggiunti')}: `)];
 
   const groups: Narrative[] = [];
   const late = byVerdict('offTrack');
@@ -215,12 +215,12 @@ export function buildGoalsVerdict({ enabled, overview }: GoalsVerdictInput): Pag
   return { headline, tone, sentence };
 }
 
-// ─── Obiettivi ────────────────────────────────────────────────────────────────
+// ─── Traguardi ────────────────────────────────────────────────────────────────
 
-/** «4 obiettivi, 111.400 € assegnati (il 48,9% del patrimonio): 2 in rotta, 1 in ritardo, 1 raggiunto.» */
+/** «4 traguardi, 111.400 € assegnati (il 48,9% del patrimonio): 2 in rotta, 1 in ritardo, 1 raggiunto.» */
 export function describeObiettivi(overview: GoalsOverview): Narrative {
   const { counts } = overview;
-  const out: Narrative = [count(counts.total), prose(` ${plural(counts.total, 'obiettivo', 'obiettivi')}, `)];
+  const out: Narrative = [count(counts.total), prose(` ${plural(counts.total, 'traguardo', 'traguardi')}, `)];
 
   if (overview.allocatedTotal > 0) {
     out.push(amount(overview.allocatedTotal), prose(' assegnati'));
@@ -292,7 +292,7 @@ export function describeGoalStatus(goal: GoalLine): Narrative | null {
     case 'noDeadline':
       return [prose(goal.projectedDate ? `al ritmo attuale arriva ${atDate(goal.projectedDate)}` : 'al ritmo attuale non ha una data')];
     case 'noTarget':
-      return [prose('senza un importo obiettivo')];
+      return [prose('senza un importo del traguardo')];
     case 'reached':
       return null;
   }
@@ -322,7 +322,7 @@ function paceOpening(t: TrajectoryView, comma: boolean): Narrative {
 /** The reading line of the Traiettoria tile, one shape per verdict. */
 export function describeTraiettoria(t: TrajectoryView): Narrative {
   if (t.verdict === 'noTarget' || t.targetAmount === null) {
-    return [prose(`${t.name} non ha un importo obiettivo: senza un target non c'è una traiettoria da misurare.`)];
+    return [prose(`${t.name} non ha un importo del traguardo: senza un target non c'è una traiettoria da misurare.`)];
   }
   if (t.verdict === 'reached') return [prose(`${t.name} ha raggiunto i `), amount(t.targetAmount), prose(' del target.')];
 
@@ -380,7 +380,7 @@ export function buildTraiettoriaChips(t: TrajectoryView): TraiettoriaChip[] {
 export function describeTraiettoriaFooter(t: TrajectoryView): Narrative {
   const out: Narrative = [];
   if (t.returnOrigin === 'allocation') {
-    out.push(prose("Rendimento nominale dall'allocazione dell'obiettivo ("));
+    out.push(prose("Rendimento nominale dall'allocazione del traguardo ("));
     t.allocation.forEach((share, index) => {
       if (index > 0) out.push(prose(', '));
       out.push(pct(share.pct), prose(` ${share.label.toLowerCase()}`));
@@ -392,7 +392,7 @@ export function describeTraiettoriaFooter(t: TrajectoryView): Narrative {
     }
     out.push(prose(': una stima, non un consiglio.'));
   } else {
-    out.push(prose(`Rendimento nominale ${ofThePercent(t.annualReturn, pctDecimals(t.annualReturn))}`), pct(t.annualReturn), prose(" l'anno, quello dello scenario Base del portafoglio target, perché l'obiettivo non ha un'allocazione consigliata utilizzabile: una stima, non un consiglio."));
+    out.push(prose(`Rendimento nominale ${ofThePercent(t.annualReturn, pctDecimals(t.annualReturn))}`), pct(t.annualReturn), prose(" l'anno, quello dello scenario Base del portafoglio target, perché il traguardo non ha un'allocazione consigliata utilizzabile: una stima, non un consiglio."));
   }
   out.push(prose(t.deadline ? ' Tratteggiata orizzontale: il target; verticale: la scadenza.' : ' Tratteggiata orizzontale: il target.'));
   const band = t.uncertainty?.kind === 'dated' && t.uncertainty.detail != null;
@@ -465,7 +465,7 @@ export const ALLOCAZIONE_DERIVATA_FOOTER: Narrative = [
 ];
 
 /**
- * «Gli obiettivi da colmare chiedono il 65% in obbligazioni, il 26,2% in azioni e l'8,8% in
+ * «I traguardi da colmare chiedono il 65% in obbligazioni, il 26,2% in azioni e l'8,8% in
  * liquidità; le quote assegnate sono al 64,6%, 6,2% e 29,2%.» — the derived target largest
  * first, the assigned shares in the same order, and a class only the quotas hold named as such.
  */
@@ -473,14 +473,14 @@ export function describeAllocazioneDerivata(view: DerivedAllocationView): Narrat
   const asked = view.rows.filter((r) => r.derivedPct > 0).sort((a, b) => b.derivedPct - a.derivedPct);
   const unasked = view.rows.filter((r) => r.derivedPct <= 0 && r.assignedPct > 0);
 
-  const out: Narrative = [prose('Gli obiettivi da colmare chiedono ')];
+  const out: Narrative = [prose('I traguardi da colmare chiedono ')];
   out.push(...joinList(asked.map((r) => [prose(articleForPercent(r.derivedPct, pctDecimals(r.derivedPct))), pct(r.derivedPct), prose(` in ${r.label.toLowerCase()}`)])));
   out.push(prose(`; le quote assegnate sono ${atThePercent(asked[0]?.assignedPct ?? 0, pctDecimals(asked[0]?.assignedPct ?? 0))}`));
   out.push(...joinList(asked.map((r) => [pct(r.assignedPct)])));
   if (unasked.length > 0) {
     out.push(prose(', più '));
     out.push(...joinList(unasked.map((r) => [prose(articleForPercent(r.assignedPct, pctDecimals(r.assignedPct))), pct(r.assignedPct), prose(` in ${r.label.toLowerCase()}`)])));
-    out.push(prose(' che nessun obiettivo chiede'));
+    out.push(prose(' che nessun traguardo chiede'));
   }
   out.push(prose('.'));
   return out;
@@ -518,7 +518,7 @@ export function describeAssegnazioniFooter(view: AssignmentsView): { narrative: 
   if (view.overAssigned.length > 1) {
     return { tone: 'warning', narrative: [prose(`${joinNames(view.overAssigned.map((o) => o.name))} sono assegnati oltre il `), pct(100), prose(': riduci una quota.')] };
   }
-  return { tone: 'neutral', narrative: [prose('Una quota è la percentuale del valore di uno strumento; lo stesso strumento può servire più obiettivi fino al '), pct(100), prose('.')] };
+  return { tone: 'neutral', narrative: [prose('Una quota è la percentuale del valore di uno strumento; lo stesso strumento può servire più traguardi fino al '), pct(100), prose('.')] };
 }
 
 // ─── Dettaglio ────────────────────────────────────────────────────────────────
@@ -527,8 +527,8 @@ export const DETTAGLIO_DESCRIPTION = 'Dove indirizzare il prossimo versamento, e
 
 /** «Con 1000 € in più, 732 € vanno a Casa, 192 € a Studi figli e 76 € ad Auto.» */
 export function describeVersamento(slices: GoalContributionSlice[], contribution: number): Narrative {
-  if (contribution <= 0) return [prose('Inserisci un importo per vedere come ripartirlo tra gli obiettivi sotto target.')];
-  if (slices.length === 0) return [prose('Nessun obiettivo con un importo ancora da colmare: i '), amount(contribution), prose(' non hanno una destinazione.')];
+  if (contribution <= 0) return [prose('Inserisci un importo per vedere come ripartirlo tra i traguardi sotto target.')];
+  if (slices.length === 0) return [prose('Nessun traguardo con un importo ancora da colmare: i '), amount(contribution), prose(' non hanno una destinazione.')];
   const out: Narrative = [prose('Con '), amount(contribution), prose(' in più, ')];
   out.push(...joinList(slices.map((slice, index) => [amount(slice.add), prose(`${index === 0 ? ' vanno' : ''} ${toName(slice.goalName)}`)])));
   out.push(prose('.'));
@@ -538,12 +538,12 @@ export function describeVersamento(slices: GoalContributionSlice[], contribution
 export const EXPLAINER: { title: string; body: string }[] = [
   {
     title: 'Il verdetto',
-    body: 'Per ogni obiettivo con un importo e una scadenza il valore assegnato oggi cresce al rendimento atteso, più il versamento mensile, fino alla scadenza: se il valore così proiettato copre il target (con l\'1% di tolleranza) l\'obiettivo è in rotta, altrimenti è in ritardo e la pagina dice quanto servirebbe al mese. Un obiettivo senza scadenza non può essere in ritardo: ha solo una data di arrivo, o nessuna.',
+    body: 'Per ogni traguardo con un importo e una scadenza il valore assegnato oggi cresce al rendimento atteso, più il versamento mensile, fino alla scadenza: se il valore così proiettato copre il target (con l\'1% di tolleranza) il traguardo è in rotta, altrimenti è in ritardo e la pagina dice quanto servirebbe al mese. Un traguardo senza scadenza non può essere in ritardo: ha solo una data di arrivo, o nessuna.',
   },
   {
     title: 'Il rendimento atteso',
     // L3 (doc/fire-ipotesi § 8): the same hypotheses as every FIRE tab — this body described the fixed per-class rates of before until 2026-10-05.
-    body: 'È il rendimento composto dello scenario Base di Impostazioni › Simulazioni, al netto di TER e bollo: sull\'allocazione consigliata dell\'obiettivo (cripto e immobili esclusi, il resto riportato a 100) o, senza un\'allocazione utilizzabile, sul portafoglio target, lo stesso delle altre schede FIRE. Si capitalizza al tasso mensile equivalente. È una stima indicativa, non un consiglio finanziario.',
+    body: 'È il rendimento composto dello scenario Base di Impostazioni › Simulazioni, al netto di TER e bollo: sull\'allocazione consigliata del traguardo (cripto e immobili esclusi, il resto riportato a 100) o, senza un\'allocazione utilizzabile, sul portafoglio target, lo stesso delle altre schede FIRE. Si capitalizza al tasso mensile equivalente. È una stima indicativa, non un consiglio finanziario.',
   },
   {
     title: 'La probabilità',
@@ -551,6 +551,6 @@ export const EXPLAINER: { title: string; body: string }[] = [
   },
   {
     title: 'Le quote e l\'allocazione derivata',
-    body: 'Una quota è la percentuale del valore di uno strumento assegnata a un obiettivo; lo stesso strumento può servire più obiettivi fino al 100%. Con l\'allocazione da obiettivi attiva, il target della pagina Allocazione è la media delle allocazioni consigliate pesata su quanto manca a ciascun obiettivo per la sua priorità (Alta 3× · Media 2× · Bassa 1×); gli obiettivi raggiunti non pesano.',
+    body: 'Una quota è la percentuale del valore di uno strumento assegnata a un traguardo; lo stesso strumento può servire più traguardi fino al 100%. Con l\'allocazione da traguardi attiva, il target della pagina Allocazione è la media delle allocazioni consigliate pesata su quanto manca a ciascun traguardo per la sua priorità (Alta 3× · Media 2× · Bassa 1×); i traguardi raggiunti non pesano.',
   },
 ];

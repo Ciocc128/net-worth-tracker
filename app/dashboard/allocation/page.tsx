@@ -81,6 +81,8 @@ import {
   buildCompositionPair,
   buildPensionLookThrough,
   buildPlanView,
+  findPacSubstitutions,
+  listPlanBuyAssetIds,
   activeClassGaps,
   estimatePlanSaleTax,
   offTargetGaps,
@@ -103,6 +105,7 @@ import {
   describePensionAside,
   describePlan,
   describePlanFooter,
+  describePacOverlap,
 } from '@/lib/utils/allocazioneNarrative';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -127,6 +130,7 @@ import { PrevidenzaTile } from '@/components/allocation/tiles/PrevidenzaTile';
 import { AllocazioneDettaglio } from '@/components/allocation/AllocazioneDettaglio';
 import { useOpenAccumuloPlan } from '@/lib/hooks/useOpenAccumuloPlan';
 import { summarizePacMonth } from '@/lib/utils/accumuloSummary';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 
 /** The grid's geometry, for the skeleton: the same spans as the tiles below. */
 const SKELETON_CELLS: TileSkeletonCell[] = [
@@ -339,6 +343,20 @@ export default function AllocationPage() {
     () => (planInputs ? buildPlanView(planMode, planAmount, planInputs) : null),
     [planInputs, planMode, planAmount],
   );
+  // AL17 (D-AL4): with an active plan the Piano says what the PAC buys this month, and which
+  // instrument the plan bought in place of one this Piano proposes. The engines are untouched.
+  const pacNote = useMemo(() => {
+    if (!pac || !planView) return null;
+    const labelOfAsset = (assetId: string): string => {
+      const asset = allAssets.find((candidate) => candidate.id === assetId);
+      return asset ? getAssetDisplayTicker(asset) : (holdings.find((holding) => (holding.assetId ?? holding.id) === assetId)?.label ?? assetId);
+    };
+    const substitutions = findPacSubstitutions(openPlan?.positions ?? [], listPlanBuyAssetIds(planView, holdings)).map((item) => ({
+      replaced: labelOfAsset(item.replacedAssetId),
+      buying: labelOfAsset(item.buyAssetId),
+    }));
+    return describePacOverlap(pac, substitutions);
+  }, [pac, planView, openPlan, holdings, allAssets]);
   const nextMoney = useMemo(
     () => (planInputs ? summarizeNextMoney(planInputs, planAmount) : null),
     [planInputs, planAmount],
@@ -575,6 +593,7 @@ export default function AllocationPage() {
                 reading={describePlan(planView, band, saleTax)}
                 view={planView}
                 footer={describePlanFooter(planMode, !!leverageInputs, saleTax?.tax !== null && saleTax?.tax !== undefined)}
+                pacNote={pacNote ? { reading: pacNote, onOpenAccumulo: () => handleTabChange('accumulo') } : null}
               />
             </div>
 

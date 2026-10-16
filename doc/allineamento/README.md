@@ -337,7 +337,20 @@ Collaudo sull'anteprima: —
   `?obiettivi=1` non cambiano. Le stringhe nei moduli di parole, mai nel JSX; i test che le fissano si aggiornano nella
   PR, dichiarandolo. È un rinomina di superficie di upstream: voce in `fork-scelte-ui.md`.
 
-**Esito**: —
+**Esito** (2026-10-16, IMPL-AL5): AL17–AL19 fatti, `tsc`, ESLint e Vitest (268 file, 6111 test) verdi sotto `Europe/Rome`.
+Default dell'agente: **AL17** la riga sta nella tile Piano per tutte e tre le modalità e solo con un piano attivo e non
+finito (la stessa condizione del verdetto); a rata chiusa dice «è chiusa, ma questo piano non ne tiene conto»; la
+sostituzione si legge solo dove il Piano nomina davvero lo strumento (gambe COMPRA scese agli strumenti, nodi del Versa,
+trade del motore a leva) e mai nel Preleva; il collegamento è «Apri Accumulo». **AL18** la sezione «Target di classe»
+sta in cima al modale, classi con target > 0 o importo fisso, e la leva è «Somma 110%: leva 1,10×.» (`describeClassTargets`,
+il rapporto lo passa il chiamante perché il modulo non importa Firebase). **AL19** «Traguardi» vale anche per la
+Panoramica (tile e «Traguardo raggiunto.») e per la sezione di Impostazioni «FIRE e traguardi» (un traguardo, «Nuovo
+traguardo», «Importo del traguardo»); «Età obiettivo» resta; l'assistente AI, le email, i prompt e i budget di entrata
+(«obiettivo di entrata») non cambiano; «Criteri del modello» vale anche per l'intestazione del riepilogo in Impostazioni
+(«Allocazione ideale» → «Criteri del modello») e per «Senza il criterio…»/«sotto-criteri»/«criterio geografico».
+I test che fissavano le vecchie parole sono aggiornati nella PR: `goalsNarrative`, `settingsNarrative`,
+`weightOptimizerNarrative`, `allocazioneNarrative`, `firePlan`, `datedFlowsNarrative`, `overviewNarrative`.
+Collaudo sull'anteprima: —
 
 ### 9.6 IMPL-AL6 — Lo strumento coperto (Onda 4: AL20, D-AL6)
 
