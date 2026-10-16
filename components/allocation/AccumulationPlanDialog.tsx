@@ -123,6 +123,7 @@ import {
   ACCUMULO_STEP1_L_DISPOSALS,
   ACCUMULO_STEP1_L_HEADLINE,
   ACCUMULO_STEP1_L_MONTHLY,
+  ACCUMULO_STEP1_L_MONTHLY_NOTE,
   ACCUMULO_STEP1_L_RESERVE,
   ACCUMULO_STEP1_L_SOURCE,
   ACCUMULO_STEP1_MONTHS,
@@ -665,6 +666,8 @@ export function AccumulationPlanDialog({
   const step3Summary = preview
     ? describeStep3Summary({
         months: preview.schedule.installments.length,
+        firstEur: (preview.schedule.installments[0]?.lines ?? []).reduce((acc, line) => acc + line.plannedAmountEur, 0),
+        firstMonth: preview.schedule.installments[0]?.month ?? draft.startMonth,
         averageEur:
           preview.schedule.installments.reduce((sum, i) => sum + i.lines.reduce((acc, line) => acc + line.plannedAmountEur, 0), 0) /
           Math.max(1, preview.schedule.installments.length),
@@ -916,6 +919,7 @@ export function AccumulationPlanDialog({
                     <dt className="text-muted-foreground">{ACCUMULO_STEP1_L_MONTHLY}</dt>
                     <dd className="font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(draft.months > 0 ? liquidity.L / draft.months : 0)}</dd>
                   </div>
+                  <p className="text-[11px] text-muted-foreground">{ACCUMULO_STEP1_L_MONTHLY_NOTE}</p>
                 </dl>
               </div>
             )}

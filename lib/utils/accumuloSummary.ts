@@ -283,6 +283,20 @@ export function summarizeClosedPlan(plan: AccumulationPlan, targets: AssetAlloca
   };
 }
 
+/** D-AL2: a plan stopped this recently can be reactivated (AL12). */
+export const PLAN_REACTIVATION_DAYS = 30;
+
+/**
+ * AL12: «Riattiva» is offered on a plan the owner INTERRUPTED (`cancelled`, never a `completed` one) less
+ * than 30 days ago, and only while no other plan is open (D12: one `draft` or `active` per account).
+ */
+export function canReactivatePlan(plan: AccumulationPlan, plans: AccumulationPlan[], now: Date): boolean {
+  if (plan.status !== 'cancelled' || !plan.closedAt) return false;
+  if (plans.some((other) => other.status === 'draft' || other.status === 'active')) return false;
+  const ageDays = (now.getTime() - plan.closedAt.getTime()) / 86_400_000;
+  return ageDays >= 0 && ageDays < PLAN_REACTIVATION_DAYS;
+}
+
 /** The finished plans, newest closure first. */
 export function selectClosedPlans(plans: AccumulationPlan[] | undefined): AccumulationPlan[] {
   return (plans ?? [])

@@ -176,6 +176,13 @@ export const ACCUMULO_ACTION_STOP = 'Interrompi';
 export const ACCUMULO_ACTION_STOP_VERB = 'interrompere il piano';
 export const ACCUMULO_ACTION_CLOSE = 'Chiudi piano';
 export const ACCUMULO_ACTION_CLOSE_VERB = 'chiudere il piano';
+/** AL12 (D-AL2): Piani conclusi, on a plan interrupted under 30 days ago while no other is open. */
+export const ACCUMULO_ACTION_REACTIVATE = 'Riattiva';
+export const ACCUMULO_ACTION_REACTIVATE_VERB = 'riattivare il piano';
+export const ACCUMULO_REACTIVATE_REFUSED =
+  'Questo piano non si può riattivare: è stato interrotto da più di 30 giorni, è già concluso o c\u2019è un altro piano aperto.';
+/** Column header of the closed-plans table for the reactivate action (visually empty). */
+export const ACCUMULO_REACTIVATE_COLUMN = 'Azioni';
 export const ACCUMULO_ACTION_SAVE = 'Salva';
 export const ACCUMULO_ACTION_CANCEL = 'Annulla';
 
@@ -263,6 +270,33 @@ export function describeAccumulationDraft(input: AccumulationDraftReading): Narr
   ];
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// AL13 — ONE «rata»: the month's installment, and the average that names its first month
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface InstallmentAverageInput {
+  /** Σ of every installment's planned lines ÷ the number of installments. */
+  averageEur: number;
+  /** Σ of the FIRST installment's planned lines. */
+  firstEur: number;
+  firstMonth: MonthKey;
+}
+
+/**
+ * «in media 4455 € al mese; la prima, ottobre, 4207 €» — the average and the first month said together, so
+ * the editor never shows two different figures under the one word «rata». When they coincide to the euro
+ * the second half is dropped.
+ */
+export function describeInstallmentAverage(input: InstallmentAverageInput): string {
+  const average = cachedFormatCurrencyEUR(input.averageEur, true);
+  const first = cachedFormatCurrencyEUR(input.firstEur, true);
+  if (average === first) return `${average} al mese`;
+  return `in media ${average} al mese; la prima, ${monthLabelLong(input.firstMonth, false)}, ${first}`;
+}
+
+/** Step 1 has no weights yet, so no installment: only the liquidity split evenly over the months (L ÷ N). */
+export const ACCUMULO_STEP1_L_MONTHLY_NOTE = 'La rata di ogni mese dipende dai pesi che scegli al passo successivo.';
+
 export interface AccumulationActiveReading {
   monthKey: MonthKey;
   /** Σ of the current installment's lines (planned + executed amounts). */
@@ -279,7 +313,7 @@ export interface AccumulationActiveReading {
 /** An `active` plan's current month: what moves, how much of it already has, and the drift. */
 export function describeAccumulationActive(input: AccumulationActiveReading): Narrative {
   const segments: Narrative = [
-    { text: `${capitalize(monthLabelLong(input.monthKey, false))}: ` },
+    { text: `Rata di ${monthLabelLong(input.monthKey, false)}: ` },
     { text: cachedFormatCurrencyEUR(input.installmentTotalEur), mono: true },
     { text: ' in ' },
     { text: `${input.lineCount}`, mono: true },
@@ -517,11 +551,18 @@ export const ACCUMULO_STEP_READINGS: Record<1 | 2, string> = {
   2: 'Scegli dove deve arrivare ogni strumento a fine piano: il pannello mostra dove porta.',
 };
 
-/** Step 3's reading, the plan in one line: «5 rate da circa 5905 € · copre il 98% del piano · leva a fine piano 1,27×». */
-export function describeStep3Summary(input: { months: number; averageEur: number; coveragePct: number | null; leverageRatio: number }): Narrative {
+/** Step 3's reading, the plan in one line: «5 rate: in media 5905 € al mese; la prima, ottobre, 5800 € · copre il 98% del piano · leva a fine piano 1,27×». */
+export function describeStep3Summary(input: {
+  months: number;
+  averageEur: number;
+  firstEur: number;
+  firstMonth: MonthKey;
+  coveragePct: number | null;
+  leverageRatio: number;
+}): Narrative {
   const parts: Narrative = [
-    { text: `${input.months} ${input.months === 1 ? 'rata' : 'rate'} da circa ` },
-    { text: cachedFormatCurrencyEUR(input.averageEur, true), mono: true },
+    { text: `${input.months} ${input.months === 1 ? 'rata' : 'rate'}: ` },
+    { text: describeInstallmentAverage({ averageEur: input.averageEur, firstEur: input.firstEur, firstMonth: input.firstMonth }), mono: true },
   ];
   if (input.coveragePct !== null) parts.push({ text: ` · copre il ${formatPercentageIt(input.coveragePct, 0)} del piano` });
   if (input.leverageRatio > 1.01) parts.push({ text: ` · leva a fine piano ${formatNumberIt(input.leverageRatio, 2)}×` });
@@ -558,7 +599,7 @@ export const ACCUMULO_STEP1_L_AVAILABLE = 'Liquidità da spendere';
 export function describeStep1InflowsLabel(months: number): string {
   return `+ Entrate nei ${months} mesi`;
 }
-export const ACCUMULO_STEP1_L_MONTHLY = 'Rata mensile';
+export const ACCUMULO_STEP1_L_MONTHLY = 'Liquidità per mese';
 
 // Step 2 — Target
 export const ACCUMULO_STEP2_COL_INSTRUMENT = 'Strumento';
@@ -933,7 +974,7 @@ export function describeAccumuloVerdict(input: AccumuloVerdictInput): PageVerdic
     if (input.executedCount > 0) parts.push(`${input.executedCount} ${input.executedCount === 1 ? 'registrato' : 'registrati'}`);
     if (input.toConfirmCount > 0) parts.push(`${input.toConfirmCount} da confermare`);
   }
-  let headline = `${capitalize(monthLabelLong(input.monthKey, false))}: ${cachedFormatCurrencyEUR(input.installmentTotalEur, true)} in ${input.lineCount} ${input.lineCount === 1 ? 'acquisto' : 'acquisti'}`;
+  let headline = `Rata di ${monthLabelLong(input.monthKey, false)}: ${cachedFormatCurrencyEUR(input.installmentTotalEur, true)} in ${input.lineCount} ${input.lineCount === 1 ? 'acquisto' : 'acquisti'}`;
   if (parts.length > 0) headline += `, ${parts.length === 2 ? `${parts[0]} e ${parts[1]}` : parts[0]}`;
   if (input.lateCount > 0) headline += `, ${input.lateCount} in ritardo`;
   headline += '.';

@@ -229,7 +229,7 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
 
         {closedPlans.length > 0 && (
           <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-12')}>
-            <PianiConclusiTile plans={closedPlans} targets={targets} />
+            <PianiConclusiTile ownerId={ownerId} plans={closedPlans} allPlans={plansQuery.data ?? []} targets={targets} />
           </div>
         )}
       </div>

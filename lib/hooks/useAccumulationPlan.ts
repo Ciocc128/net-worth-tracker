@@ -23,6 +23,7 @@ import {
   dismissRecalibration,
   revisePlan,
   closePlan,
+  reactivatePlan,
   deleteDraftPlan,
   type ActivatePlanInput,
   type MeasurementInput,
@@ -154,6 +155,14 @@ export function useClosePlan(ownerId: string) {
       planId: string;
       status: Extract<AccumulationPlanStatus, 'completed' | 'cancelled'>;
     }) => closePlan(planId, status),
+    onSuccess: () => invalidateAccumulationPlans(queryClient, ownerId),
+  });
+}
+
+export function useReactivatePlan(ownerId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (planId: string) => reactivatePlan(ownerId, planId, new Date()),
     onSuccess: () => invalidateAccumulationPlans(queryClient, ownerId),
   });
 }

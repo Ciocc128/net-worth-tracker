@@ -64,7 +64,7 @@ describe('buildAccumuloVerdict', () => {
   it('active, one executed and one to confirm', () => {
     const p = activePlan([line('a', 1000, 'executed'), line('b', 800), line('c', 700), line('d', 634)]);
     const verdict = buildAccumuloVerdict({ ...base, plan: p, lineStates: { '3:b': 'toConfirm' } });
-    expect(flat(verdict.headline)).toBe('Ottobre: 3134 € in 4 acquisti, 1 registrato e 1 da confermare.');
+    expect(flat(verdict.headline)).toBe('Rata di ottobre: 3134 € in 4 acquisti, 1 registrato e 1 da confermare.');
     expect(flat(narrativeToText(verdict.sentence))).toMatch(/^Rata 3 di 12, investiti finora .* su .*\.$/);
     expect(verdict.tone).toBe('neutral');
   });
@@ -72,7 +72,7 @@ describe('buildAccumuloVerdict', () => {
   it('active, everything registered closes the month in the positive tone', () => {
     const p = activePlan([line('a', 1000, 'executed'), line('b', 2134, 'executed')]);
     const verdict = buildAccumuloVerdict({ ...base, plan: p });
-    expect(flat(verdict.headline)).toBe('Ottobre: 3134 € in 2 acquisti, tutti registrati.');
+    expect(flat(verdict.headline)).toBe('Rata di ottobre: 3134 € in 2 acquisti, tutti registrati.');
     expect(verdict.tone).toBe('positive');
   });
 
