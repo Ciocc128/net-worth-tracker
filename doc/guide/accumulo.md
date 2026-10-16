@@ -376,3 +376,11 @@ stessa console, ora con anche `match /modelPortfolios/{ownerId}`).
 - **Editor, passo 3**: la lettura del dialogo è la sintesi («N rate da circa X € · copre il Y% · leva Z×»); pesi a fine piano in tabella (oggi → fine · target · scarto, ambra oltre 0,5 pp); calendario coi ticker; classi mese per mese come tabella (solo le classi con peso o target) — il grafico sta già nel pannello del passo 2 e in Classi del piano. I passi 1 e 2 hanno una frase propria al posto del titolo ripetuto.
 - **Stato vuoto**: lettura sulla liquidità dei conti, anteprima in un riquadro («Con una riserva di X e Y al mese, N rate da Z porterebbero:», classi su una colonna con il target scritto), «Cosa fa / Cosa non fa» in frasi.
 - Restano fuori: M8 (link «vedi Accumulo» in Bilanciamento); il verdino di campi e pulsanti secondari in Lime Frost chiaro è del tema (scheda Todoist a parte).
+
+## AL1 «difetti e parole» (2026-10-16)
+
+`doc/allineamento/README.md` § 9.1, onda 1:
+
+- **La testa di un gruppo è lo strumento che compra** (R1): `orderGroupMembers(position)` (`accumulationPlanUtils.ts`) mette `buyAssetId` per primo; il passo Target disegna la testa su quel membro (oggi %, target, da comprare e quote al SUO prezzo) e l'altro «non riceve acquisti»; `confirmGroup` salva i membri già ordinati. Prima la testa era l'indice 0 della lista, e un gruppo `[vecchio, nuovo]` mostrava le quote sul prezzo del vecchio.
+- **Il Calendario scrive le classi per nome** (R2): `ASSET_CLASS_LABELS`, solo le classi con peso o target (`liveClassEntries`, la regola della tabella del passo 3); mai la chiave Firestore. I bottoni di riga sono `h-11 desktop:h-7` (R3).
+- **Le parole**: il modale di «Ricalcola» si intitola «Ricalcola il portafoglio modello» (R8); l'intestazione di Allocazione sulla scheda Accumulo dice «pesi dal portafoglio modello» (o «dai pesi del piano» senza modello) e non porta «Modifica target», che scrive i target di Impostazioni che la scheda non legge (R9).

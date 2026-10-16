@@ -256,6 +256,11 @@ describe('describeAllocazioneHeader', () => {
     expect(flat(describeAllocazioneHeader({ marketValue: 12000, classCount: 1, targetSource: 'goals' }))).toBe('12.000 € allocati · 1 classe · target dagli obiettivi');
   });
 
+  it('says where the Accumulo tab weights come from (AL6 · R9)', () => {
+    expect(flat(describeAllocazioneHeader({ marketValue: 112574, classCount: 5, targetSource: 'model' }))).toBe('112.574 € allocati · 5 classi · pesi dal portafoglio modello');
+    expect(flat(describeAllocazioneHeader({ marketValue: 112574, classCount: 5, targetSource: 'plan' }))).toBe('112.574 € allocati · 5 classi · dai pesi del piano');
+  });
+
   it('is absent without assets', () => {
     expect(describeAllocazioneHeader({ marketValue: 0, classCount: 0, targetSource: 'settings' })).toBeUndefined();
   });

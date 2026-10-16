@@ -227,7 +227,15 @@ I fixture dei test lo riproducono con nomi inventati.
   Accumulo dice «pesi dal portafoglio modello» (o «dai pesi del piano» senza modello) e non mostra «Modifica target».
 - **AL7** (R10): `modelPortfolios` fra i documenti per utente di `scripts/mirrorProdAccount.mts` (copiato e rimosso).
 
-**Esito**: —
+**Esito** (2026-10-16, IMPL-AL1): AL1–AL7 fatti, `tsc`, ESLint e Vitest (265 file) verdi sotto `Europe/Rome`.
+Default dell'agente: **AL1** la testa è `orderGroupMembers(...)[0]` e basta (l'anteprima è la stessa tabella del passo
+Target); **AL2** il filtro «classi con peso o target» è `liveClassEntries` (|x| ≥ 0,05%, come la tabella del passo 3);
+**AL3** la clausola in euro scatta con risparmio vissuto negativo e tasso nullo o < −100% (anche con entrate vissute a 0),
+e il titolo «cresce, ma le spese superano le entrate» segue la stessa regola; **AL5** «Mai comprato» solo per strumenti
+di tipo a registro con Registro letto (altrimenti resta «Azzerato»); **AL6** anche la nota di metodo del Ventaglio
+(`fireNarrative.ts`, quarta frase) dice «allocazione target», e il testo di Impostazioni dice «Il portafoglio modello e il
+PAC possono proporre…» (la parola «obiettivi» resta fino ad AL19); l'e2e di «Con vendite mirate» cerca il nuovo titolo del
+modale; **AL7** `modelPortfolios/{uid}` è un documento per utente come `assetAllocationTargets`. Collaudo sull'anteprima: —
 
 ### 9.2 IMPL-AL2 — Rivedi il piano completo (Onda 2: AL8–AL11, D-AL1)
 

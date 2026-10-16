@@ -283,7 +283,7 @@ export function describeOptimizerSnapshot(
 export const IDEAL_COMPOSITION_TILE_EYEBROW = 'Composizione ideale';
 export const IDEAL_COMPOSITION_TILE_OFF_READING =
   "Imposta gli obiettivi dell'allocazione ideale per vedere com'è fatto il tuo portafoglio ideale, strumento per strumento.";
-export const IDEAL_COMPOSITION_TITLE = 'Composizione ideale';
+export const IDEAL_COMPOSITION_TITLE = 'Ricalcola il portafoglio modello';
 export const IDEAL_COMPOSITION_AMOUNT_LABEL = 'Importo da investire (€)';
 export const IDEAL_COMPOSITION_REACHABLE_DISABLED_REASON =
   'Inserisci un importo da investire per vedere cosa è raggiungibile senza vendere.';

@@ -655,13 +655,13 @@ export function listIdealObjectives({ classPriority, leveragePriority, targetLev
  */
 export function describeIdealAllocation(input: IdealAllocationInput): Narrative {
   if (!input.enabled) {
-    return [prose('Spenta: nel PAC i pesi si inseriscono solo a mano.')];
+    return [prose('Spenta: nel portafoglio modello e nel PAC i pesi si inseriscono solo a mano.')];
   }
   const objectiveTexts = listIdealObjectives(input);
   const count = objectiveTexts.length;
   return [
     prose(
-      `Il PAC può proporre i pesi da ${count} obiettiv${count === 1 ? 'o' : 'i'}: ${objectiveTexts.join(', ')}.`
+      `Il portafoglio modello e il PAC possono proporre i pesi da ${count} obiettiv${count === 1 ? 'o' : 'i'}: ${objectiveTexts.join(', ')}.`
     ),
   ];
 }

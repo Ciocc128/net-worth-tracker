@@ -244,16 +244,16 @@ describe('describeTargetFooter', () => {
 
   it('says the target is cleared today in every path, instead of a 100% «entro il 2026»', () => {
     expect(plain(describeTargetFooter({ view: 'ventaglio', fan: { calendarYear: 2026, probabilityPct: 100, onHorizon: false, atStart: true }, fanAvailable: true, lock: lockOff, simulationCount: 1000, allocationLabel: '100% azioni' }))).toBe(
-      'FIRE già raggiunto oggi, quindi in tutti i 1000 percorsi con l\'allocazione attuale (100% azioni): il ventaglio mostra come il patrimonio può evolvere da qui.',
+      'FIRE già raggiunto oggi, quindi in tutti i 1000 percorsi con l\'allocazione target (100% azioni): il ventaglio mostra come il patrimonio può evolvere da qui.',
     );
   });
 
   it('states the probability in the Ventaglio view, with the allocation and the inflow model', () => {
     expect(plain(describeTargetFooter({ view: 'ventaglio', fan, fanAvailable: true, lock: lockOn(), simulationCount: 1000, allocationLabel: '62% azioni, 28% obbligazioni, 10% immobili' }))).toBe(
-      'Probabilità di FIRE entro il 2032: 71% su 1000 percorsi con l\'allocazione attuale (62% azioni, 28% obbligazioni, 10% immobili). Il fondo pensione entra all\'anno di sblocco al valore di oggi; fino ad allora il target è il numero del modello ponte.',
+      'Probabilità di FIRE entro il 2032: 71% su 1000 percorsi con l\'allocazione target (62% azioni, 28% obbligazioni, 10% immobili). Il fondo pensione entra all\'anno di sblocco al valore di oggi; fino ad allora il target è il numero del modello ponte.',
     );
     expect(plain(describeTargetFooter({ view: 'ventaglio', fan: { ...fan, onHorizon: true, calendarYear: 2066 }, fanAvailable: true, lock: lockOff, simulationCount: 1000, allocationLabel: '100% azioni' }))).toBe(
-      'Probabilità di FIRE entro il 2066 (orizzonte della simulazione): 71% su 1000 percorsi con l\'allocazione attuale (100% azioni).',
+      'Probabilità di FIRE entro il 2066 (orizzonte della simulazione): 71% su 1000 percorsi con l\'allocazione target (100% azioni).',
     );
   });
 
@@ -269,11 +269,11 @@ describe('describeTargetFooter', () => {
   it('says what the bars are in the Distribuzione view: the shared shocks, the border, the grey bar, the inflows', () => {
     const base = { view: 'distribuzione' as const, fan: null, fanAvailable: true, simulationCount: 1000, allocationLabel: '100% azioni' };
     expect(plain(describeTargetFooter({ ...base, lock: lockOn(), distribution: distribution() }))).toBe(
-      "1000 percorsi con l'allocazione attuale (100% azioni), stessi rendimenti a ogni confronto; il bordo segna la classe dell'anno del base, la classe grigia i percorsi che non ci arrivano entro il 2066. Il fondo pensione entra all'anno di sblocco al valore di oggi; fino ad allora il target è il numero del modello ponte.",
+      "1000 percorsi con l'allocazione target (100% azioni), stessi rendimenti a ogni confronto; il bordo segna la classe dell'anno del base, la classe grigia i percorsi che non ci arrivano entro il 2066. Il fondo pensione entra all'anno di sblocco al valore di oggi; fino ad allora il target è il numero del modello ponte.",
     );
     // Nothing past the horizon: no grey bar to explain. No base year: no border to explain.
     expect(plain(describeTargetFooter({ ...base, lock: lockOff, distribution: distribution({ neverCount: 0 }) }))).toBe(
-      "1000 percorsi con l'allocazione attuale (100% azioni), stessi rendimenti a ogni confronto; il bordo segna la classe dell'anno del base.",
+      "1000 percorsi con l'allocazione target (100% azioni), stessi rendimenti a ogni confronto; il bordo segna la classe dell'anno del base.",
     );
     expect(plain(describeTargetFooter({ ...base, lock: lockOff, distribution: distribution({ baseCalendarYear: null }) }))).toContain('nessun bordo, perché nel base il FIRE non arriva');
     expect(describeTargetFooter({ ...base, lock: lockOff, distribution: null })).toBeNull();

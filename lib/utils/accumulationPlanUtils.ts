@@ -1123,3 +1123,24 @@ export function redistributeRemainder(positions: PlanPosition[]): PlanPosition[]
   }
   return next;
 }
+
+/**
+ * The members of a position with the one that BUYS first. A group's head is the instrument that
+ * receives the purchases (`buyAssetId`), never the first of the list: the target step shows the
+ * figures (today's weight, target, to buy, shares at ITS price) on the head row.
+ * A `buyAssetId` that is not a member leaves the order as it was.
+ */
+export function orderGroupMembers(position: Pick<PlanPosition, 'memberAssetIds' | 'buyAssetId'>): string[] {
+  const { memberAssetIds, buyAssetId } = position;
+  if (!memberAssetIds.includes(buyAssetId)) return [...memberAssetIds];
+  return [buyAssetId, ...memberAssetIds.filter((id) => id !== buyAssetId)];
+}
+
+/** Classes of a trajectory point worth showing: with a weight or a target (|x| ≥ 0,05%), as the target step's table. */
+export function liveClassEntries(point: ClassTrajectoryPoint): Array<[AssetClass, NonNullable<ClassTrajectoryPoint['byClass'][AssetClass]>]> {
+  const entries: Array<[AssetClass, NonNullable<ClassTrajectoryPoint['byClass'][AssetClass]>]> = [];
+  for (const [assetClass, entry] of Object.entries(point.byClass) as Array<[AssetClass, ClassTrajectoryPoint['byClass'][AssetClass]]>) {
+    if (entry && (Math.abs(entry.currentPct) >= 0.05 || Math.abs(entry.targetPct) >= 0.05)) entries.push([assetClass, entry]);
+  }
+  return entries;
+}

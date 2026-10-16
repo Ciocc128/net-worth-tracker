@@ -48,6 +48,7 @@ import {
 import { toast } from 'sonner';
 import type { Asset } from '@/types/assets';
 import { isLedgerAssetType } from '@/types/assetTransactions';
+import { describeZeroQuantityChip } from '@/lib/utils/zeroQuantityChip';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { formatCurrency, formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { useDeleteAsset } from '@/lib/hooks/useAssets';
@@ -220,6 +221,8 @@ interface StrumentiTileProps {
   performance: Record<string, AssetPerformanceData>;
   unitPriceSeries: Record<string, { value: number }[]>;
   ledgerReady: boolean;
+  /** Ids of the instruments with at least one operation in the Registro; null while the ledger is unread. */
+  tradedAssetIds?: ReadonlySet<string> | null;
   isDemo: boolean;
   ownerId: string | undefined;
   onAdd: () => void;
@@ -236,6 +239,7 @@ export function StrumentiTile({
   performance,
   unitPriceSeries,
   ledgerReady,
+  tradedAssetIds = null,
   isDemo,
   ownerId,
   onAdd,
@@ -271,7 +275,7 @@ export function StrumentiTile({
     return () => window.removeEventListener('resize', measure);
   }, [showDeltas, groupByClass, assets.length]);
 
-  // Sold-out rows stay in the table («Azzerato») but are not something the user owns: the
+  // Sold-out rows stay in the table («Azzerato», or «Mai comprato» when nothing was ever bought) but are not something the user owns: the
   // reading counts held positions only.
   const held = assets.filter(isHeld);
   const manualCount = held.filter((asset) => requiresManualPricing(asset)).length;
@@ -400,6 +404,7 @@ export function StrumentiTile({
     const nativePmc = !isHandValued && !isEurNative(asset) && asset.averageCost ? asset.averageCost : undefined;
     const subLine = describeAssetRowSubLine(asset, now);
     const dash = <span className="text-muted-foreground">—</span>;
+    const zeroChip = describeZeroQuantityChip(asset, tradedAssetIds);
 
     return (
       <tr key={asset.id} className={cn('border-t border-border', isManualPrice && MANUAL_ROW_TINT)}>
@@ -423,9 +428,9 @@ export function StrumentiTile({
                 </span>
               ) : null}
             </div>
-            {asset.quantity === 0 && (
+            {zeroChip && (
               <span className="shrink-0 rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                Azzerato
+                {zeroChip}
               </span>
             )}
           </div>
@@ -642,6 +647,7 @@ export function StrumentiTile({
                 sparklineData={unitPriceSeries[asset.id]}
                 performance={performance[asset.id]}
                 showLedgerActions={showLedgerActions(asset)}
+                tradedAssetIds={tradedAssetIds}
                 onRegisterTrade={onRegisterTrade}
                 onMovements={onMovements}
               />

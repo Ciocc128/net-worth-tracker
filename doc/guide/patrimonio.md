@@ -98,7 +98,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   (`summarizeCashAccounts`, `summarizeMonthTrades`, `summarizeUnrealizedGains`, `rankInstrumentReturns`,
   `computeTopWeightShare`, `resolveLastPriceUpdate`, `computeUnrealizedGain`) or `assetPerformanceDeltas.ts`; the words in
   `patrimonioNarrative.ts`. `isCashAccount` = the cash-picker rule (`type === 'cash' && assetClass === 'cash'`);
-  **`isHeld` (`quantity > 0`) gates every count, share and sum** — a sold position stays in the table as «Azzerato»
+  **`isHeld` (`quantity > 0`) gates every count, share and sum** — a sold position stays in the table as «Azzerato» (an instrument created empty, with no operation in the Registro, as «Mai comprato»: `describeZeroQuantityChip`)
   but is not owned, and the Panoramica's `assetCount` already counts held only; `hasCostBasis` excludes cash
   accounts, pension funds (a leftover `averageCost` from a type conversion is not a PMC) and sold positions, and
   `rankInstrumentReturns` applies the same exclusions to the payload's `topAssets` (whose `returnPercent` is computed

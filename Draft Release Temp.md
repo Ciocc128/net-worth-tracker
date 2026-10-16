@@ -42,6 +42,14 @@
 
 ## 🐛 Bug Fixes
 
+- Allocazione › Accumulo: in a group of equivalent instruments the target step now shows the figures (today's share, target, amount and shares to buy) on the instrument that buys, at its own price — it used to show them on the first of the list; the Calendario names the asset classes instead of printing their internal keys and its row buttons are 44px on touch.
+
+- Panoramica: when the month's income so far is a sliver of its expenses the verdict says «Finora le spese superano le entrate di 1482 €» instead of a savings rate of −1926%.
+
+- Allocazione: a sub-category target inside a class set to 0% is no longer reported as «target senza asset ribilanciabili».
+
+- Patrimonio: an instrument created empty and never bought wears «Mai comprato» instead of «Azzerato».
+
 - FIRE › Calcolatore and Coast FIRE: with dated flows (an inheritance, a rent after FIRE) the Bear scenario could reach FIRE before the Base, because a lower return made the future inflows worth more today. The flows are now valued at the Base return in all three scenarios: Bear, Base and Bull differ only in how the capital grows, and a worse market can no longer bring FIRE forward.
 
 - FIRE › Calcolatore › Età obiettivo: «Risparmio per 9 percorsi su 10» showed «— · Ventaglio non disponibile» whenever the plan reached FIRE well before the target age; it now runs the simulations up to the target age (within 40 years) and shows the figure.
@@ -59,6 +67,8 @@
 - Fixed the smallest categories of the Analisi › Flusso chart being painted black — invisible on a dark theme — when a branch held more than seven categories: a shade now never goes darker than 55% of its colour.
 
 ## 🔧 Improvements
+
+- Wording: the FIRE ventaglio speaks of the «allocazione target», the optimizer's dialog is «Ricalcola il portafoglio modello», Impostazioni names the model portfolio where it said «composizione ideale», and Allocazione's header on the Accumulo tab says where its weights come from.
 
 - FIRE and Impostazioni › Simulazioni: the three market scenarios are now called **Bear · Base · Bull** everywhere (labels, charts, tables and verdicts — «il bear lo sposta al 2036»), the way an Italian investor says them, instead of Orso and Toro.
 

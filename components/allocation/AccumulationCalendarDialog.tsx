@@ -14,9 +14,9 @@
 import { useMemo, useState } from 'react';
 import type { Asset, AssetAllocationTarget } from '@/types/assets';
 import type { AccumulationPlan, Installment, InstallmentLine } from '@/types/accumulationPlan';
-import type { RebalanceBand } from '@/lib/utils/allocationUtils';
+import { ASSET_CLASS_LABELS, type RebalanceBand } from '@/lib/utils/allocationUtils';
 import { compareAllocations } from '@/lib/services/assetAllocationService';
-import { monthIndexOf, projectClassTrajectory, toMonthKey } from '@/lib/utils/accumulationPlanUtils';
+import { liveClassEntries, monthIndexOf, projectClassTrajectory, toMonthKey } from '@/lib/utils/accumulationPlanUtils';
 import { useSetInstallmentLine } from '@/lib/hooks/useAccumulationPlan';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
@@ -168,12 +168,12 @@ export function AccumulationCalendarDialog({ open, onClose, plan, ownerId, allAs
 
                 {point && (
                   <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
-                    {Object.entries(point.byClass).map(([assetClass, data]) => (
+                    {liveClassEntries(point).map(([assetClass, data]) => (
                       <span
                         key={assetClass}
                         className={`font-mono text-[11px] tabular-nums ${point.source === 'measured' ? 'text-foreground' : 'text-muted-foreground'}`}
                       >
-                        {assetClass} {formatSignedPp(data.driftPp)}
+                        {ASSET_CLASS_LABELS[assetClass] ?? assetClass} {formatSignedPp(data.driftPp)}
                       </span>
                     ))}
                   </div>
@@ -198,20 +198,20 @@ export function AccumulationCalendarDialog({ open, onClose, plan, ownerId, allAs
                               <span className="flex shrink-0 gap-1.5">
                                 <Button
                                   variant="outline"
-                                  className="h-7 px-2 text-[11px]"
+                                  className="h-11 px-2 text-[11px] desktop:h-7"
                                   onClick={() =>
                                     setManualLine({ index: installment.index, positionId: line.positionId, qty: String(line.plannedQuantity), amount: String(line.plannedAmountEur.toFixed(2)) })
                                   }
                                 >
                                   {ACCUMULO_ACTION_MARK_EXECUTED}
                                 </Button>
-                                <Button variant="outline" className="h-7 px-2 text-[11px]" onClick={() => void setStatus(installment.index, line.positionId, 'skipped')}>
+                                <Button variant="outline" className="h-11 px-2 text-[11px] desktop:h-7" onClick={() => void setStatus(installment.index, line.positionId, 'skipped')}>
                                   {ACCUMULO_ACTION_SKIP}
                                 </Button>
                               </span>
                             )}
                             {!isDemo && status === 'executed' && !line.transactionIds?.length && (
-                              <Button variant="outline" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => void setStatus(installment.index, line.positionId, 'planned')}>
+                              <Button variant="outline" className="h-11 shrink-0 px-2 text-[11px] desktop:h-7" onClick={() => void setStatus(installment.index, line.positionId, 'planned')}>
                                 {ACCUMULO_ACTION_UNDO_EXECUTED}
                               </Button>
                             )}

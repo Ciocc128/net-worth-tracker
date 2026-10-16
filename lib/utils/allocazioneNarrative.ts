@@ -250,10 +250,21 @@ export function buildAllocazioneVerdict(input: AllocazioneVerdictInput): PageVer
 // ─── Header ───────────────────────────────────────────────────────────────────
 
 /** «245.000 € allocati · 5 classi · target dalle impostazioni» — the compact header's description. */
-export function describeAllocazioneHeader(input: { marketValue: number; classCount: number; targetSource: 'settings' | 'goals' }): string | undefined {
+export function describeAllocazioneHeader(input: {
+  marketValue: number;
+  classCount: number;
+  /** Where the page's weights come from: the Accumulo tab reads them from the model or the plan, not the settings. */
+  targetSource: 'settings' | 'goals' | 'model' | 'plan';
+}): string | undefined {
   if (input.classCount === 0) return undefined;
   const classes = input.classCount === 1 ? '1 classe' : `${input.classCount} classi`;
-  const source = input.targetSource === 'goals' ? 'target dagli obiettivi' : 'target dalle impostazioni';
+  const SOURCES = {
+    goals: 'target dagli obiettivi',
+    settings: 'target dalle impostazioni',
+    model: 'pesi dal portafoglio modello',
+    plan: 'dai pesi del piano',
+  } as const;
+  const source = SOURCES[input.targetSource];
   return `${cachedFormatCurrencyEUR(input.marketValue, true)} allocati · ${classes} · ${source}`;
 }
 

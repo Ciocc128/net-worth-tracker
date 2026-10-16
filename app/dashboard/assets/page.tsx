@@ -166,6 +166,11 @@ export default function AssetsPage() {
   // (userId, date) composite index that does not exist, and every trade mutation already
   // invalidates this cache (doc/guide/registro-operazioni.md § Asset Trade Ledger).
   const { data: trades = [], isLoading: loadingTrades } = useAssetTransactions(ownerId, undefined, { enabled: ledgerReady });
+  // Instruments with at least one operation: a zero-quantity one without any was never bought («Mai comprato»).
+  const tradedAssetIds = useMemo(
+    () => (ledgerReady && !loadingTrades ? new Set(trades.map((trade) => trade.assetId)) : null),
+    [ledgerReady, loadingTrades, trades],
+  );
 
   // ─── Dialog state ─────────────────────────────────────────────────────────────
   // `initialType` skips the type picker: «Aggiungi conto» already knows it wants a cash account.
@@ -513,6 +518,7 @@ export default function AssetsPage() {
               performance={performance}
               unitPriceSeries={unitPriceSeries}
               ledgerReady={ledgerReady}
+              tradedAssetIds={tradedAssetIds}
               isDemo={isDemo}
               ownerId={ownerId}
               onAdd={openCreate}

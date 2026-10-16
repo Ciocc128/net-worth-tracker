@@ -521,3 +521,26 @@ describe('projectMonthEndSpending', () => {
     expect(projectMonthEndSpending(100, 5, 0)).toBeNull();
   });
 });
+
+describe('buildOverviewVerdict — a savings rate past meaning says the euros (AL3)', () => {
+  // 16 ottobre 2026: 77 € of income so far, 1559 € of expenses, 2050 € still in the calendar.
+  const OTTOBRE: OverviewVerdictInput = {
+    ...AUGUST,
+    savingsRate: -1925.97,
+    cashflow: { savings: -1482, savingsRate: -1925.97, scheduledExpenses: 0, scheduledIncome: 2050 },
+  };
+
+  it('should say «Finora le spese superano le entrate di 1482 €», never the percentage', () => {
+    const text = plain(buildOverviewVerdict(OTTOBRE).sentence);
+    expect(text).toContain('Finora le spese superano le entrate di 1482 € (altri 2050 € di entrate in calendario)');
+    expect(text).not.toContain('delle entrate finora');
+    expect(text).not.toContain('1926');
+  });
+
+  it('should do the same with no income so far (rate null) and keep the percentage above −100%', () => {
+    const noIncome = { ...OTTOBRE, savingsRate: null, cashflow: { ...OTTOBRE.cashflow!, savings: -900, savingsRate: null } };
+    expect(plain(buildOverviewVerdict(noIncome).sentence)).toContain('Finora le spese superano le entrate di 900 €');
+    const mild = { ...OTTOBRE, savingsRate: -40, cashflow: { ...OTTOBRE.cashflow!, savings: -300, savingsRate: -40 } };
+    expect(plain(buildOverviewVerdict(mild).sentence)).toContain('Hai messo da parte il -40% delle entrate finora');
+  });
+});

@@ -36,6 +36,7 @@ import {
   findFirstIntactInstallment,
   marketWeights,
   modelWeightMap,
+  orderGroupMembers,
   proceedsOfDisposal,
   resolvePositionStates,
   toMonthKey,
@@ -487,7 +488,10 @@ export function AccumulationPlanDialog({
       (position) => position.memberAssetIds.length === 1 && selectedForGroup.has(position.memberAssetIds[0]),
     );
     const totalTarget = selectedPositions.reduce((sum, position) => sum + position.targetPercentage, 0);
-    const memberAssetIds = selectedPositions.flatMap((position) => position.memberAssetIds);
+    const memberAssetIds = orderGroupMembers({
+      memberAssetIds: selectedPositions.flatMap((position) => position.memberAssetIds),
+      buyAssetId: groupingBuyAssetId,
+    });
     const buyAsset = assetsById.get(groupingBuyAssetId);
     const grouped: PlanPosition = {
       id: crypto.randomUUID(),
@@ -935,10 +939,11 @@ export function AccumulationPlanDialog({
                     for (const position of draft.positions) {
                       const grouped = position.memberAssetIds.length > 1;
                       const figures = stepTwoFigures.get(position.id);
-                      position.memberAssetIds.forEach((assetId, memberIndex) => {
+                      orderGroupMembers(position).forEach((assetId, memberIndex) => {
                         const asset = assetsById.get(assetId);
                         if (!asset || rendered.has(assetId)) return;
                         rendered.add(assetId);
+                        // The head is the member that BUYS (R1), not the first of the list.
                         const isHead = memberIndex === 0;
                         const partial = draft.disposals.find((disposal) => disposal.assetId === assetId && disposal.quantity !== undefined);
                         const locked = lockedSaleIds.has(assetId);

@@ -66,7 +66,7 @@ test.describe('Composizione ideale › Con vendite mirate a 390px', () => {
     await page.goto('/dashboard/allocation?tab=accumulo', { waitUntil: 'load' });
     await expect(page.getByRole('region', { name: 'Verdetto sul piano di accumulo' })).toBeVisible({ timeout: 60_000 });
     await page.locator('section[aria-label="Portafoglio modello"]').getByRole('button', { name: 'Ricalcola' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Composizione ideale' });
+    const dialog = page.getByRole('dialog', { name: 'Ricalcola il portafoglio modello' });
     await dialog.getByRole('radio', { name: 'Con vendite mirate' }).click();
     await dialog.getByLabel('Tasse massime (€)').fill('100000');
     await dialog.getByRole('button', { name: 'Calcola' }).click();
