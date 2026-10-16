@@ -16,7 +16,7 @@ import type { Asset, AssetAllocationTarget } from '@/types/assets';
 import type { AccumulationPlan, Installment, InstallmentLine } from '@/types/accumulationPlan';
 import { ASSET_CLASS_LABELS, type RebalanceBand } from '@/lib/utils/allocationUtils';
 import { compareAllocations } from '@/lib/services/assetAllocationService';
-import { liveClassEntries, monthIndexOf, projectClassTrajectory, toMonthKey } from '@/lib/utils/accumulationPlanUtils';
+import { installmentLineLabel, liveClassEntries, monthIndexOf, projectClassTrajectory, toMonthKey } from '@/lib/utils/accumulationPlanUtils';
 import { useSetInstallmentLine } from '@/lib/hooks/useAccumulationPlan';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
@@ -188,7 +188,7 @@ export function AccumulationCalendarDialog({ open, onClose, plan, ownerId, allAs
                         <li key={line.positionId} className="flex flex-col gap-1.5">
                           <div className="flex items-center justify-between gap-3">
                             <span className="min-w-0 flex-1 text-[13px] text-foreground">
-                              {plan.positions.find((p) => p.id === line.positionId)?.label ?? line.positionId}
+                              {installmentLineLabel(line, plan.positions, (assetId) => allAssets.find((asset) => asset.id === assetId)?.name)}
                               <span className="ml-2 font-mono text-[11px] tabular-nums text-muted-foreground">
                                 {formatNumberIt(line.plannedQuantity, 0)} · {cachedFormatCurrencyEUR(line.plannedAmountEur)}
                               </span>

@@ -98,7 +98,8 @@ export type DraftIssueCode =
   | 'no_positions'
   | 'disposal_full_on_position'
   | 'disposal_quantity'
-  | 'nothing_to_revise';
+  | 'nothing_to_revise'
+  | 'sale_month_range';
 
 /** What `validateDraftAgainstAssets` knows about a finding — enough to phrase it, not the final `DraftIssue`. */
 export type DraftIssueContext =
@@ -114,7 +115,8 @@ export type DraftIssueContext =
   | { code: 'no_positions' }
   | { code: 'disposal_full_on_position'; label: string }
   | { code: 'disposal_quantity'; label: string }
-  | { code: 'nothing_to_revise' };
+  | { code: 'nothing_to_revise' }
+  | { code: 'sale_month_range' };
 
 /** One Italian sentence per §6 code. */
 export function describeDraftIssue(context: DraftIssueContext): string {
@@ -145,6 +147,8 @@ export function describeDraftIssue(context: DraftIssueContext): string {
       return `Le quote da vendere di «${context.label}» devono essere un numero intero maggiore di zero.`;
     case 'nothing_to_revise':
       return 'Non c\'è nessuna rata da rivedere: tutte hanno già righe eseguite o saltate.';
+    case 'sale_month_range':
+      return 'Una vendita può andare solo a una rata che la revisione riscrive: scegli un mese dalla prima rata rivista in poi.';
     default:
       return 'Il piano non è valido.';
   }
@@ -504,7 +508,8 @@ export function describeAccumuloDialogEyebrow(step: 1 | 2 | 3, revise = false): 
 /** «Rivedi il piano» step 1 asks for the months LEFT, not the length (RP4, RP8). */
 export const ACCUMULO_STEP1_REMAINING_MONTHS = 'Mesi restanti';
 export const ACCUMULO_ACTION_SAVE_REVISION = 'Salva la revisione';
-export const ACCUMULO_STEP1_REVISE_NOTE = 'Le rate già eseguite, saltate o collegate restano com’erano: la revisione riscrive dalla prima rata intatta.';
+export const ACCUMULO_STEP1_REVISE_NOTE =
+  'Le rate già eseguite, saltate o collegate restano com’erano: la revisione riscrive dalla prima rata intatta, con i conti, i gruppi e le vendite non ancora eseguite che scegli qui.';
 
 /** The dialog's reading under each step's title (it no longer repeats the title). */
 export const ACCUMULO_STEP_READINGS: Record<1 | 2, string> = {
@@ -591,6 +596,26 @@ export function describeStep2Shares(quantity: number): string {
 export const ACCUMULO_ACTION_UNGROUP = 'Separa';
 export const ACCUMULO_STEP2_BUY_ASSET_PROMPT = 'Strumento d’acquisto';
 export const ACCUMULO_ACTION_NEW_ASSET = '+ Nuovo asset';
+
+/** AL9 «Sostituisci»: the instrument that buys changes, the old one stays in the group. */
+export const ACCUMULO_ACTION_REPLACE = 'Sostituisci';
+export const ACCUMULO_ACTION_REPLACE_CANCEL = 'Annulla';
+export const ACCUMULO_STEP2_REPLACE_PROMPT = 'Compra al suo posto';
+export const ACCUMULO_STEP2_REPLACE_PLACEHOLDER = 'Scegli lo strumento';
+export const ACCUMULO_STEP2_REPLACE_HINT =
+  'Il nuovo strumento riceve gli acquisti con lo stesso peso; quello di prima resta nel gruppo con le sue quote e non ne riceve più. «Separa» rimette le cose come prima.';
+
+/** AL10 «Aggiungi uno strumento»: also the ones with no shares yet, the mai comprati first. */
+export const ACCUMULO_STEP2_ADD_ASSET_LABEL = 'Aggiungi uno strumento';
+export const ACCUMULO_STEP2_ADD_ASSET_PLACEHOLDER = 'Strumenti fuori dal piano';
+export function describeAddableAsset(input: { name: string; ticker: string; held: boolean; neverBought: boolean }): string {
+  const tag = input.neverBought ? ' · mai comprato' : input.held ? '' : ' · senza quote';
+  return `${input.name}${input.ticker && input.ticker !== input.name ? ` (${input.ticker})` : ''}${tag}`;
+}
+
+/** AL11: a saved sale not yet executed can move to another month of the revised calendar. */
+export const ACCUMULO_STEP2_SALE_MONTH = 'Vendi a';
+export const ACCUMULO_STEP2_SALE_NOT_EXECUTED = 'salvata, non eseguita';
 export const ACCUMULO_STEP2_TOTAL_LABEL = 'Totale';
 export const ACCUMULO_STEP2_FOOTNOTE = 'Peso di mercato, non esposizione: la leva si vede al passo 3.';
 export const ACCUMULO_STEP2_NO_TRADABLE_ASSETS = 'Nessuno strumento negoziabile in portafoglio: aggiungine uno per iniziare.';

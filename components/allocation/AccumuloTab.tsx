@@ -244,6 +244,7 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
           targetLeverageRatio={targetLeverageRatio}
           saved={objectivesSaved}
           model={model}
+          plan={isActive && !done ? plan : null}
           onSaved={onAssetsChanged}
           returnFocusTo={editRef}
         />

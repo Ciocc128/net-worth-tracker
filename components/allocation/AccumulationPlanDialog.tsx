@@ -30,10 +30,16 @@ import {
   addMonths,
   applyWeightsToPositions,
   redistributeRemainder,
+  replaceBuyAsset,
+  separatePosition,
   buildDraftPreview,
   computeTotalPurchases,
   computeUsableLiquidity,
+  diffRevisionDisposals,
   findFirstIntactInstallment,
+  groupPositions,
+  isOpenSavedDisposal,
+  listAddableAssets,
   marketWeights,
   modelWeightMap,
   orderGroupMembers,
@@ -47,6 +53,7 @@ import { validateDraftAgainstAssets, type DraftIssue } from '@/lib/utils/accumul
 import { compareAllocations } from '@/lib/services/assetAllocationService';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { useCreateDraftPlan, useUpdateDraftPlan, useActivatePlan, useRevisePlan } from '@/lib/hooks/useAccumulationPlan';
+import { useAssetLedgerMeta, useAssetTransactions } from '@/lib/hooks/useAssetTransactions';
 import { getAnnualCashflowData } from '@/lib/services/fireService';
 import { useActionColors } from '@/lib/hooks/useActionColors';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
@@ -99,6 +106,16 @@ import {
   suggestMonthlyInflow,
   ACCUMULO_ACTION_NEW_ASSET,
   ACCUMULO_ACTION_NEXT,
+  ACCUMULO_ACTION_REPLACE,
+  ACCUMULO_ACTION_REPLACE_CANCEL,
+  ACCUMULO_STEP2_ADD_ASSET_LABEL,
+  ACCUMULO_STEP2_ADD_ASSET_PLACEHOLDER,
+  ACCUMULO_STEP2_REPLACE_HINT,
+  ACCUMULO_STEP2_REPLACE_PLACEHOLDER,
+  ACCUMULO_STEP2_REPLACE_PROMPT,
+  ACCUMULO_STEP2_SALE_MONTH,
+  ACCUMULO_STEP2_SALE_NOT_EXECUTED,
+  describeAddableAsset,
   ACCUMULO_ACTION_SAVE_DRAFT,
   ACCUMULO_ACTION_UNGROUP,
   ACCUMULO_ELLIPSIS,
@@ -275,6 +292,9 @@ export function AccumulationPlanDialog({
   const [selectedForGroup, setSelectedForGroup] = useState<Set<string>>(new Set());
   const [groupingBuyAssetId, setGroupingBuyAssetId] = useState<string | null>(null);
   const [newAssetDialogOpen, setNewAssetDialogOpen] = useState(false);
+  // AL9: the position whose buyer is being replaced (a row's «Sostituisci»), and where a «+ Nuovo asset» lands.
+  const [replacingPositionId, setReplacingPositionId] = useState<string | null>(null);
+  const [newAssetFor, setNewAssetFor] = useState<'add' | 'replace'>('add');
   const [showOptimizer, setShowOptimizer] = useState(false);
   const [weightsFrom, setWeightsFrom] = useState<'plan' | 'model' | 'today' | 'optimizer' | null>(null);
   // The plan's own weights and sales as the dialog opened on them: «Piano attuale» brings them back.
@@ -324,6 +344,7 @@ export function AccumulationPlanDialog({
       setStatus({ phase: 'idle' });
       setSelectedForGroup(new Set());
       setGroupingBuyAssetId(null);
+      setReplacingPositionId(null);
     }
   }
 
@@ -407,7 +428,30 @@ export function AccumulationPlanDialog({
   }, [open, liquidity, draft.positions, draft.disposals, draft.months, assetsById]);
 
   const labelOfAsset = (assetId: string) => assetsById.get(assetId)?.name ?? assetId;
-  const lockedSaleIds = useMemo(() => new Set(revise && plan ? plan.disposals.map((d) => d.assetId) : []), [revise, plan]);
+  // AL11: only a sale already executed (or linked to a ledger sale) is closed; a saved one still to do can come off or move.
+  const lockedSaleIds = useMemo(
+    () => new Set(revise && plan ? plan.disposals.filter((d) => !isOpenSavedDisposal(d)).map((d) => d.assetId) : []),
+    [revise, plan],
+  );
+  const savedOpenSaleIds = useMemo(
+    () => new Set(revise && plan ? plan.disposals.filter(isOpenSavedDisposal).map((d) => d.assetId) : []),
+    [revise, plan],
+  );
+  // The installment index a revision starts from (k): the earliest month a moved sale can take.
+  const firstRevisedIndex = useMemo(() => (revise && plan ? findFirstIntactInstallment(plan)?.index ?? 1 : 1), [revise, plan]);
+
+  // AL10: the Registro tells a never-bought instrument from a sold-out one; read only while the Target step is up.
+  const ledgerMetaQuery = useAssetLedgerMeta(open && step === 2 ? ownerId : undefined);
+  const tradesQuery = useAssetTransactions(ownerId, undefined, { enabled: open && step === 2 && !!ledgerMetaQuery.data });
+  const tradedAssetIds = useMemo(
+    () => (ledgerMetaQuery.data && tradesQuery.data ? new Set(tradesQuery.data.map((trade) => trade.assetId)) : null),
+    [ledgerMetaQuery.data, tradesQuery.data],
+  );
+
+  const revisionChanges = useMemo(
+    () => (revise && plan ? diffRevisionDisposals(plan, draft.disposals) : { newDisposals: [], removedDisposalAssetIds: [], movedDisposalMonthIndexes: {} }),
+    [revise, plan, draft.disposals],
+  );
 
   /** RP1: «Parti da» — the model's weights, or today's market weights, onto the draft's positions. */
   const startFrom = (source: 'plan' | 'model' | 'today' | 'optimizer') => {
@@ -484,42 +528,47 @@ export function AccumulationPlanDialog({
 
   const confirmGroup = () => {
     if (!groupingBuyAssetId || selectedForGroup.size < 2) return;
-    const selectedPositions = draft.positions.filter(
-      (position) => position.memberAssetIds.length === 1 && selectedForGroup.has(position.memberAssetIds[0]),
-    );
-    const totalTarget = selectedPositions.reduce((sum, position) => sum + position.targetPercentage, 0);
-    const memberAssetIds = orderGroupMembers({
-      memberAssetIds: selectedPositions.flatMap((position) => position.memberAssetIds),
-      buyAssetId: groupingBuyAssetId,
-    });
-    const buyAsset = assetsById.get(groupingBuyAssetId);
-    const grouped: PlanPosition = {
-      id: crypto.randomUUID(),
-      label: buyAsset?.name ?? groupingBuyAssetId,
-      targetPercentage: totalTarget,
-      memberAssetIds,
-      buyAssetId: groupingBuyAssetId,
-    };
-    const remaining = draft.positions.filter((position) => !(position.memberAssetIds.length === 1 && selectedForGroup.has(position.memberAssetIds[0])));
-    updatePositions([...remaining, grouped]);
+    updatePositions(groupPositions(draft.positions, selectedForGroup, groupingBuyAssetId, labelOfAsset));
     setSelectedForGroup(new Set());
     setGroupingBuyAssetId(null);
   };
 
-  const ungroup = (positionId: string) => {
-    const position = draft.positions.find((p) => p.id === positionId);
-    if (!position) return;
-    const members = position.memberAssetIds.map((id) => assetsById.get(id)).filter((a): a is Asset => !!a);
-    const totalValue = members.reduce((sum, a) => sum + calculateAssetValue(a), 0);
-    const split: PlanPosition[] = members.map((asset) => ({
-      id: crypto.randomUUID(),
-      label: asset.name,
-      targetPercentage: totalValue > 0 ? (calculateAssetValue(asset) / totalValue) * position.targetPercentage : position.targetPercentage / members.length,
-      memberAssetIds: [asset.id],
-      buyAssetId: asset.id,
-    }));
-    updatePositions([...draft.positions.filter((p) => p.id !== positionId), ...split]);
+  const ungroup = (positionId: string) =>
+    updatePositions(
+      separatePosition(draft.positions, positionId, (assetId) => {
+        const asset = assetsById.get(assetId);
+        return asset ? calculateAssetValue(asset) : 0;
+      }, labelOfAsset),
+    );
+
+  /** AL10: an instrument from outside the draft joins at weight 0 (also one with no shares). */
+  const addInstrument = (assetId: string) => {
+    updatePositions([...draft.positions, { id: crypto.randomUUID(), label: labelOfAsset(assetId), targetPercentage: 0, memberAssetIds: [assetId], buyAssetId: assetId }]);
   };
+
+  /** AL9: `assetId` buys in place of the position's current buyer; the old one stays in the group. */
+  const replaceBuyer = (positionId: string, assetId: string) => {
+    const replaced = replaceBuyAsset(draft.positions, positionId, assetId, labelOfAsset);
+    if (replaced) updatePositions(replaced);
+    setReplacingPositionId(null);
+  };
+
+  /** AL11: a saved sale not yet executed moves to another installment of the revised calendar. */
+  const setSaleMonth = (assetId: string, monthIndex: number) =>
+    updateDisposals(draft.disposals.map((disposal) => (disposal.assetId === assetId ? { ...disposal, monthIndex } : disposal)));
+
+  const addableAssets = useMemo(
+    () => (open && step === 2 ? listAddableAssets(allAssets, draft, tradedAssetIds) : []),
+    [open, step, allAssets, draft, tradedAssetIds],
+  );
+  const replacingPosition = replacingPositionId ? draft.positions.find((position) => position.id === replacingPositionId) ?? null : null;
+  const replacementCandidates = useMemo(
+    () =>
+      replacingPosition
+        ? listAddableAssets(allAssets, draft, tradedAssetIds, new Set(replacingPosition.memberAssetIds.filter((id) => id !== replacingPosition.buyAssetId)))
+        : [],
+    [replacingPosition, allAssets, draft, tradedAssetIds],
+  );
 
   // ── Save / Activate ────────────────────────────────────────────────────────
 
@@ -570,7 +619,7 @@ export function AccumulationPlanDialog({
     }
   };
 
-  /** RP4: the revision writes only what is new — the plan's saved sales stay as they are. */
+  /** RP4/AL11: the revision writes the new sales and the changes to the saved ones; executed sales stay as they are. */
   const handleRevise = async () => {
     if (!plan) return;
     setStatus({ phase: 'submitting' });
@@ -582,7 +631,10 @@ export function AccumulationPlanDialog({
           reserveEur: draft.liquidity.reserveEur,
           remainingMonths: draft.months,
           positions: draft.positions,
-          disposals: draft.disposals.filter((disposal) => !lockedSaleIds.has(disposal.assetId)),
+          disposals: revisionChanges.newDisposals,
+          sourceCashAssetIds: draft.liquidity.sourceCashAssetIds,
+          removedDisposalAssetIds: revisionChanges.removedDisposalAssetIds,
+          movedDisposalMonthIndexes: revisionChanges.movedDisposalMonthIndexes,
         },
         input: { allAssets, deps: DEPS, today: new Date() },
       });
@@ -718,7 +770,7 @@ export function AccumulationPlanDialog({
               <div>
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP1_SOURCE_ACCOUNTS}</p>
-                  {!revise && cashAccounts.length > 1 && (() => {
+                  {cashAccounts.length > 1 && (() => {
                     const allSelected = cashAccounts.every((account) => draft.liquidity.sourceCashAssetIds.includes(account.id));
                     return (
                       <Button
@@ -747,7 +799,6 @@ export function AccumulationPlanDialog({
                           <Checkbox
                             id={`src-${account.id}`}
                             checked={checked}
-                            disabled={revise}
                             onCheckedChange={(value) =>
                               setDraft((prev) => ({
                                 ...prev,
@@ -972,9 +1023,19 @@ export function AccumulationPlanDialog({
                               <span className="block text-[11px] text-muted-foreground">
                                 {grouped && !isHead ? ACCUMULO_STEP2_GROUP_NO_BUY : getAssetDisplayTicker(asset)}
                               </span>
-                              {grouped && isHead && !revise && (
-                                <Button variant="ghost" className="ml-2 h-6 px-1.5 text-[11px]" onClick={() => ungroup(position.id)}>
+                              {grouped && isHead && (
+                                <Button variant="ghost" className="ml-2 h-11 px-1.5 text-[11px] desktop:h-6" onClick={() => ungroup(position.id)}>
                                   {ACCUMULO_ACTION_UNGROUP}
+                                </Button>
+                              )}
+                              {isHead && !locked && (
+                                <Button
+                                  variant="ghost"
+                                  className={`${grouped ? '' : 'ml-0 '}h-11 px-1.5 text-[11px] desktop:h-6`}
+                                  aria-pressed={replacingPositionId === position.id}
+                                  onClick={() => setReplacingPositionId(replacingPositionId === position.id ? null : position.id)}
+                                >
+                                  {ACCUMULO_ACTION_REPLACE}
                                 </Button>
                               )}
                             </th>
@@ -1064,7 +1125,17 @@ export function AccumulationPlanDialog({
                           <td className="py-1.5 pr-2 text-right text-muted-foreground">—</td>
                           <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-foreground">
                             {cachedFormatCurrencyEUR(proceedsOfDisposal(disposal, asset, DEPS))}
-                            <span className="block text-[11px] text-muted-foreground">{ACCUMULO_STEP2_SALE_PROCEEDS}</span>
+                            {savedOpenSaleIds.has(disposal.assetId) ? (
+                              <SaleMonthSelect
+                                disposal={disposal}
+                                firstIndex={firstRevisedIndex}
+                                months={draft.months}
+                                firstMonth={draft.startMonth}
+                                onChange={(monthIndex) => setSaleMonth(disposal.assetId, monthIndex)}
+                              />
+                            ) : (
+                              <span className="block text-[11px] text-muted-foreground">{ACCUMULO_STEP2_SALE_PROCEEDS}</span>
+                            )}
                           </td>
                           <td className="hidden py-1.5 text-right text-muted-foreground sm:table-cell">—</td>
                         </tr>,
@@ -1084,19 +1155,17 @@ export function AccumulationPlanDialog({
             )}
 
             <div className="flex flex-wrap items-center gap-2">
-              {!revise && (
-                <Button
-                  variant="outline"
-                  className="h-11 text-[12px] desktop:h-8"
-                  onClick={() => {
-                    if (groupingMode) setSelectedForGroup(new Set());
-                    setGroupingBuyAssetId(null);
-                    setGroupingMode(!groupingMode);
-                  }}
-                >
-                  {groupingMode ? ACCUMULO_ACTION_GROUP_CANCEL : ACCUMULO_ACTION_GROUP_PROXY}
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                className="h-11 text-[12px] desktop:h-8"
+                onClick={() => {
+                  if (groupingMode) setSelectedForGroup(new Set());
+                  setGroupingBuyAssetId(null);
+                  setGroupingMode(!groupingMode);
+                }}
+              >
+                {groupingMode ? ACCUMULO_ACTION_GROUP_CANCEL : ACCUMULO_ACTION_GROUP_PROXY}
+              </Button>
               {groupingMode && (
                 <Button variant="outline" className="h-11 text-[12px] desktop:h-8" disabled={selectedForGroup.size < 2} onClick={() => setGroupingBuyAssetId(selectedForGroup.values().next().value ?? null)}>
                   {ACCUMULO_STEP2_BUY_ASSET_CONFIRM}…
@@ -1110,10 +1179,71 @@ export function AccumulationPlanDialog({
               >
                 {ACCUMULO_STEP2_REDISTRIBUTE}
               </Button>
-              <Button variant="outline" className="h-11 text-[12px] desktop:h-8" onClick={() => setNewAssetDialogOpen(true)}>
+              <Button
+                variant="outline"
+                className="h-11 text-[12px] desktop:h-8"
+                onClick={() => {
+                  setNewAssetFor('add');
+                  setNewAssetDialogOpen(true);
+                }}
+              >
                 {ACCUMULO_ACTION_NEW_ASSET}
               </Button>
             </div>
+            {/* AL10: an instrument from outside the draft, also one with no shares (created and left behind). */}
+            {addableAssets.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[12px] text-muted-foreground">{ACCUMULO_STEP2_ADD_ASSET_LABEL}</span>
+                <Select value="" onValueChange={addInstrument}>
+                  <SelectTrigger className="h-11 w-full max-w-[22rem] text-[12px] desktop:h-8" aria-label={ACCUMULO_STEP2_ADD_ASSET_LABEL}>
+                    <SelectValue placeholder={ACCUMULO_STEP2_ADD_ASSET_PLACEHOLDER} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {addableAssets.map((entry) => (
+                      <SelectItem key={entry.asset.id} value={entry.asset.id}>
+                        {describeAddableAsset({ name: entry.asset.name, ticker: getAssetDisplayTicker(entry.asset), held: entry.held, neverBought: entry.neverBought })}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {/* AL9: «Sostituisci» — the new buyer takes the weight, the old one stays in the group. */}
+            {replacingPosition && (
+              <div className="rounded-lg bg-muted p-3">
+                <p className="mb-1.5 text-[12px] text-foreground">
+                  {ACCUMULO_STEP2_REPLACE_PROMPT}: {labelOfAsset(replacingPosition.buyAssetId)}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select value="" onValueChange={(assetId) => replaceBuyer(replacingPosition.id, assetId)}>
+                    <SelectTrigger className="h-11 w-full max-w-[22rem] text-[12px] desktop:h-8" aria-label={ACCUMULO_STEP2_REPLACE_PROMPT}>
+                      <SelectValue placeholder={ACCUMULO_STEP2_REPLACE_PLACEHOLDER} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {replacementCandidates.map((entry) => (
+                        <SelectItem key={entry.asset.id} value={entry.asset.id}>
+                          {describeAddableAsset({ name: entry.asset.name, ticker: getAssetDisplayTicker(entry.asset), held: entry.held, neverBought: entry.neverBought })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    className="h-11 text-[12px] desktop:h-8"
+                    onClick={() => {
+                      setNewAssetFor('replace');
+                      setNewAssetDialogOpen(true);
+                    }}
+                  >
+                    {ACCUMULO_ACTION_NEW_ASSET}
+                  </Button>
+                  <Button variant="ghost" className="h-11 text-[12px] desktop:h-8" onClick={() => setReplacingPositionId(null)}>
+                    {ACCUMULO_ACTION_REPLACE_CANCEL}
+                  </Button>
+                </div>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">{ACCUMULO_STEP2_REPLACE_HINT}</p>
+              </div>
+            )}
             {groupingMode && groupingBuyAssetId === null && <p className="text-[12px] text-muted-foreground">{ACCUMULO_STEP2_GROUP_HINT}</p>}
 
             {groupingBuyAssetId !== null && (
@@ -1366,16 +1496,61 @@ export function AccumulationPlanDialog({
           onClose={() => setNewAssetDialogOpen(false)}
           createEmpty
           onCreated={(assetId) => {
-            updatePositions([
-              ...draft.positions,
-              { id: crypto.randomUUID(), label: ACCUMULO_STEP2_PENDING_ASSET_LABEL, targetPercentage: 0, memberAssetIds: [assetId], buyAssetId: assetId },
-            ]);
+            if (newAssetFor === 'replace' && replacingPositionId) {
+              // The page has not re-read the assets yet: the label is the pending one until it does.
+              const replaced = replaceBuyAsset(draft.positions, replacingPositionId, assetId, () => ACCUMULO_STEP2_PENDING_ASSET_LABEL);
+              if (replaced) updatePositions(replaced);
+              setReplacingPositionId(null);
+            } else {
+              updatePositions([
+                ...draft.positions,
+                { id: crypto.randomUUID(), label: ACCUMULO_STEP2_PENDING_ASSET_LABEL, targetPercentage: 0, memberAssetIds: [assetId], buyAssetId: assetId },
+              ]);
+            }
             onAssetsChanged();
             setNewAssetDialogOpen(false);
           }}
         />
       )}
     </>
+  );
+}
+
+/** AL11: where a saved sale not yet executed happens — any installment of the revised calendar, from the first one on. */
+function SaleMonthSelect({
+  disposal,
+  firstIndex,
+  months,
+  firstMonth,
+  onChange,
+}: {
+  disposal: PlanDisposal;
+  firstIndex: number;
+  months: number;
+  firstMonth: string;
+  onChange: (monthIndex: number) => void;
+}) {
+  const current = disposal.monthIndex ?? 1;
+  const indexes = Array.from({ length: months }, (_, i) => firstIndex + i);
+  if (!indexes.includes(current)) indexes.unshift(current);
+  return (
+    <label className="mt-1 flex flex-col items-end gap-0.5 text-[11px] text-muted-foreground">
+      <span>
+        {ACCUMULO_STEP2_SALE_MONTH} · {ACCUMULO_STEP2_SALE_NOT_EXECUTED}
+      </span>
+      <Select value={String(current)} onValueChange={(value) => onChange(Number(value))}>
+        <SelectTrigger className="h-11 w-36 text-[12px] desktop:h-7" aria-label={ACCUMULO_STEP2_SALE_MONTH}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {indexes.map((index) => (
+            <SelectItem key={index} value={String(index)}>
+              {monthLabelLong(addMonths(firstMonth, index - firstIndex))}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </label>
   );
 }
 

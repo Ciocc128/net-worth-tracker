@@ -19,6 +19,8 @@ import { setSettings } from '@/lib/services/assetAllocationService';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
 import { buildObjectivesEditorContext, findIdealAllocationProblem } from '@/lib/utils/idealAllocationEditor';
+import type { AccumulationPlan } from '@/types/accumulationPlan';
+import { planMemberAssetIds } from '@/lib/utils/accumulationPlanUtils';
 import { buildStandaloneCandidates, runOptimizer, type OptimizerResult } from '@/lib/utils/weightOptimizer';
 import { useInstrumentProfiles } from '@/lib/hooks/useInstrumentProfiles';
 import { useOptimizerGeographyReference } from '@/lib/hooks/useOptimizerGeographyReference';
@@ -56,12 +58,14 @@ interface ObiettiviDialogProps {
   saved: IdealAllocationSettings;
   /** The saved model portfolio: its instruments at 0 shares take part in «Prova» too (PO10). */
   model?: ModelPortfolio | null;
+  /** The open plan: its instruments at 0 shares take part in «Prova» too (AL10). */
+  plan?: AccumulationPlan | null;
   /** After a successful save: the page re-reads the settings. */
   onSaved: () => void;
   returnFocusTo?: React.RefObject<HTMLElement | null>;
 }
 
-export function ObiettiviDialog({ open, onClose, ownerId, allAssets, targets, targetLeverageRatio, saved, model, onSaved, returnFocusTo }: ObiettiviDialogProps) {
+export function ObiettiviDialog({ open, onClose, ownerId, allAssets, targets, targetLeverageRatio, saved, model, plan = null, onSaved, returnFocusTo }: ObiettiviDialogProps) {
   const isDemo = useDemoMode();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<IdealAllocationSettings>(saved);
@@ -82,7 +86,7 @@ export function ObiettiviDialog({ open, onClose, ownerId, allAssets, targets, ta
       }, 0),
     [allAssets],
   );
-  const evaluateAssetIds = useMemo(() => new Set((model?.weights ?? []).map((weight) => weight.assetId)), [model]);
+  const evaluateAssetIds = useMemo(() => new Set([...(model?.weights ?? []).map((weight) => weight.assetId), ...planMemberAssetIds(plan)]), [model, plan]);
   const standalone = useMemo(
     () => buildStandaloneCandidates(allAssets, baseEur, calculateAssetValue, evaluateAssetIds),
     [allAssets, baseEur, evaluateAssetIds],
