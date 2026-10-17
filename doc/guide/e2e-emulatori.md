@@ -480,3 +480,7 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   ISIN already has dividends. And a date planted at LOCAL midnight is 23:00 UTC of the day before — the form stores
   `new Date('YYYY-MM-DD')`, UTC midnight, so every coupon derived from a local-midnight fixture reads the 14th.
   (Moved here whole from `AGENTS.md` → *Audit habits* on 2026-09-20; the rule stays there in one line.)
+
+## `dev:e2e` hides Agentation and sets a placeholder AI key (T5, 2026-10-17)
+
+`npm run dev:e2e` sets `NEXT_PUBLIC_DISABLE_AGENTATION=true` (the dev-only toolbar sat over the bottom-right «+» of Cashflow at 390 and intercepted its click, `app/layout.tsx`) and `ANTHROPIC_API_KEY=e2e-placeholder-key`: Rendimenti's «Analizza con AI» is drawn only when the server has a key, and the specs that look for it stub the route, so nothing reaches Anthropic. A real key in `.env.local` is overridden on this server only.

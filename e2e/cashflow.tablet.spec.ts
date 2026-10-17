@@ -101,6 +101,8 @@ test.describe('Cashflow › Tracciamento, composed for a tablet', () => {
   test('the tabs are 44×44; the «+» at 768, «Aggiungi» at 1024 is 44px tall and the «+» is gone', async ({ page }) => {
     await open(page);
     const tabs = page.getByRole('tab').filter({ visible: true });
+    // The bar replaces a skeleton once the page's settings are read: wait for it, `count()` does not.
+    await expect(tabs.first()).toBeVisible();
     expect(await tabs.count()).toBeGreaterThanOrEqual(2);
     for (const tab of await tabs.all()) {
       const box = (await tab.boundingBox())!;
