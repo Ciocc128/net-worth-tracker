@@ -365,3 +365,30 @@ Merge di upstream fino a fdfeee0e (#446), quattro commit sopra il taglio di T3; 
   {casa}» e la casa torna lorda; (4) riaprire la FIRE: **stessa rata e stessa fine del mutuo, stesso numero FIRE, stesso
   patrimonio netto**; (5) salvare il piano e ricaricare: il flusso resta collegato; (6) `npm run mirror:remove`.
   Esito atteso: nessuna riga «mutuo scollegato» tra i flussi esclusi, e le cinque viste di Esposizione senza il prestito.
+
+## 10. T5 — MOB-01…09, composizione mobile e tablet (fatta, da provare con Playwright e sul mirror)
+
+Merge di upstream fino a a66f822f (#470); circa 93 file in conflitto, risolti a mano.
+
+- **Pagine condivise.** La composizione di upstream (verdetto · asse · striscia · tile principale aperto · «Il resto della
+  pagina», rail di icone in orizzontale) è presa intera su Panoramica, Patrimonio, Cashflow, Analisi, Dividendi, Rendimenti,
+  Storico, Previdenza, Hall of Fame, Allocazione e le sei schede FIRE, con la logica del fork dentro.
+- **Il fork resta in griglia semplice (D-UP4).** Accumulo, Proiezione, «Il mio piano», Simulazioni; nel Calcolatore Età
+  obiettivo e Sensibilità, nel Monte Carlo Spesa sostenibile sono tile piani dopo la scena. Distribuzione, Milestone e
+  CoastIpotesi restano cancellati; la cella «Mediana» del Monte Carlo scorre al tile principale
+  (`MONTE_CARLO_SECTION_IDS.probabilita`), perché la riga Distribuzione non esiste.
+- **Allocazione.** Le due schede, il verdetto `pac` con `pacNote` e l'Esposizione del fork sotto la riga dell'Esposizione.
+- **Decisioni di dettaglio.** Il chip «Evoluzione» tiene la didascalia `w-fit` del fork (il test di upstream è adattato);
+  la risposta chiusa del Reddito FIRE è «copre le spese al N%» (`fireRedditoAnswer`); l'unione del verdetto PAC usa «. »;
+  `emailNarrative` e `weeklyBudgetEmailService` ora devono mockare `@/lib/firebase/config`, perché `allocazioneNarrative`
+  prende valori da `allocazioneSummary` come in upstream (la catena arriva a `assetService`).
+- **Documentazione.** `doc/perf` e `doc/mobile` non sono più nell'albero; AGENTS, CLAUDE, DESIGN e le guide nella forma di upstream.
+- **Tetti.** Tutte le route sopra il tetto di 1…11 KB (Allocazione 807 → 818, la più grande), condivisi 544 → 550: tetti
+  alzati alla misura, riga nel registro di `velocita.md`; **da confermare dal proprietario**.
+- **Test.** `tsc` pulito, eslint 0 errori, Vitest 315 file / 7098 test verdi sotto `Europe/Rome` e `TZ=UTC`, `perf:build` +
+  `perf:budget` verde. **Non eseguiti nel cloud**: Playwright (vedi sotto) e `mobile:census`, sul Mac di Giorgio.
+- **Da rilanciare sul Mac prima del merge** (emulatori su): `allocation`, `allocation.mobile`, `fire`, `fire.mobile`,
+  `coast.mobile`, `history.mobile`, `analisi.mobile`, `overview.mobile`, `overview.tablet`, `patrimonio.tablet`,
+  `cashflow.tablet`, `pension.mobile`, `settings.mobile`, i `mobile-composition.*`, poi `npm run test:e2e` intero e
+  `npm run mobile:census`. A mano sul mirror: giro a 390, 768, 1024 e 1440 su Allocazione (due schede), le sei schede FIRE
+  e le superfici del fork (Accumulo, Proiezione, «Il mio piano»).

@@ -2,17 +2,26 @@
  * Tests for lib/utils/emailNarrative.ts — the verdict and the tile readings of the two
  * periodic emails.
  *
- * Note what is NOT at the top of this file: no `vi.mock('@/lib/firebase/config')`. The module
- * takes its formatters from `lib/utils/formatters.ts` rather than from `chartService`, so it
- * carries no Firebase chain at all — which is the property that lets a Lambda import it. If a
- * future edit makes these mocks necessary again, the import has drifted back to the client SDK.
+ * The Firebase mocks below are needed since the tenth realignment (T5): `allocazioneNarrative`
+ * (whose `driftClause` the email reads) takes values from `allocazioneSummary`, as upstream's does,
+ * and that chain reaches `assetService` through `assetExposureUtils`. The email's own module still
+ * takes its formatters from `lib/utils/formatters.ts`, not from `chartService`.
  *
  * Intl 'it-IT' puts a no-break space before `€` and leaves four-digit amounts ungrouped
  * (`4.310 €` but `9310 €` at four digits): expectations are written the way the reader really
  * sees them, with the nbsp flattened to a plain space.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/firebase/config', () => ({ db: {} }));
+vi.mock('firebase/firestore', () => ({
+  doc: vi.fn(),
+  getDoc: vi.fn(),
+  setDoc: vi.fn(),
+  deleteField: vi.fn(),
+}));
+
 
 import {
   buildPeriodEmailVerdict,

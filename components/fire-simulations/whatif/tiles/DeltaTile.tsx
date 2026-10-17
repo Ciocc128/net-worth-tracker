@@ -16,7 +16,7 @@ import type { ReactNode } from 'react';
 import type { Narrative } from '@/lib/utils/narrative';
 import { DELTA_NOTHING_MOVES, type DeltaRow, type DeltaView } from '@/lib/utils/whatIfNarrative';
 import { cn } from '@/lib/utils';
-import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_SUB_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
 
 interface DeltaTileProps {
@@ -29,6 +29,9 @@ interface DeltaTileProps {
   footer: Narrative;
   /** The job-loss decomposition, when there is one. */
   effect?: ReactNode;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
   className?: string;
 }
 
@@ -69,12 +72,12 @@ function RowList({ rows, ariaLabel }: { rows: DeltaRow[]; ariaLabel: string }) {
   );
 }
 
-export function DeltaTile({ reading, view, coastRetirementAge, footer, effect, className }: DeltaTileProps) {
+export function DeltaTile({ reading, view, coastRetirementAge, footer, effect, collapse, asideWhenClosed, className }: DeltaTileProps) {
   if (view.nothingMoves) {
-    return <Tile eyebrow="Delta" aside="prima → dopo" reading={DELTA_NOTHING_MOVES} ariaLabel="Delta dell'evento" className={className}>{null}</Tile>;
+    return <Tile eyebrow="Delta" aside="prima → dopo" asideWhenClosed={asideWhenClosed} reading={DELTA_NOTHING_MOVES} ariaLabel="Delta dell'evento" className={className} collapse={collapse}>{null}</Tile>;
   }
   return (
-    <Tile eyebrow="Delta" aside="prima → dopo" reading={reading} ariaLabel="Delta dell'evento" className={className}>
+    <Tile eyebrow="Delta" aside="prima → dopo" asideWhenClosed={asideWhenClosed} reading={reading} ariaLabel="Delta dell'evento" className={className} collapse={collapse}>
       {view.fire.length > 0 && (
         <>
           <p className={cn(TILE_SUB_EYEBROW_CLASS, 'mt-3.5')}>FIRE</p>

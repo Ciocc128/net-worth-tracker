@@ -76,6 +76,28 @@ vi.mock('@/lib/firebase/admin', () => ({
   adminAuth: { verifyIdToken: vi.fn() },
 }));
 
+// The AI comment reads the memory and builds the bundle before calling the model: both are
+// the real functions unless a test answers them itself.
+vi.mock('@/lib/server/assistant/store', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/server/assistant/store')>();
+  return { ...actual, getAssistantMemoryDocument: vi.fn(actual.getAssistantMemoryDocument) };
+});
+vi.mock('@/lib/services/assistantMonthContextService', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/services/assistantMonthContextService')>();
+  return { ...actual, buildAssistantPeriodRangeContext: vi.fn(actual.buildAssistantPeriodRangeContext) };
+});
+
+// The SDK is imported lazily inside the comment generator: one fake client answers on both
+// `messages.create` and `beta.messages.create`, so the test reads the response handling, not
+// which door the request went through.
+const { anthropicCreateMock } = vi.hoisted(() => ({ anthropicCreateMock: vi.fn() }));
+vi.mock('@anthropic-ai/sdk', () => ({
+  default: class {
+    messages = { create: anthropicCreateMock };
+    beta = { messages: { create: anthropicCreateMock } };
+  },
+}));
+
 vi.mock('@/lib/utils/dateHelpers', async () => {
   const actual = await vi.importActual<typeof import('@/lib/utils/dateHelpers')>(
     '@/lib/utils/dateHelpers'
@@ -1784,9 +1806,9 @@ describe('buildExpenseSplitTile', () => {
       .filter((text) => /[+−]/.test(text));
 
   it('leads with the booked residual and carries the calendar in the caption', () => {
-    const html = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1200, 1400), member('Tarsio', -100, 100)]));
+    const html = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1200, 1400), member('Nibbio', -100, 100)]));
 
-    // Both amounts are the BOOKED ones: Tarsio is +100 today, not the −100 the month ends on.
+    // Both amounts are the BOOKED ones: Nibbio is +100 today, not the −100 the month ends on.
     expect(amountCells(html)).toEqual(['+1400 €', '+100 €']);
     // Where the month takes them is said, not printed as a second figure.
     expect(html).toContain('Con le spese ancora in calendario');
@@ -1798,18 +1820,18 @@ describe('buildExpenseSplitTile', () => {
    * person who came up short printed the same ink as one who did not.
    */
   it('colours the amount by the sign of the booked residual', () => {
-    const short = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1400, 1400), member('Tarsio', -400, -200)]));
+    const short = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1400, 1400), member('Nibbio', -400, -200)]));
     expect(short).toContain(PRINT_COLORS.negative);
     expect(short).toContain(PRINT_COLORS.positive);
 
     // And a row that is short only on the CALENDAR keeps the positive ink: the colour follows what
     // has happened, exactly as the tile on the page does.
-    const calendarOnly = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1400, 1400), member('Tarsio', -100, 100)]));
+    const calendarOnly = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1400, 1400), member('Nibbio', -100, 100)]));
     expect(calendarOnly).not.toContain(PRINT_COLORS.negative);
   });
 
   it('adds no calendar sentence when nothing is scheduled', () => {
-    const html = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1400, 1400), member('Tarsio', 100, 100)]));
+    const html = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1400, 1400), member('Nibbio', 100, 100)]));
     expect(html).not.toContain('Con le spese ancora in calendario');
   });
 
@@ -1818,10 +1840,10 @@ describe('buildExpenseSplitTile', () => {
   it('says how the common income reduced the pool, in the reading', () => {
     // The figures sit in their own mono `<span>`s: read the text, not the markup.
     const plain = (html: string) => html.replace(/<[^>]+>/g, '').replace(/ /g, ' ');
-    const netted = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1400, 1400), member('Tarsio', 100, 100)], 300));
+    const netted = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1400, 1400), member('Nibbio', 100, 100)], 300));
     expect(plain(netted)).toContain('Spese in comune 1000 €, meno 300 € di entrate in comune: 700 € da dividere.');
 
-    const gross = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1400, 1400), member('Tarsio', 100, 100)]));
+    const gross = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1400, 1400), member('Nibbio', 100, 100)]));
     expect(plain(gross)).not.toContain('da dividere');
   });
 });

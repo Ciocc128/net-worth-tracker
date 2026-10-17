@@ -32,6 +32,20 @@ import { ASSET_CLASS_LABELS, assetClassSequenceIndex } from '@/lib/utils/allocat
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import type { GoalUncertainty } from '@/lib/utils/goalUncertainty';
 
+// ─── The phone composition (2026-10-15) ───────────────────────────────────────
+
+/**
+ * The ids of the tab's rows below `desktop:` (`useMobileSections` with `tab: 'goals'`, The
+ * Closed-Row Rule): every tile but Obiettivi, THE tile, which never closes (DESIGN.md → The
+ * First-Screen Rule); Allocazione derivata only with goal-driven targets. No strip
+ * (doc/guide/fire-obiettivi.md § Composizione mobile).
+ */
+export const GOALS_SECTION_IDS = {
+  traiettoria: 'goals-traiettoria',
+  allocazione: 'goals-allocazione',
+  assegnazioni: 'goals-assegnazioni',
+} as const;
+
 // ─── Dates ────────────────────────────────────────────────────────────────────
 
 export { goalDateFromIso, type GoalDate } from '@/lib/utils/goalDate';

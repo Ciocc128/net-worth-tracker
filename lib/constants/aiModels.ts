@@ -1,11 +1,12 @@
 /**
  * Which provider and which model each AI surface calls, in ONE place.
  *
- * Why a constants file: the AI analysis modal used to print «Generato da Claude Sonnet 4.6» as
- * hand-written copy beside the report. A claim about the tool typed into the copy outlives the
- * tool the moment the route changes model — the same failure as the landing's «6 classi di
- * asset», which stayed on screen for ten days after the union grew to eight. Any surface that
- * NAMES the model reads it from here.
+ * Why a constants file: the AI analysis modal used to print
+ * «Generato da Claude Sonnet 4.6» as hand-written copy beside the report. A claim about the
+ * tool typed into the copy outlives the tool the moment the route changes model — the same
+ * failure as the landing's «6 classi di asset», which stayed on screen for ten days after the
+ * union grew to eight. Any surface that NAMES the model reads it from here — or, since the
+ * server-side fallback, from the response that says which model answered.
  *
  * Surface → { provider, model } (2026-09-28, doc/ai-open-models-wiki.md § 4): the app's
  * automations — the email comments and, from F3, TheBull's compilation — go through
@@ -19,13 +20,35 @@
  * output change with it), so they are listed separately rather than collapsed into one constant
  * that would hide the divergence.
  *
- * WARNING (Checklist Comment): every Anthropic call reads content blocks by `type` and sends
- * `thinking: { type: 'adaptive' }` with an `effort`; the memory extraction forces `tool_choice`,
- * which Haiku accepts and Sonnet 5.5 / Opus 5.5 refuse (400) — moving the extraction up a tier
- * means `tool_choice: 'auto'` plus `strict: true` on the tool.
+ * WARNING (Checklist Comment): every call reads content blocks by `type`; the three prose
+ * surfaces send `thinking: { type: 'adaptive' }` with an `effort` (`high`, Sonnet 5.5's default:
+ * its levels were recalibrated and no sweep on real requests has been run yet), the memory
+ * extraction sends neither and forces `tool_choice` — Haiku 5.5 accepts it and then skips
+ * thinking, so its `max_tokens` holds the tool input alone; Sonnet 5.5 / Opus 5.5 refuse a forced
+ * `tool_choice` (400), so moving the extraction up a tier means `tool_choice: 'auto'` plus
+ * `strict: true` on the tool and room for thinking in `max_tokens`. A Sonnet 5.5
+ * decline is an HTTP 200 with `stop_reason: 'refusal'` and often no text. Every Sonnet call opts
+ * into the server-side fallback (`SERVER_SIDE_FALLBACK_BETA` below, 2026-10-12), which rescues
+ * only some declines, so every prose surface still reads `stop_reason` and says so — the
+ * assistant (`REFUSAL_NOTICE`), Rendimenti's analysis (an `{ error }` before `[DONE]`, for a
+ * refusal and for a `max_tokens` cut alike) — and the emails drop any comment that did not end on
+ * `end_turn`. A new surface on these models owes the same branch.
  */
 
 export type LlmProvider = 'anthropic' | 'openrouter';
+
+/**
+ * The beta that opts a Sonnet 5.5 request into the server-side fallback, sent beside
+ * `fallbacks: 'default'` on `anthropic.beta.messages` (owner's decision, 2026-10-12; sdk ≥ 0.115
+ * types the `'default'` form). On a policy decline the API re-runs the SAME request on the model
+ * Anthropic routes that refusal category to, inside the same call: for Sonnet 5.5 the `cyber` and
+ * `frontier_llm` declines go to Sonnet 5; `bio`, `reasoning_extraction` and `general_harms` stay
+ * declined — hence the refusal branch above. The response's `model` (on a stream, `message_start`
+ * and the `fallback` content block) names the model that answered, so a surface that prints the
+ * model prints that one. Claude API only (not Bedrock, Vertex or Foundry); never on the Haiku
+ * extraction — Haiku 5.5 has no server-side fallback.
+ */
+export const SERVER_SIDE_FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
 export interface AiModelRoute {
   provider: LlmProvider;

@@ -20,6 +20,7 @@ import {
 import {
   computeAllTimeHigh,
   computeMarketEffect,
+  computeMonthFlows,
   computeTopInstrumentMovers,
   computeTopMovers,
   rankCostDrivers,
@@ -399,6 +400,7 @@ function buildLiveOverviewPayload(
   const topMovers = computeTopMovers(assets, previousSnapshot, totalValue, pensionMarketInput, monthTrades);
   const marketEffect = computeMarketEffect(assets, previousSnapshot, pensionMarketInput, monthTrades);
   const topInstrumentMovers = computeTopInstrumentMovers(assets, previousSnapshot, totalValue, pensionMarketInput, monthTrades);
+  const monthFlows = computeMonthFlows(assets, previousSnapshot, pensionMarketInput);
   const goalProgressList =
     settings?.goalBasedInvestingEnabled && goalData
       ? rankGoalProgress(goalData.goals, goalData.assignments, assets)
@@ -501,6 +503,7 @@ function buildLiveOverviewPayload(
     },
     topMovers,
     marketEffect,
+    monthFlows,
     topInstrumentMovers,
     goalProgress,
     goalProgressList,

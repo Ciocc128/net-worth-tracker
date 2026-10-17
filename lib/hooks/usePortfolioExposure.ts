@@ -59,3 +59,22 @@ export function usePortfolioExposure(
 
   return { ...query, refresh };
 }
+
+/**
+ * What the PAGE needs of the exposure's read without reading it: whether the last attempt failed
+ * (the Esposizione row's `failed`, its red eyebrow) and whether a payload was ever read (a failed
+ * «Aggiorna» over an exposure already read keeps the tile; a failed first read is an `ErrorNotice`
+ * row). An observer on the SAME key as `usePortfolioExposure`'s with `enabled: false` — it
+ * downloads nothing by itself, and `refetch()` on it («Riprova») fetches regardless of `enabled`,
+ * so the row's hook sees the answer the moment it lands (upstream's `useInstrumentProfilesState`,
+ * on the fork's server-side pipeline: D-UP1).
+ */
+export function usePortfolioExposureState(userId: string | undefined) {
+  const query = useQuery({
+    queryKey: queryKeys.portfolio.exposure(userId ?? ''),
+    queryFn: () => fetchPortfolioExposure(false),
+    enabled: false,
+    staleTime: 20 * 60 * 1000,
+  });
+  return { isError: query.isError, hasProfiles: query.data !== undefined, refetch: query.refetch };
+}

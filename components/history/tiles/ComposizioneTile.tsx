@@ -24,7 +24,7 @@ import { Info } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from '@/components/ui/charts/recharts';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { Tile, TILE_FOOTER_ACTION_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_FOOTER_ACTION_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { AsideToggle } from '@/components/ui/aside-toggle';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 import { useChartColors } from '@/lib/hooks/useChartColors';
@@ -34,12 +34,11 @@ import type { AssetClassHistoryPoint } from '@/lib/services/chartService';
 import { describeComposition } from '@/lib/utils/storicoNarrative';
 import type { PeriodMonth } from '@/lib/utils/storicoSummary';
 import {
-  buildAssetClassComposition,
   buildBreakdownForRow,
   buildChartAriaLabel,
-  buildLiquidityComposition,
   findCompositionRow,
   formatPeriodLabel,
+  resolveCompositionSeries,
   shareKey,
   valueKey,
   PENSION_BAND_KEY,
@@ -136,8 +135,10 @@ function DriftAnnotation({ deltaPp }: { deltaPp: number | null }) {
 }
 
 /**
- * One breakdown row, in two layouts: below `tablet:` identity and share on top, euro and drift
- * beneath — the WORDS stay identical to desktop, only the arrangement changes.
+ * One breakdown row, in two layouts: under a 480px legend identity and share on top, euro and drift
+ * beneath — the WORDS stay identical to desktop, only the arrangement changes. By the LEGEND's width
+ * (a container query, since 2026-10-16): in the 360px index of a tablet in landscape the tile is a
+ * phone's width at a 1024px viewport (2026-10-16).
  */
 function BreakdownRow({ entry, chartColors }: { entry: CompositionBreakdownEntry; chartColors: string[] }) {
   const swatch = (
@@ -148,7 +149,7 @@ function BreakdownRow({ entry, chartColors }: { entry: CompositionBreakdownEntry
   );
   return (
     <div className="py-2">
-      <div className="tablet:hidden">
+      <div className="@[480px]:hidden">
         <div className="flex items-center gap-2.5">
           {swatch}
           <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{entry.label}</span>
@@ -159,7 +160,7 @@ function BreakdownRow({ entry, chartColors }: { entry: CompositionBreakdownEntry
           <DriftAnnotation deltaPp={entry.deltaPp} />
         </div>
       </div>
-      <div className="hidden items-center gap-2.5 tablet:flex">
+      <div className="hidden items-center gap-2.5 @[480px]:flex">
         {swatch}
         <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{entry.label}</span>
         <span className="shrink-0 font-mono text-[13px] tabular-nums text-foreground">{formatCurrency(entry.valueEur)}</span>
@@ -177,18 +178,20 @@ interface ComposizioneTileProps {
   hasPensionFunds: boolean;
   /** The month the page is reading under the pointer; null = the latest. */
   scrub?: PeriodMonth | null;
+  /** The row below `desktop:` (`useMobileSections().collapse(id)`); `undefined` at 1440. */
+  collapse?: TileCollapse;
+  /** What the closed row says beside its eyebrow, in words (The Closed-Row Rule). */
+  asideWhenClosed?: string;
   className?: string;
 }
 
-export function ComposizioneTile({ assetClassHistory, liquidityHistory, hasPensionFunds, scrub = null, className }: ComposizioneTileProps) {
+export function ComposizioneTile({ assetClassHistory, liquidityHistory, hasPensionFunds, scrub = null, collapse, asideWhenClosed, className }: ComposizioneTileProps) {
   const [cut, setCut] = useState<CompositionCut>('assetClass');
   const chartColors = useChartColors();
   const prefersReducedMotion = useReducedMotion();
   const isMobile = useMediaQuery('(max-width: 767px)');
 
-  const assetClassSeries = useMemo(() => buildAssetClassComposition(assetClassHistory), [assetClassHistory]);
-  const liquiditySeries = useMemo(() => buildLiquidityComposition(liquidityHistory), [liquidityHistory]);
-  const series: CompositionSeries = cut === 'assetClass' ? assetClassSeries : liquiditySeries;
+  const series: CompositionSeries = useMemo(() => resolveCompositionSeries(cut, { assetClassHistory, liquidityHistory }), [cut, assetClassHistory, liquidityHistory]);
 
   // The month in reading: the scrubbed row when the series has it, otherwise the latest.
   const scrubRow = useMemo(() => findCompositionRow(series, scrub), [series, scrub]);
@@ -240,7 +243,7 @@ export function ComposizioneTile({ assetClassHistory, liquidityHistory, hasPensi
   );
 
   return (
-    <Tile eyebrow="Composizione" aside={aside} reading={reading} className={className} ariaLabel="Composizione del patrimonio">
+    <Tile eyebrow="Composizione" aside={aside} collapse={collapse} asideWhenClosed={asideWhenClosed} reading={reading} className={className} ariaLabel="Composizione del patrimonio">
       {!hasData ? (
         <p className="mt-3 text-[13px] leading-[1.45] text-muted-foreground">
           Nessuno storico disponibile: la composizione compare dal primo rilevamento.
@@ -291,7 +294,7 @@ export function ComposizioneTile({ assetClassHistory, liquidityHistory, hasPensi
               Under the scrub the rows re-rank in place (`layout`), so a band climbing the list is
               seen climbing rather than replaced. */}
           <LayoutGroup id={`composizione-${cut}`}>
-            <div className="mt-3 divide-y divide-border border-t border-border">
+            <div className="@container mt-3 divide-y divide-border border-t border-border">
               {breakdown.map((entry) => (
                 <motion.div key={entry.key} layout="position" transition={RERANK_SPRING}>
                   <BreakdownRow entry={entry} chartColors={chartColors} />
