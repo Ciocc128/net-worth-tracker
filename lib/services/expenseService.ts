@@ -29,6 +29,7 @@ import {
   where,
   Timestamp,
   orderBy,
+  limit,
   writeBatch,
   deleteField,
   type DocumentSnapshot
@@ -94,8 +95,43 @@ export async function getAllExpenses(userId: string): Promise<Expense[]> {
   }
 }
 
+/** The dates of the oldest and of the newest expense of an account. */
+export interface ExpenseDateBounds {
+  oldest: Date;
+  newest: Date;
+}
+
 /**
- * Get expenses in a date range
+ * The dates of the oldest and of the newest expense — two one-document reads on the
+ * `(userId, date)` indexes — or null for an account with no expense at all.
+ *
+ * What a page that reads a WINDOW of the collection (lib/utils/expenseWindows.ts) still needs
+ * to know about the rest of it: which years its period picker can offer, and whether an empty
+ * window is an empty period or an empty account.
+ */
+export async function getExpenseDateBounds(userId: string): Promise<ExpenseDateBounds | null> {
+  try {
+    const expensesRef = collection(db, EXPENSES_COLLECTION);
+    // The `userId` filter is what the rules need on a list, at any size (AGENTS.md § Firestore Queries and the Rules).
+    const readEdge = (direction: 'asc' | 'desc') =>
+      getDocs(query(expensesRef, where('userId', '==', userId), orderBy('date', direction), limit(1)));
+    const [oldest, newest] = await Promise.all([readEdge('asc'), readEdge('desc')]);
+
+    const oldestDate: Date | undefined = oldest.docs[0]?.data().date?.toDate();
+    const newestDate: Date | undefined = newest.docs[0]?.data().date?.toDate();
+    if (!oldestDate || !newestDate) return null;
+    return { oldest: oldestDate, newest: newestDate };
+  } catch (error) {
+    console.error('Error getting expense date bounds:', error);
+    throw new Error('Failed to fetch expense date bounds');
+  }
+}
+
+/**
+ * Get expenses in a date range, both ends included.
+ *
+ * The reader behind every page that shows a window of the collection (`useExpensesInRange`);
+ * the bounds come from lib/utils/expenseWindows.ts, never from `Date.UTC`.
  */
 export async function getExpensesByDateRange(
   userId: string,
@@ -1416,20 +1452,31 @@ export async function linkSeriesToCashAccount(userId: string, expense: Expense, 
   return linkable.length;
 }
 
+/** Firestore's ceiling on the values of one `in` filter. */
+export const FIRESTORE_IN_LIMIT = 30;
+
+/** Split ids into the chunks one `in` filter accepts (30): 31 ids are two queries. */
+export function chunkForInQuery<T>(ids: readonly T[], limit: number = FIRESTORE_IN_LIMIT): T[][] {
+  const chunks: T[][] = [];
+  for (let start = 0; start < ids.length; start += limit) chunks.push(ids.slice(start, start + limit));
+  return chunks;
+}
+
 /**
- * The instalments linked to each of the given properties (`debtAssetId`), for Patrimonio's «Mutuo»
- * tile (lib/utils/mortgageSummary.ts). One query per property with two equalities — `userId`,
- * which `firestore.rules` needs on every list, and the property — the same shape as a series
- * lookup, so no composite index is involved.
+ * The instalments linked to the given properties (`debtAssetId`), for Patrimonio's «Mutuo» tile
+ * (lib/utils/mortgageSummary.ts). ONE query for every property (2026-09-29 — it used to be
+ * one per property): `userId`, which `firestore.rules` needs on every list, and `debtAssetId in
+ * [...]`; two `.where()` calls, so no composite index is involved. Firestore takes at most 30
+ * values in an `in` filter, so past that the ids go in chunks of 30, read in parallel.
  */
 export async function getMortgageInstalments(userId: string, propertyIds: string[]): Promise<Expense[]> {
-  const perProperty = await Promise.all(
-    propertyIds.map(async (propertyId) => {
-      const snapshot = await getDocs(query(collection(db, EXPENSES_COLLECTION), where('userId', '==', userId), where('debtAssetId', '==', propertyId)));
+  const perChunk = await Promise.all(
+    chunkForInQuery(propertyIds).map(async (ids) => {
+      const snapshot = await getDocs(query(collection(db, EXPENSES_COLLECTION), where('userId', '==', userId), where('debtAssetId', 'in', ids)));
       return snapshot.docs.map((docSnapshot) => expenseFromSnapshot(docSnapshot));
     })
   );
-  return perProperty.flat();
+  return perChunk.flat();
 }
 
 /**

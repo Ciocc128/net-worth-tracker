@@ -112,7 +112,7 @@ of Panoramica and Patrimonio», che PERF-14 toglie) riletto con `grep -rn spring
 - **Stub di AGENTS § 3**: «the mobile composition» nella riga «Il resto —»; un punto nuovo solo per una trappola vera.
 - **AGENTS § 4 Hierarchy, Density and Disclosure**: un punto con le quattro regole per nome e le trappole — il pannello
   chiuso è vuoto (una spec apre la riga prima di leggere), la memoria si scrive solo a un gesto, `order-*` letterali.
-  Prima `grep` di § Motion, Navigation, Accessibility (MOB-02): si rimanda, non si duplica.
+  Prima `grep` di § Motion, § Accessibility e di doc/guide/shell.md § Navigation (MOB-02): si rimanda, non si duplica.
 
 ### 4.5 CLAUDE.md e PRODUCT.md
 
@@ -142,10 +142,12 @@ WORKFLOW § Where things are recorded; cifre tonde inventate e nomi generici, ma
 
 - **PERF-14** scrive in DESIGN.md solo se il proprietario cambia lo stagger (§ 4 D, § 10) e non tocca il sidecar:
   MOB-09 rilegge dopo, aggiunge accanto, riallinea `spring-layout` (§ 4.3).
-- **PERF-03**: se «Aggiornato alle…» ha un nome in DESIGN.md, The First-Screen Rule lo cita (sotto la prima frase).
-- **PERF-04**: «a closed row downloads no chart» regge sul grafico dietro `dynamic` di modulo (AGENTS § Dynamic Imports
-  and Module Hygiene, PERF-04 § 10): si rimanda lì, NON a «Deferred Chart Mount» (`:1277`, **Superseded (2026-09-06)**,
-  parla del count-up). **PERF-01**: `mobile:budget` su :3200.
+- **PERF-03** (in develop dal 2026-09-30): se «Aggiornato alle…» avrà un nome in DESIGN.md, The First-Screen Rule lo cita
+  DOV'È — la riga dell'header (desktop dopo la descrizione, sotto al posto della descrizione), per decisione del
+  proprietario, non sotto la prima frase.
+- **PERF-04**: «a closed row downloads no chart» regge sul grafico pigro di modulo, `lazyComponent` (AGENTS § Dynamic Imports
+  and Module Hygiene): si rimanda lì, NON a «Deferred Chart Mount» (`:1277`, **Superseded (2026-09-06)**,
+  parla del count-up). **`perf:serve`**: `mobile:budget` su :3200.
 
 ### 4.9 Domande al proprietario
 
@@ -211,7 +213,8 @@ Da fare TASSATIVAMENTE prima di ogni cosa:
 - Leggi WORKFLOW.md (§ 2 e § Where things are recorded), AGENTS.md (§ 0, § 3, § 4 Motion, Navigation, Hierarchy,
   Density and Disclosure, Accessibility), CLAUDE.md
 - Leggi DESIGN.md § 1, § 2 Named Rules, § 5 Tile, Tile Grid, Navigation, Segmented Pill Control, § 6 — MAI rigenerarlo
-- Leggi le guide di § 4.4, il git log di MOB-03..08, doc/perf/PERF-03 e PERF-14 (le loro righe in DESIGN.md)
+- Leggi le guide di § 4.4, il git log di MOB-03..08, doc/guide/stati.md § The fourth reading (la riga «Aggiornato alle…» di PERF-03, ritirata) e doc/perf/PERF-14 (le loro
+  righe in DESIGN.md)
 - Leggi COMMENTS.md e DEVELOPMENT_GUIDELINES.md
 - Leggi doc/mobile/README.md, la spec MOB-09 per intero e MOB-02 § 4.1 (i nomi delle API)
 - Crea SESSION_NOTES.md; crea il branch dalla branch attiva PRIMA di editare

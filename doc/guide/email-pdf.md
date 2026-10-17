@@ -37,6 +37,13 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **The FIRE section's figure is «Spese ÷ SWR», never «numero FIRE»** (doc/fire-ipotesi/README.md § 19, D-N3): it is
   `calculateFIREMetrics` on the whole FIRE net worth, without dated flows, pensions, withdrawal tax or the locked fund, so
   the reading closes with «Non è il numero FIRE del Calcolatore…». `÷` is in WinAnsi (0xF7): no `pdfSafeText` mapping.
+- **The engine is loaded at the press, not with the page** (2026-09-30): `lib/utils/pdfGenerator.tsx` — and
+  with it `@react-pdf/renderer`, pdfkit, `components/pdf/*` and `pdfDataService` — is reached only by the `import()` in
+  `loadPDFGenerator` (`components/pdf/PDFExportDialog.tsx`): ONE promise for the session, started by «Esporta PDF»,
+  awaited by «Genera PDF», forgotten on failure so the next press retries. Nothing else may import `pdfGenerator` or
+  `components/pdf/*` statically, or 513 KB gz go back into Storico's first paint — `e2e/bundle.lazy.spec.ts` goes red.
+  `printTokens.ts` stays where it is (the emails read it on the server; it is small). Seen on the mirror: the modal in
+  ~110 ms, a 13-page report downloaded 3,5 s after the press.
 - **Sub-tiles are a `--muted` fill with no border**: on white paper a 1px rule at 0.92 lightness is invisible, and a
   4%-ink fill survives a photocopy.
 - **A section's reading must not mix two windows.** `HistoryData` carries `netWorthEvolution` (the filtered series the

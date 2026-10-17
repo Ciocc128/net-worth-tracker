@@ -21,7 +21,7 @@
 import { useEffect, useId } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { MessageSquare, TrendingDown, TrendingUp } from 'lucide-react';
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from '@/components/ui/charts/recharts';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { EvolutionPoint, GrowthPace, GrowthSummary, PeriodMonth } from '@/lib/utils/storicoSummary';
 import { isSamePeriod, type ScrubView } from '@/lib/utils/storicoScrub';

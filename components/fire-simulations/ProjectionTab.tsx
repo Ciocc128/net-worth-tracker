@@ -24,13 +24,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useFireSettings } from '@/lib/hooks/useFirePlan';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAssets } from '@/lib/hooks/useAssets';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
-import { getAnnualCashflowData } from '@/lib/services/fireService';
+import { calculateAssetValue } from '@/lib/services/assetService';
+import { useAnnualCashflow } from '@/lib/hooks/useAnnualCashflow';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { portfolioCost } from '@/lib/utils/fireCosts';
 import { runAccumulationSimulation } from '@/lib/services/monteCarloService';
@@ -126,25 +125,14 @@ function parseFloatField(value: string): number {
 }
 
 export function ProjectionTab() {
-  const { user } = useAuth();
   const { ownerId } = useActiveAccount();
 
   // ─── Queries (shared keys with the other FIRE tabs) ──────────────────────────
-  const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useQuery({
-    queryKey: ['assets', ownerId],
-    queryFn: () => getAllAssets(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useAssets(ownerId);
   // The saved settings with the plan's draft over them (RP3): «Il mio piano» is previewed here.
   const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useFireSettings();
   // The Cashflow, for the yearly saving (the Calcolatore's `annualSavings`): the SAME key `useFireAssumptions` reads.
-  const { data: cashflowData, isLoading: isLoadingCashflow } = useQuery({
-    queryKey: ['annualCashflowData', ownerId],
-    queryFn: () => getAnnualCashflowData(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  const { data: cashflowData, isLoading: isLoadingCashflow } = useAnnualCashflow(ownerId);
 
   // ─── The pension lock (governs the whole FIRE page) ──────────────────────────
   // With the lock on, the locked funds leave the starting capital and re-enter as capital inflows at

@@ -7,6 +7,7 @@
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 - **Impostazioni**: `app/dashboard/settings/page.tsx` (`COLOR_THEME_SWATCHES`, `THEME_MODES`, `DeclarationRow`, `CategoryRow`, `SyncDividendsButton`, `targetFieldId`), `components/settings/{ExpenseImportSection,AccountSharingSection,MonteCarloMarketTile}.tsx`, pure `lib/utils/{settingsNarrative,spendingRoles,equityBondsAutoTargets,allocationTargetValidation}.ts`, `lib/services/assetAllocationService.ts` (`getSettings`/`setSettings`, the FIVE places); browser `e2e/settings{,.mobile,.roles}.spec.ts`
+- **Suites to run after a change here — Impostazioni** (moved from `AGENTS.md` § Commands on 2026-09-30): **Letture** `settingsNarrative` · **Round-trip** `settingsRoundTrip` · **Formula** `equityBondsAutoTargets` · **Sblocco** `pensionUnlock`
 
 ## Impostazioni — tessere senza verdetto (`app/dashboard/settings/page.tsx`, `lib/utils/settingsNarrative.ts`)
 
@@ -65,9 +66,11 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   other specs plant spending categories of their own. With the switch
   on, each `CategoryRow` badge wears its role's colour (`categoryRoleColor`: income `--positive` — in the fork `--flow-in`, a type marker (fork-scelte-ui.md
   § 1) —, a transfer its saved hue), and the category dialog shows the role picker. The flag's dirty snapshot is Spese's.
-- **A category write invalidates what Analisi reads, where the write happens** (2026-09-27): the page keeps its own
-  category list (`loadExpenseCategories`), but Analisi reads `queryKeys.expenses.categories` under the global
-  5-minute staleTime, so a role set here reached its Flusso minutes later. `invalidateCategoryCaches`
+- **A category write invalidates what Analisi reads, where the write happens** (2026-09-27): the page used to keep
+  its own category list (`loadExpenseCategories`, a private read until 2026-09-29 — now the page reads
+  `useExpenseCategories` like Analisi and `loadExpenseCategories` IS the invalidation of that key), while Analisi
+  reads `queryKeys.expenses.categories` under the global 5-minute staleTime, so a role set here reached its Flusso
+  minutes later. `invalidateCategoryCaches`
   (`components/expenses/CategoryManagementDialog.tsx`) invalidates `expenses.categories` after the dialog's create or
   update — the dialog is also what `ExpenseDialog`, `CategoryMoveDialog` and `CategoryDeleteConfirmDialog` mount — and
   `expenses.all` too when the rows were rewritten: a rename or a type change (the cascades inside `updateCategory`), a
@@ -157,7 +160,10 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `AssetAllocationSettings`, never in `UserPreferences`, and dirty-state snapshot keys contain **only persisted
   fields**, captured *after* the Firestore state is applied.
 - **One Save button validates the whole page** — `handleSave` returns early when allocation targets do not total 100, and
-  must `invalidateQueries(['settings', ownerId])`, which `AssetDialog` reads. **A tab must not grow a second Save**: the
+  must `invalidateQueries(queryKeys.settings.all(ownerId))`, the ONE settings key every reader shares (2026-09-29). The
+  page's own reads go through the keys too: `loadTargets` seeds the form with `queryClient.fetchQuery(settingsQueryOptions)`
+  (the cache on a warm visit; `quiet` — «Annulla» — with `staleTime: 0`, the saved document), «Salva» pre-reads the
+  CURRENT document the same way, the cash accounts come from `useAssets` and the categories from `useExpenseCategories`. **A tab must not grow a second Save**: the
   Dividendi one was deleted on 2026-08-29 because `handleSave` already persisted its two fields, so the tab's own button
   was a second write path for the same data (it also re-read the doc first, and could therefore clobber a concurrent edit).
 - **A field's dirty-snapshot must follow the TAB THAT EDITS IT, not the tab that consumes it**: `userAge`/`riskFreeRate`
@@ -175,4 +181,4 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 ## Per-page blind spots
 
-- **Impostazioni**: `e2e/settings{,.mobile}.spec.ts` since 2026-09-22 — none of their tests WRITES (they edit and «Annulla», or press «Salva» on a tree the validation refuses, and compare the settings document's `updateTime`); the dialogs opened from here take the 2026-08-31 modal vocabulary; «Parametri del piano» and «Assistente» are READ-ONLY and list only the fields already saved — the assistant's mirror loses on read, so a never-synced preference makes the tile say where the truth lives instead of printing a default; the colour theme and the light/dark mode save themselves, outside the page's Salva, and mark no tab; the Costi tile shows the rate and the checking subcategory only with the duty on, and since 2026-10-04 the FIRE simulations read it too (stamp duty in every rate, doc/guide/fire.md); the category count ignores types outside the four listed (transfers); the Allocazione panel's CONTENT unmounts on another tab (Radix keeps only the panel `div`), which is why an Auto-calcolo field is not in the DOM while Preferenze is open; the page never says WHOSE settings «Salva» writes when a co-owner is viewing another account (the readings no longer say «Hai …», but the header does not name the account); the tab pill (38×32) and the switches (36×20) stay below 44px on touch — both are shared primitives (CLAUDE.md → Known Issues).
+- **Impostazioni**: `e2e/settings{,.mobile}.spec.ts` since 2026-09-22 — none of their tests WRITES (they edit and «Annulla», or press «Salva» on a tree the validation refuses, and compare the settings document's `updateTime`); the dialogs opened from here take the 2026-08-31 modal vocabulary; «Parametri del piano» and «Assistente» are READ-ONLY and list only the fields already saved — the assistant's mirror loses on read, so a never-synced preference makes the tile say where the truth lives instead of printing a default; the colour theme and the light/dark mode save themselves, outside the page's Salva, and mark no tab; the Costi tile shows the rate and the checking subcategory only with the duty on, and since 2026-10-04 the FIRE simulations read it too (stamp duty in every rate, doc/guide/fire.md); the category count ignores types outside the four listed (transfers); the Allocazione panel's CONTENT unmounts on another tab (Radix keeps only the panel `div`), which is why an Auto-calcolo field is not in the DOM while Preferenze is open; the page never says WHOSE settings «Salva» writes when a co-owner is viewing another account (the readings no longer say «Hai …», but the header does not name the account); the tab pill (38×32) and the switches (36×20) stay below 44px on touch — both are shared primitives (CLAUDE.md → Known Issues). **Since 2026-09-29 (the persisted query cache) it is also, with Rendimenti, one of the two pages that still show their skeleton on a reload** (~244 ms on the mirror): the form is seeded by `loadTargets` from a `fetchQuery` of the settings document, which the restore of the persisted cache invalidates, so the page waits for the fresh document while nine pages paint the restored figures — and the skeleton's cells (`[5], [7], [12×8]`) do not match the tab's tiles, so the page visibly recomposes (the owner's tour). Deferred to PERF-13 by the owner's decision: the tab view seeds from the cached document and the fresh read lands behind it, with «Aggiornato alle…» in the header (doc/perf/PERF-13 § 1). The header's line meanwhile dates only the categories and the accounts lists.

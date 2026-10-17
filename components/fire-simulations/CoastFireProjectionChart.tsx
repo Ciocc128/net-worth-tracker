@@ -45,7 +45,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from 'recharts';
+} from '@/components/ui/charts/recharts';
 
 interface CoastFireProjectionChartProps {
   projectionData: CoastFIREProjectionPoint[];

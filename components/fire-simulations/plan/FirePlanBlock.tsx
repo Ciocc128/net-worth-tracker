@@ -17,15 +17,14 @@
  */
 
 import { useDeferredValue, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, HelpCircle, Plus, Trash2 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAssets } from '@/lib/hooks/useAssets';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { useFirePlan, useFireSettings } from '@/lib/hooks/useFirePlan';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
-import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
+import { calculateAssetValue } from '@/lib/services/assetService';
 import { normalizeCoastFirePensions } from '@/lib/services/fireService';
 import { DEFAULT_INPS_RETIREMENT_AGE, resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import { summarizeLock } from '@/lib/utils/fireSummary';
@@ -67,18 +66,12 @@ function IssueLine({ issue }: { issue: PensionDraftIssue }) {
 
 export function FirePlanBlock() {
   const plan = useFirePlan();
-  const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
   const { data: settings } = useFireSettings();
 
   // The lock state the Pensioni tile describes, and the funds it keeps closed (the capital's `K` reads them).
-  const { data: assets } = useQuery({
-    queryKey: ['assets', ownerId],
-    queryFn: () => getAllAssets(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  const { data: assets } = useAssets(ownerId);
   const lockActive = settings?.respectPensionLockInFire ?? false;
   const inpsAge = settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE;
   const ritaLong = settings?.pensionRitaLongUnemployment ?? false;

@@ -37,15 +37,14 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
 import { useFireSettings } from '@/lib/hooks/useFirePlan';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAssets } from '@/lib/hooks/useAssets';
+import { useAnnualCashflow } from '@/lib/hooks/useAnnualCashflow';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useFirePlan } from '@/lib/hooks/useFirePlan';
 import { DEFAULT_FIRE_TARGET_AGE } from '@/lib/utils/firePlan';
 import {
   calculateCoastFIREProjection,
-  getAnnualCashflowData,
   getDefaultScenarios,
   normalizeCoastFirePensions,
   normalizeCoastFireTaxBrackets,
@@ -54,7 +53,7 @@ import {
 } from '@/lib/services/fireService';
 import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
 import { buildFlowSchedule } from '@/lib/utils/datedFlows';
-import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
+import { calculateAssetValue } from '@/lib/services/assetService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import { summarizeLock } from '@/lib/utils/fireSummary';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
@@ -88,7 +87,7 @@ import {
   summarizeCoastScenarios,
   summarizeCoastTarget,
 } from '@/lib/utils/coastFireView';
-import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
+import { COAST_TAB_SKELETON_CELLS } from './tabSkeletons';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
@@ -106,13 +105,9 @@ import { CoastDettaglio } from './coast/CoastDettaglio';
 import { depletionCause, findDepletion } from '@/lib/utils/fireDepletion';
 import { CoastFireProjectionChart } from './CoastFireProjectionChart';
 
-/** The grid's geometry, for the skeleton: the same spans as the tiles below. */
+/** The grid's geometry, for the skeleton: the same spans as the tiles below — shared with the page's lazy-tab wait. */
 /** Three cells: the loading state does not know yet whether the Afflussi tile will exist. */
-const SKELETON_CELLS: TileSkeletonCell[] = [
-  { span: 5, rows: 2, lines: 12 },
-  { span: 7, lines: 5 },
-  { span: 7, lines: 4 },
-];
+const SKELETON_CELLS = COAST_TAB_SKELETON_CELLS;
 
 /** The three cells of the grid: one class per tile, shared by the data and the empty branches. */
 const GRID_CLASS = 'grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12';
@@ -128,7 +123,6 @@ const EMPTY_ACTION_CLASS =
   'inline-flex min-h-8 items-center text-[13px] text-foreground underline underline-offset-2 hover:decoration-2 [@media(pointer:coarse)]:min-h-11';
 
 export function CoastFireTab() {
-  const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const plan = useFirePlan();
 
@@ -136,22 +130,12 @@ export function CoastFireTab() {
   // The saved settings with the plan's draft over them (RP3): «Il mio piano» is previewed here.
   const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useFireSettings();
 
-  const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useQuery({
-    queryKey: ['assets', ownerId],
-    queryFn: () => getAllAssets(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useAssets(ownerId);
 
   // The Calcolatore's savings — the SAME query key, so the two tabs read one figure — is the
   // pace the verdict names. It rejects on a failed read (never a zeroed payload), so the
   // failure reaches the notice below like the other three.
-  const { data: cashflowData, isLoading: isLoadingCashflow, isError: cashflowError } = useQuery({
-    queryKey: ['annualCashflowData', ownerId],
-    queryFn: () => getAnnualCashflowData(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  const { data: cashflowData, isLoading: isLoadingCashflow, isError: cashflowError } = useAnnualCashflow(ownerId);
 
   // The page's inputs: «Il mio piano»'s ages and pensions, as saved or as previewed (RP3). An age that is not valid stops the projection.
   const typedAge = settings?.userAge;

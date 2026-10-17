@@ -15,7 +15,6 @@
  * before the write is even attempted (§6, §10.3: "uno alla volta, il primo").
  */
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { ModelPortfolio } from '@/types/modelPortfolio';
 import type {
@@ -57,7 +56,7 @@ import { useSaveModelPortfolio } from '@/lib/hooks/useModelPortfolio';
 import { comparePlanToModel, MODEL_NO_TRADABLE_INSTRUMENTS, planPositionsToModelWeights } from '@/lib/utils/modelPortfolio';
 import { useCreateDraftPlan, useUpdateDraftPlan, useActivatePlan, useRevisePlan } from '@/lib/hooks/useAccumulationPlan';
 import { useAssetLedgerMeta, useAssetTransactions } from '@/lib/hooks/useAssetTransactions';
-import { getAnnualCashflowData } from '@/lib/services/fireService';
+import { useAnnualCashflow } from '@/lib/hooks/useAnnualCashflow';
 import { useActionColors } from '@/lib/hooks/useActionColors';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { useChartColors } from '@/lib/hooks/useChartColors';
@@ -421,12 +420,7 @@ export function AccumulationPlanDialog({
   const firstIssue = issues[0]?.message ?? null;
 
   // RP7: the Cashflow's saving as a monthly figure, read only while step 1 is on screen.
-  const cashflowQuery = useQuery({
-    queryKey: ['annualCashflowData', ownerId],
-    queryFn: () => getAnnualCashflowData(ownerId),
-    enabled: open && step === 1 && !!ownerId,
-    staleTime: 300000,
-  });
+  const cashflowQuery = useAnnualCashflow(ownerId, { enabled: open && step === 1 });
   const suggestedInflow = suggestMonthlyInflow(cashflowQuery.data?.annualSavings ?? 0);
 
   // Step 2's figures: today's share, what to

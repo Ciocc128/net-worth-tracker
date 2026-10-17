@@ -7,15 +7,14 @@
  * `WhatIfAnalysisTab` (same queries, same assembly, same result); the shared React Query keys mean no extra fetching.
  */
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useFireSettings } from '@/lib/hooks/useFirePlan';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAssets } from '@/lib/hooks/useAssets';
+import { useAnnualCashflow } from '@/lib/hooks/useAnnualCashflow';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
+import { calculateAssetValue } from '@/lib/services/assetService';
 import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
 import { realReturn } from '@/lib/utils/realReturn';
 import {
-  getAnnualCashflowData,
   getDefaultScenarios,
   normalizeCoastFirePensions,
   normalizeCoastFireTaxBrackets,
@@ -30,26 +29,15 @@ import { getItalyYear } from '@/lib/utils/dateHelpers';
 import type { WhatIfBaseline } from '@/types/whatIf';
 
 export function useWhatIfBaseline() {
-  const { user } = useAuth();
   const { ownerId } = useActiveAccount();
 
   // ─── Queries ─────────────────────────────────────────────────────────────────
   // The saved settings with the plan's draft over them (RP3): «Il mio piano» is previewed here.
   const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useFireSettings();
 
-  const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useQuery({
-    queryKey: ['assets', ownerId],
-    queryFn: () => getAllAssets(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useAssets(ownerId);
 
-  const { data: cashflowData, isLoading: isLoadingCashflow, isError: cashflowError } = useQuery({
-    queryKey: ['annualCashflowData', ownerId],
-    queryFn: () => getAnnualCashflowData(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  const { data: cashflowData, isLoading: isLoadingCashflow, isError: cashflowError } = useAnnualCashflow(ownerId);
 
   // ─── Baseline assembly ───────────────────────────────────────────────────────
   // The FIRE lock-in toggle governs the whole page — the What If baseline inherits it. Locked

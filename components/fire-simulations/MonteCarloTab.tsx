@@ -37,12 +37,11 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useAssets } from '@/lib/hooks/useAssets';
 import { toast } from 'sonner';
 import { useFireSettings } from '@/lib/hooks/useFirePlan';
-import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
+import { calculateAssetValue } from '@/lib/services/assetService';
 import { useWhatIfBaseline } from '@/lib/hooks/useWhatIfBaseline';
 import { runBaselineProjection } from '@/lib/services/whatIfService';
 import { defaultWithdrawalYears, resolveFireStart } from '@/lib/utils/fireStart';
@@ -99,7 +98,7 @@ import {
   scenarioLabel,
 } from '@/lib/utils/monteCarloNarrative';
 import type { MonteCarloCapitalInflow, MonteCarloParams, MonteCarloResults } from '@/types/assets';
-import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
+import { MONTE_CARLO_TAB_SKELETON_CELLS } from './tabSkeletons';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
@@ -121,13 +120,8 @@ import { ScenariConfrontoTile } from '@/components/monte-carlo/tiles/ScenariConf
 import { ParametriTile, type MonteCarloForm } from '@/components/monte-carlo/tiles/ParametriTile';
 import type { SegmentedPillOption } from '@/components/ui/segmented-pill';
 
-/** The grid's geometry, for the skeleton: the same spans as the tiles below. */
-const SKELETON_CELLS: TileSkeletonCell[] = [
-  { span: 12, lines: 8 },
-  { span: 8, lines: 14 },
-  { span: 4, lines: 9 },
-  { span: 12, lines: 10 },
-];
+/** The grid's geometry, for the skeleton: the same spans as the tiles below — shared with the page's lazy-tab wait. */
+const SKELETON_CELLS = MONTE_CARLO_TAB_SKELETON_CELLS;
 
 const DEFAULT_SIMULATIONS = DEFAULT_MONTE_CARLO_SIMULATIONS;
 const DEFAULT_WITHDRAWAL = 30000;
@@ -151,16 +145,10 @@ function parseFloatField(value: string): number {
 }
 
 export function MonteCarloTab() {
-  const { user } = useAuth();
   const { ownerId } = useActiveAccount();
 
   // ─── Queries (shared keys with the other FIRE tabs) ──────────────────────────
-  const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useQuery({
-    queryKey: ['assets', ownerId],
-    queryFn: () => getAllAssets(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useAssets(ownerId);
 
   // The saved settings with the plan's draft over them (RP3): «Il mio piano» is previewed here.
   const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useFireSettings();

@@ -7,13 +7,13 @@
 ## Project Overview
 Next.js app for Italian investors: net worth, assets, cashflow, dividends, performance metrics and long-term planning on Firebase.
 
-**This file is the INDEX**: "what it is + where it lives", nothing more — keep it well under 20.000 characters; it is injected into every turn. Repo-wide conventions and gotchas live in **AGENTS.md**; the per-area rules and traps in **`doc/guide/<tema>.md`** (one file per page/tab/subsystem — the feature index below points to each, and AGENTS.md § 3 carries a stub apiece; the test harness is `doc/guide/e2e-emulatori.md`, its two stubs in AGENTS.md § 5); the aesthetic spec in **DESIGN.md**; env/emulators/Playwright in **SETUP.md**; users and positioning in **PRODUCT.md**. Session rules and the guided-verification protocol in **[WORKFLOW.md](WORKFLOW.md)** (see the note at the top).
+**This file is the INDEX**: "what it is + where it lives", nothing more — keep it well under 20.000 characters; it is injected into every turn. Repo-wide conventions and gotchas live in **AGENTS.md**; the per-area rules and traps in **`doc/guide/<tema>.md`** (one file per page/tab/subsystem — the feature index below points to each, and AGENTS.md § 3 carries a stub apiece; the test harness is `doc/guide/e2e-emulatori.md`, its two stubs in AGENTS.md § 5; `shell.md` and `cache-persistita.md` have theirs under AGENTS.md § Navigation and § Caching); the aesthetic spec in **DESIGN.md**; env/emulators/Playwright in **SETUP.md**; users and positioning in **PRODUCT.md**. Session rules and the guided-verification protocol in **[WORKFLOW.md](WORKFLOW.md)** (see the note at the top).
 
 > **Language**: this file and AGENTS.md are in English. Italian is reserved for user-facing UI text. Page and feature names stay Italian, because they are the labels the product shows: Panoramica, Patrimonio, Cashflow, Analisi, Rendimenti, Allocazione, Storico, Previdenza, Impostazioni.
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **269 files / 6121 tests** green under `Europe/Rome` (in UTC the three known cases below fail) + **41 Playwright spec files** (152 tests, incl. 6 auth setups; last full run 2026-09-27, fork, ninth upstream merge, 4,4 min: 152 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- `tsc` clean; **283 files / 6384 tests** green under `Europe/Rome` (in UTC the three known cases below fail) + **41 Playwright spec files** (152 tests, incl. 6 auth setups; last full run 2026-09-27, fork, ninth upstream merge, 4,4 min: 152 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
 - Next (2026-10-17, fork): **decimo riallineamento a upstream** (`doc/allineamento-upstream/README.md`) — upstream main at #470 (PERF-00…14, debts as `loan` assets, MOB-01…09): 128 conflicting files, five stages T1–T5 (one draft PR each, T1 after D1), decisions D-UP1–D-UP5 taken (the fork keeps its Esposizione engine; Rendimenti/assistant to Sonnet 5.5, email routes stay; loans after a mirror test; fork-only surfaces stay out of the mobile composition). Nothing in the app yet.
 - Latest (2026-10-16, fork): **Allineamento AL6 «lo strumento coperto»** (`doc/allineamento/README.md` § 9.6, onda 4: AL20, D-AL6) — `Asset.currencyHedge = 'EUR'` («Coperto dal cambio in EUR» in AssetDialog, ETF) reads as 100% EUR in Esposizione › Valute and beats the curated row (`withCurrencyHedge`, after the per-ticker cache; `buildExposureCacheKey` includes it); Simulazioni › Copertura del cambio proposes a class's switch when most of it is held hedged («Imposta coperto», never on its own: `hedgedShareByClass`, `proposedHedgeClasses`). The epic AL1–AL20 is complete; the collaudi are 2026-10-17.
 - Before it (2026-10-16, fork): **Allineamento AL5 «Bilanciamento, criteri e nomi»** (`doc/allineamento/README.md` § 9.5, onda 3: AL17–AL19, D-AL4, D-AL5, D-AL7) — with an active PAC the Piano (Ribilancia · Versa · Preleva) opens with a line saying what the PAC buys this month and that the Piano ignores it, and which group member the plan buys instead (`describePacOverlap`, `findPacSubstitutions`; engines untouched); the optimizer's modal shows the class targets read-only with the leverage they imply (`describeClassTargets`); FIRE's goals are **«Traguardi»** and the optimizer's objectives **«Criteri del modello»** (identifiers, saved fields and `?obiettivi=1` unchanged).
@@ -35,19 +35,20 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 - Also (2026-10-05, fork): **TheBull on DeepSeek** — `THEBULL_COMPILE` → `deepseek/deepseek-v4.1-flash` with the reasoning off, the emails on GLM without fp4 hosts; per-route `reasoning`/`quantizations` in `AiModelRoute` (doc/ai-open-models-wiki.md § 7.3).
 - Prima (2026-09-30, fork): **F4** — the monthly email's data block as the vault's `dati/` (cron phase 10,
   `WIKI_EXPORT_UID`, `npm run vault:export`; doc/guide/email-pdf.md § The vault's `dati/`); principles by interview.
-- Latest upstream (2026-10-17, fork): **tenth realignment, T1 «PERF-00»** (`doc/allineamento-upstream/README.md` § 7) — merge of upstream to #408 with the fork's Esposizione engine whole (D-UP1); taken only `RankedRows` `remainders` and the doc/perf edits. T2–T5 follow.
+- Latest upstream (2026-10-17, fork): **tenth realignment, T2 «PERF-01…06»** (`doc/allineamento-upstream/README.md` § 7) — merge of upstream to #422: one React Query binary with the persisted cache (24 h, owner-keyed, never the demo), the shell before the auth, the last-known figure at once («Aggiornato alle…»), lazy FIRE tabs and charts, the expenses read by window (`expenseWindows`, FIRE's `computeAnnualCashflowData`/`buildFIREData` in memory), `perf/` with `perf:bench` and `perf:budget`; the fork's hooks (`useAnnualCashflow`, FIRE plan, Accumulo, model) sit on the shared keys. T3–T5 follow.
+- Before it (2026-10-17, fork): **tenth realignment, T1 «PERF-00»** — merge of upstream to #408 with the fork's Esposizione engine whole (D-UP1); taken only `RankedRows` `remainders` and the doc/perf edits.
 - Before it (2026-09-27): #402 → PERF-00; dossiers `doc/perf/README.md` and `doc/mobile/README.md` (decisions in § 9).
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
-- `lib/services/*` (service layer) → pure `lib/utils/*` → `lib/server/*` (server-only). React Query for caching/invalidation.
+- `lib/services/*` (service layer) → pure `lib/utils/*` → `lib/server/*` (server-only). React Query for caching/invalidation, its cache persisted to IndexedDB and restored before the first fetch (an allowlist, `lib/constants/persistCache.ts`; doc/guide/cache-persistita.md, its stub in AGENTS.md § Caching). The expenses are read by WINDOW on Cashflow and FIRE (`lib/utils/expenseWindows.ts`, the ONE source; doc/guide/cashflow.md § Expenses by window), whole on Storico, Analisi and Centri.
 - Italy timezone helpers in `lib/utils/dateHelpers.ts`.
 - Convention: extract logic into pure, tested `lib/utils`/`lib/services` functions; keep Firestore-coupled code thin.
 
 ## Key Features (Active)
 One line per area: the question it answers, then where it is described. *What the user sees* → README.md; *repo-wide rules* → AGENTS.md; *an area's rules, files and blind spots* → `doc/guide/<tema>.md`; *the aesthetic* → DESIGN.md.
 
-- **Shell**: skip link · compact `PageHeader` · `PageTabBar` · `PageContainer` (1920) + `TileGridSkeleton` · sidebar · bottom pill + «Altro» drawer; a tile's eyebrow is an `<h3>`. DESIGN → §5; AGENTS → *Navigation*.
+- **Shell**: skip link · compact `PageHeader` · `PageTabBar` · `PageContainer` (1920) + `TileGridSkeleton` · sidebar · bottom pill + «Altro» drawer; a tile's eyebrow is an `<h3>`. Since 2026-09-28 the shell is in the prerendered HTML and renders BEFORE Firebase Auth resolves: `ProtectedRoute` wraps only the page inside `<main>`, with the generic skeleton («Verifica dell'accesso») as fallback; the profile waits as two `Skeleton` lines; a stored theme is on `<html>` from a `<head>` script. DESIGN → §5; doc/guide/shell.md (its stub: AGENTS → *Navigation*); doc/guide/stati.md, temi.md.
 - **Shared account · Demo mode**: a second user as full co-owner (viewer `user.uid` ≠ owner `ownerId`); the demo auto-logs in from the landing and `useDemoMode()` gates every mutation. doc/guide/account-condiviso-demo.md.
 - **Landing**: the Panoramica for someone with no data, the app's real tiles on a declared sample profile. doc/guide/landing.md.
 - **Accesso e Registrazione**: one 420px tile, a verdict generated from the registration state, Italian errors only. doc/guide/accesso-registrazione.md.
@@ -68,7 +69,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **Assistente AI**: the verdict IS the context; SSE streaming, memory, goal proposals; flag `NEXT_PUBLIC_ASSISTANT_AI_ENABLED`, blocked in demo. doc/guide/assistente.md.
 - **Hall of Fame**: «quali sono stati i mesi e gli anni migliori?», no axis. doc/guide/hall-of-fame.md.
 - **Impostazioni**: seven tabs (Simulazioni since 2026-10-03), no verdict, one Save per page with the save state per tab (a dot, a bottom bar, «Annulla modifiche»); the write fan-out in doc/guide/impostazioni.md § Settings — the FIVE places.
-- **States**: loading · nothing recorded · measured zero · failed read, on 20 surfaces. doc/guide/stati.md; DESIGN → The Absence-Has-Three-Names Rule.
+- **States**: loading · nothing recorded · measured zero · failed read, on 20 surfaces — and, since 2026-09-29, «old but present»: the header's «Aggiornato alle HH:MM, sto rileggendo…» while a figure restored from the persisted cache is reread. doc/guide/stati.md; DESIGN → The Absence-Has-Three-Names Rule.
 - **Dialogs and forms**: 40 modals on one vocabulary in `ResponsiveModal`; row deletes arm in the row. doc/guide/dialog.md; DESIGN → The Modal-Is-A-Tile Rule.
 - **Periodic emails · budget email · PDF export**: rule-generated verdict first, AI comment second; every hex from `printTokens.ts`. doc/guide/email-pdf.md; DESIGN → The Out-Of-DOM Token Rule.
 - **Solo fork** (dove il fork tiene il suo lato contro upstream: doc/guide/fork-scelte-ui.md): **Esposizione a cinque
@@ -85,9 +86,10 @@ One line per area: the question it answers, then where it is described. *What th
 - Vitest: `npx vitest run <file>`, `npm test -- <file>`, `npx tsc --noEmit`. New tests in `__tests__/`; prefer pure functions over Firestore-coupled code.
 - **Phantom `tsc` errors** clustered in `e2e/` and `lib/utils/expenseImport.ts` after a branch switch: run `npm install` first (AGENTS → *Commands*).
 - **Dev/test without production data**: Firebase Emulator Suite (`npm run emulators` + `emulators:seed` + `dev:emulator`), requires a JDK. SETUP.md → Step 6. **The owner's real data for a tour**: `npm run mirror:seed -- <email>` (production read-only → emulators as `mirror@example.com`, nothing on disk) and `npm run mirror:remove` at the end — the account is the standard, the data is re-read every time (WORKFLOW.md § 3).
-- **Performance**: baseline (cold/warm per page, bundle per route), method and the specs in `doc/perf/README.md` —
-  PERF-00 (the new Esposizione, issue #402) first, then the fourteen; the benchmark lands in repo with PERF-01
-  (`npm run perf:bench` / `perf:budget`).
+- **Performance**: `npm run perf:budget` (JS per route against `perf/budget.json`, two seconds, after a build) and
+  `npm run perf:bench -- --runs=3` (cold/warm on the mirror, via `perf:build` + `perf:serve` on :3200); commands, columns,
+  the baseline in force and the raised-ceiling register in `perf/README.md`. A route that grows raises its ceiling in the
+  same commit with `raisedBy`. The specs and the 2026-09-26 history in `doc/perf/README.md` (PERF-00, 01, 02, 03 and 05 done, their specs retired).
 - **Mobile composition**: the small-screen census (19 surfaces × 390/768/1024), the chosen direction, the nine specs and
   the owner's decisions in `doc/mobile/README.md`; the census script in `doc/mobile/reference/` (MOB-01 ports it to
   `npm run mobile:census` / `mobile:budget`). Implemented after `doc/perf/`.
@@ -121,7 +123,15 @@ Only what crosses areas; an area's blind spots — the behaviours that look like
   change is not the cause (and it failed once more in the full run of 2026-09-22, green alone right after). When it fails, Rendimenti's «Periodo personalizzato» button has moved **23,4px** between the
   `boundingBox()` the spec takes and the origin captured at the click: a late reflow under suite load, roughly the
   height of the custom-period chip row. It passes alone, and in the `desktop` project alone. Not reproduced on demand,
-  so not yet fixed — re-read this before trusting a single red run of it.
+  so not yet fixed — re-read this before trusting a single red run of it. **A second failure mode on 2026-09-29**
+  (Windows laptop, the machine twice as slow as the day before): red at line 47 — no `data-state="closed"` frame inside
+  the sampler's 2,6 s window, so the dialog opened more than ~1,5 s after the click — three times ALONE on a fresh
+  `.next-e2e`, and identically with develop's `app/page.tsx` and `AuthShell.tsx` swapped in on the same server, so not
+  the day's commit. The window is the spec's, not the app's: a slow machine can fail it without any regression.
+- **`e2e/cashflow.dividendi.spec.ts` › «the form refuses…» is red after `cashflow.accounts` + `cashflow.budget`** (2026-09-30:
+  3/3 on a clean `develop` worktree, 2/3 on the branch of PR #418, green alone): after the refusal the dialog stays open
+  with its form reset — `reset` re-runs, cause not traced yet. Two of four full runs that day had it red; green in
+  the evening's full run of the same day (162/162).
 - **Four base specs are red in the cloud container only** (2026-09-25): its Chromium groups four-digit euros («1.100 €»),
   the specs expect «1100 €» as on the Mac (doc/guide/e2e-emulatori.md). Read the received text before «fixing» code.
 - **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
@@ -133,7 +143,7 @@ Only what crosses areas; an area's blind spots — the behaviours that look like
 Cross-cutting entry points only: each area's files open its guide (`doc/guide/<tema>.md` § Files), every pure module has
 `__tests__/{module}.test.ts`, every page its `e2e/{page}*.spec.ts` where one exists.
 - **Shell**: `app/dashboard/layout.tsx` (`<main>` = `page-main`), `app/dashboard/template.tsx`, `components/layout/{Sidebar,BottomNavigation,SecondaryMenuDrawer,SceneLink,PageHeader,PageTabBar,PageTabs,PageContainer,ThemePicker,LogoutDialog}.tsx`, `lib/utils/viewTransition.ts` (the ONE `startViewTransition`, `data-vt` scoping) + `lib/hooks/useSceneNavigation.ts` (the page scene), `lib/utils/themeTransition.ts`, `components/ui/sidebar.tsx` (`SIDEBAR_WIDTH_ICON`), `lib/constants/navigation.ts` (the ONE source of the nav arrays); tile primitives `components/ui/{tile,tile-method-note,series-legend,narrative-text,ranked-rows,tile-grid-skeleton,page-verdict}.tsx`, `lib/hooks/useRovingFocus.ts` (a list as ONE Tab stop), `lib/utils/narrative.ts` (`Narrative`, `VerdictTone`, `PageVerdictModel`)
-- **Shared primitives / utils** (each the single source of its rule): `components/ui/{composition-list,composition-bar,segmented-pill,drill-breadcrumb,chart-hover}.tsx`; `lib/utils/formatters.ts` · `metricColors.ts` (`getMetricValueColor`) · `assetPricing.ts` (`requiresManualPricing`) · `assetLiquidity.ts` · `expenseTypeTransition.ts` · `firestoreData.ts` (`removeUndefinedDeep`) · `dateHelpers.ts` (`endOfMonthBound`, `getItalyDateIso`, `isItalyDayAfter`) · `spendingProjection.ts` (the ONE month-end projection) · `recurrenceDates.ts` (the ONE source on recurrence)
+- **Shared primitives / utils** (each the single source of its rule): `components/ui/{composition-list,composition-bar,segmented-pill,drill-breadcrumb,chart-hover}.tsx`, `components/ui/charts/recharts.ts` (the ONE door to recharts); `lib/utils/expenseWindows.ts` (the ONE source of the expense windows) · `formatters.ts` · `metricColors.ts` (`getMetricValueColor`) · `assetPricing.ts` (`requiresManualPricing`) · `assetLiquidity.ts` · `expenseTypeTransition.ts` · `firestoreData.ts` (`removeUndefinedDeep`) · `dateHelpers.ts` (`endOfMonthBound`, `getItalyDateIso`, `isItalyDayAfter`) · `spendingProjection.ts` (the ONE month-end projection) · `recurrenceDates.ts` (the ONE source on recurrence)
 - **Solo fork**: Esposizione `lib/utils/exposureEngine.ts` (`computeExposure`), `lib/server/portfolioExposureService.ts` +
   `lib/server/exposure/{profileResolver,yahooSource,issuerResolver}.ts`, `lib/constants/instrumentProfiles.ts`
   (`npm run exposure:report`/`exposure:refresh`); Accumulo `lib/utils/accumulationPlan{Utils,Schema,Matching}.ts`,

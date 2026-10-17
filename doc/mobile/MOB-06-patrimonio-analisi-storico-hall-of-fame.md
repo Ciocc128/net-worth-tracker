@@ -133,7 +133,7 @@ test per pagina.
   Un test vieta `lifts` su `storico-driver`; candidato per The Lifted-Figure Rule (MOB-09).
 - **Non si ripete**: `EvoluzioneTile` + `liftedFigures?: readonly ('growth' | 'cagr' | 'trailing')[]`.
 - **Righe**: `storico-raddoppi` · `storico-composizione` («per classe») · `storico-driver` · `storico-valore` («per
-  strumento»). Nessuna riga `failed` (una lettura; dopo PERF-05, l'`isError` delle sue query).
+  strumento»). Nessuna riga `failed` (dal 2026-09-29 la pagina compone gli `isError` delle sue sei chiavi con `composeReadState`).
 
 ### 4.4 Hall of Fame
 
@@ -150,12 +150,12 @@ il Dettaglio, come in Storico (`history/page.tsx:498-501`): gesti rari, ~56 px d
   a 390 di `e2e/assets.composite-chip.spec.ts` (#403): gira nel progetto `desktop` con `setViewportSize`, ma
   `useCompactLayout` legge la larghezza, quindi a 390 Strumenti è chiusa e le `AssetRow` non esistono — il suo
   `openPatrimonio` apre la riga `patrimonio-strumenti` prima di aspettare il nome dello strumento.
-- **PERF-14**: `layout="position"` (`assets/page.tsx:385`) è già tolto; nessun `layout` nuovo. **PERF-04** rende pigri
-  solo i grafici dentro le disclosure (§ 4 C: Dettaglio di Storico, sezioni di Analisi) e il Sankey del Flusso, che sotto
-  i 640 px non si scarica più; Composizione e Valore di Storico restano statici e recharts arriva comunque con
-  Evoluzione: la riga chiusa risparmia il mount, non il download; un grafico di riga reso `dynamic` riserva l'altezza
-  (MOB-02 § 4.8). **PERF-03**: «Aggiornato alle…» sta
-  nel budget. **PERF-05/06**: la striscia legge i riassunti come sono. **PERF-12**: `mounted` nel gestore, `reveal` in
+- **PERF-14**: `layout="position"` (`assets/page.tsx:385`) è già tolto; nessun `layout` nuovo. **PERF-04** (in develop dal
+  2026-09-30) ha reso pigri i grafici delle disclosure e della Scheda di Analisi e il Sankey del Flusso, che sotto i
+  640 px non si scarica (doc/guide/cashflow-analisi.md); su Storico solo il PDF è pigro: Composizione, Valore ed
+  Evoluzione portano recharts nel grafo iniziale e il Dettaglio resta statico (doc/guide/storico.md) — la riga chiusa
+  risparmia il mount, non il download; un grafico di riga reso pigro (`lazyComponent`) riserva l'altezza (MOB-02 § 4.8). **PERF-03** (in develop dal 2026-09-30): «Aggiornato alle…» sta nel `PageHeader`, nella riga della
+  descrizione: nessuna riga in più nel budget. **PERF-05/06**: la striscia legge i riassunti come sono. **PERF-12**: `mounted` nel gestore, `reveal` in
   un `setTimeout`, mai nel corpo di un effetto (§ 4.2).
 
 ### 4.6 Domande al proprietario

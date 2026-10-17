@@ -1,11 +1,11 @@
 # PERF-11 — Patrimonio: N grafici montati al buio, un dialog da 2887 righe sempre vivo
 
-> Stato: da fare · Priorità: 3 · Sforzo: M · Dipende da: PERF-04 (recharts in un chunk), PERF-05 (`AssetDialog` non legge da chiuso), PERF-12 (il census in `scripts/`) · Sblocca: —
+> Stato: da fare · Priorità: 3 · Sforzo: M · Dipende da: PERF-04 (recharts in un chunk), PERF-05 (chiusa il 2026-09-29: `AssetDialog` non legge da chiuso), PERF-12 (il census in `scripts/`) · Sblocca: —
 
 ## 1. Il problema, misurato
 
 Patrimonio: 790 ms cold al primo numero, LCP 1230, **270 ms di long task** al mount (mediana di 3 run, mirror con 25 asset),
-e 314 ms warm con 11 richieste Firestore (PERF-05 ne toglie 7). Il lavoro di rendering, verificato:
+e 314 ms warm con 11 richieste Firestore (dal 2026-09-29 warm ne fa 0: assets, snapshot, overview, ledger e rate in cache). Il lavoro di rendering, verificato:
 
 - `components/assets/StrumentiTile.tsx:621-644` rende **DUE volte l'elenco**: la lista mobile di `AssetRow` (`desktop:hidden`) e
   la tabella desktop (`hidden desktop:block`) sono entrambe nel DOM a ogni larghezza. La sparkline vive SOLO in `AssetRow`
@@ -15,9 +15,14 @@ e 314 ms warm con 11 richieste Firestore (PERF-05 ne toglie 7). Il lavoro di ren
   `getPropertyValue`) e un secondo rAF `setReady` (`AssetSparkline.tsx:22-30`). Con N asset: **N grafici, 2N rAF, N+1
   `getComputedStyle`** montati dentro `display:none` (desktop, la lista intera è nascosta) o dentro righe chiuse (mobile), a ogni apertura.
 - `AssetDialog` (2887 righe, 22 `useState`, 23 `useWatch` alla radice, `:596-618`) e `CashAccountDialog` sono SEMPRE montati
-  (`assets/page.tsx:528, 536`) anche chiusi; da chiuso il dialog legge le impostazioni (PERF-05) e partecipa a ogni render
+  (`assets/page.tsx:528, 536`) anche chiusi; da chiuso il dialog non legge più nulla (`useSettings(ownerId, { enabled: open })`, 2026-09-29) ma partecipa a ogni render
   della pagina. Da aperto, ogni tasto in un campo `useWatch`-ato alla radice ri-renderizza le 2887 righe.
 - `app/dashboard/assets/page.tsx:385`: `motion.div layout="position"` intorno all'INTERA pagina — è di PERF-14, non di questa spec.
+- **Da PERF-04 (2026-09-30) la sparkline paga l'unione di recharts**: recharts è in UN chunk condiviso (il barrel
+  `components/ui/charts/recharts.ts`), che contiene i moduli di TUTTI i grafici dell'app; la copia che Patrimonio aveva
+  prima conteneva solo ciò che `AssetSparkline` usa. Patrimonio 723,7 → 731,1 KB gz (+28,5 KB stimati di `recharts/es6/*`
+  e +6,3 di `es-toolkit`, dall'analizzatore). Una sparkline montata all'apertura della riga (§ 4) — o disegnata a mano in
+  SVG, come le tessere di Rendimenti — toglie recharts dal grafo iniziale di Patrimonio: `perf:budget` lo dirà.
 
 Il post: 6.900 hook e 900 sottoscrizioni nel percorso di digitazione del composer; la tabella resa cella per cella; il
 renderer che tocca solo ciò che cambia.
@@ -31,9 +36,9 @@ renderer che tocca solo ciò che cambia.
   il focus all'opener: `returnFocusTo` è un `RefObject`, `components/ui/responsive-modal.tsx:116`, riempito con
   `event.currentTarget` al click — doc/guide/dialog.md); le due fasi intatte; `e2e/assets.bond.spec.ts` e
   `assets.sale-tax.spec.ts` verdi.
-- Un solo elenco nel DOM per larghezza (mobile O desktop), letto da `useMediaQuery('(min-width: 1440px)')` (dopo PERF-02 è
-  `useSyncExternalStore` con snapshot server `false`: sul server e nel primo frame rende la LISTA — accettabile perché
-  Patrimonio è dietro `ProtectedRoute` e monta solo sul client, ma va detto nel commento): il numero di `AssetRow` + righe
+- Un solo elenco nel DOM per larghezza (mobile O desktop), letto da `useMediaQuery('(min-width: 1440px)')` (dal
+  2026-09-28, PERF-02, è `useSyncExternalStore` con snapshot server `false`: Patrimonio è dietro `ProtectedRoute` e
+  monta solo sul client, DOPO l'idratazione, quindi legge il valore vero già al primo render — va detto nel commento): il numero di `AssetRow` + righe
   `<tr>` = N, non 2N. 1440 inclusivo (AGENTS.md § Tailwind Breakpoints; il progetto Playwright `desktop` gira a 1440).
 - Census (PERF-12, `npm run perf:census -- --route=assets`): 10 tasti in «quantità» di `AssetDialog` → ri-renderizza la sezione
   quantità/PMC, non il picker del tipo.
@@ -145,7 +150,7 @@ Da fare TASSATIVAMENTE prima di ogni cosa:
 - Leggi doc/guide/patrimonio.md, dialog.md (per intero: l'uscita animata e il focus), stati.md, e2e-emulatori.md
 - Leggi components/ui/responsive-modal.tsx PRIMA di decidere il mount condizionale
 - Leggi COMMENTS.md e DEVELOPMENT_GUIDELINES.md e APPLICALE mentre scrivi codice
-- Leggi doc/perf/README.md e la spec PERF-11 per intero; PERF-04, PERF-05 e PERF-12 devono essere chiuse
+- Leggi doc/perf/README.md e la spec PERF-11 per intero; PERF-05 (2026-09-29) e PERF-04 (2026-09-30) sono chiuse, PERF-12 deve esserlo
 - Crea SESSION_NOTES.md; crea il branch dalla branch attiva PRIMA di editare
 
 Regole: nessun commit senza il mio OK; un branch e un commit; rispondi in italiano.

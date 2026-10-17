@@ -1,0 +1,66 @@
+{
+  "routes": {
+    "/": {
+      "initialJsGzKB": 479,
+      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+    },
+    "/dashboard": {
+      "initialJsGzKB": 561,
+      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+    },
+    "/dashboard/allocation": {
+      "initialJsGzKB": 775,
+      "raisedBy": "fork (T2, riallineamento a upstream #422): la pagina porta le due schede Bilanciamento e Accumulo, il PAC, l'ottimizzatore, il portafoglio modello e l'Esposizione a cinque viste, che upstream non ha; il tetto di upstream (527) misura la sua pagina"
+    },
+    "/dashboard/analisi": {
+      "initialJsGzKB": 588,
+      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+    },
+    "/dashboard/assets": {
+      "initialJsGzKB": 761,
+      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+    },
+    "/dashboard/assistant": {
+      "initialJsGzKB": 670
+    },
+    "/dashboard/cashflow": {
+      "initialJsGzKB": 763,
+      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+    },
+    "/dashboard/fire-simulations": {
+      "initialJsGzKB": 774,
+      "raisedBy": "fork (T2, riallineamento a upstream #422): «Il mio piano», la Proiezione, i flussi datati, il motore Monte Carlo a sette classi e Dopo il FIRE, che upstream non ha"
+    },
+    "/dashboard/hall-of-fame": {
+      "initialJsGzKB": 561,
+      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+    },
+    "/dashboard/history": {
+      "initialJsGzKB": 698
+    },
+    "/dashboard/pension": {
+      "initialJsGzKB": 619,
+      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+    },
+    "/dashboard/performance": {
+      "initialJsGzKB": 578
+    },
+    "/dashboard/settings": {
+      "initialJsGzKB": 721,
+      "raisedBy": "fork (T2, riallineamento a upstream #422): la scheda Simulazioni (ipotesi di mercato, correlazioni, scaglioni IRPEF) e la copertura del cambio, che upstream non ha"
+    },
+    "/login": {
+      "initialJsGzKB": 436,
+      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+    },
+    "/register": {
+      "initialJsGzKB": 436,
+      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+    }
+  },
+  "sharedGzKB": 483,
+  "sharedRaisedBy": "#418: date-fns, date-fns-tz, dateHelpers e formatters (~14 KB, li carica ogni pagina) passano dalle copie per pagina ai chunk condivisi; il condiviso non sale perché una route è cresciuta",
+  "libraryCopies": {
+    "recharts": 1
+  }
+}

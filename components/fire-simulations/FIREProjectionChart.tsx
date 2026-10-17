@@ -40,7 +40,7 @@ import {
   ReferenceLine,
   ResponsiveContainer,
   ReferenceDot,
-} from 'recharts';
+} from '@/components/ui/charts/recharts';
 
 interface FIREProjectionChartProps {
   yearlyData: FIREProjectionYearData[];
