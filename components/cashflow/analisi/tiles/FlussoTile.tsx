@@ -32,7 +32,8 @@ import { cn } from '@/lib/utils';
 import { Tile } from '@/components/ui/tile';
 import { AsideToggle } from '@/components/ui/aside-toggle';
 import { DrillBreadcrumb } from '@/components/ui/drill-breadcrumb';
-import { CashflowSankeyChart } from '@/components/cashflow/CashflowSankeyChart';
+import { Skeleton } from '@/components/ui/skeleton';
+import { lazyComponent } from '@/components/ui/lazy-component';
 import { SpendingRolesMobileFlow } from '@/components/cashflow/analisi/SpendingRolesMobileFlow';
 import { SpendingTypesMobileFlow } from '@/components/cashflow/analisi/SpendingTypesMobileFlow';
 
@@ -62,6 +63,26 @@ interface FlussoTileProps {
    */
   onEntityClick: (target: { expenseType: ExpenseType; categoryKey: string; subCategoryKey?: string }) => void;
   className?: string;
+}
+
+/**
+ * The Sankey (`@nivo/sankey`, d3-sankey and react-spring) is its own chunk, requested only where
+ * the tile draws it — from 640px: a phone, which gets the share bar and rows, never downloads it
+ * (2026-09-30; pinned by `e2e/bundle.lazy{,.mobile}.spec.ts`). Declared at MODULE level,
+ * never in a render (AGENTS.md § Dynamic Imports). The wait fills the box the plot is given: the
+ * caller wraps it in a container of the view's own height (`resolveSankeyHeight`), so the chart
+ * lands in place and nothing under the tile moves.
+ *
+ * From 640px the download starts when THIS module is evaluated — with the page, in parallel with
+ * its reads — not when the tile first draws the Sankey, after every expense is read. And it is a
+ * `lazyComponent`, not a `next/dynamic`: with the chunk already in memory the chart draws in the
+ * same render as the figures, where a Suspense fallback held the placeholder ~275 ms longer
+ * (measured on the mirror, the same day). The width test is AnalisiTab's phone query, negated:
+ * below it nothing is fetched.
+ */
+const CashflowSankeyChart = lazyComponent(() => import('@/components/cashflow/CashflowSankeyChart').then((m) => m.CashflowSankeyChart));
+if (typeof window !== 'undefined' && !window.matchMedia('(max-width: 639px)').matches) {
+  CashflowSankeyChart.preload().catch(() => {}); // a failure is retried by the first draw
 }
 
 type FlowMode = 'types' | 'roles';
@@ -284,7 +305,8 @@ export function FlussoTile({ expenses, isMobile, reading, flow, spendingRoles, s
         )
       ) : (
         view && (
-          <div className="mt-3">
+          // The plot's own height, before the chunk: the Skeleton fills it and the chart replaces it in place.
+          <div className="mt-3 flex flex-col" style={{ minHeight: view.nodes.length > 0 && view.links.length > 0 ? height : undefined }}>
             <CashflowSankeyChart
               view={view}
               viewKey={viewKey}
@@ -294,6 +316,7 @@ export function FlussoTile({ expenses, isMobile, reading, flow, spendingRoles, s
               onNodeClick={handleNodeClick}
               nodeSort={mode === 'roles' && !drill ? 'input' : 'auto'}
               variant="thin"
+              fallback={<Skeleton className="w-full flex-1" />}
             />
           </div>
         )

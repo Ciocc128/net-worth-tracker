@@ -4,7 +4,7 @@
 
 ## Files
 
-- **E2E ed emulatori**: `playwright.config.ts`, `e2e/*.spec.ts`, `e2e/global-setup.ts`, the seeds `scripts/seedEmulator.ts` + `scripts/seed*.mts` (`seedPensionE2E`, `seedAnalisiE2E`, `seedCoastFireE2E`, `seedCostCentersE2E`), the production mirror `scripts/mirrorProdAccount.mts` (`npm run mirror:seed` / `mirror:remove`), throwaway exercises `scripts/*.tmp.mts` (untracked); npm scripts `test:e2e` / `e2e:seed*` / `dev:e2e` / `emulators` / `emulators:seed` / `dev:emulator`
+- **E2E ed emulatori**: `playwright.config.ts`, `e2e/*.spec.ts`, `e2e/global-setup.ts`, the six `e2e/auth*.setup.ts` + `e2e/persistedCache.ts` (the helper that keeps the persisted query cache out of the parked sessions), `e2e/shellBoot.ts`, the seeds `scripts/seedEmulator.ts` + `scripts/seed*.mts` (`seedPensionE2E`, `seedAnalisiE2E`, `seedCoastFireE2E`, `seedCostCentersE2E`), the production mirror `scripts/mirrorProdAccount.mts` (`npm run mirror:seed` / `mirror:remove`), throwaway exercises `scripts/*.tmp.mts` (untracked); npm scripts `test:e2e` / `e2e:seed*` / `dev:e2e` / `emulators` / `emulators:seed` / `dev:emulator`
 
 ## Proving a refactor changed no number
 - **Measure the noise floor BEFORE interpreting a diff**: anything downstream of `new Date()` drifts (cents at two
@@ -15,6 +15,21 @@
   percentage of the old dump must match one of the new within the noise floor — new values are the feature, missing
   old values the bug. Drive it from a throwaway Playwright spec that opens every collapsible and samples charts by
   hovering at fixed fractions of their width, so figures behind a disclosure or inside a tooltip are captured too.
+- **A diff the noise floor could not show is settled with the browser's clock, not with a rebuild** (2026-09-29,
+  2026-09-29): two dumps six minutes apart drifted on nothing, but the after dumps — taken seventy minutes after the
+  befores — moved 21 FIRE figures by one euro (1.076.926 → 1.076.925 €: the requirement and the deflated pensions are
+  functions of `new Date()`, at ~1 € per million per hour). Re-dump the surface on the NEW build with
+  `context.clock.setFixedTime(<the before dump's instant>)` — `Date.now()` frozen, timers real, the app runs — and
+  compare with that before dump: identical sets mean the refactor changed nothing, and the whole check costs one
+  surface, not a checkout and two production builds. The dump records `at` and each surface's `ms` for exactly this.
+- **Freeze the clock at SEVERAL instants, not today's** (2026-09-30, the expense windows): the same real data read
+  «today», on a 15 March (the Budget's six bars reach into last year) and on a 10 January (last year has just
+  closed) exercised every branch of the windows on the mirror at no extra cost — a frozen clock makes the app live
+  any day — and with the clock frozen the noise floor between two dumps of unchanged code was ZERO, so a single
+  value lost is a finding. Two were: a chart that ranks on rows after «today» (Analisi's Andamento) and a history
+  that reads up to a snapshot the frozen clock had not reached yet (FIRE). And a spec that never sees a page settle
+  (every surface «NOT SETTLED») on a build that settles fine by hand was a game running on the laptop: check the
+  process list before doubting the code.
 
 ## Emulator Exercise Scripts
 - **On Windows, start `next dev` from PowerShell through the npm script** (2026-09-20): launched from Git Bash as
@@ -93,8 +108,56 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   read `netstat -ano`, confirm each PID's command line is this repo's, then `Stop-Process -Id … -Force`. **A port 3000
   held by another app sends `next dev` to 3001 on its own** (2026-09-19: a foreign app answered `/login` with a redirect
   to `/it/login`, and the probe waited for a form that never came): read the «Local:» line of the dev log first.
+- **After a long session the Firestore emulator can refuse every gRPC WRITE while REST still answers** (2026-09-29,
+  Windows laptop: two full suites, six partial runs, four benchmarks and a mirror seed in one evening, the JVM at
+  2,5 GB): `global-setup` died on the Centri seed's `WriteBatch.commit` with `4 DEADLINE_EXCEEDED … after 60.0s`, the
+  Admin SDK's channel, while a REST `PATCH`/`DELETE` on the same emulator took 70 ms and the app (WebChannel) kept
+  working — so the tour looked healthy and every spec was unrunnable. The tell is the pair: a 60 s Admin timeout
+  beside a fast `curl`. Not a defect of the seed or of the branch: export and restart the emulators (from the
+  terminal that started them, so `--export-on-exit` runs) and rerun.
 
 ## Browser-Driven E2E (Playwright)
+- **The six `auth*.setup.ts` anchor on the PROFILE, at 1440** (2026-09-28). Since the shell is in the
+  prerendered HTML, `getByRole('navigation')` and `main` exist on `/dashboard` before Firebase has said who is signed
+  in, so the old anchor (`navigation.or(main)`) would have declared the session ready too early. Each setup now waits
+  for `waitForURL(/\/dashboard/)` and then for the account's email in `[data-sidebar="footer"]`, which the sidebar
+  prints only once `onAuthStateChanged` has answered — and the six setup projects run at `SETUP_VIEWPORT` (1440×900,
+  `playwright.config.ts`), because below `desktop:` the sidebar is a closed Sheet and the footer is not in the DOM.
+  The same fact for any spec: `main`, the skip link and the bottom nav are not proof of a session; the page's `h1`
+  or the footer's email are. `e2e/shell.boot{,.mobile}.spec.ts` are the shell's own specs (the HTML without JS, a
+  clean hydration console with a positive `console.error` anchor, the theme at the first frame — their assertions
+  are shared in `e2e/shellBoot.ts`, a helper no project collects). **A hydration mismatch is a `pageerror`, not a
+  console line** (2026-09-28): React 19 throws «Hydration failed because the server rendered HTML didn't match the
+  client» as an uncaught error, so a spec listening on `page.on('console')` alone stayed GREEN with a `typeof
+  window` branch planted in the layout — read `page.on('pageerror')` too. And a mismatch makes React regenerate the
+  tree on the client, which then prints «Encountered a script tag while rendering React component» for the `<head>`
+  theme script: that line is a symptom of the failed hydration, not of the script.
+- **A full run where every spec that calls a route is red is the suite's dev server, not the routes** (2026-09-29,
+  Windows laptop: 18 red of 154 in 13,5 min — the Esposizione, the Dividendi form, «Crea snapshot», an Impostazioni
+  read, all eleven Hall of Fame — while the 136 that never call `/api/*` stayed green). The tell is in the `[WebServer]`
+  lines of the log: «Failed to fetch YOC: Not Found», «Unexpected token '<', "<!DOCTYPE"» from a `response.json()`, a
+  spec reading 404 where it expects 200 — the `next dev` Playwright started answered 404 HTML on EVERY `/api/*` route
+  (`Invoke-WebRequest http://localhost:3100/api/dashboard/overview` from the shell, while it was still up), and its
+  `.next-e2e/dev/types/validator.ts` typed 3 API routes of 37. Not reproduced on demand: `.next-e2e` deleted and
+  `npm run dev:e2e` restarted, the same route answered 401 JSON and the nine red files reran green (30/31, the one
+  left `modal.origin`, CLAUDE.md § Known Issues). Before reading a red spec, probe one route on :3100; if it 404s, restart the server and
+  rerun the red files against it (`reuseExistingServer` is on locally).
+- **All six setups red at 30 s on `/login` is a COLD dev server** (2026-09-30, after an `npm ci`, CPU loaded): start
+  `npm run dev:e2e` detached, request the 13 routes once, run `--project=setup`, then the suite — it reuses the server.
+- **What a page DOWNLOADS is asserted by chunk CONTENT** (`e2e/chunkProbe.ts`, 2026-09-30): chunk names change every
+  build, so `probeChunks` reads each body for a library's module path (`node_modules/d3-sankey/`) or a function only one
+  module defines — never OUR module's path, which the importer's chunk also names in its `import()` loader, and never a
+  word a comment could hold (dev chunks keep comments). To measure a placeholder against what replaces it, HOLD the
+  chunk until the test releases it (`holdChunks`) — a fixed delay loses the race to a preload — and navigate to
+  `domcontentloaded`: a held chunk requested before `load` means `load` never fires. The suite runs `next dev`, so these
+  prove an import is lazy; sizes are `perf:budget`'s. Worked example: `e2e/bundle.lazy{,.mobile}.spec.ts`.
+- **Only two lazy surfaces are held against a placeholder that moves** (2026-09-30): Analisi's Sankey (`layout-shift` 0
+  and equal heights) and Rendimenti's Dettaglio (no placeholder ever shown), both in `e2e/bundle.lazy.spec.ts`.
+  Analisi's three disclosures and its Scheda and the four lazy FIRE tabs measured `layout-shift` 0 ONCE, on the mirror at
+  1440 and 390; no spec holds them, so a placeholder that loses its height there goes unseen by the suite. If one of
+  them went back into the initial JavaScript, `perf:budget` would still catch it (its route over the ceiling).
+- **«No placeholder ever showed» is watched from BEFORE the action** (2026-09-30): a `MutationObserver` installed before
+  the click, read after; counting skeletons once the chart is visible passes whether or not one flashed (seen inert).
 - **In a cloud container the pinned Chromium is not installed** (2026-09-25): `browserType.launch: Executable doesn't
   exist at /opt/pw-browsers/chromium_headless_shell-XXXX`. Never `playwright install` there: a throwaway
   `playwright.local.config.ts` (listed in `.git/info/exclude`, deleted at the end) spreads `playwright.config.ts` and
@@ -145,6 +208,24 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   there, the file looks valid and every spec lands on `/login`. **Drive the dev server on `localhost`, never
   `127.0.0.1`**: Next blocks cross-origin dev resources from the bare IP, the page never hydrates and the login form
   submits natively — indistinguishable from a wrong password.
+- **And that capture also takes the persisted React Query cache** (since 2026-09-29): the app writes its
+  cache to the `nwt-query-cache` database, so a parked session would carry into EVERY spec the figures the setup's
+  login happened to read, and the first frame of every spec would be a restore. The six `auth*.setup.ts` strip that
+  database from the state file they just wrote — `stripPersistedQueryCache` in `e2e/persistedCache.ts`, AFTER
+  `storageState`, not an `indexedDB.deleteDatabase` from the page before it: the app holds the database open and a
+  delete would wait on that connection forever. The names are repeated in the helper (a spec cannot import `lib/`)
+  and `__tests__/persistCache.test.ts` pins them to `lib/constants/persistCache.ts`. So every spec's first visit is
+  a genuine first visit; a spec that RELOADS inside itself sees the restored figures first and the fresh ones as they
+  land — an assertion that retries (`toHaveText`, `toBeVisible`) waits for them, a one-shot `innerText()` read right
+  after the reload may catch the old frame — and an Admin write made between two `goto` of one spec IS reread by the
+  second (the restore invalidates what it restored), which is what four specs of the full run had silently relied on
+  (`assets.bond`, `cashflow.owner`, `cashflow.transfer-fee`, `fire`: red until the restore invalidated, 2026-09-29).
+  Three things `e2e/freshness.spec.ts` learned: the persister writes on a one-second throttle whose first call is
+  immediate, so poll the record for the KEY you need (`expenses/<uid>`), not for any record; the auth wait is
+  `role="status"` «Verifica dell'accesso» and the page's own skeleton «Caricamento» — match the label, not the role;
+  and an emptied `<p>` has no width, which Playwright calls NOT visible — assert the emptied node without a `visible`
+  filter (both header copies, `toHaveText(['', ''])`). The sign-out test reads the record back through IndexedDB
+  itself (`indexedDB.open` + `get`), the way «assert on data» means here.
 - **Prove the test can fail before trusting it** (the 1440px assertions were re-run at 1200px, where they must fail).
 - **Reading the page — the traps, each seen once**: `page.addInitScript` runs BEFORE `document.documentElement` exists
   (observe `document` with `subtree: true`, or the script dies and the spec passes having observed nothing);

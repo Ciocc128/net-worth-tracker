@@ -5,7 +5,7 @@
 > implementazione (`MOB-NN-*.md`, sul template di `doc/perf/`, ognuna con il prompt e il modello in coda), il censimento
 > di riferimento in `reference/` e questo indice: la domanda con la risposta, come è stato misurato il mobile attuale,
 > la baseline, le tre direzioni disegnate e quella scelta, l'ordine consigliato e lo stato. **Si implementa DOPO le 14
-> spec di `doc/perf/`** (decisione del proprietario): PERF-02/03 cambiano la shell che il mobile eredita, PERF-04/11/12/14
+> spec di `doc/perf/`** (decisione del proprietario): PERF-02 (in develop dal 2026-09-29) e PERF-03 (in develop dal 2026-09-30: la riga «Aggiornato alle…» sta nel `PageHeader`, non nella composizione) cambiano la shell che il mobile eredita, PERF-04 (in develop dal 2026-09-30) ha toccato e PERF-11/12/14
 > toccano gli stessi componenti. Una spec che si chiude aggiorna la tabella in § 6 e, se ha rimisurato, la baseline in § 3.
 
 ## 1. La domanda e la risposta
@@ -236,7 +236,7 @@ Fino a MOB-01: `reference/mobile-census.mjs` copiato nella radice del repo come 
 'playwright'` risolve da lì), emulatori + mirror + `npm run dev:emulator`, poi
 `node .tmp-mobile-measure.mjs --out=<cartella fuori dal repo>` (opzioni `--viewports=390,768,1024`,
 `--surfaces=panoramica,rendimenti`), cancellato a fine sessione; il JSON e gli screenshot restano fuori dal repo. Da
-MOB-01: `npm run mobile:census` e `npm run mobile:budget` sulla build di produzione di PERF-01 (:3200), con il `--` di
+MOB-01: `npm run mobile:census` e `npm run mobile:budget` sulla build di produzione di `perf:build`, servita da `perf:serve` (:3200), con il `--` di
 npm davanti alle opzioni.
 
 ## 9. Decisioni del proprietario (2026-09-26)

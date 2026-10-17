@@ -7,13 +7,11 @@
  * the «Mutuo» tile reads, so the tabs share React Query's cache.
  */
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAssets } from '@/lib/hooks/useAssets';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { getAllAssets } from '@/lib/services/assetService';
 import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { calculateAssetValue } from '@/lib/services/assetService';
-import { getGoalData } from '@/lib/services/goalService';
+import { useGoalData } from '@/lib/hooks/useGoalData';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { useMortgageInstalments } from '@/lib/hooks/useMortgageInstalments';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
@@ -47,24 +45,13 @@ export interface UseFireDatedFlowsOptions {
 }
 
 export function useFireDatedFlows({ lockedAssetIds }: UseFireDatedFlowsOptions = {}): UseFireDatedFlowsResult {
-  const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   // The saved settings with the plan's draft over them (RP3): the flows listed in «Il mio piano» are previewed here.
   const settingsQuery = useFireSettings();
-  const assetsQuery = useQuery({
-    queryKey: ['assets', ownerId],
-    queryFn: () => getAllAssets(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  const assetsQuery = useAssets(ownerId);
   const assets = assetsQuery.data;
   const goalsEnabled = !!settingsQuery.data?.goalBasedInvestingEnabled;
-  const goalQuery = useQuery({
-    queryKey: ['goalData', ownerId],
-    queryFn: () => getGoalData(ownerId!),
-    enabled: !!user && !!ownerId && goalsEnabled,
-    staleTime: 300000,
-  });
+  const goalQuery = useGoalData(ownerId, { enabled: goalsEnabled });
   const { assumptions, isLoading: assumptionsLoading } = useFireAssumptions(lockedAssetIds);
   const legShare = assumptions?.legShare;
   const propertyIds = useMemo(() => (assets ?? []).filter((asset) => asset.type === 'realestate' && asset.assetClass === 'realestate').map((asset) => asset.id), [assets]);

@@ -267,6 +267,14 @@ Regole comuni a ogni tappa:
   `fireCashflowInMemory`, `fireService`, `perfRoutes`. A mano: salvare il piano FIRE, ricaricare la pagina e
   rivedere il dato nuovo.
 
+**Esito T2 (2026-10-17, branch `claude/impl-t2-upstream-cache-j3ahvz`):** merge di `a19a9fca` (#422) su main dopo T1.
+- Conflitti risolti: 39 file (codice e documentazione). I componenti con la logica del fork (Allocazione, FIRE «Il mio piano», Impostazioni) sono la versione del fork con le letture portate sui binari condivisi (`useAssets`, `useSettings`, `useGoalData`, `useFreshness`); `exposureSectors.ts` e `useCoastFireSettingsDraft.ts` restano cancellati (D-UP1, H1).
+- `getAnnualCashflowData` e `getFIREData` non esistono più: i lettori del fork passano da `useAnnualCashflow` (nuovo, la finestra recente delle spese in memoria) e dal `buildFIREData` del Calcolatore; la Proiezione, il What If, `useFireAssumptions`, il PAC e `AccumuloVuotoTile` non rileggono più tutte le spese.
+- Chiavi grezze (`['settings', id]`, `['assets', id]`, `['goalData', id]`) sostituite dagli hook; `['goalData']` (cache separata, mai invalidata dal salvataggio degli Obiettivi) ora è `queryKeys.goals`. I dati del fork (`accumulationPlans`, `modelPortfolio`, Esposizione, profili) non entrano nella cache persistita.
+- Il grafico a barre/linee di Analisi e Storico usa i token `--flow-in` / `--flow-out` anche nei file nuovi (vedi `fork-scelte-ui.md` § 1).
+- `perf/budget.json`: dopo il merge 12 route sono sopra il tetto di upstream (il codice del fork pesa); tetti alzati con `raisedBy` e registro in `perf/README.md`.
+- Test: `tsc` pulito, Vitest sotto `Europe/Rome` 283 file / 6384 test verdi, eslint 0 errori, `perf:budget` verde. **Da fare sul Mac prima del merge**: Playwright completo e giro a mano (salvare il piano FIRE, ricaricare, rivedere il dato nuovo; riaprire dopo un'ora).
+
 ### T3 — PERF-07…14, dipendenze, compiler, Impostazioni (fino a #443)
 - **Conflitti:** circa 21 file in più (73 cumulativi), ma i più pesanti.
 - **Lavoro:**

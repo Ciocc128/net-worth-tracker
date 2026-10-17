@@ -1,6 +1,6 @@
 # PERF-09 — Rendimenti: ogni collezione letta una volta, i rendimenti da dividendo in una chiamata
 
-> Stato: da fare · Priorità: 2 · Sforzo: M · Dipende da: PERF-05 (gli hook condivisi), PERF-07 (`Server-Timing`) · Sblocca: —
+> Stato: da fare · Priorità: 2 · Sforzo: M · Dipende da: PERF-05 (chiusa il 2026-09-29: gli hook condivisi), PERF-07 (`Server-Timing`) · Sblocca: —
 
 ## 1. Il problema, misurato
 
@@ -25,6 +25,15 @@ Le dieci chiamate partono in parallelo (`Promise.all` sui periodi e dentro `fetc
 che il hero (`setPerformanceData` a `:378`) esista — e 30 letture Admin per una cosa che ne vuole 3. Il post: «megamorphic
 lookups resolving the same message ID three separate times → resolved once: −78% wall-clock». Qui la stessa collezione è
 risolta dodici volte.
+
+**Visto chiudendo la cache persistita (2026-09-29; annotato al ritiro della sua spec, 2026-09-30).** Rendimenti è, con
+Impostazioni (PERF-13 § 1), la route che al reload mostra ancora il suo skeleton, e l'unica senza la riga «Aggiornato
+alle…» nell'header: lo stadio 1 legge con `queryClient.fetchQuery`, che non ha observer (niente da passare a
+`useFreshness`) e, poiché il ripristino invalida ciò che ripristina, ATTENDE la rilettura delle sei collezioni invece di
+dipingere quelle restaurate; il hero viene poi da `performance-cache`, che sta su Firestore e fuori dalla allowlist per
+scelta. Misura (`perf/README.md` § Revisit): 686 → 685 ms, skeleton sì → sì. Non è un obiettivo di § 2: se questa spec
+vuole la regola delle altre pagine — l'ultimo dato noto subito, detto nell'header (doc/guide/stati.md § The fourth
+reading) — lo decide il proprietario qui, e il design A (§ 4) è il punto dove entrerebbe.
 
 ## 2. Obiettivo misurabile
 
@@ -51,8 +60,9 @@ risolta dodici volte.
 
 **A. Un solo giro di letture.** `getAllPerformanceData(ownerId, forceRefresh, inputs?)` accetta gli input già letti
 (`{ snapshots, assets, settings, contributions, trades }`) e li usa al posto delle sue cinque letture; la pagina passa lo
-stadio 1 (ora dagli hook di PERF-05: `useSnapshots`, `useAssets`, `useSettings`, `usePensionContributions`, `useAssetTransactions`,
-`useDividendReceipts`) e chiama `getAllPerformanceData` in un `useQuery` con chiave
+stadio 1 (dal 2026-09-29 `loadPerformanceData` in `app/dashboard/performance/page.tsx` legge le sei collezioni con
+`queryClient.fetchQuery` sulle `…QueryOptions` esportate dagli hook — `useSnapshots`, `useAssets`, `useSettings`,
+`usePensionContributions`, `useAssetTransactions`, `useDividendReceipts` — e le invalida prima su «Aggiorna») e chiama `getAllPerformanceData` in un `useQuery` con chiave
 `['performance', ownerId, hashDegliInput]` — o, più semplice e fedele all'oggi, in un `useEffect` che parte quando TUTTE le
 query sono `success` (gate su ogni query, doc/guide/stati.md). Il PDF (`pdfDataService.ts`) e ogni altro chiamante che non
 passa `inputs` continuano a leggere da soli: il parametro è opzionale e il comportamento senza è identico (test).
@@ -80,7 +90,7 @@ attende entrambi (gate su ogni query, doc/guide/stati.md). «Aggiorna» invalida
 - `lib/services/performanceService.ts` — `inputs?`. `AGENTS.md` § Caching — `v5` → `v8`.
 - `app/api/performance/yields/route.ts` — nuova; `lib/utils/dividendYield.ts` — le due funzioni pure; `lib/server/validation.ts`
   — lo schema; le due route vecchie rimosse se orfane.
-- `lib/hooks/useDividendReceipts.ts` (PERF-05).
+- `lib/hooks/useDividendReceipts.ts` (esiste dal 2026-09-29, con `dividendReceiptsQueryOptions`).
 - Test: `__tests__/performanceService.test.ts` (con e senza `inputs` → stesso risultato),
   `__tests__/dividendYield.test.ts` (i valori delle due route vecchie riprodotti a parità di input: prendere gli attesi dai
   test esistenti delle route), `__tests__/apiAuthRoutes.test.ts` (la route nuova: auth, 400 su body malformato, ownership),
@@ -104,7 +114,7 @@ attende entrambi (gate su ogni query, doc/guide/stati.md). «Aggiorna» invalida
   `getAllPerformanceData` che non risolve mai: la route è comunque stata chiamata; falsificare mettendola dopo → rosso).
 - E2E: `performance.degraded.spec.ts` + una spec che conta le chiamate `/api/performance/*` al mount (= 1) con anchor
   positivo (la chiamata c'è).
-- Invarianza dei valori; suite area Rendimenti (AGENTS.md § 5).
+- Invarianza dei valori; suite area Rendimenti (doc/guide/rendimenti.md § Files).
 
 ## 8. Collaudo guidato
 
@@ -139,7 +149,7 @@ Da fare TASSATIVAMENTE prima di ogni cosa:
 - Leggi WORKFLOW.md, AGENTS.md (§ Caching, § Server Layer and API Authorization, § React Query, § Audit habits), CLAUDE.md
 - Leggi doc/guide/rendimenti.md PER INTERO (è la guida più densa di regole), doc/guide/stati.md, doc/guide/e2e-emulatori.md
 - Leggi COMMENTS.md e DEVELOPMENT_GUIDELINES.md e APPLICALE mentre scrivi codice
-- Leggi doc/perf/README.md e la spec PERF-09 per intero; PERF-05 e PERF-07 devono essere chiuse
+- Leggi doc/perf/README.md e la spec PERF-09 per intero; PERF-05 è chiusa (2026-09-29), PERF-07 deve esserlo
 - Crea SESSION_NOTES.md; crea il branch dalla branch attiva PRIMA di editare
 
 Regole: nessun commit senza il mio OK; un branch e un commit; rispondi in italiano.

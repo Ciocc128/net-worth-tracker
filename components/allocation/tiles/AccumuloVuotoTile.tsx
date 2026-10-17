@@ -9,8 +9,7 @@
  * the second action, «Apri il portafoglio modello», jumps to the model portfolio's tile.
  */
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getAnnualCashflowData } from '@/lib/services/fireService';
+import { useAnnualCashflow } from '@/lib/hooks/useAnnualCashflow';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { ModelPortfolio } from '@/types/modelPortfolio';
 import type { RebalanceBand } from '@/lib/utils/allocationUtils';
@@ -61,12 +60,7 @@ export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLev
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // RV4 / RP7: the entry the editor would suggest, so the preview matches what «Crea piano» proposes.
-  const cashflowQuery = useQuery({
-    queryKey: ['annualCashflowData', ownerId],
-    queryFn: () => getAnnualCashflowData(ownerId),
-    enabled: !!ownerId,
-    staleTime: 300000,
-  });
+  const cashflowQuery = useAnnualCashflow(ownerId);
   const suggestedInflow = suggestMonthlyInflow(cashflowQuery.data?.annualSavings ?? 0);
 
   const preview = useMemo(

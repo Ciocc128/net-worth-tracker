@@ -15,11 +15,13 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { getDefaultTargets, getSettings, setSettings } from '@/lib/services/assetAllocationService';
+import { useSettings } from '@/lib/hooks/useSettings';
+import { queryKeys } from '@/lib/query/queryKeys';
+import { getDefaultTargets, setSettings } from '@/lib/services/assetAllocationService';
 import { describeWriteError } from '@/lib/utils/dialogNarrative';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import {
@@ -74,12 +76,7 @@ export function useFirePlanDraft(): FirePlanState {
   const { ownerId } = useActiveAccount();
   const queryClient = useQueryClient();
 
-  const { data: settings, isLoading: isLoadingSettings } = useQuery<Settings | null>({
-    queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  const { data: settings, isLoading: isLoadingSettings } = useSettings(ownerId);
 
   const seed = useMemo(() => planFormFromSettings(settings), [settings]);
   const seedKey = planSeedKey(settings);
@@ -103,7 +100,7 @@ export function useFirePlanDraft(): FirePlanState {
     mutationFn: (payload: object) => setSettings(ownerId!, { ...(settings ?? {}), targets: settings?.targets || getDefaultTargets(), ...payload }),
     onSuccess: () => {
       toast.success('Piano FIRE salvato');
-      return queryClient.invalidateQueries({ queryKey: ['settings', ownerId] });
+      return queryClient.invalidateQueries({ queryKey: queryKeys.settings.all(ownerId || '') });
     },
     onError: (error) => {
       console.error('Error saving the FIRE plan:', error);
@@ -173,15 +170,9 @@ function seedHasIncompletePension(seed: FirePlanForm): boolean {
  * query it replaces; `saved` is the document as stored, for the few readers that must not see the preview.
  */
 export function useFireSettings(): { data: Settings | null | undefined; saved: Settings | null | undefined; isLoading: boolean; isError: boolean } {
-  const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const plan = useFirePlan();
-  const query = useQuery<Settings | null>({
-    queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  const query = useSettings(ownerId);
   const overlay = plan?.overlay ?? null;
   const data = useMemo(() => applyPlanOverlay(query.data, overlay), [query.data, overlay]);
   return { data, saved: query.data, isLoading: query.isLoading, isError: query.isError };

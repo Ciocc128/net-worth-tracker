@@ -98,6 +98,7 @@ import { describeCategoryShare, describePeriodCashflow } from '@/lib/utils/cashf
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/layout/PageHeader';
+import type { PageFreshness } from '@/lib/hooks/useFreshness';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { Tile, TILE_CELL_CLASS } from '@/components/ui/tile';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
@@ -114,6 +115,8 @@ import { CategorieTile } from '@/components/cashflow/analisi/tiles/CategorieTile
 import { FlussoTile } from '@/components/cashflow/analisi/tiles/FlussoTile';
 import { summarizeSpendingRoles } from '@/lib/utils/spendingRoles';
 import { SchedaTile, type SchedaFocus } from '@/components/cashflow/analisi/tiles/SchedaTile';
+import { ENTITY_DOSSIER_LAZY_CHARTS } from '@/components/cashflow/EntityDossier';
+import { usePreloadWhenIdle } from '@/components/ui/lazy-component';
 
 type DrillDownLevel = 'category' | 'subcategory' | 'expenseList';
 type ChartType = 'expenses' | 'income';
@@ -153,6 +156,8 @@ interface AnalisiTabProps {
   historyStartYear?: number;
   /** settings.spendingRolesEnabled — adds the 50/30/20 view to Flusso, and makes it the default. */
   spendingRolesEnabled?: boolean;
+  /** The page's freshness reading for the header the tab owns (`useFreshness`). */
+  freshness?: PageFreshness;
 }
 
 // The focusable expense types, used to validate the focusType URL param without trusting
@@ -252,7 +257,10 @@ function resolvePeriodLabel(period: AnalisiPeriod): string {
   return String(period.year);
 }
 
-export function AnalisiTab({ allExpenses, categories, loading, loadFailed, historyStartYear = 2024, spendingRolesEnabled = false }: AnalisiTabProps) {
+export function AnalisiTab({ allExpenses, categories, loading, loadFailed, historyStartYear = 2024, spendingRolesEnabled = false, freshness }: AnalisiTabProps) {
+  // The Scheda's trend plot is lazy: fetched when the page is idle AFTER its data, so a
+  // Scheda draws it at once and the preload never competes with the first figures.
+  usePreloadWhenIdle(ENTITY_DOSSIER_LAZY_CHARTS, !loading && !loadFailed);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -648,6 +656,7 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
       label="Analisi"
       title="Analisi Cashflow"
       description="Dove vanno i soldi, e cosa è cambiato"
+      freshness={freshness}
       actions={<EntitySearch categories={categories} expenses={baseExpenses} onSelect={handleEntitySelect} />}
     />
   );

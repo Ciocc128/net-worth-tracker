@@ -101,7 +101,7 @@ Heatmap e curva del capitale si montano all'apertura (The Period-Transforms Rule
 
 Pura in `performanceSummary.ts`: `resolveRealizedGainsState({ meta, trades })` (ognuna `{ isError, data }`) →
 `absent | failed | ready`. `failed` = meta o registro in errore SENZA dati (`data === undefined`: una rilettura fallita
-tiene il dato già letto, come PERF-03; meta `null` = «non migrato»); `absent` = non migrato o nessuna vendita chiusa.
+tiene il dato già letto, come ogni pagina con la cache persistita — doc/guide/stati.md § The fourth reading; meta `null` = «non migrato»); `absent` = non migrato o nessuna vendita chiusa.
 Con `failed`, a ogni larghezza, `ErrorNotice` da `describeReadFailure({ subject: 'Plusvalenze realizzate',
 consequence: 'Le plusvalenze realizzate non sono state lette: …', canRetry: true })`, riprova = refetch delle due
 query. Sotto `desktop:` `collapse`, `live={!compact}`, `SectionSpec.failed`: la riga si apre da sola, chiusa ha
@@ -120,10 +120,13 @@ l'eyebrow in `--destructive`, annuncia solo `PageRest`. Il registro in errore fe
 
 - **PERF-09** riscrive il caricamento (hook, `/api/performance/yields`, attesa su ogni query): MOB-05 parte dopo di
   lei e non tocca letture; la sua spec che conta `/api/performance/*` resta verde. Qui il guadagno è CPU, non rete.
-- **PERF-04**: `UnderwaterDrawdownChart` resta nel «Dettaglio»; le tessere sono SVG a mano (PERF-04 § 1), le righe
+- **PERF-04** (in develop dal 2026-09-30): i tre grafici del «Dettaglio» (`UnderwaterDrawdownChart` e i due rolling) sono
+  `lazyComponent` precaricati a riposo; le tessere sono SVG a mano (doc/guide/rendimenti.md), le righe
   chiuse non risparmiano chunk. **PERF-14** toglie il `layout` dai wrapper di pagina, non il `layout="position"` di
   `AttribuzioneTile.tsx:68` (il riordino al cambio periodo), che resta in un pannello montato all'apertura; la riga
-  anima in CSS. **PERF-12**: ref scritti solo negli handler. **PERF-03**: `freshness`, se c'è, sopra la striscia.
+  anima in CSS. **PERF-12**: ref scritti solo negli handler. **PERF-03** (in develop dal 2026-09-30): Rendimenti non ha
+  «Aggiornato alle…» — lo stadio 1 legge con `fetchQuery` e non dipinge mai un dato vecchio (PERF-09 § 1 lo annota e potrà darglielo, nel
+  `PageHeader` come le altre pagine, mai nella composizione).
 
 ### 4.8 Domande al proprietario
 

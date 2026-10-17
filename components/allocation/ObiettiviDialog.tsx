@@ -13,6 +13,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { queryKeys } from '@/lib/query/queryKeys';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Asset, AssetAllocationSettings, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { ModelPortfolio } from '@/types/modelPortfolio';
@@ -138,7 +139,7 @@ export function ObiettiviDialog({ open, onClose, ownerId, allAssets, targets, ta
       // No `targets` in the payload: the merge write touches `idealAllocation` and nothing else.
       await setSettings(ownerId, { idealAllocation: draft } as AssetAllocationSettings);
       toast.success(OBJECTIVES_SAVED_TOAST);
-      await queryClient.invalidateQueries({ queryKey: ['settings', ownerId] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.settings.all(ownerId) });
       onSaved();
       onClose();
     } catch (error) {

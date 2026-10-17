@@ -17,6 +17,7 @@
 
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/queryKeys';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -67,7 +68,7 @@ export function LinkSeriesDialog({ request, ownerId, cashAccounts, properties, n
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
-  // The chosen account belongs to THIS opening (AGENTS.md → state stored with its subject).
+  // The chosen account belongs to THIS opening (AGENTS.md § React Query and Derived State).
   const subjectKey = expense?.id ?? '';
   const chosen = accountId?.key === subjectKey ? accountId.value : NONE;
 
@@ -107,6 +108,9 @@ export function LinkSeriesDialog({ request, ownerId, cashAccounts, properties, n
       toast.success(`${linked} ${mode === 'installment' ? (linked === 1 ? 'rata collegata' : 'rate collegate') : linked === 1 ? 'voce collegata' : 'voci collegate'} a ${accountName ?? (target === 'debt' ? 'immobile' : 'conto')}`);
       // The next opening must read the series again: its occurrences now carry the account.
       queryClient.invalidateQueries({ queryKey: ['expense-series', ownerId] });
+      // Patrimonio's «Mutuo» rows live under the assets key (lib/hooks/useMortgageInstalments.ts):
+      // linking a series moves no asset, so nothing else would refresh them.
+      queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
       onLinked();
       close();
     } catch (error) {
