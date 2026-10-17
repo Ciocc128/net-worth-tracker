@@ -772,14 +772,19 @@ file used to carry.
   had 17 reds before anyone noticed. A falsification is undone with the same tool that made it (the one line back),
   and `tsc` runs again before the next suite.
 - **`npm run lint` is at zero since 2026-09-06 and stays there**: a new `any` gets its real type, a new `eslint-disable`
-  is not written. The config ignores `.agents/**` (the plugin's vendored scripts) and the `.next-*/**` dist dirs — a
+  is not written. A local named `module` is refused by `@next/next/no-assign-module-variable` (2026-09-28: four in one
+  session) — name it after what it holds (`profileModule`). The config ignores `.agents/**` (the plugin's vendored scripts) and the `.next-*/**` dist dirs — a
   Playwright run used to leave ~170 generated-file findings behind.
 - **A heavy module graph is a FIXTURE**: hoist a slow `await import()` into `beforeAll` with an explicit timeout (after
   checking nothing is read at module scope, or per-test `vi.resetModules()` was load-bearing). Inside a test body its
   one-time cost lands on whichever case runs first, so the failure moves with the run order and reads as flakiness.
 - **A `tsc` that fails only inside `.next/dev/types/validator.ts` (TS1109 "Expression expected") is a half-written
   generated file** left by a dev server killed mid-write: delete that one file, never the whole `.next` of a server
-  someone else may be running. The Playwright server leaves the same in `.next-e2e/dev/types/` (2026-09-20:
+  someone else may be running. **A TS2307 «Cannot find module '…/app/api/<route>/route.js'» in the `validator.ts` of
+  EVERY `.next-*` dist** (2026-09-28) is the same file citing a route the session deleted: delete those files, a dev
+  server regenerates them. And on Windows, **Git Bash rewrites a command argument that starts with `//` into `/`**
+  (MSYS path conversion; a marker string handed to a node script arrived one slash short): prefix the command with
+  `MSYS_NO_PATHCONV=1`. The Playwright server leaves the same in `.next-e2e/dev/types/` (2026-09-20:
   `routes.d.ts` TS1434, then `validator.ts` missing `./routes.js` once it is gone) — there the `types` directory goes
   whole: it is generated, and that server is the suite's alone.
 - **A surface with no DOM is verified by RENDERING it** — `tsc` and Vitest see neither a dropped glyph nor an off-token

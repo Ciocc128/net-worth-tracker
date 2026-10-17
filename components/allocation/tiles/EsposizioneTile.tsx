@@ -228,7 +228,7 @@ export function EsposizioneTile({ userId, className }: EsposizioneTileProps) {
             <RankedRows
               rows={rows}
               color="var(--exposure-bar)"
-              remainder={exposureView.remainder}
+              remainders={exposureView.remainder ? [exposureView.remainder] : null}
               onRowClick={handleRowClick}
               activeKey={openRow?.key ?? null}
               ariaLabel={LIST_LABELS[view]}
