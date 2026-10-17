@@ -1,24 +1,24 @@
 {
   "routes": {
     "/": {
-      "initialJsGzKB": 519,
-      "raisedBy": "T3 del decimo riallineamento (fork): lo shell porta i moduli del fork (Impostazioni › Simulazioni, hook del piano FIRE) nei condivisi di route; +8 KB gz misurati su perf:build, dopo i 511 di #436. Misura in doc/guide/velocita.md § Registro"
+      "initialJsGzKB": 520,
+      "raisedBy": "T4 del decimo riallineamento (fork): i debiti come asset `loan` (migrazione, «Mutuo» per prestito, commissione su ogni riga, lettura del mutuo del piano FIRE attraverso il prestito) portano 1–2 KB gz nei condivisi di route; misure su perf:build in doc/guide/velocita.md § Registro"
     },
     "/dashboard": {
-      "initialJsGzKB": 608,
-      "raisedBy": "#436: firebase 12.13 → 12.19 (@firebase/firestore 4.14 → 4.17), +57 KB gz sui condivisi che Next 16.4 riduce di 16; richiesto da firebase-admin 14 (@firebase/app 0.16.2). Misura prima/dopo in doc/guide/velocita.md § Registro"
+      "initialJsGzKB": 609,
+      "raisedBy": "T4 del decimo riallineamento (fork): i debiti come asset `loan` (migrazione, «Mutuo» per prestito, commissione su ogni riga, lettura del mutuo del piano FIRE attraverso il prestito) portano 1–2 KB gz nei condivisi di route; misure su perf:build in doc/guide/velocita.md § Registro"
     },
     "/dashboard/allocation": {
-      "initialJsGzKB": 805,
-      "raisedBy": "T3 del decimo riallineamento (fork): la pagina porta le superfici solo-fork (scheda Accumulo, Portafoglio modello, ottimizzatore, Esposizione a cinque viste) che upstream non ha, più il React Compiler (#432) sul loro codice; 805 KB gz misurati contro i 593 di upstream. Debito aperto: caricarle in lazy per scheda. Misura in doc/guide/velocita.md § Registro"
+      "initialJsGzKB": 807,
+      "raisedBy": "T4 del decimo riallineamento (fork): i debiti come asset `loan` (migrazione, «Mutuo» per prestito, commissione su ogni riga, lettura del mutuo del piano FIRE attraverso il prestito) portano 1–2 KB gz nei condivisi di route; misure su perf:build in doc/guide/velocita.md § Registro"
     },
     "/dashboard/analisi": {
       "initialJsGzKB": 648,
       "raisedBy": "#436: firebase 12.13 → 12.19 (@firebase/firestore 4.14 → 4.17), +57 KB gz sui condivisi che Next 16.4 riduce di 16; richiesto da firebase-admin 14 (@firebase/app 0.16.2). Misura prima/dopo in doc/guide/velocita.md § Registro"
     },
     "/dashboard/assets": {
-      "initialJsGzKB": 700,
-      "raisedBy": "T3 del decimo riallineamento (fork): +0,6 KB gz misurati (condivisi alzati dal fork). Misura in doc/guide/velocita.md § Registro"
+      "initialJsGzKB": 703,
+      "raisedBy": "T4 del decimo riallineamento (fork): i debiti come asset `loan` (migrazione, «Mutuo» per prestito, commissione su ogni riga, lettura del mutuo del piano FIRE attraverso il prestito) portano 1–2 KB gz nei condivisi di route; misure su perf:build in doc/guide/velocita.md § Registro"
     },
     "/dashboard/assistant": {
       "initialJsGzKB": 700,
@@ -29,8 +29,8 @@
       "raisedBy": "#436: firebase 12.13 → 12.19 (@firebase/firestore 4.14 → 4.17), +57 KB gz sui condivisi che Next 16.4 riduce di 16; richiesto da firebase-admin 14 (@firebase/app 0.16.2). Misura prima/dopo in doc/guide/velocita.md § Registro"
     },
     "/dashboard/fire-simulations": {
-      "initialJsGzKB": 841,
-      "raisedBy": "T3 del decimo riallineamento (fork): la pagina porta le schede solo-fork (Il mio piano, Proiezione, Monte Carlo a sette classi, Obiettivi) più il Compiler; 841 KB gz misurati contro i 736 di upstream. Misura in doc/guide/velocita.md § Registro"
+      "initialJsGzKB": 843,
+      "raisedBy": "T4 del decimo riallineamento (fork): i debiti come asset `loan` (migrazione, «Mutuo» per prestito, commissione su ogni riga, lettura del mutuo del piano FIRE attraverso il prestito) portano 1–2 KB gz nei condivisi di route; misure su perf:build in doc/guide/velocita.md § Registro"
     },
     "/dashboard/hall-of-fame": {
       "initialJsGzKB": 615,
@@ -41,16 +41,16 @@
       "raisedBy": "#436: firebase 12.13 → 12.19 (@firebase/firestore 4.14 → 4.17), +57 KB gz sui condivisi che Next 16.4 riduce di 16; richiesto da firebase-admin 14 (@firebase/app 0.16.2). Misura prima/dopo in doc/guide/velocita.md § Registro"
     },
     "/dashboard/pension": {
-      "initialJsGzKB": 662,
-      "raisedBy": "T3 del decimo riallineamento (fork): +0,5 KB gz misurati (condivisi alzati dal fork). Misura in doc/guide/velocita.md § Registro"
+      "initialJsGzKB": 663,
+      "raisedBy": "T4 del decimo riallineamento (fork): i debiti come asset `loan` (migrazione, «Mutuo» per prestito, commissione su ogni riga, lettura del mutuo del piano FIRE attraverso il prestito) portano 1–2 KB gz nei condivisi di route; misure su perf:build in doc/guide/velocita.md § Registro"
     },
     "/dashboard/performance": {
       "initialJsGzKB": 651,
       "raisedBy": "#436: firebase 12.13 → 12.19 (@firebase/firestore 4.14 → 4.17), +57 KB gz sui condivisi che Next 16.4 riduce di 16; richiesto da firebase-admin 14 (@firebase/app 0.16.2). Misura prima/dopo in doc/guide/velocita.md § Registro"
     },
     "/dashboard/settings": {
-      "initialJsGzKB": 778,
-      "raisedBy": "T3 del decimo riallineamento (fork): la settima vista Simulazioni (MonteCarloMarketTile, MonteCarloCorrelationsTile, TaxBracketsTile) è nella pagina; 778 KB gz misurati contro i 701 di upstream. Misura in doc/guide/velocita.md § Registro"
+      "initialJsGzKB": 779,
+      "raisedBy": "T4 del decimo riallineamento (fork): i debiti come asset `loan` (migrazione, «Mutuo» per prestito, commissione su ogni riga, lettura del mutuo del piano FIRE attraverso il prestito) portano 1–2 KB gz nei condivisi di route; misure su perf:build in doc/guide/velocita.md § Registro"
     },
     "/login": {
       "initialJsGzKB": 474,
