@@ -48,19 +48,19 @@ test('il tab Coast FIRE non scorre in orizzontale a 390px', async ({ page }) => 
     }
   }
 
-  // Le quattro tessere delle Ipotesi leggono nell'ordine del DOM anche sul telefono — Profilo,
-  // Modello, Pensioni, Scaglioni, l'ordine di Tab — e nessun `order-*` resta in `main` (dal
+  // Le tessere di «Il mio piano» (il fork non ha le Ipotesi del Coast) leggono nell'ordine del DOM
+  // anche sul telefono — Tu, Spesa e prelievo, Flussi, Pensioni — e nessun `order-*` resta in `main` (dal
   // 2026-10-15: fino ad allora `order-*` metteva Pensioni seconda; letto dalla `classList`).
   const ipotesi = await page.evaluate(() => {
     const main = document.querySelector('main')!;
-    const names = ['Profilo Coast FIRE', 'Modello della pensione', 'Pensioni statali', 'Scaglioni IRPEF'];
+    const names = ['Il mio piano: tu', 'Il mio piano: spesa e prelievo', 'Il mio piano: flussi nel tempo', 'Il mio piano: pensioni'];
     const tiles = [...main.querySelectorAll<HTMLElement>('section.rounded-2xl')].filter((el) => names.includes(el.getAttribute('aria-label') ?? ''));
     return {
       order: tiles.map((el) => ({ name: el.getAttribute('aria-label'), top: Math.round(el.getBoundingClientRect().top) })),
       orderClasses: [...main.querySelectorAll('*')].flatMap((el) => [...el.classList]).filter((name) => /^(?:[a-z-]+:)*order-/.test(name)),
     };
   });
-  expect(ipotesi.order.map((tile) => tile.name)).toEqual(['Profilo Coast FIRE', 'Modello della pensione', 'Pensioni statali', 'Scaglioni IRPEF']);
+  expect(ipotesi.order.map((tile) => tile.name)).toEqual(['Il mio piano: tu', 'Il mio piano: spesa e prelievo', 'Il mio piano: flussi nel tempo', 'Il mio piano: pensioni']);
   expect(ipotesi.order.every((tile, i) => i === 0 || tile.top >= ipotesi.order[i - 1].top - 1), JSON.stringify(ipotesi.order)).toBe(true);
   expect(ipotesi.orderClasses).toEqual([]);
 

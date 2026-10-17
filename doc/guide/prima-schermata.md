@@ -39,7 +39,7 @@ sovrascriveva `last-run.json`; `validateSelection`, `__tests__/mobileCensusOptio
 superficie × viewport (`<viewport>/<superficie>-fold.png` e `-full.png`).
 
 **Il fixture** `census@example.com` (`scripts/seedCensusE2E.mts`, `npm run e2e:seed:census`): con `--email` uguale al
-suo, il censimento lo risemina, ristampa i profili strumento (`e2e:seed:profiles`), ricostruisce i record di Hall of Fame
+suo, il censimento lo risemina, ricostruisce i record di Hall of Fame
 chiamando `POST /api/hall-of-fame/recalculate` (solo il server li costruisce; proprietario, 2026-10-10) e **si rifiuta dal
 1 al 4 del mese e l'ultimo giorno** (ora italiana): le righe del mese stanno al 5 e una sola è in calendario l'ultimo
 giorno, quindi solo dal 5 al penultimo giorno ogni superficie conta le stesse cose. **Ogni opzione è nel suo stato di

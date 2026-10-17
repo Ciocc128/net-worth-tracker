@@ -131,6 +131,9 @@ test.describe('FIRE, composto per un telefono', () => {
     const lock = page.getByRole('switch', { name: 'Considera il fondo pensione come capitale bloccato fino allo sblocco' });
     // Il fixture base tiene il vincolo acceso (`seedCoastFireE2E.mts`); `fire.spec.ts` lo rimette com'era.
     await page.getByRole('button', { name: 'Apri tutte' }).click();
+    // Nel fork il vincolo si scrive in «Il mio piano» (H1): la disclosure si apre prima.
+    const piano = page.getByRole('button', { name: DISCLOSURES[0] });
+    if ((await piano.first().getAttribute('data-state')) === 'closed') await piano.first().click();
     await expect(lock).toHaveAttribute('aria-checked', 'true');
 
     const scope = verdict.getByText(/^Modello ponte: fondo pensione escluso fino al \d{4}$/).locator('visible=true');
@@ -181,30 +184,31 @@ test.describe('FIRE, composto per un telefono', () => {
     await expect(trigger(page, 'fire-scenari')).toHaveAttribute('aria-expanded', 'false');
   });
 
-  test('Obiettivi spento: una tessera sola, nessun «Il resto della pagina»', async ({ page }) => {
+  test('Traguardi spento: una tessera sola, nessun «Il resto della pagina»', async ({ page }) => {
     await gotoFire(page);
-    await page.getByRole('tab', { name: 'Obiettivi' }).click();
-    const verdict = page.getByRole('region', { name: 'Verdetto sugli obiettivi' });
-    await expect(verdict.getByRole('heading', { level: 2, name: 'Gli obiettivi non sono attivi' })).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByRole('region', { name: 'Obiettivi', exact: true })).toBeVisible();
-    const panel = page.getByRole('tabpanel', { name: 'Obiettivi' });
+    await page.getByRole('tab', { name: 'Traguardi' }).click();
+    const verdict = page.getByRole('region', { name: 'Verdetto sui traguardi' });
+    await expect(verdict.getByRole('heading', { level: 2, name: 'I traguardi non sono attivi' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('region', { name: 'Traguardi', exact: true })).toBeVisible();
+    const panel = page.getByRole('tabpanel', { name: 'Traguardi' });
     await expect(panel.getByRole('heading', { level: 2, name: 'Il resto della pagina' })).toHaveCount(0);
     await expect(panel.locator('[id$="-trigger"]')).toHaveCount(0);
     await expect(panel.getByRole('button', { name: 'Apri tutte' })).toHaveCount(0);
   });
 
-  test('What If: l\'Evento è la prima tessera del DOM, le altre tre righe chiuse', async ({ page }) => {
+  test('What If: l\'Evento è la prima tessera del DOM, le altre righe chiuse', async ({ page }) => {
     await gotoFire(page);
     await page.getByRole('tab', { name: 'What If' }).click();
     await expect(page.getByRole('region', { name: 'Verdetto sul What If' })).toBeVisible({ timeout: 30_000 });
     const panel = page.getByRole('tabpanel', { name: 'What If' });
     const names = await panel.locator('section.rounded-2xl').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')));
-    expect(names.slice(0, 4)).toEqual(['Evento simulato', "Prima e dopo l'evento", "Delta dell'evento", 'Sensibilità degli anni al FIRE']);
+    // Il fork tiene la Sensibilità nel Calcolatore: What If ha Evento, Prima e dopo, Delta.
+    expect(names.slice(0, 3)).toEqual(['Evento simulato', "Prima e dopo l'evento", "Delta dell'evento"]);
     // Il DOM è anche l'ordine verticale (un `order-1` rimesso sull'Evento lo porterebbe in fondo a schermo con lo stesso DOM).
     const { order, orderClasses } = await readOrderAndClasses(page, 'What If');
     expect(isSorted(order.map((section) => section.top)), JSON.stringify(order)).toBe(true);
     expect(orderClasses).toEqual([]);
-    for (const id of ['whatif-prima-dopo', 'whatif-delta', 'whatif-sensibilita']) {
+    for (const id of ['whatif-prima-dopo', 'whatif-delta']) {
       await expect(trigger(page, id)).toHaveAttribute('aria-expanded', 'false');
     }
     await expect(panel.locator('#whatif-prima-dopo-trigger')).toBeVisible();

@@ -37,7 +37,8 @@ const TOUCH_FLOOR = 44;
 const STORAGE_KEY = 'mobile-sections:allocation';
 /** Le righe del fixture base, nell'ordine del DOM: Per classe prima del Piano; il fondo del seed accende Previdenza. */
 const ROW_IDS = ['alloc-per-classe', 'alloc-piano', 'alloc-esposizione', 'alloc-previdenza'] as const;
-const PROFILES_ROUTE = '**/api/portfolio/instrument-profiles**';
+// The fork's Esposizione is read server-side (D-UP1): ONE route, not upstream's per-instrument profiles.
+const PROFILES_ROUTE = '**/api/portfolio/exposure**';
 
 const trigger = (page: Page, id: string) => page.locator(`#${id}-trigger`);
 const panel = (page: Page, id: string) => page.locator(`#${id}-panel`);
@@ -71,7 +72,7 @@ test('a 390px la riga di copertura nomina la base e main non scorre di lato', as
   const tile = page.getByRole('region', { name: 'Esposizione del portafoglio' });
   await tile.scrollIntoViewIfNeeded();
   // The coverage line is the anchor: present in both states, it says where every euro went.
-  const coverage = tile.locator('p', { hasText: /In questa vista/ }).first();
+  const coverage = tile.locator('p', { hasText: /ne leggo/ }).first();
   await expect(coverage).toBeVisible({ timeout: 30_000 });
   await expect(coverage).toContainText(/azionario nozionale/);
   await expect(tile.getByRole('list', { name: 'Titoli più pesanti' })).toBeVisible();
@@ -226,7 +227,7 @@ test.describe('Allocazione, composta per un telefono', () => {
   test('a riga chiusa nessuna richiesta parte verso i profili; aprirla la fa partire', async ({ page }) => {
     const requests: string[] = [];
     page.on('request', (request) => {
-      if (request.url().includes('/api/portfolio/instrument-profiles')) requests.push(request.url());
+      if (request.url().includes('/api/portfolio/exposure')) requests.push(request.url());
     });
     await openAllocazione(page);
     // La pagina è assestata (Per classe è nel DOM, il verdetto letto): un'attesa positiva prima dell'assenza.
@@ -236,7 +237,7 @@ test.describe('Allocazione, composta per un telefono', () => {
 
     await trigger(page, 'alloc-esposizione').click();
     await expect.poll(() => requests.length, { timeout: 15_000 }).toBeGreaterThan(0);
-    await expect(page.getByRole('region', { name: 'Esposizione del portafoglio' }).locator('p', { hasText: /In questa vista/ }).first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('region', { name: 'Esposizione del portafoglio' }).locator('p', { hasText: /ne leggo/ }).first()).toBeVisible({ timeout: 30_000 });
   });
 
   test('una lettura fallita dei profili è una riga rossa, aperta, con UN nodo vivo che la nomina', async ({ page }) => {
@@ -265,14 +266,14 @@ test.describe('Allocazione, composta per un telefono', () => {
     await openAllocazione(page);
     await trigger(page, 'alloc-esposizione').click();
     const tile = page.getByRole('region', { name: 'Esposizione del portafoglio' });
-    const coverage = tile.locator('p', { hasText: /In questa vista/ }).first();
+    const coverage = tile.locator('p', { hasText: /ne leggo/ }).first();
     await expect(coverage).toBeVisible({ timeout: 30_000 });
 
     // The second failure: the profiles are read, «Aggiorna» fails — the list stays, the tile adds its
     // own notice, silent as a row (no `role="alert"`), and the section is `failed` all the same.
     await page.route(PROFILES_ROUTE, (route) => route.abort());
     await page.getByRole('button', { name: "Aggiorna l'esposizione" }).click();
-    await expect(tile.getByText('Errore nel caricamento delle composizioni.')).toBeVisible({ timeout: 20_000 });
+    await expect(tile.getByText('Errore nel caricamento dell\'esposizione.')).toBeVisible({ timeout: 20_000 });
     await expect(coverage).toBeVisible();
     await expect(tile.locator('[role="alert"]')).toHaveCount(0);
     // A Tile row says it in its eyebrow (red, «, lettura fallita» for the reader), open or closed —

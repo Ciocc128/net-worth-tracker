@@ -400,9 +400,7 @@ async function census(options) {
       process.exit(1);
     }
     runNpm('e2e:seed:census');
-    // A profile seeded yesterday may be stale (an empty answer lives 24 h): re-stamp it, or the
-    // Esposizione goes to Yahoo. Only for the fixture — the mirror's tickers have real profiles.
-    runNpm('e2e:seed:profiles');
+    // The fork's Esposizione resolves profiles on its own (curated tables, then Yahoo): no profile seed here.
     await rebuildHallOfFame(options.base, options.email, options.password);
   }
 
