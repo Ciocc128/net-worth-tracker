@@ -270,13 +270,16 @@ export default function SettingsPage() {
       if (composed.adaptedPairs.length > 0) {
         toast.warning(`Correlazioni corrette: ${composed.adaptedPairs.length} ${composed.adaptedPairs.length === 1 ? 'coppia adattata' : 'coppie adattate'} per renderle coerenti`);
       }
+      // Other consumers (AssetDialog's family-member Select, PensionOverview) read settings via
+      // React Query with a 5-minute staleTime — without this, a just-added member wouldn't be
+      // selectable there until that cache naturally expired. Awaited BEFORE the baseline moves:
+      // the pre-read above stamped the cache with the document as it was before this write, and a
+      // clean draft reseeds from the newest read — so a «saved» dispatched first was reseeded from
+      // that stale read, and a legacy market (still `migrated` there) put the bar back.
+      await queryClient.invalidateQueries({ queryKey: queryKeys.settings.all(ownerId) });
       // The baseline is what was WRITTEN (the cleaned tree, the corrected market), so a dropped
       // empty row does not leave the tab marked as unsaved.
       dispatch({ type: 'saved', cleaned: composed.cleaned, simulazioni: composed.simulazioni });
-      // Other consumers (AssetDialog's family-member Select, PensionOverview) read settings via
-      // React Query with a 5-minute staleTime — without this, a just-added member wouldn't be
-      // selectable there until that cache naturally expired.
-      queryClient.invalidateQueries({ queryKey: queryKeys.settings.all(ownerId) });
     }, (error) => {
       console.error('Error saving targets:', error);
       toast.error('Errore nel salvataggio dei target');

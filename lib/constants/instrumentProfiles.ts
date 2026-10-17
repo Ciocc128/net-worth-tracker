@@ -137,6 +137,11 @@ export const INSTRUMENT_PROFILES: Record<string, CuratedInstrumentEntry> = {
     kind: 'trendFollowing', // managed futures — long/short across asset classes, no equity content.
     issuer: 'iMGP',
   },
+  'MFEH.DE': {
+    ticker: 'MFEH.DE',
+    kind: 'trendFollowing', // the EUR-hedged class of the same iMGP DBi fund as DBMFE: same strategy, the hedge is the asset's `currencyHedge`.
+    issuer: 'iMGP',
+  },
   'CRRY.MI': {
     ticker: 'CRRY.MI',
     kind: 'carry', // commodity-carry strategy — baskets of futures, no equity content.
