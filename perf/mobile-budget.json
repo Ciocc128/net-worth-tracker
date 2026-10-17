@@ -74,12 +74,12 @@
     },
     "fire-monte-carlo": {
       "path": "/dashboard/fire-simulations",
-      "tab": "Monte Carlo",
+      "tab": "Dopo il FIRE",
       "target": true
     },
     "fire-obiettivi": {
       "path": "/dashboard/fire-simulations",
-      "tab": "Obiettivi",
+      "tab": "Traguardi",
       "target": true
     },
     "hall-of-fame": {
