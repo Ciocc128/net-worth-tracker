@@ -37,7 +37,7 @@ export function PagatoriTile({ ranking, reading, footer, emptyCopy, className }:
       ) : (
         <div className="mt-2">
           {/* 144px: «BTP Valore Marzo 2032» at 13px, whole; the bar keeps its 40px floor at 390. */}
-          <RankedRows rows={ranking.rows} color="var(--flow-in)" remainder={ranking.remainder} labelClassName="min-w-[144px]" />
+          <RankedRows rows={ranking.rows} color="var(--flow-in)" remainders={ranking.remainder ? [ranking.remainder] : null} labelClassName="min-w-[144px]" />
         </div>
       )}
       {footer && (

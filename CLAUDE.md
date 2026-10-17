@@ -35,7 +35,8 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 - Also (2026-10-05, fork): **TheBull on DeepSeek** — `THEBULL_COMPILE` → `deepseek/deepseek-v4.1-flash` with the reasoning off, the emails on GLM without fp4 hosts; per-route `reasoning`/`quantizations` in `AiModelRoute` (doc/ai-open-models-wiki.md § 7.3).
 - Prima (2026-09-30, fork): **F4** — the monthly email's data block as the vault's `dati/` (cron phase 10,
   `WIKI_EXPORT_UID`, `npm run vault:export`; doc/guide/email-pdf.md § The vault's `dati/`); principles by interview.
-- Latest upstream (2026-09-27): #402 → PERF-00; dossiers `doc/perf/README.md` and `doc/mobile/README.md` (decisions in § 9).
+- Latest upstream (2026-10-17, fork): **tenth realignment, T1 «PERF-00»** (`doc/allineamento-upstream/README.md` § 7) — merge of upstream to #408 with the fork's Esposizione engine whole (D-UP1); taken only `RankedRows` `remainders` and the doc/perf edits. T2–T5 follow.
+- Before it (2026-09-27): #402 → PERF-00; dossiers `doc/perf/README.md` and `doc/mobile/README.md` (decisions in § 9).
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
