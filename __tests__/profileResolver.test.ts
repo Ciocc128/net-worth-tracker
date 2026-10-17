@@ -246,3 +246,24 @@ describe('resolveInstrumentProfiles — the 30-day instrument-profile cache', ()
     expect(profiles.get(ticker)?.issuer).toBe('Xtrackers'); // fell back to the stale-but-usable cache
   });
 });
+
+describe('resolveInstrumentProfiles — AL20 «Coperto dal cambio in EUR»', () => {
+  it('an instrument with no curated row reads 100% EUR when flagged, and its country-derived mix otherwise', async () => {
+    fetchYahooFundData.mockResolvedValue({ holdings: [], sectors: [], issuerFamily: 'Acme' });
+    const plain = (await resolveInstrumentProfiles([makeAsset({ ticker: 'ZZZ.MI', id: 'plain', currency: 'USD' })])).get('ZZZ.MI')!;
+    expect(plain.currencies?.find((c) => c.code === 'EUR')?.weight).not.toBe(1);
+
+    const hedged = (await resolveInstrumentProfiles([makeAsset({ ticker: 'ZZZ.MI', id: 'hedged', currency: 'USD', currencyHedge: 'EUR' })])).get('ZZZ.MI')!;
+    expect(hedged.currencies).toEqual([{ code: 'EUR', weight: 1 }]);
+  });
+
+  it('wins over the curated row, and never leaks into the shared per-ticker cache', async () => {
+    fetchYahooFundData.mockResolvedValue({ holdings: [], sectors: [], issuerFamily: 'WisdomTree Management Limited' });
+    const curated = makeAsset({ ticker: 'NTSG-ETFP.MI', leverageRatio: 1.5, composition: [{ assetClass: 'equity', percentage: 60 }, { assetClass: 'bonds', percentage: 40 }] });
+    const hedged = (await resolveInstrumentProfiles([{ ...curated, currencyHedge: 'EUR' }])).get('NTSG-ETFP.MI')!;
+    expect(hedged.currencies).toEqual([{ code: 'EUR', weight: 1 }]);
+    // The same ticker, unflagged, served from the cache the first call wrote: its own mix, not the flagged one.
+    const plain = (await resolveInstrumentProfiles([curated])).get('NTSG-ETFP.MI')!;
+    expect(plain.currencies?.find((c) => c.code === 'USD')?.weight).toBeGreaterThan(0.5);
+  });
+});

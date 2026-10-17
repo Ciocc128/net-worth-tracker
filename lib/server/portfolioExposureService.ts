@@ -33,7 +33,7 @@ export const EXPOSURE_CACHE_MATH_VERSION = 'v2';
 export function buildExposureCacheKey(assets: Asset[]): string {
   const signature = assets
     .filter((a) => a.quantity > 0)
-    .map((a) => `${a.ticker}:${a.quantity}:${resolveAllocationRole(a)}`)
+    .map((a) => `${a.ticker}:${a.quantity}:${resolveAllocationRole(a)}:${a.currencyHedge ?? ''}`)
     .sort()
     .join('|');
   return `${EXPOSURE_CACHE_MATH_VERSION}-${signature}`;

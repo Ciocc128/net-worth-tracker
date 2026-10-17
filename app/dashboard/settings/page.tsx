@@ -75,6 +75,7 @@ import {
 } from '@/types/assets';
 import { DEFAULT_IDEAL_ALLOCATION } from '@/lib/utils/weightOptimizer';
 import { IdealAllocationSummary } from '@/components/settings/IdealAllocationSummary';
+import { hedgedShareByClass } from '@/lib/utils/monteCarloHedgeShare';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { Button } from '@/components/ui/button';
@@ -2032,6 +2033,8 @@ export default function SettingsPage() {
       ? findDefaultGoldSubCategory(commoditySubCategories)
       : marketDraft.goldSubCategory
     : null;
+  // AL20: the share of each hedgeable class held in instruments flagged «Coperto in EUR» (the tile proposes the switch).
+  const marketHedgedShares = portfolioAssets ? hedgedShareByClass(portfolioAssets, { goldSubCategory: effectiveGoldSubCategory }) : undefined;
   // The classes the portfolio holds (their correlation lists open first).
   const heldMarketClasses: MonteCarloClass[] = (() => {
     if (!portfolioAssets) return [];
@@ -4106,6 +4109,7 @@ export default function SettingsPage() {
                   commoditySubCategories={commoditySubCategories}
                   effectiveGoldSubCategory={effectiveGoldSubCategory}
                   portfolio={fireAssumptions ? { weights: fireAssumptions.weights, origin: fireAssumptions.weightsOrigin, costPct: fireAssumptions.cost?.total } : null}
+                  hedgedShares={marketHedgedShares}
                   anchors={marketAnchors}
                   disabled={isDemo}
                 />

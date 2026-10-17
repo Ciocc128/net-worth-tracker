@@ -236,6 +236,8 @@ function buildAssetFormDataFromValues(
       data.type === 'etf' && data.leverageRatio && !isNaN(data.leverageRatio) && data.leverageRatio > 1
         ? data.leverageRatio
         : undefined,
+    // AL20: only an ETF carries the flag; unchecked = absent (the metadata save deletes the key).
+    currencyHedge: data.type === 'etf' && data.currencyHedge ? ('EUR' as const) : undefined,
     stampDutyExempt: data.stampDutyExempt || false,
     currentPrice,
     currentPriceEur: fetchedCurrentPriceEur,
@@ -367,6 +369,7 @@ const assetSchema = z.object({
   // type 'etf' only. It is metadata (multiplies notional
   // exposure), independent of quantity/PMC — so for ledger types it rides updateAssetMetadata.
   leverageRatio: z.number().min(1, 'La leva deve essere almeno 1').max(10, 'Leva massima 10').optional().or(z.nan()),
+  currencyHedge: z.boolean().optional(),
   stampDutyExempt: z.boolean().optional(),
   isLiquid: z.boolean().optional(),
   autoUpdatePrice: z.boolean().optional(),
@@ -616,6 +619,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
   const watchIsPrimaryResidence = useWatch({ control, name: 'isPrimaryResidence' });
   const watchAllocationRole = useWatch({ control, name: 'allocationRole' });
   const watchStampDutyExempt = useWatch({ control, name: 'stampDutyExempt' });
+  const watchCurrencyHedge = useWatch({ control, name: 'currencyHedge' });
   const watchOpeningCashAssetId = useWatch({ control, name: 'openingCashAssetId' });
   const watchDividendCashAssetId = useWatch({ control, name: 'dividendCashAssetId' });
   const watchOpeningDate = useWatch({ control, name: 'openingDate' });
@@ -864,6 +868,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
         taxRate: asset.taxRate ?? undefined,
         totalExpenseRatio: asset.totalExpenseRatio || undefined,
         leverageRatio: asset.leverageRatio || undefined,
+        currencyHedge: asset.currencyHedge === 'EUR',
         stampDutyExempt: asset.stampDutyExempt || false,
         isLiquid: defaultIsLiquid,
         autoUpdatePrice: asset.autoUpdatePrice !== undefined ? asset.autoUpdatePrice : shouldUpdatePrice(asset.type, asset.subCategory),
@@ -916,6 +921,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
         taxRate: undefined,
         totalExpenseRatio: undefined,
         leverageRatio: undefined,
+        currencyHedge: false,
         stampDutyExempt: false,
         isLiquid: true,
         autoUpdatePrice: true,
@@ -2857,6 +2863,23 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
               Solo per ETF a leva (es. 2 = 2×): moltiplica l&apos;esposizione nozionale in
               Allocazione. Lascia vuoto per un ETF normale.
             </p>
+          </div>
+          )}
+
+          {/* AL20: the instrument's own currency hedge, read by Esposizione › Valute and Simulazioni. */}
+          {newAsset_showLeverage && (
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="currencyHedge">Coperto dal cambio in EUR</Label>
+              <p className="text-xs text-muted-foreground">
+                Se attivo, l&apos;Esposizione conta questo strumento in euro e le Simulazioni possono proporre la copertura per la sua classe
+              </p>
+            </div>
+            <Switch
+              id="currencyHedge"
+              checked={!!watchCurrencyHedge}
+              onCheckedChange={(checked) => setValue('currencyHedge', checked)}
+            />
           </div>
           )}
 

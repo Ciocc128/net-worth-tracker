@@ -4,6 +4,8 @@
 
 ## ✨ New Features
 
+- Patrimonio › Strumenti: an ETF has a new switch, «Coperto dal cambio in EUR». Allocazione › Esposizione › Valute then counts that instrument as euro, and Impostazioni › Simulazioni › Copertura del cambio says, under a switch that is off, «Nel tuo portafoglio il Trend è coperto per il 60%» (when most of the class is held hedged) with an «Imposta coperto» button; nothing is changed until you press it and save.
+
 - Allocazione › Bilanciamento: with an accumulation plan running, the Piano (Ribilancia, Versa, Preleva) now says what the plan buys this month, that it does not count it, and — when it proposes an instrument the plan replaced inside a group — which one the plan buys instead («compra MFEH al posto di DBMFE»), with a link to Accumulo. The optimizer's modal shows the class targets read-only, with the leverage they imply and a link to Impostazioni. Names: FIRE's goals are now «Traguardi» (tab, tiles, verdicts, Panoramica, the Impostazioni switch) and the optimizer's objectives «Criteri del modello».
 
 - Allocazione › Accumulo: the model portfolio now leads the plan. A row of the model can be a group of equivalent instruments that buys only one of them (the optimizer evaluates it as one choice and the plan inherits it); with a running plan and no model, «Usa i pesi del piano» saves the plan's weights as the model; the last step of the plan editor can update the model together with the plan; and when the plan no longer says what the model says, the month's tile tells how many instruments differ and «Rivedi dal modello» opens the revision with the model's weights.
