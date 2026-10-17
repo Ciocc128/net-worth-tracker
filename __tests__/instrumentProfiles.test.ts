@@ -82,6 +82,7 @@ const KNOWN_ALLOCABLE_FUND_TICKERS = [
   'CL2.MI',
   'SGLN.MI',
   'DBMFE.PA',
+  'MFEH.DE',
   'CRRY.MI',
   'UEQC.DE',
   'EXUS.MI',
@@ -105,7 +106,7 @@ describe('INSTRUMENT_PROFILES — completeness against the measured portfolio (2
   });
 
   it('the three non-look-through kinds never carry an indexId (there is nothing to look through)', () => {
-    for (const ticker of ['SGLN.MI', 'DBMFE.PA', 'CRRY.MI', 'UEQC.DE']) {
+    for (const ticker of ['SGLN.MI', 'DBMFE.PA', 'MFEH.DE', 'CRRY.MI', 'UEQC.DE']) {
       expect(INSTRUMENT_PROFILES[ticker]?.indexId, `${ticker} is a kind instrument with an indexId`).toBeUndefined();
     }
   });
