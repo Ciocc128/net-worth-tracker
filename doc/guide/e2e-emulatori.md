@@ -4,7 +4,7 @@
 
 ## Files
 
-- **E2E ed emulatori**: `playwright.config.ts`, `e2e/*.spec.ts`, `e2e/global-setup.ts`, the six `e2e/auth*.setup.ts` + `e2e/persistedCache.ts` (the helper that keeps the persisted query cache out of the parked sessions), `e2e/shellBoot.ts`, the seeds `scripts/seedEmulator.ts` + `scripts/seed*.mts` (`seedPensionE2E`, `seedAnalisiE2E`, `seedCoastFireE2E`, `seedCostCentersE2E`), the production mirror `scripts/mirrorProdAccount.mts` (`npm run mirror:seed` / `mirror:remove`), throwaway exercises `scripts/*.tmp.mts` (untracked); npm scripts `test:e2e` / `e2e:seed*` / `dev:e2e` / `emulators` / `emulators:seed` / `dev:emulator`
+- **E2E ed emulatori**: `playwright.config.ts`, `e2e/*.spec.ts`, `e2e/global-setup.ts`, the six `e2e/auth*.setup.ts` + `e2e/persistedCache.ts` (the helper that keeps the persisted query cache out of the parked sessions), `e2e/freshnessProbe.ts` (the helper that records what a load showed and reads what the app persisted), `e2e/shellBoot.ts`, the seeds `scripts/seedEmulator.ts` + `scripts/seed*.mts` (`seedPensionE2E`, `seedAnalisiE2E`, `seedCoastFireE2E`, `seedCostCentersE2E`, `seedSplitE2E`, `seedHallOfFameE2E`, `seedInstrumentProfilesE2E` + `scripts/instrumentProfileFixtures.ts`, the Esposizione's Yahoo profiles shared by the base seed and the E2E re-stamp), the production mirror `scripts/mirrorProdAccount.mts` (`npm run mirror:seed` / `mirror:remove`), throwaway exercises `scripts/*.tmp.mts` (untracked); npm scripts `test:e2e` / `e2e:seed*` / `dev:e2e` / `emulators` / `emulators:seed` / `dev:emulator`
 
 ## Proving a refactor changed no number
 - **Measure the noise floor BEFORE interpreting a diff**: anything downstream of `new Date()` drifts (cents at two
@@ -43,7 +43,7 @@
   exercise a `server-only` module, which a script cannot import.
 A collection whose value is in the *wiring* gets one: the unit suites mock Firestore away, so only an exercise covers
 the rules permitting the writes, real `Timestamp` values surviving `removeUndefinedDeep` and the real atomic transaction.
-- **A throwaway is an `.mts` FILE run from INSIDE the repo** (`scripts/*.tmp.mts`, untracked, deleted in phase F): a
+- **A throwaway is an `.mts` FILE run from INSIDE the repo** (`scripts/*.tmp.mts`, untracked, deleted in phase G): a
   `.ts` script is CJS under tsx with no top-level await (nor has `npx tsx -e`); a bash heredoc with an apostrophe or a
   backtick dies with «unexpected EOF» before running a line (2026-08-25) — and the tracked files are CRLF on a Windows
   clone, so an exact-match patch from a script must normalise `\r\n` before comparing and restore it on write
@@ -151,11 +151,31 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   chunk until the test releases it (`holdChunks`) — a fixed delay loses the race to a preload — and navigate to
   `domcontentloaded`: a held chunk requested before `load` means `load` never fires. The suite runs `next dev`, so these
   prove an import is lazy; sizes are `perf:budget`'s. Worked example: `e2e/bundle.lazy{,.mobile}.spec.ts`.
-- **Only two lazy surfaces are held against a placeholder that moves** (2026-09-30): Analisi's Sankey (`layout-shift` 0
-  and equal heights) and Rendimenti's Dettaglio (no placeholder ever shown), both in `e2e/bundle.lazy.spec.ts`.
+- **Only four lazy surfaces are held against a placeholder that moves**: Analisi's Sankey (`layout-shift` 0
+  and equal heights) and Rendimenti's Dettaglio (no placeholder ever shown), both in `e2e/bundle.lazy.spec.ts`
+  (2026-09-30); Cashflow's Dividendi at 390 and Divisione at 390 and 1440 (2026-10-06, `e2e/lazyTabLanding.ts`, run
+  by `bundle.lazy.mobile.spec.ts` and `cashflow.split{,.mobile}.spec.ts`): the tab's chunk held, then the tab put in
+  its OWN loading state (its stats request held; Firestore's channel held behind a period never read), the grid's
+  first cell at the same place — seen red at 52, 56 and 4 px with the old fallbacks. **A layout-shift score cannot see
+  a node that REPLACES another**: the tab remounts the fallback's nodes, and the score stayed 0 while the grid
+  jumped 52 px — measure the position, and only once the panel's entrance (`tabPanelSwitch`, 6 px) has settled: two
+  readings 250 ms apart, not `expect.poll`, whose first reading sits beside the previous one. Budget and Centri di
+  Costo are not held: their fallback and their loading state are the same cells of one constant.
   Analisi's three disclosures and its Scheda and the four lazy FIRE tabs measured `layout-shift` 0 ONCE, on the mirror at
   1440 and 390; no spec holds them, so a placeholder that loses its height there goes unseen by the suite. If one of
   them went back into the initial JavaScript, `perf:budget` would still catch it (its route over the ceiling).
+- **A chunk held from the first navigation makes an absence at mount inert** (2026-10-07, `e2e/assets.rows.mobile.spec.ts`):
+  «0 sparklines before any row is opened» stayed green with every row mounting its chart, because the held chunk kept
+  them all on their placeholder. The absence is asserted with the chunk ARRIVED (`probeChunks` polled until it has),
+  the placeholder-against-chart height in a second test that holds it.
+- **An animation tied to a navigation is sampled WITHOUT the page scene** (2026-10-08, `e2e/motion.layout.mobile.spec.ts`):
+  on the dev server a shell-link click runs a view transition whose update waits for the route to compile, and the
+  browser renders NO frame meanwhile (rAF still from 52 to 355 ms) — a spring started in that commit settles in the dark
+  and the frames read a jump whatever the code did. `delete Document.prototype.startViewTransition` in an init script
+  takes the browser-without-view-transitions path (`runViewTransition` feature-detects). And a spy on
+  `getComputedStyle(document.documentElement)` counts Next's router too (two calls per navigation, its scroll
+  handling): spy on what the code under test reads — the `--chart-*` tokens through
+  `CSSStyleDeclaration.prototype.getPropertyValue` — not on the call.
 - **«No placeholder ever showed» is watched from BEFORE the action** (2026-09-30): a `MutationObserver` installed before
   the click, read after; counting skeletons once the chart is visible passes whether or not one flashed (seen inert).
 - **In a cloud container the pinned Chromium is not installed** (2026-09-25): `browserType.launch: Executable doesn't
@@ -184,8 +204,12 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   persists across sessions, so the base seed DRIFTS: `seed-btp` had lost its `taxRate` a week earlier and the two
   Dividendi specs proposed the 26% fallback instead of the instrument's 12,5% — it read as a regression of the
   session's change. `curl` the document (`Bearer owner`), and `npm run emulators:seed` restores the base account
-  without touching the other fixtures. Again on 2026-09-24: an export of 09-12 turned five specs red at once
-  (Allocazione, Dividendi, Impostazioni) — re-seed the base account first whenever the export predates the seed script.
+  without touching the other fixtures. **It also drifts by CALENDAR** (2026-10-03): `scripts/seedEmulator.ts` dates its
+  rows on the month it ran and `global-setup` never re-runs it, so the first suite of a new month finds no
+  current-month row — nine Tracciamento, freshness, owner and mobile specs red with «Nessun movimento registrato ad
+  ottobre» / «the seed has no current-month row». After a month change, re-seed before the full run. **The seed dates its three expenses `min(5, today)`**:
+  on a fixed 5th, a re-seed in the first four days of a month writes FUTURE rows — FIRE says «servono spese
+  registrate», Coast loses its pace sentence, Storico's Driver has nothing to open (five specs red).
 - **What belongs here**: only what needs a real layout — the `desktop:` switch at 1440px, a collapsible, a state flash,
   computed font sizes, bounding boxes, overflow; the arithmetic stays with Vitest. **Two limits**: a race between
   concurrent queries is not reproducible locally (the Firestore Web SDK multiplexes every target onto ONE webchannel),
@@ -227,18 +251,35 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   filter (both header copies, `toHaveText(['', ''])`). The sign-out test reads the record back through IndexedDB
   itself (`indexedDB.open` + `get`), the way «assert on data» means here.
 - **Prove the test can fail before trusting it** (the 1440px assertions were re-run at 1200px, where they must fail).
+- **`e2e/cashflow.transfer-fee.spec.ts` was red ONCE in a full run** (2026-10-07, Windows laptop, the second full run
+  of PR #434, which did not touch transfers): green alone and in the suite's order, cause not traced. A second red
+  there is a pattern, not noise — note the run before re-running it. **`e2e/bundle.lazy.spec.ts` › Analisi was red ONCE
+  the same way** (2026-10-08, the first full run on Next 16.4, PR #436): `apiResponse.text: Response has been disposed`
+  inside `holdChunks`' route handler (`chunkProbe.ts:61`) — a chunk fetched by the handler was disposed before its body
+  was read, i.e. the page had moved on; green ×2 alone right after (`--repeat-each=2`). If it returns, read the body
+  inside a `try` and `route.continue()` on the disposed one rather than widening a timeout.
+- **A green suite on the emulators says nothing about a server dependency's MODULE LOADING on Vercel** (2026-10-08):
+  `verifyIdToken` skips the signature against the Auth emulator, so the `jwks-rsa → jose` chain of firebase-admin never
+  ran under Playwright, and 173 green tests preceded a deploy where every Admin route answered 500 (`ERR_REQUIRE_ESM`;
+  AGENTS.md § Server Layer has the rule and the cure). The check that exists for that: the standalone production build
+  on the laptop with the real credentials, probed with a forged token (expected 401 with the audience error in the log,
+  never 500) — and then the preview deploy, which only the owner can open.
 - **Reading the page — the traps, each seen once**: `page.addInitScript` runs BEFORE `document.documentElement` exists
   (observe `document` with `subtree: true`, or the script dies and the spec passes having observed nothing);
   `innerText` applies `text-transform` and is `''` for anything not rendered (an uppercase eyebrow marker or an open
   Recharts tooltip need `textContent`); `boundingBox()` is viewport-relative (`scrollIntoViewIfNeeded()` before hovering
   a chart below the fold) and two calls sample two FRAMES (read every rect one assertion compares in ONE `evaluate()`,
   never during an animation); responsive DOM duplicates make `.first()` the HIDDEN mobile copy (`.filter({ visible:
-  true })`); a collapsed CSS-grid region is still "visible" (scope through the toggle's `aria-controls` and measure
+  true })`) — not on Patrimonio's Strumenti since 2026-10-07: one list per width there, the table at 1440 and
+  the rows at 390, so a row locator finds one copy and a count is the instrument count; a collapsed CSS-grid region is still "visible" (scope through the toggle's `aria-controls` and measure
   height); a `fill()` right after `goto(…, { waitUntil: 'domcontentloaded' })` is wiped by hydration (`waitUntil:
   'load'`, then `.inputValue()`); `addInitScript` runs on EVERY navigation, reloads included, so a `localStorage.removeItem`
   placed there to start clean also wipes the persistence the spec is about to verify — guard it with a `sessionStorage`
   flag (2026-09-14); on `/login` `getByLabel(/password/i)` resolves the «Mostra password» toggle first and `fill()`
-  refuses a button — use `input[type=password]` (2026-09-19). **Renaming an `aria-label` breaks every spec that matched its old substring** («Modifica asset» →
+  refuses a button — use `input[type=password]` (2026-09-19). **A box read for a geometry assertion is taken AFTER the entrance** (2026-10-04, `e2e/modal.origin.spec.ts`): a
+  header button is enabled from the page's first frame and glides 4px for ~250 ms with the page scene, so a
+  `boundingBox()` right after `toBeEnabled` was up to 4px off — wait for the page's verdict, then for a box two reads
+  100 ms apart agree on. **Renaming an `aria-label` breaks every spec that matched its old substring** («Modifica asset» →
   «Modifica {name}», `assets.bond.spec.ts` on 2026-09-14): grep `e2e/` for the old name in the same commit.
 - **After Escape a vaul drawer is still in the DOM for ~1,5 s, and `main` sits under an `aria-hidden` ancestor all
   that time** (2026-09-18, at 390): `getByRole(…)` on anything in the page counts 0, so a step that comes right after

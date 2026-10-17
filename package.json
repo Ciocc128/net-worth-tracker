@@ -2,6 +2,9 @@
   "name": "net-worth-tracker",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -39,6 +42,7 @@
     "perf:build": "cross-env NEXT_DIST_DIR=.next-perf NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true NEXT_PUBLIC_FIREBASE_API_KEY=demo-key NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-net-worth NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=demo-net-worth.firebaseapp.com next build",
     "perf:serve": "node scripts/perfServe.mjs",
     "perf:bench": "node scripts/perfBenchmark.mjs",
+    "perf:census": "node scripts/perfRenderCensus.mjs",
     "perf:budget": "tsx scripts/perfBudget.mts"
   },
   "dependencies": {
@@ -57,11 +61,11 @@
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "firebase": "^12.5.0",
-    "firebase-admin": "^13.6.0",
+    "firebase-admin": "^14.5.0",
     "framer-motion": "^12.38.0",
     "idb-keyval": "^6.3.0",
     "lucide-react": "^0.553.0",
-    "next": "~16.2.12",
+    "next": "^16.4.0",
     "next-themes": "^0.4.6",
     "papaparse": "^5.5.4",
     "radix-ui": "^1.4.3",
@@ -81,10 +85,12 @@
     "zod": "^4.1.12"
   },
   "overrides": {
+    "jwks-rsa": "^3.2.2",
     "minimatch": ">=10.2.1",
     "postcss": "^8.5.14"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.7",
     "@playwright/test": "^1.62.1",
     "@react-pdf/types": "^2.11.1",
     "@storybook/addon-docs": "^10.4.1",
@@ -95,6 +101,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "agentation": "^3.0.2",
+    "babel-plugin-react-compiler": "^1.0.0",
     "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.0.1",

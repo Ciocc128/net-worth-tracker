@@ -503,10 +503,12 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   }, [honestSummary.pensionsConsidered, honest, userAge, scenarios.base.inflationRate, now]);
   // `span` lengthens the run past the shown fan for RS8 (Età obiettivo): its years and the requirement of a walk that reaches them.
   const runFan = useCallback(
-    (inputs: FanSimulationInputs, annualSavings = inputs.annualSavings, span?: { years: number; fireTargets: number[] }) =>
+    // No `= inputs.annualSavings` parameter default: the React Compiler cannot reorder a default
+    // that reads another parameter.
+    (inputs: FanSimulationInputs, annualSavings?: number, span?: { years: number; fireTargets: number[] }) =>
       runAccumulationSimulation({
         ...inputs,
-        annualSavings,
+        annualSavings: annualSavings ?? inputs.annualSavings,
         years: span?.years ?? fanYears,
         retirementHorizonYears: Math.max(retirementHorizonYears, span?.years ?? 0),
         fireTargets: span?.fireTargets ?? fanFireTargets,

@@ -144,6 +144,47 @@ function parseFloatField(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/**
+ * The three scenarios plus the unleveraged Base and the sustainable-spending replay, at module level: the React
+ * Compiler cannot lower a conditional inside a component's own try block.
+ */
+function computeMonteCarloRun(inputs: MonteCarloRunInputs): MonteCarloRunState {
+    // Seeded (T3): each run draws from a fresh generator on the SAME seed, so the three scenarios and the
+    // unleveraged Base meet the same shocks and a re-run with the same inputs gives the same figures.
+    // RQ6 (Q2): the Base alone draws each path's means, from a fresh generator on its own seed — the leveraged
+    // and the unleveraged Base meet the same means too (A13).
+    const run = (scenario: keyof typeof inputs.scenarios, params: MonteCarloParams, keepFactors = true): MonteCarloResults =>
+      runMonteCarloSimulation(
+        {
+          ...buildScenarioParams(params, inputs.scenarios[scenario]),
+          random: createSeededRandom(MONTE_CARLO_SEED),
+          ...(scenario === 'base' && inputs.uncertainty
+            ? { uncertainty: inputs.uncertainty, parameterRandom: createSeededRandom(MONTE_CARLO_PARAMETER_SEED) }
+            : {}),
+        },
+        { keepFactors },
+      );
+    const results: ScenarioResults = {
+      bear: run('bear', inputs.params),
+      base: run('base', inputs.params),
+      bull: run('bull', inputs.params),
+    };
+    // D11: with leverage the Base runs again without it (weights scaled to 100) on the same shocks.
+    const runLeverage = weightsLeverage(MONTE_CARLO_CLASSES.map((cls) => inputs.params.weights[cls]));
+    if (runLeverage > 1) {
+      results.unleveragedBase = run('base', { ...inputs.params, weights: monteCarloClassRecord((cls) => inputs.params.weights[cls] / runLeverage), leverageSpread: 0 }, false);
+    }
+    // S1: the nine sustainable figures replay the withdrawal on the three runs' factors; the factors
+    // (n × N × 8 bytes a scenario) are dropped afterwards, the results keep what the tiles read.
+    const sustainable = summarizeSustainableSpending({
+      bear: { factors: results.bear.factors!, params: buildScenarioParams(inputs.params, inputs.scenarios.bear) },
+      base: { factors: results.base.factors!, params: buildScenarioParams(inputs.params, inputs.scenarios.base) },
+      bull: { factors: results.bull.factors!, params: buildScenarioParams(inputs.params, inputs.scenarios.bull) },
+    });
+    for (const key of ['bear', 'base', 'bull'] as const) results[key] = { ...results[key], factors: undefined };
+    return { results, inputs, sustainable };
+}
+
 export function MonteCarloTab() {
   const { ownerId } = useActiveAccount();
 
@@ -390,46 +431,13 @@ export function MonteCarloTab() {
     // running state before the computation starts.
     window.setTimeout(() => {
       try {
-        // Seeded (T3): each run draws from a fresh generator on the SAME seed, so the three scenarios and the
-        // unleveraged Base meet the same shocks and a re-run with the same inputs gives the same figures.
-        // RQ6 (Q2): the Base alone draws each path's means, from a fresh generator on its own seed — the leveraged
-        // and the unleveraged Base meet the same means too (A13).
-        const run = (scenario: keyof typeof inputs.scenarios, params: MonteCarloParams, keepFactors = true): MonteCarloResults =>
-          runMonteCarloSimulation(
-            {
-              ...buildScenarioParams(params, inputs.scenarios[scenario]),
-              random: createSeededRandom(MONTE_CARLO_SEED),
-              ...(scenario === 'base' && inputs.uncertainty
-                ? { uncertainty: inputs.uncertainty, parameterRandom: createSeededRandom(MONTE_CARLO_PARAMETER_SEED) }
-                : {}),
-            },
-            { keepFactors },
-          );
-        const results: ScenarioResults = {
-          bear: run('bear', inputs.params),
-          base: run('base', inputs.params),
-          bull: run('bull', inputs.params),
-        };
-        // D11: with leverage the Base runs again without it (weights scaled to 100) on the same shocks.
-        const runLeverage = weightsLeverage(MONTE_CARLO_CLASSES.map((cls) => inputs.params.weights[cls]));
-        if (runLeverage > 1) {
-          results.unleveragedBase = run('base', { ...inputs.params, weights: monteCarloClassRecord((cls) => inputs.params.weights[cls] / runLeverage), leverageSpread: 0 }, false);
-        }
-        // S1: the nine sustainable figures replay the withdrawal on the three runs' factors; the factors
-        // (n × N × 8 bytes a scenario) are dropped afterwards, the results keep what the tiles read.
-        const sustainable = summarizeSustainableSpending({
-          bear: { factors: results.bear.factors!, params: buildScenarioParams(inputs.params, inputs.scenarios.bear) },
-          base: { factors: results.base.factors!, params: buildScenarioParams(inputs.params, inputs.scenarios.base) },
-          bull: { factors: results.bull.factors!, params: buildScenarioParams(inputs.params, inputs.scenarios.bull) },
-        });
-        for (const key of ['bear', 'base', 'bull'] as const) results[key] = { ...results[key], factors: undefined };
-        setLastRun({ results, inputs, sustainable });
+        setLastRun(computeMonteCarloRun(inputs));
       } catch (error) {
         console.error('Error running the Monte Carlo scenarios:', error);
         toast.error('Errore durante la simulazione');
-      } finally {
-        setIsRunning(false);
       }
+      // After the try/catch, not in a `finally`: the React Compiler cannot lower try/finally.
+      setIsRunning(false);
     }, 60);
   }, []);
 

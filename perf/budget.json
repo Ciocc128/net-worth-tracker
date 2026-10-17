@@ -1,65 +1,68 @@
 {
   "routes": {
     "/": {
-      "initialJsGzKB": 479,
-      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+      "initialJsGzKB": 519,
+      "raisedBy": "T3 del decimo riallineamento (fork): lo shell porta i moduli del fork (Impostazioni › Simulazioni, hook del piano FIRE) nei condivisi di route; +8 KB gz misurati su perf:build, dopo i 511 di #436. Misura in doc/guide/velocita.md § Registro"
     },
     "/dashboard": {
-      "initialJsGzKB": 561,
-      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+      "initialJsGzKB": 608,
+      "raisedBy": "#436: firebase 12.13 → 12.19 (@firebase/firestore 4.14 → 4.17), +57 KB gz sui condivisi che Next 16.4 riduce di 16; richiesto da firebase-admin 14 (@firebase/app 0.16.2). Misura prima/dopo in doc/guide/velocita.md § Registro"
     },
     "/dashboard/allocation": {
-      "initialJsGzKB": 775,
-      "raisedBy": "fork (T2, riallineamento a upstream #422): la pagina porta le due schede Bilanciamento e Accumulo, il PAC, l'ottimizzatore, il portafoglio modello e l'Esposizione a cinque viste, che upstream non ha; il tetto di upstream (527) misura la sua pagina"
+      "initialJsGzKB": 805,
+      "raisedBy": "T3 del decimo riallineamento (fork): la pagina porta le superfici solo-fork (scheda Accumulo, Portafoglio modello, ottimizzatore, Esposizione a cinque viste) che upstream non ha, più il React Compiler (#432) sul loro codice; 805 KB gz misurati contro i 593 di upstream. Debito aperto: caricarle in lazy per scheda. Misura in doc/guide/velocita.md § Registro"
     },
     "/dashboard/analisi": {
-      "initialJsGzKB": 588,
-      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+      "initialJsGzKB": 648,
+      "raisedBy": "#436: firebase 12.13 → 12.19 (@firebase/firestore 4.14 → 4.17), +57 KB gz sui condivisi che Next 16.4 riduce di 16; richiesto da firebase-admin 14 (@firebase/app 0.16.2). Misura prima/dopo in doc/guide/velocita.md § Registro"
     },
     "/dashboard/assets": {
-      "initialJsGzKB": 761,
-      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+      "initialJsGzKB": 700,
+      "raisedBy": "T3 del decimo riallineamento (fork): +0,6 KB gz misurati (condivisi alzati dal fork). Misura in doc/guide/velocita.md § Registro"
     },
     "/dashboard/assistant": {
-      "initialJsGzKB": 670
+      "initialJsGzKB": 700,
+      "raisedBy": "#432: il React Compiler acceso (memo cache per componente, +20–26% gz sul codice dei componenti; misura prima/dopo in doc/guide/velocita.md § Registro)"
     },
     "/dashboard/cashflow": {
       "initialJsGzKB": 763,
-      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+      "raisedBy": "#436: firebase 12.13 → 12.19 (@firebase/firestore 4.14 → 4.17), +57 KB gz sui condivisi che Next 16.4 riduce di 16; richiesto da firebase-admin 14 (@firebase/app 0.16.2). Misura prima/dopo in doc/guide/velocita.md § Registro"
     },
     "/dashboard/fire-simulations": {
-      "initialJsGzKB": 774,
-      "raisedBy": "fork (T2, riallineamento a upstream #422): «Il mio piano», la Proiezione, i flussi datati, il motore Monte Carlo a sette classi e Dopo il FIRE, che upstream non ha"
+      "initialJsGzKB": 841,
+      "raisedBy": "T3 del decimo riallineamento (fork): la pagina porta le schede solo-fork (Il mio piano, Proiezione, Monte Carlo a sette classi, Obiettivi) più il Compiler; 841 KB gz misurati contro i 736 di upstream. Misura in doc/guide/velocita.md § Registro"
     },
     "/dashboard/hall-of-fame": {
-      "initialJsGzKB": 561,
-      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+      "initialJsGzKB": 615,
+      "raisedBy": "#436: firebase 12.13 → 12.19 (@firebase/firestore 4.14 → 4.17), +57 KB gz sui condivisi che Next 16.4 riduce di 16; richiesto da firebase-admin 14 (@firebase/app 0.16.2). Misura prima/dopo in doc/guide/velocita.md § Registro"
     },
     "/dashboard/history": {
-      "initialJsGzKB": 698
+      "initialJsGzKB": 772,
+      "raisedBy": "#436: firebase 12.13 → 12.19 (@firebase/firestore 4.14 → 4.17), +57 KB gz sui condivisi che Next 16.4 riduce di 16; richiesto da firebase-admin 14 (@firebase/app 0.16.2). Misura prima/dopo in doc/guide/velocita.md § Registro"
     },
     "/dashboard/pension": {
-      "initialJsGzKB": 619,
-      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+      "initialJsGzKB": 662,
+      "raisedBy": "T3 del decimo riallineamento (fork): +0,5 KB gz misurati (condivisi alzati dal fork). Misura in doc/guide/velocita.md § Registro"
     },
     "/dashboard/performance": {
-      "initialJsGzKB": 578
+      "initialJsGzKB": 651,
+      "raisedBy": "#436: firebase 12.13 → 12.19 (@firebase/firestore 4.14 → 4.17), +57 KB gz sui condivisi che Next 16.4 riduce di 16; richiesto da firebase-admin 14 (@firebase/app 0.16.2). Misura prima/dopo in doc/guide/velocita.md § Registro"
     },
     "/dashboard/settings": {
-      "initialJsGzKB": 721,
-      "raisedBy": "fork (T2, riallineamento a upstream #422): la scheda Simulazioni (ipotesi di mercato, correlazioni, scaglioni IRPEF) e la copertura del cambio, che upstream non ha"
+      "initialJsGzKB": 778,
+      "raisedBy": "T3 del decimo riallineamento (fork): la settima vista Simulazioni (MonteCarloMarketTile, MonteCarloCorrelationsTile, TaxBracketsTile) è nella pagina; 778 KB gz misurati contro i 701 di upstream. Misura in doc/guide/velocita.md § Registro"
     },
     "/login": {
-      "initialJsGzKB": 436,
-      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+      "initialJsGzKB": 474,
+      "raisedBy": "#436: firebase 12.13 → 12.19 (@firebase/firestore 4.14 → 4.17), +57 KB gz sui condivisi che Next 16.4 riduce di 16; richiesto da firebase-admin 14 (@firebase/app 0.16.2). Misura prima/dopo in doc/guide/velocita.md § Registro"
     },
     "/register": {
-      "initialJsGzKB": 436,
-      "raisedBy": "fork (T2, riallineamento a upstream #422): il codice del fork sopra la base di upstream (Lime Frost, ruoli 50/30/20, import CSV, guardie del registro, funzioni solo-fork)"
+      "initialJsGzKB": 475,
+      "raisedBy": "#436: firebase 12.13 → 12.19 (@firebase/firestore 4.14 → 4.17), +57 KB gz sui condivisi che Next 16.4 riduce di 16; richiesto da firebase-admin 14 (@firebase/app 0.16.2). Misura prima/dopo in doc/guide/velocita.md § Registro"
     }
   },
-  "sharedGzKB": 483,
-  "sharedRaisedBy": "#418: date-fns, date-fns-tz, dateHelpers e formatters (~14 KB, li carica ogni pagina) passano dalle copie per pagina ai chunk condivisi; il condiviso non sale perché una route è cresciuta",
+  "sharedGzKB": 544,
+  "sharedRaisedBy": "#436: firebase 12.13 → 12.19 (@firebase/firestore 4.14 → 4.17), +57 KB gz misurati a parità di Next (482,8 → 539,5), −16 da Next 16.2 → 16.4 (→ 523,5); richiesto da firebase-admin 14, che vuole @firebase/app 0.16.2 e con ogni firebase < 12.19 ne lascia due copie · T3 fork: +9 KB gz dei moduli solo-fork che i condivisi portano (544 misurati)",
   "libraryCopies": {
     "recharts": 1
   }

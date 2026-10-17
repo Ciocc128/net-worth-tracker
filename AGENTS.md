@@ -141,10 +141,11 @@ pointer — a stub that grows past that is a guide leaking back (2026-09-20: ten
   surface, because a fill mixed from the text's own hue pulls the background towards the text.
 - **A computed custom property comes back as `lab()`, never as the `oklch()` you authored**
   (`getComputedStyle(root).getPropertyValue('--chart-3')` answers `lab(64.8793% 25.0679 78.4211)`): **anything that
-  READS a colour token parses `lab()` too** and never asserts `/^oklch\(/`. `useChartColors` knows this;
-  `useActionColors`' legibility clamp matched `/oklch\(/` and was DEAD CODE from the day it was written (2026-09-21,
-  measured in the browser: raw chart slots as 10-18px text at 2,39-4,02:1). Worked example:
-  `lib/utils/actionColor.ts`, whose test feeds it the browser's own serialisation.
+  READS a colour token parses `lab()` (and `#hex`) too and never asserts `/^oklch\(/` — through
+  `lib/utils/colorParse.ts`, the ONE parser since 2026-10-08. Two readers were DEAD CODE from the day they were
+  written: `useActionColors`' legibility clamp (until 2026-09-21, measured in the browser: raw chart slots as 10-18px
+  text at 2,39-4,02:1) and `useChartColors`' luminance filter (until 2026-10-08, `__tests__/chartColorsContext.test.ts`).
+  Worked example: `lib/utils/actionColor.ts`, whose test feeds it the browser's own serialisation.
 - **Sidebar tokens**: `--sidebar-accent` is a background, `--sidebar-accent-foreground` text ON it; hover on inactive
   items uses `hover:text-sidebar-foreground`. **Inline `style` blocks Tailwind hover variants**, so migrate to classes
   before adding `hover:`/`focus:`.
@@ -156,32 +157,34 @@ pointer — a stub that grows past that is a guide leaking back (2026-09-20: ten
 ## 2. Data and State Patterns
 
 ### React Query and Derived State
+- **Query + invalidation, never realtime — and Firestore is not the limit** (measured 2026-09-26, the speed dossier):
+  with the emulator answering in ~1 ms Cashflow still took 2,1 s and Storico 2,3 s to show a figure — browser CPU
+  (deserialising 1533 documents, reducing, mounting) and the boot chain, not the database; in production a round trip
+  is 50–150 ms, so what counts is round trips IN SERIES. No `onSnapshot`, and no migration (Postgres/Supabase/Convex
+  would rewrite ~40 services, the rules and the harness without touching the measured causes): the two Firestore
+  levers are the function region (SETUP.md § Function region) and the materialized per-page summaries (§ Caching).
 - **A page or a component never calls a read service: it reads a HOOK** (2026-09-29). One key per collection,
   in `lib/query/queryKeys.ts`, one hook apiece in `lib/hooks/`: `useAssets`, `useSnapshots`, `useExpenses` (and its
   windows, next bullet), `useExpenseCategories`, `useSettings` (the ONE `['settings', ownerId]`), `usePensionContributions`,
   `useAssetTransactions`, `useCostCenters`, `useGoalData`, `useDividendReceipts`, `useHallOfFame`, `useMortgageInstalments`,
-  `useDashboardOverview`. An imperative read (a refresh, a dialog reading once after a write, the CSV import before it
+  `useDashboardOverview`. **A service that computes from collections takes them as an argument** (2026-10-04,
+  `getAllPerformanceData(userId, forceRefresh, inputs?)`): the page hands over what its hooks hold instead of letting the
+  service read them a second time. An imperative read (a refresh, a dialog reading once after a write, the CSV import before it
   commits) goes through the hook's exported `…QueryOptions(ownerId)` with `queryClient.fetchQuery` — the same key, the
   same reader, the global staleTime; `staleTime: 0` where the CURRENT document is the point («Annulla» on Impostazioni,
-  the pre-read of its «Salva», the import's commit). The closing grep of a session is
+  the pre-read of its «Salva», the import's commit). **A form seeded from a document OBSERVES its hook and settles the
+  seed during render** (Impostazioni since 2026-10-08): the first document of the owner seeds the draft, a fresher
+  read re-seeds it only while nothing is dirty, and «Annulla» is a RE-READ (`fetchQuery`, `staleTime: 0`) followed by
+  a reset — never a copy kept in memory (doc/guide/impostazioni.md). The closing grep of a session is
   `grep -rn "getSettings(\|getAllAssets(\|getUserSnapshots(\|getAllExpenses(\|getAllCategories(" app components`: hooks
   and services only. Every writer invalidates the key its readers read (`queryKeys.settings.all` from the seven places of
   doc/guide/impostazioni.md § Settings — the FIVE places, `goals.all` from Obiettivi AND the assistant's goal card).
 - **The expenses are read by WINDOW, and `lib/utils/expenseWindows.ts` is the ONE source of the windows** (2026-09-30):
-  Tracciamento and Divisione (`trackingWindow`), Budget (`budgetWindow`, and its dialog's `budgetSuggestionWindow`)
-  and FIRE (`fireWindows`) read `useExpensesInRange(ownerId, window)` — one key per window UNDER the `expenses.all`
-  prefix, so the one invalidation every expense write makes reaches them all — and derive in memory with the same
-  pure functions as before. Storico, Analisi, Centri di Costo and «Collega spese…» stay on `useExpenses`, the whole
-  collection, by declared need, and share that one list (Analisi by the owner's decision: a window left out 48 rows of
-  1547 on the real account — measure before giving a page a window, each one is a list more in memory and on disk). **A window is the UNION of what its page reads, the readers behind the period
-  included** (a savings history, a six-month baseline, a chart that draws a range's last month whole): a new reader of
-  a page's list widens its window in the same commit and joins `__tests__/expenseWindows.test.ts`, which runs every
-  reader on the window's rows and on the whole list and compares. **The bounds are calendar days, never UTC** — the
-  EARLIER of the local and the Italian midnight of the first day, the LATER of the two ends of the last: the form saves
-  at local midnight, the period slice compares in the browser's calendar and every month bucket reads the Italian one.
-  What a window cannot say about the rest of the collection (the years a picker offers, an account with no rows) comes
-  from `useExpenseBounds`; never `placeholderData` on a window — the previous window's rows under the new period are
-  figures of the wrong months, so a new window waits on a skeleton with its picker still mounted.
+  Tracciamento and Divisione (`trackingWindow`), Budget (`budgetWindow`, `budgetSuggestionWindow`) and FIRE
+  (`fireWindows`) read `useExpensesInRange(ownerId, window)`, one key per window UNDER `expenses.all`; Storico, Analisi
+  (owner's decision: a window left out only 48 rows of 1547) and the cost centres read the whole list. **A window is the UNION of what its
+  page reads** — a new reader widens it in the same commit and joins `__tests__/expenseWindows.test.ts`; the bounds are
+  calendar days in both calendars, never UTC; never `placeholderData` on a window — doc/guide/cashflow.md § Expenses by window.
 - **A page over several keys composes ONE read state** (`composeReadState`, `lib/utils/readState.ts`): `loading` while
   any query reads, `loadFailed` when any failed — then `resolveSurfaceState`. Storico reads six keys this way.
 - Invalidate all related caches after a mutation; **asset mutations need a dual invalidation** (`queryKeys.assets.all` +
@@ -223,7 +226,10 @@ pointer — a stub that grows past that is a guide leaking back (2026-09-20: ten
   reconciliation consequences the in-form notice must explain, so the `Select` stays there and only there.
 - **`setStep(record ? 2 : 1)` is settled during render on the `(open, record)` subject**, never in `useState`'s
   initializer (the record prop stays null between opens and the second "new" would reopen on the form) and, since
-  2026-09-06, no longer in the `open` effect either (`react-hooks/set-state-in-effect`).
+  2026-09-06, no longer in the `open` effect either (`react-hooks/set-state-in-effect`). **It stays so where the host
+  mounts the dialog only while open** (Patrimonio since 2026-10-07 — doc/guide/dialog.md): there an
+  initializer would be right, but one way that holds for every host beats two; the comment above `openSubject` in
+  `AssetDialog.tsx` says so, and `e2e/assets.rows.spec.ts` keeps «Nuovo after Modifica opens on step 1» as a guard.
 - **Make the back-link callback OPTIONAL and let its absence select the `Select`** (`onBackToTypePicker?`), so the two
   controls are mutually exclusive by construction rather than via a second boolean that can drift.
 - **The picker is a module-level component**, and the type entry carries `Icon` as the COMPONENT, never a rendered node.
@@ -259,15 +265,21 @@ pointer — a stub that grows past that is a guide leaking back (2026-09-20: ten
 - **Max 3 `.where()` calls** on a chain that will be unit-tested; a 4th breaks the mock chain.
 
 ### Caching
-- **Per-user pre-computed cache** (`performance-cache/{userId}`): the key encodes **every** determining input — a hash of
-  the WHOLE snapshot series, the base signature, the risk-free rate, the dividend category. TTL fallback (6h) covers what
-  the key cannot; reads/writes are `try/catch` fire-and-forget; `Date` ↔ `Timestamp` is field-by-field, never JSON.
-- **A changed FORMULA is the one input no signature can see — that is `CACHE_MATH_VERSION`** (`v5`), bumped on any change
-  to what the pipeline computes from unchanged inputs. When verifying by hand, press **Aggiorna** (`forceRefresh`) first.
+- **A per-user pre-computed cache keys EVERY determining input** (`performance-cache/{userId}`: a hash of the whole
+  snapshot series, the base signature, the risk-free rate, the dividend category); a 6h TTL covers what the key cannot;
+  reads/writes are `try/catch` fire-and-forget; `Date` ↔ `Timestamp` field-by-field, never JSON. **A figure whose inputs
+  the key does not cover stays OUT of the document** (2026-10-04, Rendimenti's dividend yields — doc/guide/rendimenti.md).
+- **A changed FORMULA is the one input no signature sees — bump `CACHE_MATH_VERSION`** (`v8`); verifying by hand, press
+  **Aggiorna** (`forceRefresh`) first. A new optional field needs no bump if paired with `?force=true`; wire «Aggiorna»
+  to `refresh()`, never to a bare `refetch()`, which receives the same doc.
 - **Global shared cache** (benchmark, FX, ECB): natural key as doc id, no `userId`, `read: isAuthenticated(); write:
-  false`; client `staleTime` = server TTL minus headroom.
-- **Schema evolution without a key bump**: add the field as optional and pair it with `?force=true`. Wire "Aggiorna" to
-  `refresh()`, never to bare `refetch()`, which receives the same doc.
+  false`; client `staleTime` = server TTL minus headroom. **A shared per-ticker cache the client NEVER reads**
+  (`instrument-profile-cache`, 2026-09-28): rules `if false`, Admin SDK only, ONLY the external source's answers
+  (`mergeFields` per module), nothing of any user's — doc/guide/allocazione.md § Esposizione.
+- **A server-owned materialized summary is fresh only while every write to an input invalidates it**
+  (`dashboardOverviewSummaries/{userId}`, 2026-10-03): a new writer owes its invalidation in the same commit; fresh =
+  no `invalidatedAt`, same `sourceVersion`, same Italian day, ≤ 6 h; rebuilt in `after()` under a precondition —
+  doc/guide/panoramica.md § The materialized summary.
 - **The React Query cache is persisted to IndexedDB and restored before the first fetch** (2026-09-29,
   `lib/constants/persistCache.ts`) → `doc/guide/cache-persistita.md`. ONLY the keys of `PERSISTED_QUERY_PREFIXES`,
   only successful reads, NEVER the demo uid (`isDemoUid`, `lib/utils/demoAccount.ts`); the 24 h `gcTime` is set PER
@@ -291,52 +303,64 @@ pointer — a stub that grows past that is a guide leaking back (2026-09-20: ten
 - Server-owned materialized docs are mutated only via a private authenticated route; cron routes use `CRON_SECRET`, and
   `/api/portfolio/snapshot` must keep accepting `cronSecret`.
 - **Validation**: `lib/server/validation.ts` owns the reusable schemas and `parseOr400` — never cast with `as { … }`
-  first, use `z.coerce.date()` for dates, and validate **Firestore-originated** inputs at the service entry point too.
+  first, coerce dates with `z.coerce.date()` (behind a string when they come from a request, below), and validate
+  **Firestore-originated** inputs at the service entry point too.
+  **A date in a request is a STRING first** (2026-10-04, `isoDateSchema` = `z.string().min(1).pipe(z.coerce.date())`):
+  alone, `z.coerce.date()` turns `null` into 1970-01-01 and a number into a timestamp, so a missing date answers 200 on
+  an epoch instead of 400 — every request date in the file goes through it (yields, dividends, transactions), pinned by
+  the «a null date» case of `__tests__/performanceYieldsRoute.test.ts` and the date cases of `serverValidation.test.ts`.
   Tests that touch a `server-only` module need `vi.mock('server-only', () => ({}))`.
+- **A route's latency is a `Server-Timing` header** (`lib/server/serverTiming.ts`; five routes since 2026-10-05: overview,
+  yields, dividend stats, instrument profiles, assistant threads): `startTiming()` at the handler's top, `mark('auth')`
+  after `assertCanAccessAccount`, `mark('db')` after ONE round of reads, `mark('compute')` before the response; a service
+  with stages of its own takes the recorder (`timing?: ServerTimingRecorder`) instead of returning times, and a count
+  the header carries travels BESIDE the body, never inside it (`resolveInstrumentProfiles` → `{ response, counts }`).
+  The route tests read the header's stage names (`__tests__/{dividendStatsRoute,instrumentProfilesRoute}.test.ts`).
 - **`REGISTRATION_WHITELIST` has no `NEXT_PUBLIC_` prefix**, and `lib/constants/appConfig.ts` must stay client-safe.
-- **Do NOT bump `firebase-admin` past 13.x** — `@14 → jwks-rsa@4 → jose@6` is pure ESM and Vercel's Lambda runtime
-  `require()`s it (`ERR_REQUIRE_ESM` on every Admin route).
+- **A Vercel Function never `require()`s an ESM-only package — whatever the Node version** (2026-10-08): Vercel starts
+  Node with `--no-experimental-require-module`, so `firebase-admin@14 → jwks-rsa@4 → jose@6` (pure ESM, loaded by
+  `require` in `jwks-rsa/src/utils.js`) answered 500 on every Admin route — `ERR_REQUIRE_ESM` in the runtime log of the
+  develop deploy of PR #436, on 22.x AND on 24.x — while the same production build on the laptop (Node 24, standalone,
+  real credentials) answers 401 to a forged token. The cure is `package.json` `overrides` → `jwks-rsa ^3.2.2` (jose 4,
+  CommonJS; firebase-admin calls only `jwks({ jwksUri, cache })` and `getSigningKeys()`, identical in 3.x), held by
+  `__tests__/vercelConfig.test.ts` with `engines.node` `"24.x"` (local and Lambda on the same major). Before taking
+  any server dependency whose chain reaches an ESM-only package, grep its `require(` calls; the emulators cannot see
+  this (`verifyIdToken` skips the signature there) and only a real token on a deploy proves it. The same bump pins
+  the CLIENT `firebase` to ≥ 12.19 (one `@firebase/app`, CLAUDE.md § Known Issues).
 - **A `server-only` module is not protected by `tsc`**: importing `lib/services/dividendService.ts` (Admin SDK) from a
   client page type-checks and dies in the browser as a Next build error («You're importing a module that depends on
   "server-only"») — the browser is the check (2026-09-06). A client page reads such a registry through a client
   reader: `lib/services/dividendReceiptsService.ts` is the worked example.
 
 ### Dynamic Imports and Module Hygiene
-- **Components must be at module level** — one defined inside a render body is a new type every render, so React
-  remounts it (`AnimatePresence` enter never plays, `useEffect([])` re-fires) and the React Compiler throws.
-  **`react-hooks/static-components` flags ANY component obtained from a call during render, a `useMemo(() => lazy(…))`
-  included** (probed 2026-09-06): only a property read of a module constant passes, so the icon pickers keep a
-  ONE module-level map, `LAZY_CATEGORY_ICONS` in `IconPickerPopover` (shared by the picker, the feed, the drawer and
-  the table; `lazy()` registers a thunk, the chunk still loads on demand). **One chunk per icon since 2026-09-30**:
-  each thunk is a loader of `components/expenses/categoryIconLoaders.ts`, 121 deep paths to lucide's
-  canonical files — never `import('lucide-react')` read by a runtime name (the whole 575 KB library at the first
-  icon), never `lucide-react/dynamicIconImports` (~1900 loaders: +49 KB gz on Cashflow and Impostazioni, measured).
-  A new curated name needs its loader; `__tests__/categoryIcons.test.ts` compares all 121 with lucide's own map.
-- **A library several pages use goes behind ONE module of real code** (2026-09-30): recharts is imported
-  only from `components/ui/charts/recharts.ts`. Turbopack batches a library by where it is ENTERED — twenty files
-  entering by different deep modules shipped four identical 350 KB copies, one per page — and a module of bare
-  `export { … } from` re-exports is transparent to it (the build came out identical to the byte): the barrel binds
-  `export const X = RechartsX`. `perf:budget`'s `libraryCopies` counts the chunks carrying `recharts-wrapper` and is
-  red at two.
-- **A chart inside something closed by default is a `lazyComponent` at MODULE level** (2026-09-30;
-  `components/ui/lazy-component.tsx`), with a `fallback` of the chart's OWN height — a `Skeleton` with the height, or a
-  box of the height the placeholder fills (`h-full`/`flex-1`) when the height is a prop — so the chart lands in place:
-  `layout-shift` 0, measured on every lazy section. **Not `next/dynamic`**: it is `React.lazy` + Suspense, which
-  suspends on every first render even with the module in memory, and React 19 holds a committed fallback ~300 ms —
-  every first opening showed a placeholder, measured. Preload with `usePreloadWhenIdle(ARRAY, dataReady)` (a
-  module-level array; `enabled` = the page's data is in, or the «idle» browser waiting on Firestore downloads during
-  the first paint: +130 ms on Analisi, measured). Lazy the PLOT, never the section that owns the trigger, and decide
-  an empty series outside the lazy module. A value import from the lazy module puts it back in the graph: types only
-  (`import type`). Worked examples: `PerformanceDettaglio`, `ConfrontoAnnualeSection`, `FlussoTile` (the Sankey,
-  preloaded at module evaluation from 640px), the four lazy FIRE tabs. **Next prefetches the route of every shell
-  link, client chunks included**: a chunk reached by another route's initial graph arrives with that prefetch; only
-  one reached solely by an `import()` stays unfetched (`perf/README.md`, «Il prefetch dei link della shell»).
-- Pure `lib/utils` modules reach `calculateAssetValue` in one of two established ways — check the precedent: **injected**
-  as a `valueOf` param (`allocationUtils`, `pensionFire`) or **imported directly** with the test mocking
-  `@/lib/firebase/config` + `firebase/firestore` + `authFetch` + `dashboardOverviewInvalidation`.
-- **Functions that call `new Date()` internally are untestable** — pass `now: Date` explicitly. **shadcn vendored surface
-  policy**: `components/ui/**` is knip-ignored and standard shadcn API stays even at zero references; only **custom
-  additions made in this repo** get deleted.
+- **Components must be at module level** — one defined in a render body is a new type every render (remount,
+  `AnimatePresence` enter never plays, `useEffect([])` re-fires, the React Compiler throws). **`react-hooks/static-components`
+  flags ANY component obtained from a call during render, `useMemo(() => lazy(…))` included** (probed 2026-09-06): only a
+  property read of a module constant passes — the icon pickers' ONE map `LAZY_CATEGORY_ICONS` (`IconPickerPopover`),
+  one chunk per icon since 2026-09-30 through the 121 loaders of `components/expenses/categoryIconLoaders.ts`, never
+  `import('lucide-react')` by a runtime name nor `lucide-react/dynamicIconImports` (+49 KB gz, measured); a new curated
+  name needs its loader (`__tests__/categoryIcons.test.ts`) — doc/guide/cashflow.md.
+- **A library several pages use goes behind ONE module of real code** (2026-09-30): recharts only from
+  `components/ui/charts/recharts.ts`, which binds `export const X = RechartsX` — Turbopack batches a library by where it
+  is ENTERED (four identical 350 KB copies, one per page), and a barrel of bare re-exports is transparent to it.
+  `perf:budget`'s `libraryCopies` is red at two copies.
+- **A chart inside something closed by default is a `lazyComponent` at MODULE level** (2026-09-30,
+  `components/ui/lazy-component.tsx`) with a `fallback` of the chart's OWN height, so it lands with `layout-shift` 0.
+  **Not `next/dynamic`**: React.lazy + Suspense suspends on every first render and React 19 holds a committed fallback
+  ~300 ms. Preload with `usePreloadWhenIdle(ARRAY, enabled)` — a module-level array, `enabled` = the page's data is in
+  (an «idle» browser waiting on Firestore is not idle: +130 ms on Analisi) and, where only one width draws the chart, that
+  width (Patrimonio's sparkline, phone only, 2026-10-07). Lazy the PLOT, never the section that owns the trigger; decide
+  an empty series outside the lazy module; import types only from it. **A lazy TAB's fallback is the tab's own loading
+  state, control rows included** (2026-10-06, `components/cashflow/CashflowTabSkeletons.tsx`, `e2e/lazyTabLanding.ts`).
+  Worked examples: `PerformanceDettaglio`, `ConfrontoAnnualeSection`, `FlussoTile`, the four lazy FIRE tabs, Cashflow's
+  four non-default tabs, `AssetRow`'s sparkline. **Next prefetches every shell link's route, client chunks included**:
+  only a chunk reached solely by an `import()` stays unfetched (`doc/guide/velocita.md`, «Il prefetch dei link della shell»).
+- Pure `lib/utils` modules reach `calculateAssetValue` **injected** as a `valueOf` param (`allocationUtils`,
+  `pensionFire`) or **imported directly** with the test mocking `@/lib/firebase/config` + `firebase/firestore` +
+  `authFetch` + `dashboardOverviewInvalidation` — check the precedent.
+- **Functions that call `new Date()` internally are untestable** — pass `now: Date`. **shadcn vendored surface policy**:
+  `components/ui/**` is knip-ignored and standard shadcn API stays even at zero references; only **custom additions made
+  in this repo** get deleted.
 - **CSS custom property liveness — the 5-check sweep.** A token is live if ANY holds: `var(--name` in `.ts/.tsx/.css`; if
   mapped via `@theme`, the **generated utility name** appears (grep `bg-X`, not the variable); `getPropertyValue`; an
   internal chain; the vendored-surface contract. A confirmed-dead token leaves **every** theme block in one commit.
@@ -358,7 +382,7 @@ know before opening the guide — then the pointer. In code comments and the oth
 file used to carry.
 
 ### Panoramica → `doc/guide/panoramica.md`
-- Overview data flows through `GET /api/dashboard/overview` + `useDashboardOverview()` only — no page-level fan-out, no full-history expense queries; `dashboardOverviewSummaries/{userId}` is server-owned and every overview-relevant mutation invalidates it. Both endpoints owner-scoped.
+- Overview data flows through `GET /api/dashboard/overview` + `useDashboardOverview()` only — no page-level fan-out, no full-history expense queries; `dashboardOverviewSummaries/{userId}` is server-owned, fresh for the Italian day, and every write to an input invalidates it — a new writer owes its invalidation (§ The materialized summary). Both endpoints owner-scoped.
 - `topMovers`/`marketEffect` are MARKET return, never the user's flows: `[]` when the previous snapshot has no `byAsset`, `null` when not attributable (≠ measured 0).
 - Every sentence comes from `overviewNarrative.ts`; a falling month blames the market only when `marketEffect < 0`. `resolveDeclineCause` (`lib/utils/periodSales.ts`) is the ONE decision for Panoramica, Patrimonio and the email (the tax in the headline, 2026-09-13), `resolveTaxedGrowth` its twin for a month that did NOT fall (2026-09-19).
 - A driver subject missing from `CLASS_SUBJECTS` drops the clause, never prints itself; the page has no «Dettaglio» of its own.
@@ -430,7 +454,7 @@ file used to carry.
 - ONE period axis (`resolvePeriodBounds`, upper bound = end of the period's own unit, NOT today), the announced money ON it; filters narrow only the list. TWO POPULATIONS, BOTH NAMED (2026-09-14): verdict and inventory read the REGISTRY (sold included); Affidabilità and Chi paga di più measure the HELD portfolio (`heldAssetIds`).
 - A coupon's cashflow expense is created only by the daily cron on payment date (`!isAutoGenerated`, idempotent via `expenseId`), and it credits the instrument's account, else the default, ONLY when the payment is not an arrear (`lib/utils/dividendAccount.ts`, 2026-09-20) — row, balance and `expenseId` in one transaction.
 - Two inflation mechanisms, ONE field (`inflationIndexation`, read via `resolveInflationIndexation`): BTP Italia ADDS the FOI rate, a BTP€i MULTIPLIES by the coefficient. Adding a `DividendType` is a six-file fan-out.
-- Il resto — the Rendimento tile off the axis, `useDividendStats` without date bounds, every number from `dividendAnalytics.ts`, a scraped dividend's ONE floor (`lib/utils/dividendEligibility.ts`, 2026-09-13), the zero coupon (`hasCouponPayments`), the calendar, the form (`taxRate` proposal, picker) and the armed row delete, `computeDividendYieldMetrics`, the legacy `isInflationLinked`, provisional coupons, the running-window rule, `couponUtils` — in `doc/guide/cashflow-dividendi.md`.
+- Il resto — the Rendimento tile off the axis, `useDividendStats` without date bounds, the tab's ONE request (the stats answer carries the list, `useDividendRegistry`; `stats: null` keeps the list when a measure fails), every number from `dividendAnalytics.ts`, a scraped dividend's ONE floor (`lib/utils/dividendEligibility.ts`, 2026-09-13), the zero coupon (`hasCouponPayments`), the calendar, the form (`taxRate` proposal, picker) and the armed row delete, `computeDividendYieldMetrics`, the legacy `isInflationLinked`, provisional coupons, the running-window rule, `couponUtils` — in `doc/guide/cashflow-dividendi.md`.
 
 ### Storico · History and Snapshot Baselines → `doc/guide/storico.md`
 - The snapshot cron runs DAILY (the name lies) and both writers REPLACE the document: a new `MonthlySnapshot` field no pipeline recomputes goes in `SNAPSHOT_USER_AUTHORED_FIELDS` or the cron erases it (§ *Firestore Writes*).
@@ -497,6 +521,7 @@ file used to carry.
 - Il resto — `PDF_RAMP`, the class labels, `signedPct`/`signedEur` it-IT, the deterministic-comparison rule, the AI-prompt body — in `doc/guide/email-pdf.md`.
 
 ### Impostazioni — tessere senza verdetto → `doc/guide/impostazioni.md`
+- ONE draft, six views (2026-10-08): the page is an orchestrator over `useReducer(settingsDraftReducer)` (`lib/utils/settingsDraft.ts`), each tab a module-level CONTROLLED view of its slice with no form state of its own (Radix unmounts an inactive panel); `compose ∘ slice ≡ document` is pinned by `__tests__/settingsDraft.test.ts`; the read is an observed `useSettings` seeding the draft in render; the focus of a refused «Salva» crosses the tabs through the draft (`pendingFocus`).
 - The page has NO verdict and must not grow one (a configuration page measures nothing) — it keeps the CADENCE: 23 `describe*` functions in `settingsNarrative.ts`, NO `build*Verdict`.
 - ONE «Salva», so the save state is PER TAB (2026-09-22): a dot on each tab holding edits, a bottom bar naming them with «Annulla modifiche» (a re-read, not a copy); the target rules are `allocationTargetValidation.ts`, which says WHERE they failed so «Salva» opens the group and focuses the field. A failed read here is never an empty list (members, categories, accounts).
 - A reading declares the effect DOWNSTREAM, not the control under it; the Narrative Honesty Rule holds (a missing input drops its clause).
@@ -535,8 +560,10 @@ file used to carry.
   `alert`); `describeWriteError` (`lib/utils/dialogNarrative.ts`) is the ONE translation of a failed write.
 - Two-click confirms live in `lib/hooks/useArmedDelete.ts`: no timer, ever; Escape while armed means DISARM
   (`hasArmedConfirm()`). The two form rules stay here: § Dialog Form Reset, § Two-Step Create Dialogs.
-- A controlled modal with no Radix `Trigger` drops focus on `body` when it closes unless the caller passes
-  `returnFocusTo`, taken from `event.currentTarget` at the click (2026-09-20, pinned by `e2e/performance.degraded.spec.ts`).
+- A controlled modal with no Radix `Trigger` drops focus on `body` when it closes; since 2026-10-08 `ResponsiveModal`
+  restores the element focused at open (every keyboard opener; pinned by `e2e/pension.spec.ts`), and a host whose opener
+  never held the focus (Safari's click, a non-focusable row) still passes `returnFocusTo`, taken from `event.currentTarget`
+  at the click (2026-09-20, `e2e/performance.degraded.spec.ts`).
 - Il resto — the footer order, the status-line a11y traps, `userFacingError`, the `bg-muted` block, the singular
   eyebrow, the armed detail's READING, `triggerOrigin` at the click, no focus below 769px — in `doc/guide/dialog.md`.
 
@@ -562,13 +589,16 @@ file used to carry.
 
 ### Color Theme System → `doc/guide/temi.md`
 - **Parallel theming**: next-themes owns `.dark`, the custom system owns `data-theme` (an external store, 2026-09-06).
-- **`useChartColors` timing**: `useEffect + useState + requestAnimationFrame`, NOT `useMemo`. The browser RETURNS
-  `lab(…)`, not the `oklch()` you authored: never assert `/^oklch\(/` (2026-08-30).
+- **The chart palette is read ONCE per theme** (2026-10-08): `ChartColorsProvider` in `app/dashboard/layout.tsx`
+  reads `--chart-*`, the action colours and the `--role-*` hexes; `useChartColors`/`useActionColors`/`useCssColorTokens`
+  read its context and fall back to their own read without it (the landing). Timing: `useEffect + useState +
+  requestAnimationFrame`, NOT `useMemo`. The browser RETURNS `lab(…)` or `#hex`, not the `oklch()` you authored: read it
+  through `lib/utils/colorParse.ts`, never assert `/^oklch\(/` (2026-08-30).
 - **A user-chosen identity colour is a SLOT, not a hex** (`'chart-1'..'chart-8'`, `resolveCostCenterColor`); indices
   0-8 theme-aware (`--chart-9` is Storico's «Previdenza» band), 9 static.
 - **Every theme block is held to the distinctness floor** (`__tests__/chartPaletteDistinctness.test.ts`, all twelve
   since 2026-09-20): nine slots, ΔE00 ≥ 14 between any two. A new theme or a moved slot runs it first.
-- Il resto — il filtro di luminanza oklch, gli slot senza backfill, la tinta tenuta tra i due modi, `useActionColors`,
+- Il resto — il filtro di luminanza (vivo dal 2026-10-08), gli slot senza backfill, la tinta tenuta tra i due modi, `useActionColors`,
   i sign token per tema, `--chart-6/7/8`, `getAssetClassCssVar`, «Adding a theme» — in `doc/guide/temi.md`.
 
 ---
@@ -576,125 +606,121 @@ file used to carry.
 ## 4. UI Patterns
 
 ### Motion
-- Shared variants live in `lib/utils/motionVariants.ts`; `useReducedMotion()` is called once per component and used
-  inline, with ONE `<MotionConfig reducedMotion="user">`, in `components/providers/MotionProvider.tsx` at the root
-  layout (the dashboard layout's duplicate went on 2026-09-28, the landing's and `AuthShell`'s on 2026-09-29: a nested
-  copy with the same value is inert) — no separate CSS media queries.
-- **Page transitions use `template.tsx`, NOT `layout.tsx` + `AnimatePresence`**, and since 2026-09-12 a click on a
-  shell link is a page SCENE through `lib/utils/viewTransition.ts`, the ONE entry to `document.startViewTransition`; a
-  `view-transition-name` must be unique among the RENDERED elements of a page (do not name the tile grid) →
-  doc/guide/shell.md § Motion — the page scene and view transitions.
-- `useCountUp` always with `once: true`, called **before** any conditional early return and unconditionally for both
-  branches of a mode switch; it has **no `enabled` option**, so gate the display in JSX. **A `fromPrevious` count-up
-  passes `landFirstValue`** (2026-09-23): a figure that settles between previews has no previous value on mount, and a
-  count from zero there paints «0 €» under a track or a chip already at its share — two readings of one figure. **`layout="position"`, not bare
-  `layout`, when a Framer parent wraps a Radix `CollapsibleContent`** — bare `layout` stretches the trigger text.
-- **Collapsible technique, by content shape:** nested rows expanding into sub-rows → pure CSS `grid-rows-[0fr] →
-  grid-rows-[1fr]` with an `overflow-hidden` child and `inert` on the closed wrapper (Framer + `height:'auto'` left
-  revealed rows **stuck at opacity 0**, which looks like missing data); tall or unpredictable sections → Radix
-  `<Collapsible>` + CSS transition; small predictable content → `AnimatePresence` + `height:'auto'`. **Always render a
-  chevron on an expandable row**; with Radix, `CollapsibleTrigger asChild` propagates `data-state`.
-- **An auto-dismiss timer must live in its OWN `useEffect([visible])`** — in an effect that also depends on data props, a
-  refetch cancels the timer, the re-run hits the guard without re-arming, and the badge sticks.
-- **`react-hooks/set-state-in-effect` — four answers, in this order** (2026-09-06; lint is at zero and stays there):
-  (1) derive it — `useMemo`, or delete the state when it equals a form field; (2) store the state WITH its subject
-  (`useState<{ key, value } | null>`, → *React Query and Derived State*); (3) settle it DURING render —
-  `const [prev, setPrev] = useState(x); if (prev !== x) { setPrev(x); setDep(…) }`, before any early return, dependent
-  state only — which is how every dialog resets on `(open, record)`; (4) `setTimeout(…, 0)` with its cleanup, ONLY for
-  a loader that must raise `loading` before its `await` (the compiler does not model `await`: a `setState` before one
-  counts as synchronous). Deferring a dialog's reset paints one frame with the old state and hides the real defect.
-  The classic `mounted` guard is banned — `useSyncExternalStore(neverChanges, () => true, () => false)` declares the
-  SSR/hydration split in the signature.
-- **`react-hooks/refs`: a custom hook must never RETURN a ref inside its object** — every read of that object during
-  render (`del.armed`, `del.onClick`) is flagged "Cannot access refs during render". Take the ref as an argument
-  (`useArmedDelete(ref, onDelete)`, `lib/hooks/useArmedDelete.ts`, there since 2026-08-31).
-- **`react-hooks/preserve-manual-memoization` ("Compilation Skipped")**: the compiler refuses to optimize the whole
-  component when a dep array is *more specific* than what it infers — align the dep to the inferred value. The OTHER
-  message, "memoized in source but not in output", cannot be aligned away: a `useMemo` whose value never escapes (only
-  compared with `!==`, as the settings page's snapshot keys were) is pruned by the compiler — inline the computation.
-- **Loading skeleton over spinner** on any page investing in count-up and chart scheduling, with `PageContainer` imported
-  inside it or wrapped at the call site. Verify it is wired up — `tsc` does not catch an unused component. Mobile CPU
-  budget is ~3-5× tighter, so validate motion in a production build, not `next dev`. The skeleton is a WAIT and never a
-  failure (→ `doc/guide/stati.md § Stati: caricamento, vuoto, zero, errore`).
-- **Every looping animation carries `motion-safe:`.** Tailwind's `animate-pulse` does not, which is why the app's ONE
-  placeholder is `components/ui/skeleton.tsx` and nothing hand-rolls `animate-pulse bg-muted` any more. `animate-spin`
-  is the deliberate exception: a spinner IS the "in flight" signal. And a preference for less motion must never remove
-  CONTENT — see the `SavingsRateBadge` entry in doc/guide/panoramica.md § Panoramica and Dashboard Data Isolation.
+- Shared variants live in `lib/utils/motionVariants.ts`; `useReducedMotion()` once per component, used inline, with ONE
+  `<MotionConfig reducedMotion="user">` in `components/providers/MotionProvider.tsx` at the root layout (the nested
+  copies went on 2026-09-28/29: a nested copy with the same value is inert) — no separate CSS media queries.
+- **Page transitions use `template.tsx`, NOT `layout.tsx` + `AnimatePresence`**; since 2026-09-12 a shell-link click is
+  a page SCENE through `lib/utils/viewTransition.ts`, the ONE entry to `document.startViewTransition`, and a
+  `view-transition-name` is unique among the RENDERED elements (do not name the tile grid); a named element leaves
+  `root` for EVERY transition — the theme scene switches the names off, and fixed shell over `<main>` needs a name of
+  its own (2026-10-08) → doc/guide/shell.md § Motion.
+- `useCountUp` always with `once: true`, called **before** any early return and unconditionally for both branches of a
+  mode switch (it has no `enabled`: gate the display in JSX); **a `fromPrevious` count-up passes `landFirstValue`**
+  (2026-09-23), or a figure that settles between previews counts from «0 €» under a track already at its share.
+  **`layout="position"`, not bare `layout`, when a Framer parent wraps a Radix `CollapsibleContent`.**
+- **No `layout` on a page wrapper, and a `layout`/`layoutId` only where the element is VISIBLE** (2026-10-08):
+  Framer measures a layout element before and after every commit that touches it — under `display: none` too (6
+  `getBoundingClientRect` per navigation at 1440 on the hidden bottom nav, `e2e/motion.layout.spec.ts`). Put `layout` on
+  the element that moves, never on the page root; gate a hidden one on a `useMediaQuery` of where it shows. **Turning
+  `layout` on after mount does not take** — Framer sets the measuring up when the element MOUNTS, and the media query
+  answers `true` only after hydration: remount it with a `key` on the gate (`BottomNavigation`, the pill jumped without,
+  `e2e/motion.layout.mobile.spec.ts`). The Panoramica's tile cascade plays once per session (doc/guide/panoramica.md).
+  **The cost is React and Framer work, not browser layout** (census `nav`, 2026-10-08: −1 `MeasureLayout` per change, CDP
+  `LayoutCount` unmoved — a measure on a `display:none` subtree forces no layout), so a `layout` gate is judged by the
+  census (`doc/guide/velocita.md` § Il census), never by `LayoutCount`. **No `LazyMotion`/`m` in place of `motion`**
+  (decided 2026-09-26, 33 files): little to save, and `layout` and `AnimatePresence` want `domMax` anyway.
+- **Collapsible technique, by content shape:** rows expanding into sub-rows → CSS `grid-rows-[0fr] → [1fr]` with an
+  `overflow-hidden` child and `inert` on the closed wrapper (Framer + `height:'auto'` left rows stuck at opacity 0);
+  tall or unpredictable sections → Radix `<Collapsible>` + CSS transition; small predictable content →
+  `AnimatePresence` + `height:'auto'`. **Always a chevron on an expandable row**; `CollapsibleTrigger asChild` propagates
+  `data-state`.
+- **An auto-dismiss timer lives in its OWN `useEffect([visible])`** — in an effect that also depends on data, a refetch
+  cancels the timer and the badge sticks.
+- **`react-hooks/set-state-in-effect` — four answers, in this order** (2026-09-06; lint at zero): (1) derive it
+  (`useMemo`, or delete state that equals a form field); (2) store the state WITH its subject (`useState<{ key, value }
+  | null>`, → *React Query and Derived State*); (3) settle it DURING render — `const [prev, setPrev] = useState(x); if
+  (prev !== x) { setPrev(x); setDep(…) }`, before any early return, dependent state only — how every dialog resets on
+  `(open, record)`; (4) `setTimeout(…, 0)` with its cleanup, ONLY for a loader that must raise `loading` before its
+  `await`. Deferring a dialog's reset paints a frame of old state. The classic `mounted` guard is banned —
+  `useSyncExternalStore(neverChanges, () => true, () => false)` declares the SSR/hydration split.
+- **`react-hooks/refs`: a custom hook never RETURNS a ref inside its object** (every read of it during render is
+  flagged): take the ref as an argument (`useArmedDelete(ref, onDelete)`, since 2026-08-31).
+- **The React Compiler RUNS since 2026-10-05** (`reactCompiler: true`, `babel-plugin-react-compiler` 1.0): no
+  `React.memo` by hand unless `npm run perf:census` shows it is needed (doc/guide/velocita.md § Il census). **A component it
+  cannot compile is skipped WHOLE and in silence**, and lint at zero is NOT the map (`react-hooks/todo` and
+  `react-hooks/hooks` are outside `recommended`; «value blocks within a try/catch» reaches no rule):
+  **`__tests__/reactCompilerCoverage.test.ts` is the map** (48 skips on the first run, all rewritten; seen red with a
+  `finally` and with an `eslint-disable` put back). Rewrites that keep behaviour: a `try … finally` → the finally's
+  body after the try/catch when no branch returns or rethrows, else `.finally()` on the awaited call or a module-level
+  helper (`runGuarded`); a `throw`, a loop or a `?:`/`&&`/`??`/`?.` inside a `try` → a module-level helper
+  (`assertSnapshotCreated`, `forEachSseEvent`) or the body moved into a local `const save = async () => {…}`; an
+  `import()` → a module-level loader; an `eslint-disable` of `exhaustive-deps` → `useEffectEvent`. **A build is
+  compiled when its chunks carry `react.memo_cache_sentinel`** (3 without, 1318 with, 2026-10-05; `_c(` does not survive
+  minification). **The price**: +20–26% gz on component code (`doc/guide/velocita.md` § Registro) and `next build` 29 → 47 s;
+  Cashflow paid the most, so its four non-default tabs load on demand (doc/guide/cashflow.md). **Compiled is not
+  memoized** (2026-10-07): the compiler compiled `AssetDialog` and left its whole step-2 form outside every memo scope,
+  so one root `useWatch` re-rendered 562 components per key — measure a form with the census and move a per-keystroke
+  watch into the leaf that reads it (doc/guide/patrimonio.md § Two-Step).
+- **`react-hooks/preserve-manual-memoization` ("Compilation Skipped")**: a dep array *more specific* than the inferred
+  value skips the component — align the dep. «Memoized in source but not in output» cannot be aligned away: a `useMemo`
+  whose value never escapes is pruned — inline the computation.
+- **Loading skeleton over spinner** on any page investing in count-up and chart scheduling, `PageContainer` inside it
+  or at the call site; verify it is wired (`tsc` does not catch an unused component). Validate motion in a production
+  build (mobile CPU is ~3-5× tighter). The skeleton is a WAIT, never a failure (→ `doc/guide/stati.md`).
+- **Every looping animation carries `motion-safe:`** — Tailwind's `animate-pulse` does not, which is why the ONE
+  placeholder is `components/ui/skeleton.tsx`; `animate-spin` is the deliberate exception (a spinner IS «in flight»).
+  Less motion never removes CONTENT (the `SavingsRateBadge` entry in doc/guide/panoramica.md).
 
 ### Recharts
-- **Import recharts from `@/components/ui/charts/recharts`, never from `'recharts'`** (2026-09-30): one module of
-  real code in front of the library is what keeps it in ONE chunk (§ Dynamic Imports and Module Hygiene); a primitive
-  it does not list yet is added there.
-- **`useChartColors()` is mandatory for every series** — read CSS vars after paint and pass `chartColors[0..4]` as props.
-- **A Recharts series CAN drive the page, not just its tooltip — but no page does today**: `onMouseMove` hands
-  `activeTooltipIndex` (a number OR a numeric string in 3.x — coerce it) and `onMouseLeave` the end; lift the index's
-  PERIOD, never the index (the tiles that follow have their own arrays), attach the handlers only under `(pointer:
-  fine)`, and let a pure module resolve what every follower shows. Storico's scrub (`storicoScrub.ts`) was retired by
-  the owner on 2026-09-13 (DESIGN.md → The Scrub Rule, retired): the worked example is `git show 4b0a2dd`, not the
-  tree. A hand-written SVG that must glide between windows resamples the OLD series onto the new length and tweens per
-  index (`lib/hooks/useMorphingSeries.ts`); the hover reads the landed data, never the frame.
-- **Never pass `useChartColors()` to a Nivo/react-spring component**: `@react-spring/web` cannot interpolate hex→oklch
-  and throws on load. Sankey node colors are HEX: hardcoded, or a theme token resolved to hex by `useCssColorTokens` +
-  `lib/utils/cssColorToHex.ts` (the Flusso's five `--role-*`, read only while that Sankey is drawn — the hook takes
-  `enabled`); only Recharts is react-spring-free.
-- **Three separate tooltip style props, none inherited**: `contentStyle`, `labelStyle`, `itemStyle` — omitting
-  `itemStyle` leaves value rows at Recharts' hardcoded colour, invisible on dark. Define all three as module-level `as
-  const` objects using `var(--card)`/`var(--border)`/`var(--card-foreground)`.
-- **Axis ticks and legends are numbers, so the Mono Mandate covers them — and a Tailwind class cannot reach them.** Pass
-  `tick={CHART_TICK_STYLE}` (`fontSize: 11`, `fontFamily: 'var(--font-geist-mono)'`, `fill: 'var(--muted-foreground)'`,
-  canonical copy in `costCenterStyles.ts`) on every axis; `<Legend>` needs a `wrapperStyle`.
-- **`<Legend content=>` needs a module-level component** — an inline arrow makes a new ref every render and the legend
-  flickers on unrelated state. `Legend` reads `<Bar fill>`, not `<Cell>`: always set `fill` on the `<Bar>`.
-  **`formatter`'s first param is `ValueType | undefined`** — never type it `number`.
-- **The legend is `SeriesLegend`, never Recharts' `<Legend>`** (`components/ui/series-legend.tsx`, 2026-09-20): `<Legend>` prints each label in its series colour — a chart slot as 11px TEXT measured 3,64 · 4,02 · 2,62:1 — and names its icons in English («… legend icon»). One entry per SERIES: a bar that turns red under the baseline is one entry with two swatches, not a fourth series. **One word, one colour per page**: a series named «Mercato» takes the slot «Mercato» has everywhere else on that page, whatever its position in the chart (`LaborMetricsChart` gave it `--chart-5` beside a Driver that paints it `--chart-1`); a reference series that is not a part of the total takes the neutral ink, dashed.
-- **Accessibility goes on the chart, not a wrapper**: Recharts 3.x already puts `tabIndex=0` + `role="application"` on its
-  `<svg>`, so pass `role="img"` + `aria-label` + `accessibilityLayer={false}` to the chart itself — and `role="img"` also
-  hides the `<Legend>`, so the label must carry the colour→name mapping.
-- **Never stack bands whose components can go NEGATIVE** — Recharts draws a negative segment downward, so the stack stops
-  meeting the total. The shape with no such failure mode is **one area under a line**, decomposition in the tooltip.
-  **100%-stacked composition: pre-normalise the rows, do NOT also use `stackOffset="expand"`.**
-- **A composition chart without `stackId` is not a bug you can see**: N `<Area>` elements with no `stackId` all render
-  from baseline 0, overpainting each other in declaration order, and the overlapping `fillOpacity` invents colours
-  that appear in no legend. **When the card says "composizione", grep the series for `stackId` before reading anything
-  else.**
-- **Normalise a 100% stack over what is actually DRAWN, never over a separately-sourced total.** The two disagree in
-  both directions (omitted series leave the stack short; a clamped subtraction can push the plotted sum ABOVE the
-  total), and `domain={[0,100]}` hides either. `historyComposition.ts` measures its residual against
-  `max(total, Σ plotted)` and names it as a band: *a stack that does not reach 100 reads as missing data, so it must
-  never be how rounding shows.*
-- **`fontSize` on `<Legend>` is silently dropped** — the legend renders as HTML, `DefaultLegendContentProps` does not
-  declare it, and it type-checks only because SVG presentation attributes are merged into the props type. Size the
-  legend through `wrapperStyle`.
-- **`interval="preserveStartEnd"` centres the last tick ON the plot's right edge**, so half the final label falls outside
-  the SVG unless `margin.right` reserves room. A negative `margin.left` clips the `100%` tick to `0%` — a **cropped number
-  reads as a wrong number**, which is worse than a missing one.
-- **Rolling charts always render**, with an inline empty-state message when data is insufficient, and time-bucketed data
-  belongs in a tested pure layer (`cashflowTimeSeries.ts`).
-- Server-cached chart data has colors baked into the React Query cache — **remap at render time for EVERY chart array**.
-  Positional remap (`chartColors[i]`) is only safe with no cross-page colour identity: asset-class data remaps via
-  `ASSET_CLASS_CHART_INDEX[d.assetClass]`.
+- **Import recharts from `@/components/ui/charts/recharts`, never from `'recharts'`** (2026-09-30): the one module of
+  real code that keeps the library in ONE chunk (§ Dynamic Imports); a primitive it lacks is added there.
+- **`useChartColors()` is mandatory for every series** — the theme's slots from `ChartColorsProvider` (read once per
+  theme in the dashboard layout since 2026-10-08, so a host renders once; its own read after paint without the
+  provider), `chartColors[0..4]` as props — **once per page or tile, never once per row** (2026-10-07): a list of small charts takes the palette as a
+  prop (`AssetSparkline`'s `colors`), as `useActionColors` does; a hook per row was a rAF and a `getComputedStyle` each.
+- **A series CAN drive the page, but no page does today**: `onMouseMove`'s `activeTooltipIndex` (a number OR a numeric
+  string in 3.x), lift the index's PERIOD, handlers only under `(pointer: fine)`, a pure module resolving the followers.
+  Storico's scrub was retired on 2026-09-13 (DESIGN.md → The Scrub Rule; the example is `git show 4b0a2dd`). A
+  hand-written SVG gliding between windows resamples the OLD series (`lib/hooks/useMorphingSeries.ts`).
+- **Never pass `useChartColors()` to a Nivo/react-spring component**: it cannot interpolate hex→oklch and throws. Sankey
+  colours are HEX — hardcoded, or a token resolved by `useCssColorTokens` + `lib/utils/cssColorToHex.ts` (taking
+  `enabled`) — doc/guide/cashflow-analisi.md.
+- **Three tooltip style props, none inherited**: `contentStyle`, `labelStyle`, `itemStyle` (without `itemStyle` the rows
+  are invisible on dark) — module-level `as const` objects on `var(--card)`/`var(--border)`/`var(--card-foreground)`.
+- **Axis ticks and legends are numbers: the Mono Mandate covers them, a Tailwind class cannot reach them** — `tick=
+  {CHART_TICK_STYLE}` (canonical in `costCenterStyles.ts`) on every axis; `<Legend>` needs `wrapperStyle`.
+- **`<Legend content=>` needs a module-level component** (an inline arrow flickers); `Legend` reads `<Bar fill>`, not
+  `<Cell>`; **`formatter`'s first param is `ValueType | undefined`**.
+- **The legend is `SeriesLegend`, never Recharts' `<Legend>`** (`components/ui/series-legend.tsx`, 2026-09-20): `<Legend>`
+  prints labels in the series colour (3,64 · 4,02 · 2,62:1 measured) and names icons in English. One entry per SERIES;
+  **one word, one colour per page** (a series named «Mercato» takes the slot «Mercato» has everywhere on that page); a
+  reference series that is not a part of the total takes the neutral ink, dashed.
+- **Accessibility goes on the chart, not a wrapper**: Recharts 3.x puts `tabIndex=0` + `role="application"` on its
+  `<svg>`, so pass `role="img"` + `aria-label` + `accessibilityLayer={false}`; `role="img"` hides the legend, so the label
+  carries the colour→name mapping.
+- **Never stack bands whose components can go NEGATIVE** (a negative segment draws downward): one area under a line,
+  the decomposition in the tooltip. **100%-stacked: pre-normalise the rows, no `stackOffset="expand"`**, normalised over
+  what is DRAWN (`historyComposition.ts` names the residual as a band — a stack short of 100 reads as missing data).
+  **A «composizione» chart without `stackId` overpaints itself**: grep the series for `stackId` first.
+- **`fontSize` on `<Legend>` is silently dropped** — size it through `wrapperStyle`. **`interval="preserveStartEnd"`
+  centres the last tick on the plot's edge** — reserve `margin.right`; a negative `margin.left` clips «100%» to «0%»,
+  and a cropped number reads as a wrong number.
+- **Rolling charts always render**, with an inline empty message; time-bucketed data lives in a tested pure layer
+  (`cashflowTimeSeries.ts`).
+- **Server-cached chart data has colours baked in — remap at render time for EVERY array**; positional remap is safe
+  only without cross-page identity: asset classes remap via `ASSET_CLASS_CHART_INDEX[d.assetClass]`.
 - A sticky `<thead>` needs a fully opaque token, never an alpha background.
 
 ### Navigation → `doc/guide/shell.md`
-- **The shell renders BEFORE Firebase Auth resolves** (2026-09-28): `app/dashboard/layout.tsx` keeps the skip link,
-  `AppSidebar`, `<main>` and `BottomNavigation` OUTSIDE `ProtectedRoute`, so every shell component runs on the server
-  and hydrates — nothing in it reads `window`/`document` during render, it accepts `user` null, and `main h1` still
-  means «the page has mounted». **`useMediaQuery` is `false` on the server and during hydration**: the shell's FIRST
-  frame is decided by CSS, never by that value. Pinned by `e2e/shell.boot.spec.ts` and `shell.boot.mobile.spec.ts`.
-- **`PageHeader` mounts its `actions` — and its `h1` — TWICE** (2026-09-18): take the pressed node from
-  `event.currentTarget`, never a `ref`; measure the copy with `offsetWidth > 0`; in a spec `main h1` needs
-  `.filter({ visible: true })` (2026-09-28, `e2e/shellBoot.ts`).
-- **A `PageTabs` panel names ITSELF** (2026-09-21): `id={pageTabPanelId(layoutId, value)}`, an `aria-label`,
-  `aria-labelledby={undefined}`, and `renderedPanels` on a page with lazily mounted panels (pinned by
-  `e2e/cashflow.split.spec.ts`). **An inactive `PageTabs` panel keeps its `div`, not its CONTENT** (2026-09-22): a spec
-  anchors on the OPENED panel.
-- **Single source for nav arrays**: `lib/constants/navigation.ts`, and **a route link in the shell is a `SceneLink`**
-  — a bare `<Link>` there navigates without the page scene (2026-09-12). **`PageContainer`** is the 1920px root of a
-  tile page (2026-09-06); its loading state is `TileGridSkeleton` with the page's own `cells`, at the same width.
-- Il resto — the `perf:budget` «testo» check, the shell's eyebrow (`TILE_EYEBROW_CLASS`), `PageHeader`'s compact
-  title, the icon rail's 44px geometry (`SIDEBAR_WIDTH_ICON`), `assistantNavItem`, `useSearchParams` behind
-  `<Suspense>`, the `/dashboard` active state, the portrait-only bottom nav and the FAB, and the page scene
-  (`template.tsx` standing down, `data-vt` scoping) — in `doc/guide/shell.md`.
+- **The shell renders BEFORE Firebase Auth resolves** (2026-09-28): skip link, sidebar, `<main>` and bottom nav sit
+  OUTSIDE `ProtectedRoute`, so nothing in them reads `window` during render and the first frame is decided by CSS —
+  `useMediaQuery` is `false` on the server and during hydration (`e2e/shell.boot{,.mobile}.spec.ts`).
+- **`PageHeader` mounts its `actions` and its `h1` TWICE** (2026-09-18): take the pressed node from
+  `event.currentTarget`, never a ref; in a spec `main h1` needs `.filter({ visible: true })`.
+- **Nav arrays have one source, `lib/constants/navigation.ts`, and a shell route link is a `SceneLink`** (2026-09-12);
+  `PageContainer` is the 1920px root of a tile page, its loading state `TileGridSkeleton` with the page's own cells.
+- Il resto — `PageTabs` panels that name themselves and keep their `div`, the icon rail's 44px geometry, the eyebrow,
+  the bottom nav and the FAB, the page scene and `data-vt` scoping — in `doc/guide/shell.md`.
 
 ### Hierarchy, Density and Disclosure
 > The visual rules themselves are DESIGN.md's; only the implementation traps live here.
@@ -705,6 +731,12 @@ file used to carry.
   so split the help copy (`hidden desktop:block` / `desktop:hidden`) and label each card's axes explicitly.
 - **Prefer rendering large local subtrees as pure render helpers or top-level components** — a nested JSX definition
   inside a page component means a simple row selection remounts the whole table. `cn` is NOT auto-imported in pages.
+  **The worked example is Impostazioni** (2026-10-08): one 4100-line component with 70 `useState`s re-ran
+  whole on every keystroke (286 components per key on the laptop, with the compiler on — it cannot split a
+  component); now the page is an orchestrator under 500 lines holding ONE `useReducer` draft, and each tab a
+  module-level CONTROLLED view of its slice (`slice` in, `onChange(patch)` out, no form state of its own because Radix
+  unmounts an inactive panel). A keystroke then re-renders that view and the page, never the other tabs
+  (`npm run perf:census -- --scenario=settings,allocation`; doc/guide/impostazioni.md).
 - **A radius on the element that carries a `divide-y` hairline bends the ends of the rule** (2026-09-18,
   `AssistantThreadList`): the `li` stays square, the hover/selected wash goes on an inner box.
 - **A tile's footer is ONE line; the method goes behind «Come si calcola»** (`components/ui/tile-method-note.tsx`, 2026-09-20): help printed on every tile at all times stops being read, and an 11px footnote at full tile width runs to 95–130 characters a line (the detector's `line-length`). The line that stays says what the figures ARE; name the trigger after its subject — a page carries several. **A list that must add up adds up ON SCREEN**: round every row to the printed unit and give the drift to the row that is a remainder by definition, or the reader who checks it finds a euro missing.
@@ -715,60 +747,51 @@ file used to carry.
   measured) — so the caption takes a second line (`line-clamp-2`).
 
 ### Accessibility
-- **`title` is not an accessible name** — VoiceOver on iOS ignores it and it never fires on touch. Use `aria-label` for
-  icon-only buttons and a Radix `<Popover>` for informational content. **A `title` added by a STATE CHANGE is never shown
-  at all** (the tooltip opens on pointer *enter*): put the consequence in visible copy.
+- **`title` is not an accessible name** (VoiceOver on iOS ignores it, touch never fires it): `aria-label` on icon-only
+  buttons, a Radix `<Popover>` for information; **a `title` added by a STATE CHANGE is never shown** — put the
+  consequence in visible copy.
 - **Touch targets ≥ 44×44px**: `h-8 w-8` in dense lists, `h-10 w-10` for primary and destructive actions (shadcn
-  `size="icon"` defaults to 36px). **Actions hidden with `opacity-0` are unreachable on keyboard AND invisible on
-  touch** — gate them behind `[@media(pointer:fine)]:` variants.
-- **A non-interactive element with `onClick` needs `role="button"`, `tabIndex={0}`, `aria-label`, an Enter/Space
-  `onKeyDown` and a focus ring — better still, use a native `<button>`.** **But an `aria-label` on a
-  `role="button"` REPLACES its contents** (2026-09-21, Allocazione's Per classe: «Espandi Azioni» on the row hid the
-  eight classes' percentages from a screen reader, on the tile that IS that page's data table). When the element's own
-  text is the information, it must BE the accessible name — the expand/collapse wording moves onto the chevron as
-  `sr-only` text. An `aria-label` is for a control whose content says nothing (an icon), never for one whose content
-  is the point.
-- **Tabs**: `role="tab"` + `aria-selected` inside a `role="tablist"` with an `aria-label`; for a real tab/panel
-  relationship also wire `id` + `aria-controls`. **A `SegmentedPill` that picks a VALUE the whole page reads (an axis
-  year, a period) is `semantics="radio"`** — a tablist with no tabpanel is a promise the DOM cannot keep; `tabs` only
-  where the pill switches a panel (2026-09-13, Previdenza and the Panoramica's sparkline period; 2026-09-14 the
-  Dividendi axis, which was a `SegmentedControl` with no arrows and 4,35:1 in light; the other pills stay `tabs`
-  until each is reviewed). The primitive's inactive label is `text-foreground/70`, not `text-muted-foreground`,
-  which is tuned against `--background` and measured 4,34:1 on the pill's `bg-muted` in light. An active state with
-  no tab in the tablist (a CUSTOM range) needs a `role="status" aria-live="polite"` `sr-only` description instead.
-  **A toggle that shows a panel needs `aria-expanded` and `aria-haspopup`**, plus a document-level Escape handler
-  added and removed inside `useEffect([isOpen])`.
-- **A tile's `ariaLabel` is its visible eyebrow, year included** (`Anno fiscale 2026`, never `Anno fiscale`): a name
-  shorter than the label is what a screen reader hears while a sighted reader sees more (WCAG 2.5.3) — Playwright
-  locates it with a regex, never by shaping the name around `exact: true`.
-- **`aria-live` regions**: streaming content needs `aria-live="polite" aria-atomic="false"` and an `aria-label`.
-  **Emptying a live region announces nothing** — a two-click confirm must announce the *disarm* explicitly.
-- **Data tables**: every `<thead>` `<th>` needs `scope="col"`, and row-header cells must be `<th scope="row">`.
-  **Calendar grids need explicit ARIA rows**: `role="grid"`, `role="row"` per week (the flat 42-cell array must be
-  sliced), `role="columnheader"`, `role="gridcell"` per date.
-- **Colour-swatch buttons**: never label a swatch with its hex (screen readers spell it out) nor, once theme-resolved,
-  with a hue name. Name the **position**: `Colore ${i+1} di ${n}` + `aria-pressed`. **`<Button asChild>` inside
-  `<Link>`**, never `<Button>`, which emits `<a><button>`.
-- **Two-click confirm: no timer, and not `onBlur` alone.** A 3-second auto-disarm is a WCAG 2.2.1 time limit, and Safari
-  does not focus a `<button>` on tap: use a document `pointerdown` listener with a `ref.contains(target)` guard, plus
-  Escape, plus `onBlur`. **Disarm BEFORE delegating** — on success the parent usually unmounts, so on failure nothing
-  resets the flag and the next single click fires the destructive action. **Inside a modal, Escape cannot be
-  intercepted from the button** (2026-08-31, seen in a browser): Radix's dismiss layer registers its document listener
-  when the dialog MOUNTS, ahead of any listener added at arm time — capture phase included, and `stopPropagation`
-  never reaches it — so the hook exports `hasArmedConfirm()` and `ResponsiveModal` calls `preventDefault()` in
-  `onEscapeKeyDown`. **The armed button stays a compact «Conferma» and the ROW prints the consequence** («eliminando,
-  il conto verrà riaccreditato», in the hint cell, `text-destructive`; owner's tour, 2026-09-13, `VersamentiTile`: a
-  sentence inside the button wraps in a 90px action column). **One live region per list, not per row** — a
-  `role="status"` per `DeleteButton` announces «Eliminazione annullata» on every Tab away from an armed button.
-- **A list of same-kind controls is ONE Tab stop** (`lib/hooks/useRovingFocus.ts`, 2026-09-20: 24 row checkboxes put «Dettaglio» ~55 Tabs from the top of Storico). Spread `containerProps` on the wrapper and `itemProps(i)` on each control (arrows, Home/End; the hook finds its items through `data-roving-item` and hands out no ref), and say it once in an `sr-only` hint the table is `aria-describedby`. **The dashboard's first Tab stop is «Vai al contenuto principale»** (`app/dashboard/layout.tsx` → `#page-main`, `tabIndex={-1}` on `<main>`), and **a tile's eyebrow is an `<h3>`** under the verdict's `<h2>` (`components/ui/tile.tsx`). A spec that starts a keyboard walk presses Tab right after the load — a click on `body` moves the sequential-focus start past the skip link.
-- **`desktop:h-7` is 28px — never for a target.** The idiom to copy is `h-11 → desktop:h-8` (44 → 32, the dense-list
-  floor above): `AsideToggle` since 2026-09-20, four Previdenza sites until 2026-09-13 shipped 28px. A 1440px tablet in
-  landscape reads the desktop layout by touch (CLAUDE.md → Known Issues).
-- **Form error text needs the sign token too**: `text-red-500` fails AA in both modes on a dialog surface AND diverges
-  from `--destructive` on the non-default themes (the last 76 retired by the dialog sweep of 2026-08-31); a FORM-level
-  failure belongs to the modal's reading line, not to a paragraph of its own.
-- **`PageTabBar` tabs carry `aria-label={label}` unconditionally** (closed 2026-08-22): below 1440px the inactive tabs are
-  icon-only, so without it they had no accessible name. Pass `ariaLabel` to `PageTabs` so the tablist is named too.
+  `size="icon"` is 36px). **A control that must stay small grows its HIT BOX, not its paint**: the `Switch` is 36×20 on
+  screen and 44×44 to the finger through a `before:absolute before:-inset-x-1 before:-inset-y-3` pseudo-element
+  (2026-10-08); `boundingBox()` cannot see it, so a spec proves it by `elementFromPoint` (`e2e/fire.spec.ts`). **Actions hidden with `opacity-0` are unreachable on keyboard AND invisible on touch** — gate
+  them behind `[@media(pointer:fine)]:`. **`desktop:h-7` is 28px — never a target**: copy `h-11 → desktop:h-8`
+  (`AsideToggle` since 2026-09-20; four Previdenza sites shipped 28px until 2026-09-13). A 1440px tablet in landscape
+  reads the desktop layout by touch (doc/guide/shell.md § Per-page blind spots).
+- **A non-interactive element with `onClick` needs `role="button"`, `tabIndex={0}`, `aria-label`, Enter/Space and a
+  focus ring — better, a native `<button>`. But an `aria-label` on a `role="button"` REPLACES its contents**
+  (2026-09-21, Allocazione's Per classe hid eight percentages): when the element's text is the information it IS the
+  name, and the expand wording moves onto the chevron as `sr-only` text.
+- **Tabs**: `role="tab"` + `aria-selected` in a named `role="tablist"`, `id` + `aria-controls` for a real panel. **A
+  `SegmentedPill` that picks a VALUE the page reads (a year, a period) is `semantics="radio"`** — a tablist with no
+  tabpanel is a promise the DOM cannot keep (2026-09-13 Previdenza and the Panoramica's period, 2026-09-14 Dividendi;
+  the others stay `tabs` until reviewed). Its inactive label is `text-foreground/70` (`text-muted-foreground` measured
+  4,34:1 on `bg-muted`); an active state with no tab (a CUSTOM range) needs an `sr-only` `role="status"` description.
+  **A toggle that shows a panel needs `aria-expanded` + `aria-haspopup`** and a document Escape handler inside
+  `useEffect([isOpen])`. **`PageTabBar` tabs carry `aria-label={label}` unconditionally** (2026-08-22: icon-only below
+  1440); pass `ariaLabel` to `PageTabs` so the tablist is named too.
+- **A tile's `ariaLabel` is its visible eyebrow, year included** (`Anno fiscale 2026`; WCAG 2.5.3) — Playwright
+  locates it with a regex.
+- **`aria-live` regions**: streaming content `aria-live="polite" aria-atomic="false"` + `aria-label`. **Emptying a live
+  region announces nothing** — a two-click confirm announces the *disarm* explicitly.
+- **Data tables**: every `<thead>` `<th>` has `scope="col"`, row headers are `<th scope="row">`. **Calendar grids need
+  explicit ARIA rows**: `role="grid"`, `role="row"` per week (slice the flat 42 cells), `role="columnheader"`,
+  `role="gridcell"`.
+- **Colour-swatch buttons**: never a hex nor a hue name — the **position**, `Colore ${i+1} di ${n}` + `aria-pressed`.
+  **`<Button asChild>` inside `<Link>`**, never `<Button>` (it emits `<a><button>`).
+- **Two-click confirm: no timer, and not `onBlur` alone** (a 3 s auto-disarm is a WCAG 2.2.1 time limit; Safari does
+  not focus a tapped `<button>`): a document `pointerdown` with a `ref.contains(target)` guard, Escape, `onBlur`.
+  **Disarm BEFORE delegating** (on failure nothing resets the flag). **Inside a modal Escape cannot be intercepted from
+  the button** (2026-08-31): Radix's dismiss layer listens from the dialog's MOUNT, so `useArmedDelete` exports
+  `hasArmedConfirm()` and `ResponsiveModal` calls `preventDefault()` in `onEscapeKeyDown`. **The armed button stays a
+  compact «Conferma» and the ROW prints the consequence** (2026-09-13, `VersamentiTile`, `text-destructive`). **One
+  live region per list, not per row.**
+- **A list of same-kind controls is ONE Tab stop** (`lib/hooks/useRovingFocus.ts`, 2026-09-20: 24 checkboxes put
+  «Dettaglio» ~55 Tabs down Storico): `containerProps` on the wrapper, `itemProps(i)` on each control (`data-roving-item`,
+  no ref), an `sr-only` hint the table is `aria-describedby`. **The dashboard's first Tab stop is «Vai al contenuto
+  principale»** (`#page-main`, `tabIndex={-1}` on `<main>`) and **a tile's eyebrow is an `<h3>`** under the verdict's
+  `<h2>` (`components/ui/tile.tsx`); a keyboard-walk spec presses Tab right after the load.
+- **Form error text needs the sign token too**: `text-red-500` fails AA on a dialog and diverges from `--destructive` on
+  the other themes (the last 76 retired 2026-08-31); a FORM-level failure belongs to the modal's reading line.
 
 ---
 
@@ -778,84 +801,71 @@ file used to carry.
 > guided-verification protocol — live in **WORKFLOW.md**.
 
 ### Commands
-- **Phantom `tsc` errors**: `papaparse` and `@playwright/test` are declared but can be missing from the (untracked,
-  branch-shared) `node_modules` — the tell is ~25 errors clustered in `e2e/` and `lib/utils/expenseImport.ts` rather
-  than in what you touched. Run `npm install` first.
-- **A dependency RANGE alone is changed by hand in both files** (2026-09-30): `npm install --package-lock-only`, asked to
-  sync one range the installed version already satisfied, rewrote 66 unrelated lines of the lock (the bundled
-  `@tailwindcss/oxide-wasm32-wasi` entries). Edit `package.json` and the lock's root entry, then read `git diff --stat`.
+- **Phantom errors after a branch switch are a stale `node_modules`** (untracked, branch-shared): ~25 `tsc` errors
+  clustered in `e2e/` and `lib/utils/expenseImport.ts` (`papaparse`, `@playwright/test` missing), or `next build`'s
+  «Failed to resolve package babel-plugin-react-compiler» (2026-10-07) — `npm install` first, then put back any lock
+  line npm rewrote for the platform (`fsevents`'s `dev`). **A dependency RANGE alone is changed by hand in both files**
+  (2026-09-30: `npm install --package-lock-only` rewrote 66 unrelated lock lines): `package.json` + the lock's root
+  entry, then `git diff --stat`.
 - `npm test -- <file>` / `npx vitest run <file>` for targeted tests; **`npx tsc --noEmit` before any PR**, re-run AFTER
-  writing the tests, not only after the code.
-- **Never `git checkout <file>` to undo ONE edit on uncommitted work** (2026-09-24): it restores the COMMITTED file and
-  silently throws away the whole session's rewrite of it (a dev server that no longer built and 17 Vitest reds before
-  anyone noticed). A falsification is undone with the same tool that made it (the one line back), and `tsc` runs again
-  before the next suite.
-- **`npm run lint` is at zero since 2026-09-06 and stays there**: a new `any` gets its real type, a new `eslint-disable`
-  is not written. A local named `module` is refused by `@next/next/no-assign-module-variable` (2026-09-28: four in one
-  session) — name it after what it holds (`profileModule`). The config ignores `.agents/**` (the plugin's vendored scripts) and the `.next-*/**` dist dirs — a
-  Playwright run used to leave ~170 generated-file findings behind.
+  writing the tests.
+- **Never `git checkout <file>` to undo ONE edit on uncommitted work** (2026-09-24): it restores the committed file and
+  throws away the session's rewrite of it. Undo a falsification with the tool that made it, then `tsc` again.
+- **`npm run lint` is at zero since 2026-09-06 and stays there**: a new `any` gets its real type, no new
+  `eslint-disable`; a local named `module` is refused by `@next/next/no-assign-module-variable` (2026-09-28) — name it
+  after what it holds. The config ignores `.agents/**` and the `.next-*/**` dist dirs.
 - **A heavy module graph is a FIXTURE**: hoist a slow `await import()` into `beforeAll` with an explicit timeout (after
-  checking nothing is read at module scope, or per-test `vi.resetModules()` was load-bearing). Inside a test body its
-  one-time cost lands on whichever case runs first, so the failure moves with the run order and reads as flakiness.
-- **Generated `.next*` type files that break `tsc`.** A failure only inside `.next/dev/types/validator.ts` (TS1109
-  "Expression expected") is a half-written generated file left by a dev server killed mid-write: delete that one file,
-  never the whole `.next` of a server someone else may be running. **A TS2307 «Cannot find module
-  '…/app/api/<route>/route.js'» in the `validator.ts` of EVERY `.next-*` dist** (2026-09-28) is the same file citing a
-  route the session deleted: delete those files, a dev server regenerates them. The Playwright server leaves the same
-  in `.next-e2e/dev/types/` (2026-09-20: `routes.d.ts` TS1434, then `validator.ts` missing `./routes.js` once it is
-  gone) — there the `types` directory goes whole: it is generated, and that server is the suite's alone.
-- **Git Bash on Windows, two traps.** It rewrites a command argument that starts with `//` into `/` (MSYS path
-  conversion): prefix the command with `MSYS_NO_PATHCONV=1`. **Its `sed -i` is not a falsification tool**
-  (2026-09-28): a pattern holding `€` matched nothing and exited 0 — the benchmark ran «broken» and stayed green,
-  which read as a detector that could not fail — and on a CRLF file an insert-then-delete left it LF. Swap text with a
-  node script that asserts exactly one match, and grep the line before trusting the run.
-- **A surface with no DOM is verified by RENDERING it** — `tsc` and Vitest see neither a dropped glyph nor an off-token
-  colour: the PDF through `renderToFile` under Vitest (every `scn` operand, the hex text runs), the emails in Chromium
-  at 390 / 600 / 1440; throwaway scripts run from INSIDE the repo, neither in the suite. **A render with hand-built
-  data proves the WORDS, not the data path** (2026-09-07): run `fetchPDFData` itself on the emulators. The recipe is
-  doc/guide/email-pdf.md § Verifying a surface with no DOM.
-- **A trial merge of an open PR runs in a worktree, never in the main checkout** (2026-09-07): fetch the head as
-  `refs/pr/<N>`, `git merge --no-commit --no-ff refs/pr/<N>`, then `tsc`, the area suites and eslint, then `git merge
-  --abort`. A worktree has no `node_modules`: a directory junction to the main one (`New-Item -ItemType Junction` in
-  PowerShell — `cmd //c mklink` is refused by the sandbox), removed with `rmdir`, which drops only the link. Two at a
-  time on 16 GB; a conflicting PR is judged on `git merge-tree --write-tree` and `git show <tree>:<path>`, never resolved
-  by guessing. **Never `git worktree remove --force` a worktree that held a junction or a build** (2026-09-30: after a
-  `.next-perf` build in a junction-backed worktree, the removal left the main `node_modules` EMPTY — `npm ci` rebuilt
-  it from the untouched lock): drop the junction, check its PATH no longer exists, delete the build by hand, remove the
-  worktree, then count `ls node_modules | wc -l`.
-- **Merging an accepted PR "with changes" means applying its diff to the working tree, not merging its commits**
-  (2026-09-07): `git diff base...head > pr.patch`, `git apply --reject`, the rejected hunk redone by hand, then the
-  session's own fixes on top — one commit, the author as `Co-authored-by`, the review's list of changes visible in the
-  same diff; the PR's own `CLAUDE.md` and draft hunks are never taken. **A contribution that lands while `doc/perf/`
-  or `doc/mobile/` are open** (2026-09-27) is also crossed with the open specs — for every file it touches, grep both
-  dossiers: a cited line that moves, a count that changes, a baseline that ages, a rule of the spec the new code should
-  already follow — and the specs are amended in the same commit. It lands BEFORE a spec that rewrites the same files
-  (the contributor is the one who would rebase), after it only when it depends on what that spec builds. Look first
-  for the five defects all three PRs of that day had: a sentence or a number born in a component; an overflow asserted
-  on `document` instead of `main`; an absence asserted with no positive anchor; a hook that runs with its feature off;
-  a write that does not invalidate the key its reader reads.
-- **Run the suite under `TZ=Europe/Rome` too.** Every date fixture is stamped at noon, twelve hours clear of the DST
-  edge, so a whole class of timezone bug is structurally invisible — while production dates are **local midnight** and
-  the pure layer runs in the user's browser. Compute day-of-year from calendar fields in UTC (`Date.UTC(y,m,d) -
-  Date.UTC(y,0,0)`) and add at least one fixture built the way the dialog builds one.
-- **The suites to run after a change are listed per area in each guide's § *Files*** («Suites to run after a change
-  here» — this section's table until 2026-09-30). Two crossings no guide owns: touching `types/assets.ts`'s `AssetType`
-  also means `assetDialogHelpers` + `allocationUtils` + the three ledger suites; widening `AssetClass` also means
-  `ASSET_CLASS_SEQUENCE` and everything reading it. **Perf tooling** (`perf/`, `scripts/perf*`): `perfBudget` (the
-  ceiling, the raised ceiling and `libraryCopies`), `perfRoutes` (`perf/routes.json` = `navigation.ts`: a new shell route goes in both)
-  · **Build** `npm run perf:budget` after `npm run build` — a route that grows raises its ceiling in the same commit
-  with `raisedBy` (`perf/README.md`).
-- **`firebase deploy --only firestore:rules` with a stale CLI login fails with a 401 on `serviceusage`**, not with
-  "please log in". Fix by the code flow: `npx firebase logout`, `npx firebase login --no-localhost`, open the URL of
-  THAT run, `npx firebase login <code>` (a code from an earlier run's URL is refused). Always `npx firebase`.
-- `npx knip` uses the root `knip.json`: `components/ui/**` and `public/sw.js` ignored, `firebase-tools` an ignored
-  dependency, `ignoreExportsUsedInFile: true` — remaining EXPORT_ONLY findings are deliberate prop surface.
+  checking nothing is read at module scope); inside a test its one-time cost lands on whichever case runs first.
+- **Generated `.next*` type files that break `tsc` or `next build` are deleted, never edited**: a TS1109 only in
+  `.next/dev/types/validator.ts` is a half-written file of a killed dev server (delete that file, not the dist dir); a
+  TS2307 on `…/app/api/<route>/route.js` in the `validator.ts` of every `.next-*` (2026-09-28), or in a production
+  build's `.next/types/` (2026-10-07, after PERF-09 removed `current-yield`), cites a route that no longer exists;
+  `.next-e2e/dev/types/` goes whole (2026-09-20) — it is the suite server's alone.
+- **Git Bash on Windows, two traps**: MSYS rewrites an argument starting with `//` or `/` (2026-10-04: `/api/cron/…`
+  became a Windows path) — prefix `MSYS_NO_PATHCONV=1`; **its `sed -i` is not a falsification tool** (2026-09-28: a
+  pattern with `€` matched nothing and exited 0, and a CRLF file came back LF) — swap text with a node script that
+  asserts exactly one match, and grep the line before trusting the run. A Markdown backtick inside a double-quoted
+  `node -e` is run by bash as a command (write the text through a file).
+- **A surface with no DOM is verified by RENDERING it** (the PDF through `renderToFile` under Vitest, the emails in
+  Chromium at 390 / 600 / 1440), and a render with hand-built data proves the WORDS, not the data path (2026-09-07: run
+  `fetchPDFData` itself on the emulators) — doc/guide/email-pdf.md § Verifying a surface with no DOM.
+- **A trial merge of an open PR runs in a worktree, never in the main checkout** (2026-09-07): fetch `refs/pr/<N>`,
+  `git merge --no-commit --no-ff`, `tsc` + area suites + eslint, `git merge --abort`. `node_modules` is a directory
+  junction on Windows (`New-Item -ItemType Junction`; `cmd //c mklink` is refused), a `cp -cR` clone on the Mac
+  (Turbopack refuses a symlink out of the root, 2026-10-04); two at a time on 16 GB; a conflict is judged on `git
+  merge-tree --write-tree`, never guessed. **Never `git worktree remove --force` a worktree that held a junction or a
+  build** (2026-09-30: it emptied the main `node_modules`): drop the junction, check the path is gone, delete the
+  build, remove the worktree, count `ls node_modules | wc -l`.
+- **An accepted PR merged "with changes" is its diff applied, not its commits** (2026-09-07): `git apply --reject` of
+  `base...head`, the session's fixes on top, one commit with the author as `Co-authored-by`, never the PR's own
+  `CLAUDE.md` and draft hunks. **While `doc/mobile/` is open** (2026-09-27; `doc/perf/` closed on 2026-10-08) it is crossed with the open
+  specs (a cited line that moves, a count, a baseline, a rule the new code should follow), the specs amended in the
+  same commit; it lands BEFORE a spec that rewrites the same files. Look first for the five defects of that day's three
+  PRs: a sentence or number born in a component, an overflow asserted on `document`, an absence with no positive
+  anchor, a hook running with its feature off, a write that does not invalidate its reader's key.
+- **Run the suite under `TZ=Europe/Rome` too**: every date fixture sits at noon, twelve hours clear of the DST edge,
+  while production dates are local midnight and the pure layer runs in the user's browser. Day-of-year from calendar
+  fields in UTC (`Date.UTC(y,m,d) - Date.UTC(y,0,0)`), and one fixture built the way the dialog builds one. **A fixture
+  that sits BESIDE midnight is named by the Italian clock** — `fromZonedTime('2026-07-31T23:59:00', 'Europe/Rome')`,
+  never `new Date(2026, 6, 31, 23, 59)`: the rule under test reads the Italian day, and the process-zone date is the
+  next day in Rome whenever the suite runs in UTC (four cases were red there until 2026-10-08; the suite is now green
+  under `TZ=UTC` as well, and stays so).
+- **The suites to run after a change are listed per area in each guide's § *Files*** (since 2026-09-30). Two crossings
+  no guide owns: `types/assets.ts`'s `AssetType` also means `assetDialogHelpers` + `allocationUtils` + the three ledger
+  suites; widening `AssetClass` means `ASSET_CLASS_SEQUENCE` and its readers. **Perf tooling**: `perfBudget`,
+  `perfRoutes` (`perf/routes.json` = `navigation.ts`); `npm run perf:budget` after `npm run build`, or `-- --dist=.next-perf`
+  after `perf:build` (2026-10-05: without it the script read a `.next` of 15/08 — its first line names the build); a
+  route that grows raises its ceiling with `raisedBy` in the same commit (`doc/guide/velocita.md`).
+- **`firebase deploy --only firestore:rules` with a stale login fails with a 401 on `serviceusage`**: `npx firebase
+  logout`, `npx firebase login --no-localhost`, open THAT run's URL, `npx firebase login <code>`. Always `npx firebase`.
+- `npx knip` uses the root `knip.json` (`components/ui/**` and `public/sw.js` ignored, `firebase-tools` an ignored
+  dependency, `ignoreExportsUsedInFile: true`): remaining EXPORT_ONLY findings are deliberate prop surface.
 - Emulators, Playwright, production-build verification and their environment traps: **SETUP.md → Steps 6-7**.
 
 ### Emulator Exercise Scripts → `doc/guide/e2e-emulatori.md`
 - A collection whose value is in the *wiring* gets an exercise: the unit suites mock Firestore away, so only an exercise
   covers the rules, real `Timestamp` values through `removeUndefinedDeep` and the real atomic transaction.
-- **A throwaway is an `.mts` FILE run from INSIDE the repo** (`scripts/*.tmp.mts`, untracked, deleted in phase F): a
+- **A throwaway is an `.mts` FILE run from INSIDE the repo** (`scripts/*.tmp.mts`, untracked, deleted in phase G): a
   `.ts` script is CJS under tsx with no top-level await, a bash heredoc dies on an apostrophe (2026-08-25), and from the
   session scratchpad `firebase-admin` fails with `ERR_MODULE_NOT_FOUND`. A throwaway Playwright spec lives in `e2e/`.
 - **Drive the mutations through the app's services** (client SDK, rule-evaluated), reads and fixture edits with the
@@ -898,6 +908,17 @@ file used to carry.
   the euro regex and U+202F, forcing a server flag on the response, the settings reload rule, the armed two-click
   confirm, the three tour-spec traps, Java ≥ 21 and foreign emulators on 8080/9099 — in `doc/guide/e2e-emulatori.md`.
 
+### Performance tooling → `doc/guide/velocita.md`
+- **Three tools, one port**: `npm run perf:budget` (JS per route against `perf/budget.json`, two seconds, no server),
+  `perf:bench` (cold / warm / revisit on the `.next-perf` build that `perf:serve` serves on :3200, mirror data) and
+  `perf:census` (React commits and components per keystroke, per tab change, per load, per navigation). Options ALWAYS
+  after `--`, and PowerShell 5.1 eats the `--`: use Git Bash.
+- **A ceiling only a measure may lower, and only a new feature may raise** — `raisedBy` on the route, the before/after
+  and a row in § Registro dei tetti alzati, in the same commit; `libraryCopies: { recharts: 1 }` is a rule, not a
+  measure. TIMES compare only on the same machine in the same session (±10%); COUNTS compare anywhere.
+- Il resto — every column, the baseline in force and the historical one of 2026-09-26, the before/after of every speed
+  session, the census scenarios, `--revisit` and what the tables do not say — in `doc/guide/velocita.md`.
+
 ---
 
 ## 6. Quick-Fix Reference
@@ -906,43 +927,32 @@ file used to carry.
   (`assetPricing.ts` is the worked example).
 
 ### Audit habits
-- **An `isError` branch above a service that never rejects is decoration**: a `catch` returning `[]`, `0` or a defaulted
-  object turns every failure into a truthful-looking answer (`getAnnualCashflowData` did until 2026-09-01). Read the
-  service before wiring a failure state.
-- **"Keep" verdicts need the same grep as "Delete" verdicts**, and **a doc comment naming a caller is a claim, not
-  evidence — grep it** and fix the comment in the same commit (page docstrings included). **Knip marks a dead chain's
-  intermediate links "live"** (the orphan still imports them) and **a function that always returns `[]` keeps its
-  downstream pipeline "live"**: trace inward, verify each link, delete the chain in ONE commit.
-- **A green check that has never been seen red asserts nothing** — including the check's own arithmetic (a magnitude
-  filter meant for axis ticks also drops a legitimate reading). Break the thing under test once. **When a
-  falsification stays GREEN, the test is the bug** — one of four, each met here:
-  - **Another line holds the property: find it and say so in the test**, or the next reader deletes it as dead code
-    and the test stays green through the regression (2026-09-21, three cases in one session: a sell that descends on
-    the uncapped gap reconciles anyway because `splitFromSurplus` re-caps at the capacity; a plan's `Math.max(0,
-    gainFraction)` is inert because `estimateSaleTax` already floors a loss; removing `itemProps` from `AsideToggle`
-    adds no Tab stops because the explicit `tabIndex` beside it holds them).
-  - **The ASSERTION can be the inert one** — suspect its ANCHOR before the code (2026-09-21, the monthly email's split
-    tile: `expect(html).toContain('1400')` passes whatever the amount cell says, because the caption two lines below
-    prints the same figure; it went red only once it read the `<td align="right">` cells).
-  - **The fixture can make a branch unreachable**: `allocateByShare`'s rounding correction cannot fire on two shares,
-    so a two-person fixture stayed green with the branch disabled.
-  - **A test can PIN the defect** (2026-09-07: `summarizeLaborMetrics` counted the baseline's own month and had no
-    right edge, and both were asserted as expected values). Put one row past every boundary the function is supposed
-    to have.
-- **A fire-and-forget whose `catch` only logs is verified by READING the document it should have written**
-  (2026-09-06, `e2e/performance.degraded.spec.ts` on `performance-cache/{uid}`): `writePerformanceCache` had failed on
-  every account with an `undefined` in its metrics (no drawdown, no dividend category — the client Firestore rejects
-  `undefined`), a browser `console.warn` its only trace. `removeUndefinedDeep` before every `setDoc`, like every other
-  write.
-- **A spec that edits a document another fixture also writes RESTORES what it read, never deletes** (2026-09-11,
-  `cashflow.owner.spec.ts` against the Previdenza seed's `familyMembers`) — the WHOLE document when a page save rewrites
-  it (2026-09-25: Impostazioni's «Salva» dropped the seed's sub-targets and Allocazione's spec went red a file later;
-  `e2e/cashflow.transfer-fee.spec.ts` restores it with `set()`); a fixture ISIN is one the account never
-  held, and a fixture date is UTC midnight like the form's, never local midnight. The three cases:
-  doc/guide/e2e-emulatori.md § Browser-Driven E2E (Playwright).
+- **An `isError` branch above a service that never rejects is decoration**: a `catch` returning `[]`, `0` or a default
+  turns every failure into a truthful-looking answer (`getAnnualCashflowData` until 2026-09-01). Read the service first.
+- **"Keep" verdicts need the same grep as "Delete" verdicts; a doc comment naming a caller is a claim — grep it** and
+  fix the comment in the same commit. Knip marks a dead chain's intermediate links "live", and a function that always
+  returns `[]` keeps its pipeline "live": trace inward, delete the chain in ONE commit.
+- **A green check never seen red asserts nothing** — the check's own arithmetic included. **When a falsification stays
+  GREEN, the test is the bug** — one of five, each met here:
+  - **another line holds the property**: name it in the test, or it is deleted as dead code (2026-09-21: the re-cap of
+    `splitFromSurplus`, `estimateSaleTax`'s floor, the explicit `tabIndex` beside `AsideToggle`'s `itemProps`);
+  - **a test added beside others is proven by a falsification that turns ONLY it red** (2026-09-28,
+    `__tests__/exposureEngine.test.ts`: the old identities measure the base with the engine's own filter);
+  - **the ASSERTION is the inert one** — suspect its anchor (2026-09-21, the monthly email: `toContain('1400')` matched
+    the caption, not the `<td align="right">` cell);
+  - **the fixture makes a branch unreachable** (`allocateByShare`'s rounding correction cannot fire on two shares);
+  - **the test PINS the defect** (2026-09-07, `summarizeLaborMetrics`'s baseline month and missing right edge asserted as
+    expected): put one row past every boundary the function should have.
+- **A fire-and-forget whose `catch` only logs is verified by READING the document it should have written** (2026-09-06,
+  `e2e/performance.degraded.spec.ts` on `performance-cache/{uid}`: an `undefined` in the metrics failed every write);
+  `removeUndefinedDeep` before every `setDoc`.
+- **A spec that edits a document another fixture writes RESTORES what it read, never deletes** (2026-09-11,
+  `cashflow.owner.spec.ts`) — the WHOLE document when a page save rewrites it (2026-09-25,
+  `e2e/cashflow.transfer-fee.spec.ts` with `set()`); a fixture ISIN is one the account never held; a fixture date is UTC
+  midnight like the form's — doc/guide/e2e-emulatori.md § Browser-Driven E2E (Playwright).
 - **An assertion of ABSENCE needs a positive anchor first**: `toHaveCount(0)` passes against a page that has not
-  rendered. Wait for something expected in both states (a `forceMount` panel: attached, not necessarily visible), then
-  assert the absence; a browser check that never saw the feature ON proves nothing about it OFF.
+  rendered — wait for something expected in both states, then assert the absence; a chunk held from the first
+  navigation keeps an absence at mount green whatever the page mounts (2026-10-07, `e2e/assets.rows.mobile.spec.ts`).
 
 ### Per-page blind spots
 The "looks like a bug, is not" behaviours live at the end of each `doc/guide/<page>.md` (*Per-page blind spots*,
@@ -951,7 +961,7 @@ CLAUDE.md keeps only the cross-cutting ones.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 

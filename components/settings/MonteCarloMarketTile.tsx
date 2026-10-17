@@ -31,7 +31,7 @@ import {
   type MonteCarloAnchors,
   type MonteCarloHedgeableClass,
 } from '@/lib/constants/monteCarloMarketDefaults';
-import { buildMarketNumbers, countEditedCorrelations, type MonteCarloMarketOverrides } from '@/lib/utils/monteCarloMarket';
+import { buildMarketNumbers, countEditedCorrelations, type MonteCarloMarketDraft, type MonteCarloMarketOverrides } from '@/lib/utils/monteCarloMarket';
 import { describeHedgeProposal, describeHedgeReading } from '@/lib/utils/settingsNarrative';
 import { proposedHedgeClasses } from '@/lib/utils/monteCarloHedgeShare';
 import { toLogNormal } from '@/lib/utils/monteCarloDraw';
@@ -45,15 +45,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 
-/** The draft the page edits: what the user typed (undefined field = the default in force) and the Oro sub-category (undefined = never chosen, the default rule applies). */
-export interface MonteCarloMarketDraft {
-  overrides: MonteCarloMarketOverrides;
-  goldSubCategory: string | null | undefined;
-  /** The 21 correlations (upper triangle), as typed; full precision after a correction. */
-  correlations: number[];
-  /** Percent added to the Liquidità return to price the leverage's debt (R4). */
-  leverageSpread: number;
-}
+export type { MonteCarloMarketDraft };
 
 interface MonteCarloMarketTileProps {
   reading: Narrative;

@@ -84,10 +84,8 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
       plan
         ? matchPlanExecutions(plan, transactionsQuery.data ?? [], today, transactionsQuery.isLoading)
         : { matches: [], lineStates: {} },
-    // `today` deliberately not a dependency: matching only needs day-level freshness when the plan
-    // or the ledger change (doc/pac-ate.md §5.9).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [plan, transactionsQuery.data, transactionsQuery.isLoading],
+    // `today` is day-stable (useOpenAccumuloPlan): matching needs day-level freshness (doc/pac-ate.md §5.9).
+    [plan, today, transactionsQuery.data, transactionsQuery.isLoading],
   );
 
   const isActive = plan?.status === 'active';
