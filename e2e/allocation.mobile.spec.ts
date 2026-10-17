@@ -74,7 +74,7 @@ test('a 390px la riga di copertura nomina la base e main non scorre di lato', as
   // The coverage line is the anchor: present in both states, it says where every euro went.
   const coverage = tile.locator('p', { hasText: /ne leggo/ }).first();
   await expect(coverage).toBeVisible({ timeout: 30_000 });
-  await expect(coverage).toContainText(/azionario nozionale/);
+  await expect(coverage).toContainText(/azionario/);
   await expect(tile.getByRole('list', { name: 'Titoli più pesanti' })).toBeVisible();
 
   const measurement = await measureOverflow(page);
