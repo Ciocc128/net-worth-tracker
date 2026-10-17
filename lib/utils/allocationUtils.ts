@@ -26,6 +26,7 @@ import type {
   AssetAllocationTarget,
   AssetClass,
 } from '@/types/assets';
+import { isLoanAsset } from '@/types/assets';
 import { getAssetDisplayTicker } from './assetDisplay';
 import { costBasisPerUnitEur } from './costBasisEur';
 
@@ -596,6 +597,9 @@ export function allocateContribution(
  * silently upgrade a legacy flag to `frozen`: that would move their numbers without them asking.
  */
 export function resolveAllocationRole(asset: Asset): AllocationRole {
+  // A loan is a liability stored as an asset (types/assets.ts → LOAN_ASSET_TYPE): never part of the portfolio the
+  // allocation, the FIRE capital, the optimizer and the plans read, whatever role a hand edit left on it.
+  if (isLoanAsset(asset)) return 'excluded';
   if (asset.allocationRole) return asset.allocationRole;
   return asset.excludeFromAllocation ? 'excluded' : 'tradable';
 }

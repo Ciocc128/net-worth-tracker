@@ -16,7 +16,7 @@ import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { useMortgageInstalments } from '@/lib/hooks/useMortgageInstalments';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { assetInsideShare, resolveDatedFlows, resolveGoalFlows, type ExcludedFlow, type MortgageFlowSource, type ResolvedFlow } from '@/lib/utils/datedFlows';
-import { mortgageFlowSchedule, summarizeMortgage } from '@/lib/utils/mortgageSummary';
+import { debtAssetIdsOf, resolvePropertyMortgages } from '@/lib/utils/fireMortgages';
 import type { DatedFlow } from '@/types/assets';
 
 /** A property with linked instalments, offered by «Collega un mutuo». */
@@ -54,22 +54,20 @@ export function useFireDatedFlows({ lockedAssetIds }: UseFireDatedFlowsOptions =
   const goalQuery = useGoalData(ownerId, { enabled: goalsEnabled });
   const { assumptions, isLoading: assumptionsLoading } = useFireAssumptions(lockedAssetIds);
   const legShare = assumptions?.legShare;
-  const propertyIds = useMemo(() => (assets ?? []).filter((asset) => asset.type === 'realestate' && asset.assetClass === 'realestate').map((asset) => asset.id), [assets]);
-  const instalmentsQuery = useMortgageInstalments(ownerId, propertyIds);
+  // The debts' ids are Patrimonio's own list (loans, and a property not yet migrated), so the query key is shared.
+  const debtIds = useMemo(() => debtAssetIdsOf(assets ?? []), [assets]);
+  const instalmentsQuery = useMortgageInstalments(ownerId, debtIds);
   const instalments = instalmentsQuery.data;
 
+  // The saved flow names the PROPERTY; its instalments hang from the loan that finances it since the debts became loans.
   const mortgages = useMemo<MortgageOption[]>(() => {
     if (!assets || !instalments) return [];
-    const now = new Date();
-    return assets
-      .filter((asset) => propertyIds.includes(asset.id))
-      .map((property) => ({ property, rows: instalments.filter((row) => row.debtAssetId === property.id) }))
-      .filter(({ rows }) => rows.length > 0)
-      .map(({ property, rows }) => {
-        const summary = summarizeMortgage(property, rows, now);
-        return { propertyId: property.id, propertyName: property.name, source: { propertyName: property.name, schedule: mortgageFlowSchedule(summary) } };
-      });
-  }, [assets, instalments, propertyIds]);
+    return resolvePropertyMortgages(assets, instalments, new Date()).map((mortgage) => ({
+      propertyId: mortgage.propertyId,
+      propertyName: mortgage.propertyName,
+      source: { propertyName: mortgage.propertyName, schedule: mortgage.schedule },
+    }));
+  }, [assets, instalments]);
 
   const savedFlows = settingsQuery.data?.fireDatedFlows;
   const userAge = settingsQuery.data?.userAge;

@@ -337,3 +337,31 @@ git fetch upstream main && git fetch origin main      # il clone del fork non de
 git merge-base origin/main upstream/main              # 8f243946
 git merge-tree --write-tree --name-only origin/main <commit upstream>   # conflitti senza scrivere nulla
 ```
+
+## 9. T4 — debiti come asset `loan` (fatta, da provare sul mirror)
+
+Merge di upstream fino a fdfeee0e (#446), quattro commit sopra il taglio di T3; conflitti in testo otto, risolti a mano:
+`AssetRow`/`StrumentiTile` (la chip dello zero dice «Estinto» per un prestito, altrimenti `describeZeroQuantityChip`),
+`growthDrivers` (il prestito salta il mercato, il resto dell'attribuzione del fork resta), `AssetDialog` (il campo AL6
+`currencyHedge` e il `stampDutyExempt` del prestito), `storico.md`, `CLAUDE.md`, `Draft Release Temp.md` (tenuto il lato del fork) e
+`exposureRequests.ts` (cancellato nel fork, resta cancellato).
+
+- **S2 — il mutuo dei Flussi nel tempo.** `lib/utils/fireMortgages.ts`: `resolvePropertyMortgages` cerca le rate sulle
+  passività di una proprietà (i prestiti con `financedAssetId` = proprietà, e la proprietà stessa finché non è migrata) e
+  restituisce un piano per `propertyId`; due prestiti sulla stessa casa si sommano. `useFireDatedFlows` lo usa, e
+  `debtAssetIdsOf` è l'elenco unico degli id letti (stessa chiave React Query della pagina Patrimonio). Il flusso salvato di
+  Giorgio, con `source.propertyId`, trova le stesse rate prima e dopo la migrazione (`__tests__/fireMortgages.test.ts`).
+- **Lettori del fork.** `resolveAllocationRole` legge un prestito sempre come `excluded` (anche se una modifica a mano gli
+  lascia `tradable`): `fireCapital`, `monteCarloWeights`, candidati dell'ottimizzatore, PAC, modello ed Esposizione passano
+  tutti da lì. Una proprietà lorda più il suo prestito (classe immobili, negativo) dà lo stesso «fuori dal capitale» e lo stesso
+  patrimonio netto del vecchio debito sulla proprietà (test). Gli Obiettivi non offrono un prestito nell'assegnazione.
+- **Tetti.** Sette route sopra il tetto di un KB o due (`perf/budget.json`, riga nel registro di `velocita.md`).
+- **Test.** `tsc` pulito, eslint 0 errori, Vitest 300 file / 6637 test verdi sotto `Europe/Rome` e `TZ=UTC`, `perf:build` +
+  `perf:budget` verde. **Non eseguiti nel cloud**: Playwright (`cashflow.mortgage`, `fork-features`, `assets.bond`, `cashflow.transfer-fee`)
+  e la prova sul mirror, sul Mac di Giorgio.
+- **Prova sul mirror (D-UP3), prima del merge.** Con gli emulatori su: (1) `npm run mirror:seed -- <email>` (lo lancia
+  Giorgio); (2) prima di aprire Patrimonio, annotare dalla FIRE «Il mio piano» › Flussi nel tempo il mutuo collegato (rata,
+  fine), il numero FIRE del Calcolatore e il patrimonio netto; (3) aprire Patrimonio sul branch: nasce un prestito «Mutuo
+  {casa}» e la casa torna lorda; (4) riaprire la FIRE: **stessa rata e stessa fine del mutuo, stesso numero FIRE, stesso
+  patrimonio netto**; (5) salvare il piano e ricaricare: il flusso resta collegato; (6) `npm run mirror:remove`.
+  Esito atteso: nessuna riga «mutuo scollegato» tra i flussi esclusi, e le cinque viste di Esposizione senza il prestito.

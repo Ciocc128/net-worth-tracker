@@ -10,7 +10,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Asset } from '@/types/assets';
+import { Asset, isLoanAsset } from '@/types/assets';
 import { GoalAssetAssignment } from '@/types/goals';
 import { getAvailablePercentage } from '@/lib/services/goalService';
 import { calculateAssetValue } from '@/lib/services/assetService';
@@ -59,11 +59,13 @@ export function AssetAssignmentDialog({
 
   const filteredAssets = useMemo(() => {
     const term = searchTerm.toLowerCase();
+    // A loan is a debt, not capital a goal can own.
     return assets.filter(
       (a) =>
-        a.name.toLowerCase().includes(term) ||
+        !isLoanAsset(a) &&
+        (a.name.toLowerCase().includes(term) ||
         a.ticker.toLowerCase().includes(term) ||
-        getAssetDisplayTicker(a).toLowerCase().includes(term)
+        getAssetDisplayTicker(a).toLowerCase().includes(term))
     );
   }, [assets, searchTerm]);
 
