@@ -172,6 +172,42 @@ export function resolveSankeyHeight(counts: SankeyLayerCounts): number {
   return Math.min(MAX_HEIGHT, Math.max(BASE_HEIGHT, widest * ROW_PX + 80));
 }
 
+/** The thin chart's floor, and the pitch of one two-line label in its widest column. */
+const THIN_MIN_HEIGHT = 520;
+const THIN_ROW_PX = 44;
+
+/** Nodes in the most crowded column, by each node's depth from the sources (d3-sankey's `start` alignment). */
+function widestColumn(view: SankeyView): number {
+  const incoming = new Map<string, string[]>();
+  for (const link of view.links) incoming.set(link.target, [...(incoming.get(link.target) ?? []), link.source]);
+  const depth = new Map<string, number>();
+  const depthOf = (id: string, seen = new Set<string>()): number => {
+    const known = depth.get(id);
+    if (known !== undefined) return known;
+    if (seen.has(id)) return 0;
+    seen.add(id);
+    const parents = incoming.get(id) ?? [];
+    const d = parents.length === 0 ? 0 : 1 + Math.max(...parents.map((p) => depthOf(p, seen)));
+    depth.set(id, d);
+    return d;
+  };
+  const perColumn = new Map<number, number>();
+  for (const node of view.nodes) {
+    const d = depthOf(node.id);
+    perColumn.set(d, (perColumn.get(d) ?? 0) + 1);
+  }
+  return Math.max(1, ...perColumn.values());
+}
+
+/**
+ * The thin chart's plot height: its floor, the view's own height, or the widest column's label pitch.
+ * Pure and here, not in the chart's module, so FlussoTile can hold the lazy chart's box open with the
+ * SAME figure without importing the chunk (e2e/bundle.lazy.spec.ts: the placeholder is the plot's height).
+ */
+export function resolveThinSankeyHeight(view: SankeyView, height: number): number {
+  return Math.max(THIN_MIN_HEIGHT, height, widestColumn(view) * THIN_ROW_PX + 48);
+}
+
 // ── Public shapes ────────────────────────────────────────────────────────────
 
 export interface SankeyNode {

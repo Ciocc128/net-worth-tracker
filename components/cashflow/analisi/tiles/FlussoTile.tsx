@@ -15,6 +15,7 @@ import {
   DEFAULT_SPENDING_ROLE_PALETTE,
   MAX_SUBCATEGORY_CATEGORIES,
   resolveSankeyHeight,
+  resolveThinSankeyHeight,
   TYPE_COLORS,
   type FlowGrouping,
   type SankeyNodeDescriptor,
@@ -306,7 +307,7 @@ export function FlussoTile({ expenses, isMobile, reading, flow, spendingRoles, s
       ) : (
         view && (
           // The plot's own height, before the chunk: the Skeleton fills it and the chart replaces it in place.
-          <div className="mt-3 flex flex-col" style={{ minHeight: view.nodes.length > 0 && view.links.length > 0 ? height : undefined }}>
+          <div className="mt-3 flex flex-col" style={{ minHeight: view.nodes.length > 0 && view.links.length > 0 ? resolveThinSankeyHeight(view, height) : undefined }}>
             <CashflowSankeyChart
               view={view}
               viewKey={viewKey}
