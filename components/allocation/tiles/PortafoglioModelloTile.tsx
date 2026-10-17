@@ -13,6 +13,7 @@
  * `AccumulationPlanDialog` so two modals are never stacked. No calculation and no network call before
  * the reader asks.
  */
+import { runGuarded } from '@/lib/utils/runGuarded';
 import { Fragment, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -140,32 +141,38 @@ export function PortafoglioModelloTile({
       toast.error(MODEL_NO_TRADABLE_INSTRUMENTS);
       return;
     }
-    try {
-      await saveModel.mutateAsync({
-        input: { weights: fit.portfolioWeights, origin: 'manual', optimizerSnapshot: plan.optimizerSnapshot },
-        allAssets,
-      });
-      toast.success(MODEL_SAVED_TOAST);
-      if (fit.excluded.length > 0) toast.info(describeModelExclusions(fit.excluded, labelOf));
-    } catch (error) {
-      toast.error(describeWriteError(error));
-    }
+    await runGuarded(
+      async () => {
+        await saveModel.mutateAsync({
+          input: { weights: fit.portfolioWeights, origin: 'manual', optimizerSnapshot: plan.optimizerSnapshot },
+          allAssets,
+        });
+        toast.success(MODEL_SAVED_TOAST);
+        if (fit.excluded.length > 0) toast.info(describeModelExclusions(fit.excluded, labelOf));
+      },
+      (error) => {
+        toast.error(describeWriteError(error));
+      },
+    );
   };
 
   const handleCandidateCreated = async (assetId: string) => {
     setView('closed');
     onAssetsChanged();
     if (!model) return;
-    try {
-      // The page has not re-read the assets yet: validate against the new one explicitly.
-      const created = await getAssetById(assetId);
-      await saveModel.mutateAsync({
-        input: { weights: addModelCandidate(model.weights, assetId), origin: model.origin, optimizerSnapshot: model.optimizerSnapshot },
-        allAssets: created ? [...allAssets.filter((asset) => asset.id !== created.id), created] : allAssets,
-      });
-    } catch (error) {
-      toast.error(describeWriteError(error));
-    }
+    await runGuarded(
+      async () => {
+        // The page has not re-read the assets yet: validate against the new one explicitly.
+        const created = await getAssetById(assetId);
+        await saveModel.mutateAsync({
+          input: { weights: addModelCandidate(model.weights, assetId), origin: model.origin, optimizerSnapshot: model.optimizerSnapshot },
+          allAssets: created ? [...allAssets.filter((asset) => asset.id !== created.id), created] : allAssets,
+        });
+      },
+      (error) => {
+        toast.error(describeWriteError(error));
+      },
+    );
   };
 
   return (

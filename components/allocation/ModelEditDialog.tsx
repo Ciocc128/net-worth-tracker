@@ -7,6 +7,7 @@
  * 0 shares) can be taken out of the model here, which never deletes the asset (RM3). Saves with
  * `origin: 'manual'`; the optimizer snapshot stays — it documents the starting point, as in the PAC.
  */
+import { runGuarded } from '@/lib/utils/runGuarded';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import type { Asset } from '@/types/assets';
@@ -83,20 +84,23 @@ export function ModelEditDialog({ open, onClose, ownerId, model, allAssets, labe
       targetPercentage: parseWeight(row.text),
       ...(row.candidate ? { candidate: true } : {}),
     }));
-    try {
-      await saveModel.mutateAsync({
-        input: {
-          weights: clearHeldCandidates(weights, assetsById, (asset) => asset.quantity),
-          origin: 'manual',
-          optimizerSnapshot: model?.optimizerSnapshot,
-        },
-        allAssets,
-      });
-      toast.success(MODEL_SAVED_TOAST);
-      onClose();
-    } catch (error) {
-      toast.error(describeWriteError(error));
-    }
+    await runGuarded(
+      async () => {
+        await saveModel.mutateAsync({
+          input: {
+            weights: clearHeldCandidates(weights, assetsById, (asset) => asset.quantity),
+            origin: 'manual',
+            optimizerSnapshot: model?.optimizerSnapshot,
+          },
+          allAssets,
+        });
+        toast.success(MODEL_SAVED_TOAST);
+        onClose();
+      },
+      (error) => {
+        toast.error(describeWriteError(error));
+      },
+    );
   };
 
   return (

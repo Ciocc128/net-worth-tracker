@@ -7,8 +7,8 @@
 Compiled on 2026-09-30, when § Navigation and two § Motion bullets moved here from `AGENTS.md`: only the files the
 rules below name.
 
-- **Layout and scene**: `app/dashboard/layout.tsx`, `app/dashboard/template.tsx`, `lib/hooks/useSceneNavigation.ts`,
-  `lib/utils/viewTransition.ts`, the `::view-transition-*` rules in `app/globals.css`, `next.config.ts`
+- **Layout and scene**: `app/dashboard/layout.tsx` (`<main>` = `page-main`), `app/dashboard/template.tsx`,
+  `lib/hooks/useSceneNavigation.ts`, `lib/utils/viewTransition.ts`, `lib/utils/themeTransition.ts`, the `::view-transition-*` rules in `app/globals.css`, `next.config.ts`
 - **Navigation**: `lib/constants/navigation.ts` (`assistantNavItem`), `components/layout/SceneLink.tsx`,
   `components/layout/{Sidebar,BottomNavigation,SecondaryMenuDrawer}.tsx` (`AppSidebar`, `NavItems`, `AddExpenseFab`),
   `components/ui/sidebar.tsx` (`SIDEBAR_WIDTH_ICON`, `sidebarMenuButtonVariants`)
@@ -75,7 +75,18 @@ rules below name.
 - **A shell component that reads `useSearchParams` puts it in a child rendered inside `<Suspense>`** (`AddExpenseFab` in
   `BottomNavigation`): the layout is a `'use client'` component that is
   still prerendered — the shell is in the HTML since 2026-09-28 — and the hook bails static rendering out without a
-  boundary.
+  boundary. **A PAGE under `ProtectedRoute` needs no boundary** (verified 2026-10-08, Impostazioni and Cashflow read
+  `useSearchParams` at their root and `/dashboard/settings` is in the prerender manifest): on the server `loading` is
+  always true, so `ProtectedRoute` renders only its fallback and the page function never runs at prerender — the rule
+  above is for what sits OUTSIDE it.
+- **The bottom nav's layout animations run only where it is visible** (2026-10-08): it stays mounted at every
+  width (it is in the prerendered shell), but `layout` on the `motion.nav` and the active pill's `layoutId` follow
+  `useMediaQuery('(max-width: 1439px) and (orientation: portrait)')` — the complement of its `desktop:hidden
+  max-desktop:landscape:hidden` classes, `PILL_VISIBLE_QUERY` beside them. The `motion.nav` carries a `key` on that
+  value: a `layout` turned on after mount never animates (the query is `true` only after hydration), and the pill used
+  to JUMP aside when the «+» appeared. Pinned by `e2e/motion.layout{,.mobile}.spec.ts` (0 measures at 1440, a glide at
+  390). In dev the page scene freezes rendering while the route compiles, so the glide is asserted without view
+  transitions.
 - **Sidebar active state for `/dashboard` must be `pathname === item.href`**, never `startsWith`. **Bottom nav is
   portrait-only**, so an in-page button duplicating the FAB must be hidden **only in portrait** — in landscape the FAB
   is gone and it is the only add affordance.
@@ -95,9 +106,21 @@ rules below name.
   circle-clip used to be global and would have clipped every navigation. **A `view-transition-name` must be unique among
   the RENDERED elements of a page**, or the browser skips the whole transition (the update still applies, silently):
   `page-verdict` lives on `PageVerdict` and on the skeleton's verdict block (never both mounted), `page-header` on
-  `PageHeader`, `page-main` on the layout's `<main>`; a `forceMount` tab panel is `display: none` and does not count.
-  Do not name the tile grid — several pages render more than one.
+  `PageHeader`, `page-main` on the layout's `<main>`, `bottom-nav` on the phone pill's fixed container; a `forceMount`
+  tab panel is `display: none` and does not count. Do not name the tile grid — several pages render more than one.
+- **A named element leaves `root` for EVERY view transition, not only its own scene** (2026-10-08, found on the
+  owner's tour; both defects dated from 2026-09-12). Two consequences, both pinned by `e2e/motion.layout{,.mobile}.spec.ts`
+  and seen red: (1) the theme's circle is drawn on `::view-transition-new(root)`, so with the page scene's names on
+  it revealed only the sidebar while the page cross-faded — `html[data-vt="theme"] *` switches every name off for the
+  theme scene (`globals.css`; `data-vt` is stamped before `startViewTransition`); (2) a named region paints in a layer
+  ABOVE `root`, so on a phone `page-main` covered the fixed bottom pill for the whole page scene (it faded under the
+  figures and popped back at the end) — the pill's container has its own name, later in paint order than `<main>`,
+  with no animation in the page scene. A new fixed piece of shell over `<main>` needs the same.
 
 ## Per-page blind spots
 
-None recorded for the shell alone; the two shell-wide open items (the icon rail's 44px targets measured only at 1440 with a mouse, `PageTabBar` and `Switch` below 44px on touch) are in `CLAUDE.md` → Known Issues.
+- **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
+  (moved from `CLAUDE.md` → Known Issues on 2026-10-07)
+
+The one shell-wide open item that crosses every page (`PageTabBar` and `Switch` below 44px on touch) stays in
+`CLAUDE.md` → Known Issues.

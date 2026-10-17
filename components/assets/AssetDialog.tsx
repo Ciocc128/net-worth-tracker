@@ -36,7 +36,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { Timestamp } from 'firebase/firestore';
-import { useForm, useFieldArray, useWatch, type FieldErrors } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch, type Control, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
@@ -441,6 +441,10 @@ interface AssetDialogProps {
    * (2026-09-14). Ignored in edit mode.
    */
   initialType?: AssetType;
+  /** The control that opened the dialog: the focus goes back to it on close (`ResponsiveModal`). */
+  returnFocusTo?: React.RefObject<HTMLElement | null>;
+  /** The exit animation is over: a host that mounts the dialog only while open unmounts it here. */
+  onExitComplete?: () => void;
   /** Create the asset at quantity 0 with no opening trade (Accumulo → Nuovo asset). */
   createEmpty?: boolean;
   /** Called with the new asset id after a successful create. */
@@ -530,7 +534,162 @@ const assetClasses: { value: AssetClass; label: string }[] = [
   { value: 'carry', label: 'Carry' },
 ];
 
-export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType, createEmpty, onCreated }: AssetDialogProps) {
+/*
+ * The fields typed key by key, watched WHERE they are read (since 2026-10-07). With their
+ * `useWatch` at the dialog's root, every key in «Quantità» re-rendered the whole form — 562
+ * components per key on the census, two commits each, with the React Compiler on: the compiler
+ * compiles `AssetDialog` but leaves the step-2 form outside every memo scope, so nothing under the
+ * root was skipped. Each preview or notice below is the only reader of its fields and subscribes to
+ * them itself; the root keeps the watches that decide the form's SHAPE (type, class, the toggles,
+ * the selects — one change per click) and the ISIN, which turns every bond label to «% del
+ * nominale». `useWatch` for the render, `getValues` in the handlers, never `watch()` (AGENTS.md
+ * § Dialog Form Reset).
+ */
+type AssetFormControl = Control<AssetFormValues>;
+
+/** The scaling of a typed bond quote, from the three fields that decide it, watched here. */
+function useBondQuoteBasis(control: AssetFormControl, knownCoefficient: number | undefined): BondQuoteBasis {
+  const bondNominalValue = useWatch({ control, name: 'bondNominalValue' });
+  const bondInflationIndexation = useWatch({ control, name: 'bondInflationIndexation' });
+  const bondIndexationCoefficient = useWatch({ control, name: 'bondIndexationCoefficient' });
+  return bondQuoteBasisOf({ bondNominalValue, bondInflationIndexation, bondIndexationCoefficient }, knownCoefficient);
+}
+
+/**
+ * Edit mode, a non-ledger asset: a quantity moved by hand is capital in or out of the portfolio,
+ * which the performance metrics only see through a cashflow entry.
+ */
+function QuantityChangeNotice({ control, previousQuantity }: { control: AssetFormControl; previousQuantity: number }) {
+  const quantity = useWatch({ control, name: 'quantity' }) ?? 0;
+  if (quantity > previousQuantity) {
+    return (
+      <p className="text-xs text-warning-foreground">
+        Hai investito nuovo capitale? Se i fondi provengono dall&apos;esterno del portafoglio tracciato, registra un&apos;entrata nel cashflow per mantenere le metriche di performance accurate.
+      </p>
+    );
+  }
+  if (quantity < previousQuantity) {
+    return (
+      <p className="text-xs text-warning-foreground">
+        Hai venduto questo asset? Se il ricavato è uscito dal portafoglio tracciato, registra un&apos;uscita nel cashflow per mantenere le metriche di performance accurate.
+      </p>
+    );
+  }
+  return null;
+}
+
+/** «≈ 0,9950 € per unità» under a purchase price typed as a Borsa Italiana quote. */
+function BondPurchasePricePreview({
+  control,
+  knownCoefficient,
+  isEuroIndexed,
+}: {
+  control: AssetFormControl;
+  knownCoefficient: number | undefined;
+  isEuroIndexed: boolean;
+}) {
+  const biPrice = useWatch({ control, name: 'averageCost' });
+  const bondQuoteBasis = useBondQuoteBasis(control, knownCoefficient);
+  if (!biPrice || isNaN(biPrice)) return null;
+  const eurVal = resolveBondPrice(biPrice, bondQuoteBasis, true);
+  return (
+    <p className="text-xs font-medium text-primary">
+      ≈ {formatNumberIt(eurVal, 4)} € per unità
+      {isEuroIndexed ? ' (al coefficiente di indicizzazione inserito sotto)' : ''}
+    </p>
+  );
+}
+
+/** The euro value of a sample quote with the nominal (and coefficient) typed so far — inline text. */
+function BondQuoteInEuro({ control, knownCoefficient, quote }: { control: AssetFormControl; knownCoefficient: number | undefined; quote: number }) {
+  const bondQuoteBasis = useBondQuoteBasis(control, knownCoefficient);
+  return <>{formatNumberIt(resolveBondPrice(quote, bondQuoteBasis, true), 4)}</>;
+}
+
+/**
+ * Dynamic coupon preview based on current form values. The nominal defaults to 1 € exactly as the
+ * saved bond will (effectiveBondNominal), so the preview and the first materialised coupon agree.
+ * A rate of 0 is a zero coupon: no preview.
+ */
+function CouponPreview({
+  control,
+  couponFrequency,
+  inflationIndexation,
+  isEuroIndexed,
+  currency,
+}: {
+  control: AssetFormControl;
+  couponFrequency: CouponFrequency | undefined;
+  inflationIndexation: AssetFormValues['bondInflationIndexation'];
+  isEuroIndexed: boolean;
+  currency: string;
+}) {
+  const rate = useWatch({ control, name: 'bondCouponRate' });
+  const nominal = effectiveBondNominal(useWatch({ control, name: 'bondNominalValue' }));
+  const qty = useWatch({ control, name: 'quantity' });
+  const typedCoefficient = useWatch({ control, name: 'bondIndexationCoefficient' });
+  const periodsMap: Record<string, number> = { monthly: 12, quarterly: 4, semiannual: 2, annual: 1 };
+  const periods = couponFrequency ? periodsMap[couponFrequency] : null;
+  if (rate && !isNaN(rate) && periods && qty > 0) {
+    const coefficient = isEuroIndexed && typedCoefficient && !isNaN(typedCoefficient) && typedCoefficient > 0
+      ? typedCoefficient
+      : 1;
+    const perShare = (rate / 100 / periods) * nominal * coefficient;
+    const total = perShare * qty;
+    const label = inflationIndexation === 'italia'
+      ? 'Cedola minima (solo fisso)'
+      : isEuroIndexed
+        ? `Cedola stimata (al coefficiente ${formatNumberIt(coefficient, 5)})`
+        : 'Cedola stimata';
+    return (
+      <p className="text-xs text-primary font-medium">
+        → {label}: {formatNumberIt(perShare, 4)} {currency}/unità × {formatNumberIt(qty, 0)} = {formatNumberIt(total)} {currency} per pagamento
+        {inflationIndexation === 'italia' && (
+          <span className="block font-normal text-muted-foreground">La componente inflazione FOI si aggiunge a ogni periodo (inserita dalla tab Dividendi).</span>
+        )}
+        {isEuroIndexed && (
+          <span className="block font-normal text-muted-foreground">Ogni cedola usa il coefficiente alla sua data di stacco (inserito dalla tab Dividendi).</span>
+        )}
+      </p>
+    );
+  }
+  return (
+    <div className="text-xs text-muted-foreground space-y-1">
+      <p>Valore facciale di una unità nella tua valuta: decide cosa conta la quantità.</p>
+      <p>• Quantità = nominale in euro, come sull&apos;estratto del broker (5.000 € di BTP → quantità 5000) → <strong>lascia vuoto</strong></p>
+      <p>• Quantità = lotti da 1.000 € (5 lotti → quantità 5) → inserisci <strong>1000</strong></p>
+    </div>
+  );
+}
+
+/** The final premium a bond pays at maturity, on the quantity typed so far. */
+function FinalPremiumPreview({ control, currency }: { control: AssetFormControl; currency: string }) {
+  const premRate = useWatch({ control, name: 'bondFinalPremiumRate' });
+  const nominal = effectiveBondNominal(useWatch({ control, name: 'bondNominalValue' }));
+  const qty = useWatch({ control, name: 'quantity' });
+  if (premRate && !isNaN(premRate) && qty > 0) {
+    const perShare = (premRate / 100) * nominal;
+    const total = perShare * qty;
+    return (
+      <p className="text-xs text-primary font-medium">
+        → Premio stimato: {formatNumberIt(perShare, 4)} {currency}/unità × {formatNumberIt(qty, 0)} = {formatNumberIt(total)} {currency} alla scadenza
+      </p>
+    );
+  }
+  return (
+    <p className="text-xs text-muted-foreground">
+      Bonus una-tantum pagato alla scadenza (es. 0.8% per BTP Valore)
+    </p>
+  );
+}
+
+/** When the opening purchase settles on its account, from the date typed. */
+function SettlementTimingHint({ control, todayIso }: { control: AssetFormControl; todayIso: string }) {
+  const openingDate = useWatch({ control, name: 'openingDate' });
+  return <p className="text-xs text-muted-foreground">{describeSettlementTiming(openingDate ?? '', todayIso)}</p>;
+}
+
+export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType, returnFocusTo, onExitComplete, createEmpty, onCreated }: AssetDialogProps) {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const queryClient = useQueryClient();
@@ -605,23 +764,16 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
   const watchIsLiquid = useWatch({ control, name: 'isLiquid' });
   const watchAutoUpdatePrice = useWatch({ control, name: 'autoUpdatePrice' });
   const watchIsComposite = useWatch({ control, name: 'isComposite' });
-  const watchQuantity = useWatch({ control, name: 'quantity' });
   const watchCurrency = useWatch({ control, name: 'currency' });
   const watchIsin = useWatch({ control, name: 'isin' });
-  const watchBondNominalValue = useWatch({ control, name: 'bondNominalValue' });
-  const watchBondCouponRate = useWatch({ control, name: 'bondCouponRate' });
   const watchBondCouponFrequency = useWatch({ control, name: 'bondCouponFrequency' });
-  const watchBondFinalPremiumRate = useWatch({ control, name: 'bondFinalPremiumRate' });
   const watchBondInflationIndexation = useWatch({ control, name: 'bondInflationIndexation' });
-  const watchBondIndexationCoefficient = useWatch({ control, name: 'bondIndexationCoefficient' });
-  const watchAverageCost = useWatch({ control, name: 'averageCost' });
   const watchIsPrimaryResidence = useWatch({ control, name: 'isPrimaryResidence' });
   const watchAllocationRole = useWatch({ control, name: 'allocationRole' });
   const watchStampDutyExempt = useWatch({ control, name: 'stampDutyExempt' });
   const watchCurrencyHedge = useWatch({ control, name: 'currencyHedge' });
   const watchOpeningCashAssetId = useWatch({ control, name: 'openingCashAssetId' });
   const watchDividendCashAssetId = useWatch({ control, name: 'dividendCashAssetId' });
-  const watchOpeningDate = useWatch({ control, name: 'openingDate' });
   const watchPensionFamilyMemberId = useWatch({ control, name: 'pensionFamilyMemberId' });
 
   // Ledger gating (Phase C):
@@ -654,14 +806,6 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
     asset?.bondDetails && resolveInflationIndexation(asset.bondDetails) === 'euro'
       ? (latestIndexationCoefficient(asset.bondDetails.indexationCoefficients, new Date()) ?? undefined)
       : undefined;
-  const bondQuoteBasis = bondQuoteBasisOf(
-    {
-      bondNominalValue: watchBondNominalValue,
-      bondInflationIndexation: watchBondInflationIndexation,
-      bondIndexationCoefficient: watchBondIndexationCoefficient,
-    },
-    knownCoefficient
-  );
 
   // Field visibility based on asset type — applies to both create and edit modes.
   const newAsset_showTicker = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund';
@@ -759,7 +903,10 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
   // touched flags, the section toggles, the composition and the calculator. Re-running on every
   // open is what makes a second "new asset" start clean — `asset` stays null between opens.
   // The form itself is reset in the effect further down: `reset`, `setValue` and `replaceTiers`
-  // are not state setters.
+  // are not state setters. Patrimonio mounts this dialog only while it is open, where a
+  // `useState(asset ? 2 : 1)` initializer would be right too; the reset stays here anyway, because
+  // it is the one way that also holds for a host that keeps the dialog mounted (AGENTS.md § Two-Step
+  // Create Dialogs), and two ways to open a dialog are one too many.
   const [openSubject, setOpenSubject] = useState<{ open: boolean; asset: Asset | null | undefined } | null>(null);
   if (!openSubject || openSubject.open !== open || openSubject.asset !== asset) {
     setOpenSubject({ open, asset });
@@ -978,9 +1125,9 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
     } catch (error) {
       console.error('Error adding subcategory:', error);
       toast.error(describeWriteError(error));
-    } finally {
-      setIsAddingSubCategory(false);
     }
+    // After the try/catch, not in a `finally`: the React Compiler cannot lower try/finally.
+    setIsAddingSubCategory(false);
   };
 
   const addCompositionEntry = () => {
@@ -1109,7 +1256,11 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
       return;
     }
 
-    try {
+    // The save lives in a nested function so the try below wraps ONE await: the React Compiler
+    // cannot lower try/finally, nor conditionals/logicals inside a try block. An early `return`
+    // here leaves `save`, and `setFetchingPrice(false)` after the try/catch still runs, as the
+    // `finally` did.
+    const save = async () => {
       setFetchingPrice(true);
 
       // Bonds with ISIN use Borsa Italiana pricing (% of par convention).
@@ -1280,12 +1431,15 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
       }
 
       onClose();
+    };
+
+    try {
+      await save();
     } catch (error) {
       console.error('Error saving asset:', error);
       setStatus({ phase: 'error', message: describeWriteError(error) });
-    } finally {
-      setFetchingPrice(false);
     }
+    setFetchingPrice(false);
   };
 
   // taxRate is asset metadata, not a ledger concept: the trade ledger derives quantity/PMC from
@@ -1340,6 +1494,8 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
     <ResponsiveModal
       open={open}
       onClose={onClose}
+      returnFocusTo={returnFocusTo}
+      onExitComplete={onExitComplete}
       eyebrow={
         isTypePicker
           ? 'Patrimonio · Passo 1 di 2'
@@ -1729,15 +1885,8 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
               )}
               {/* Show hint only in edit mode — in create mode there's no previous quantity to compare.
                   Quantity changes represent capital flowing in/out of the portfolio. */}
-              {isEdit && asset && selectedAssetClass !== 'cash' && (watchQuantity ?? 0) > (asset.quantity ?? 0) && (
-                <p className="text-xs text-warning-foreground">
-                  Hai investito nuovo capitale? Se i fondi provengono dall&apos;esterno del portafoglio tracciato, registra un&apos;entrata nel cashflow per mantenere le metriche di performance accurate.
-                </p>
-              )}
-              {isEdit && asset && selectedAssetClass !== 'cash' && (watchQuantity ?? 0) < (asset.quantity ?? 0) && (
-                <p className="text-xs text-warning-foreground">
-                  Hai venduto questo asset? Se il ricavato è uscito dal portafoglio tracciato, registra un&apos;uscita nel cashflow per mantenere le metriche di performance accurate.
-                </p>
+              {isEdit && asset && selectedAssetClass !== 'cash' && (
+                <QuantityChangeNotice control={control} previousQuantity={asset.quantity ?? 0} />
               )}
             </div>
             )}
@@ -1835,17 +1984,9 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                       {errors.averageCost && (
                         <p className="text-sm text-destructive">{errors.averageCost.message}</p>
                       )}
-                      {isBondPctMode && (() => {
-                        const biPrice = watchAverageCost;
-                        if (!biPrice || isNaN(biPrice)) return null;
-                        const eurVal = resolveBondPrice(biPrice, bondQuoteBasis, true);
-                        return (
-                          <p className="text-xs font-medium text-primary">
-                            ≈ {formatNumberIt(eurVal, 4)} € per unità
-                            {isEuroIndexed ? ' (al coefficiente di indicizzazione inserito sotto)' : ''}
-                          </p>
-                        );
-                      })()}
+                      {isBondPctMode && (
+                        <BondPurchasePricePreview control={control} knownCoefficient={knownCoefficient} isEuroIndexed={isEuroIndexed} />
+                      )}
                     </div>
                   </div>
 
@@ -1877,9 +2018,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">
-                        {describeSettlementTiming(watchOpeningDate ?? '', todayIso)}
-                      </p>
+                      <SettlementTimingHint control={control} todayIso={todayIso} />
                     </div>
                   </div>
                 </>
@@ -2432,47 +2571,13 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                     {errors.bondNominalValue && (
                       <p className="text-sm text-destructive">{errors.bondNominalValue.message}</p>
                     )}
-                    {/* Dynamic coupon preview based on current form values. The nominal defaults to 1 €
-                        exactly as the saved bond will (effectiveBondNominal), so the preview and the
-                        first materialised coupon agree. A rate of 0 is a zero coupon: no preview. */}
-                    {(() => {
-                      const rate = watchBondCouponRate;
-                      const freq = watchBondCouponFrequency;
-                      const nominal = effectiveBondNominal(watchBondNominalValue);
-                      const qty = watchQuantity;
-                      const periodsMap: Record<string, number> = { monthly: 12, quarterly: 4, semiannual: 2, annual: 1 };
-                      const periods = freq ? periodsMap[freq] : null;
-                      if (rate && !isNaN(rate) && periods && qty > 0) {
-                        const coefficient = isEuroIndexed && watchBondIndexationCoefficient && !isNaN(watchBondIndexationCoefficient) && watchBondIndexationCoefficient > 0
-                          ? watchBondIndexationCoefficient
-                          : 1;
-                        const perShare = (rate / 100 / periods) * nominal * coefficient;
-                        const total = perShare * qty;
-                        const label = watchBondInflationIndexation === 'italia'
-                          ? 'Cedola minima (solo fisso)'
-                          : isEuroIndexed
-                            ? `Cedola stimata (al coefficiente ${formatNumberIt(coefficient, 5)})`
-                            : 'Cedola stimata';
-                        return (
-                          <p className="text-xs text-primary font-medium">
-                            → {label}: {formatNumberIt(perShare, 4)} {watchCurrency}/unità × {formatNumberIt(qty, 0)} = {formatNumberIt(total)} {watchCurrency} per pagamento
-                            {watchBondInflationIndexation === 'italia' && (
-                              <span className="block font-normal text-muted-foreground">La componente inflazione FOI si aggiunge a ogni periodo (inserita dalla tab Dividendi).</span>
-                            )}
-                            {isEuroIndexed && (
-                              <span className="block font-normal text-muted-foreground">Ogni cedola usa il coefficiente alla sua data di stacco (inserito dalla tab Dividendi).</span>
-                            )}
-                          </p>
-                        );
-                      }
-                      return (
-                        <div className="text-xs text-muted-foreground space-y-1">
-                          <p>Valore facciale di una unità nella tua valuta: decide cosa conta la quantità.</p>
-                          <p>• Quantità = nominale in euro, come sull&apos;estratto del broker (5.000 € di BTP → quantità 5000) → <strong>lascia vuoto</strong></p>
-                          <p>• Quantità = lotti da 1.000 € (5 lotti → quantità 5) → inserisci <strong>1000</strong></p>
-                        </div>
-                      );
-                    })()}
+                    <CouponPreview
+                      control={control}
+                      couponFrequency={watchBondCouponFrequency}
+                      inflationIndexation={watchBondInflationIndexation}
+                      isEuroIndexed={isEuroIndexed}
+                      currency={watchCurrency}
+                    />
                   </div>
 
                   {/* Step-Up Coupon Rate Schedule */}
@@ -2578,25 +2683,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                     {errors.bondFinalPremiumRate && (
                       <p className="text-sm text-destructive">{errors.bondFinalPremiumRate.message}</p>
                     )}
-                    {(() => {
-                      const premRate = watchBondFinalPremiumRate;
-                      const nominal = effectiveBondNominal(watchBondNominalValue);
-                      const qty = watchQuantity;
-                      if (premRate && !isNaN(premRate) && qty > 0) {
-                        const perShare = (premRate / 100) * nominal;
-                        const total = perShare * qty;
-                        return (
-                          <p className="text-xs text-primary font-medium">
-                            → Premio stimato: {formatNumberIt(perShare, 4)} {watchCurrency}/unità × {formatNumberIt(qty, 0)} = {formatNumberIt(total)} {watchCurrency} alla scadenza
-                          </p>
-                        );
-                      }
-                      return (
-                        <p className="text-xs text-muted-foreground">
-                          Bonus una-tantum pagato alla scadenza (es. 0.8% per BTP Valore)
-                        </p>
-                      );
-                    })()}
+                    <FinalPremiumPreview control={control} currency={watchCurrency} />
                   </div>
                 </div>
               )}
@@ -2668,17 +2755,9 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                         ? 'Inserire il prezzo di acquisto come riportato su Borsa Italiana (per 100€ di nominale).'
                         : 'Il costo medio di acquisto per singola azione/unità'}
                     </p>
-                    {isBondPctMode && (() => {
-                      const biPrice = watchAverageCost;
-                      if (!biPrice || isNaN(biPrice)) return null;
-                      const eurVal = resolveBondPrice(biPrice, bondQuoteBasis, true);
-                      return (
-                        <p className="text-xs font-medium text-primary">
-                          ≈ {formatNumberIt(eurVal, 4)} € per unità
-                          {isEuroIndexed ? ' (al coefficiente di indicizzazione inserito sotto)' : ''}
-                        </p>
-                      );
-                    })()}
+                    {isBondPctMode && (
+                      <BondPurchasePricePreview control={control} knownCoefficient={knownCoefficient} isEuroIndexed={isEuroIndexed} />
+                    )}
 
                   </div>
                   {renderTaxRateField()}
@@ -2900,9 +2979,16 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                 <p className="text-sm text-destructive">{errors.manualPrice.message}</p>
               )}
               <p className="text-xs text-muted-foreground">
-                {isBondPctMode
-                  ? `Inserire come % del nominale, come su Borsa Italiana (es. 104.20 → ${formatNumberIt(resolveBondPrice(104.2, bondQuoteBasis, true), 4)} € per unità con il nominale indicato sotto${isEuroIndexed ? ' e il coefficiente di indicizzazione' : ''}). Lascia vuoto per recupero automatico da ${priceSource}.`
-                  : `Se inserisci un prezzo manuale, questo verrà utilizzato al posto del recupero automatico da ${priceSource}.`}
+                {isBondPctMode ? (
+                  <>
+                    Inserire come % del nominale, come su Borsa Italiana (es. 104.20 →{' '}
+                    <BondQuoteInEuro control={control} knownCoefficient={knownCoefficient} quote={104.2} /> € per unità con il
+                    nominale indicato sotto{isEuroIndexed ? ' e il coefficiente di indicizzazione' : ''}). Lascia vuoto per recupero
+                    automatico da {priceSource}.
+                  </>
+                ) : (
+                  `Se inserisci un prezzo manuale, questo verrà utilizzato al posto del recupero automatico da ${priceSource}.`
+                )}
               </p>
             </div>
           )}

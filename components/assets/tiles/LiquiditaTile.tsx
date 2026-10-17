@@ -11,8 +11,9 @@ interface LiquiditaTileProps {
   summary: CashAccountsSummary;
   /** The account rows' assets, by id — a row opens the account's detail dialog. */
   accountsById: Map<string, Asset>;
-  onSelect: (asset: Asset) => void;
-  onAdd: () => void;
+  /** `opener` is the control pressed: the page hands the focus back to it when the dialog closes. */
+  onSelect: (asset: Asset, opener: HTMLElement) => void;
+  onAdd: (opener: HTMLElement) => void;
   /** Mutations are gated in demo mode, like everywhere else. */
   isDemo: boolean;
   className?: string;
@@ -55,8 +56,8 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
                 <button
                   key={account.id}
                   type="button"
-                  onClick={() => asset && onSelect(asset)}
-                  className="flex items-center gap-3 py-[9px] text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={(event) => asset && onSelect(asset, event.currentTarget)}
+                  className="-mx-2 flex items-center gap-3 rounded-md px-2 py-[9px] text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label={`${account.name}, ${cachedFormatCurrencyEUR(account.balance)}${account.shareOfCash === null ? ', debito' : ''}`}
                 >
                   <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{account.name}</span>
@@ -76,7 +77,7 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
         {accounts.length > 0 && 'Un conto si apre sul suo dettaglio · '}
         <button
           type="button"
-          onClick={onAdd}
+          onClick={(event) => onAdd(event.currentTarget)}
           disabled={isDemo}
           title={isDemo ? 'Non disponibile in modalità demo' : undefined}
           className={cn(TILE_FOOTER_ACTION_CLASS, 'disabled:opacity-50')}

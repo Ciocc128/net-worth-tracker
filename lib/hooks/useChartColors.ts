@@ -1,10 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useTheme } from 'next-themes';
-import { useColorTheme } from '@/contexts/ColorThemeContext';
-import { CHART_COLORS } from '@/lib/constants/colors';
-import { colorLightness } from '@/lib/utils/colorLightness';
+import { useSharedThemePalette } from '@/contexts/ChartColorsContext';
+import { useThemePaletteReader } from '@/lib/hooks/useThemePaletteReader';
 
 /**
  * Returns a 10-color palette that respects the active color theme.
@@ -21,45 +18,13 @@ import { colorLightness } from '@/lib/utils/colorLightness';
  * trendFollowing 6 and carry 7, and on the default theme the static teal at index 6
  * measured ΔE00 0.87 from --chart-2 — not "close to" Obbligazioni, the same colour.
  *
- * Uses useEffect + requestAnimationFrame to read CSS vars AFTER the browser
- * has recalculated styles following a theme change. useMemo would read them
- * synchronously during the render, before next-themes has finished applying
- * the new .dark class — causing stale colors on dark↔light transitions.
+ * Read from `ChartColorsProvider` (the dashboard layout reads the theme once, since 2026-10-08),
+ * so a host renders once instead of twice. Without the provider (the landing) the hook
+ * reads the theme itself, after paint — the timing and the luminance filter are in
+ * `useThemePaletteReader` and `lib/utils/themePalette.ts`.
  */
 export function useChartColors(): string[] {
-  const { colorTheme } = useColorTheme();
-  const { resolvedTheme } = useTheme();
-  const [colors, setColors] = useState<string[]>(CHART_COLORS);
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      const style = getComputedStyle(document.documentElement);
-      const isDark = resolvedTheme === 'dark';
-
-      const themePalette = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) =>
-        style.getPropertyValue(`--chart-${n}`).trim()
-      );
-
-      const resolved = themePalette.map((color, i) => {
-        if (!color) return CHART_COLORS[i];
-        // Some tweakcn themes define chart colors with extreme luminance that
-        // disappears against the page background (e.g. Caffeine chart-2/3 are
-        // oklch(0.93) — nearly white — making them invisible in light mode).
-        // Parse the L channel and fall back to the static palette if the color
-        // would lack contrast in the current mode. The served CSS is down-levelled to #hex /
-        // lab(), so an oklch-only parse (what this used to be) never guarded anything.
-        const l = colorLightness(color);
-        if (l !== null) {
-          if (!isDark && l > 0.82) return CHART_COLORS[i]; // too light for light bg
-          if (isDark && l < 0.30) return CHART_COLORS[i];  // too dark for dark bg
-        }
-        return color;
-      });
-
-      setColors([...resolved, ...CHART_COLORS.slice(9, 10)]);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [colorTheme, resolvedTheme]);
-
-  return colors;
+  const shared = useSharedThemePalette();
+  const local = useThemePaletteReader(shared === null);
+  return (shared ?? local).chartColors;
 }

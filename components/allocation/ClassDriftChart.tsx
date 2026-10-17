@@ -63,6 +63,14 @@ function signedAxisLabel(value: number): string {
   return `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value)}`;
 }
 
+/** The drift axis: the band and every drift, widened to whole points (module level — the React Compiler cannot lower `Math.ceil(Math.max(...spread))` inside the component). */
+function driftExtent(drifts: number[], bandPp: number): { lo: number; hi: number } {
+  return {
+    lo: Math.floor(Math.min(-bandPp, ...drifts, 0) - 1),
+    hi: Math.ceil(Math.max(bandPp, ...drifts, 0) + 1),
+  };
+}
+
 export function ClassDriftChart({ points, band, height = 160, className, selectedIndex, onSelect }: ClassDriftChartProps) {
   const chartColors = useChartColors();
   const colorOf = (assetClass: AssetClass): string => {
@@ -109,8 +117,7 @@ export function ClassDriftChart({ points, band, height = 160, className, selecte
     classes.map((assetClass) => point.byClass[assetClass]?.driftPp).filter((v): v is number => v !== undefined),
   );
   const bandPp = bandInfo?.pp ?? 0;
-  const lo = Math.floor(Math.min(-bandPp, ...allDrifts, 0) - 1);
-  const hi = Math.ceil(Math.max(bandPp, ...allDrifts, 0) + 1);
+  const { lo, hi } = driftExtent(allDrifts, bandPp);
   const sx = (i: number) => PAD_L + (points.length > 1 ? ((VIEW_W - PAD_L - PAD_R) * i) / (points.length - 1) : (VIEW_W - PAD_L - PAD_R) / 2);
   const sy = (v: number) => PAD_T + ((viewH - PAD_T - PAD_B) * (hi - v)) / (hi - lo);
   const gridStep = hi - lo > 12 ? 4 : 2;
@@ -119,9 +126,7 @@ export function ClassDriftChart({ points, band, height = 160, className, selecte
 
   // «oggi» sits on the last measured point when the plan also has a forecast after it.
   let todayPosition = -1;
-  points.forEach((point, i) => {
-    if (point.source === 'measured') todayPosition = i;
-  });
+  for (let i = 0; i < points.length; i++) if (points[i].source === 'measured') todayPosition = i;
   const hasProjected = points.some((point) => point.source !== 'measured');
   const showToday = hasProjected && todayPosition > 0;
   const hasMeasuredSegment = points.some((point, i) => i > 0 && point.source === 'measured');

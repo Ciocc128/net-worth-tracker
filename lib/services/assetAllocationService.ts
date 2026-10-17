@@ -4,14 +4,21 @@ import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOver
 import { Asset, AssetAllocationTarget, AssetAllocationSettings, IdealAllocationSettings } from '@/types/assets';
 import { calculateAssetValue, calculateTotalValue } from './assetService';
 import { monteCarloMarketForMergeWrite } from '@/lib/utils/monteCarloMarket';
+import { calculateFormulaEquityPercentage } from '@/lib/utils/equityBondsAutoTargets';
 
 const ALLOCATION_TARGETS_COLLECTION = 'assetAllocationTargets';
 
+// WARNING: every settings field the overview payload reads (dashboardOverviewService.ts →
+// buildLiveOverviewPayload) belongs here — a summary stays fresh for the whole Italian day, so a
+// field missing from this list leaves the Panoramica on the old value for hours.
+// `pensionReturnStartMonth` is cleared by sending the key with no value, so it counts by presence.
 function settingsAffectDashboardOverview(settings: AssetAllocationSettings): boolean {
   return (
     settings.stampDutyEnabled !== undefined ||
     settings.stampDutyRate !== undefined ||
-    settings.checkingAccountSubCategory !== undefined
+    settings.checkingAccountSubCategory !== undefined ||
+    settings.goalBasedInvestingEnabled !== undefined ||
+    'pensionReturnStartMonth' in settings
   );
 }
 
@@ -772,15 +779,14 @@ export function calculateCurrentAllocation(assets: Asset[]): {
 
 /**
  * Calculate equity percentage based on age and risk-free rate
- * Formula: 125 - age - (riskFreeRate * 5)
+ * Formula: 125 - age - (riskFreeRate * 5) — the pure rule lives in
+ * `lib/utils/equityBondsAutoTargets.ts`, where the settings draft settles the pair (2026-10-08).
  */
 export function calculateEquityPercentage(
   userAge: number,
   riskFreeRate: number
 ): number {
-  const percentage = 125 - userAge - (riskFreeRate * 5);
-  // Ensure percentage is between 0 and 100
-  return Math.max(0, Math.min(100, percentage));
+  return calculateFormulaEquityPercentage(userAge, riskFreeRate);
 }
 
 /**

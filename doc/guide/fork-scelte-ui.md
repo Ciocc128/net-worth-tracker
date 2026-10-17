@@ -12,7 +12,7 @@ merged into `main` with PR #3; fourth upstream merge (#364–#378) on `merge/ups
 no fork-side conflict in code) on `merge/upstream-2026-09-25`; seventh (#394–#395, the «Mutuo» tile on Patrimonio —
 no fork-side conflict in code) on `merge/upstream-2026-09-25b`; eighth (#391, #398 perf dossier, #399 v10.0.0) on
 `merge/upstream-2026-09-26`; ninth (#404 mobile dossier, #405/#406 — upstream's integration of the fork's #400, #401,
-#403 with changes, PERF-00 from #402, Divisione's common income) on `merge/upstream-2026-09-27`; tenth, stage T1 (#407–#408, PERF-00, to `0c96b3bd`) on `claude/impl-t1-upstream-esposizione-5qu0x8`; stage T2 (#409–#422, PERF-01…06, to `a19a9fca`) on `claude/impl-t2-upstream-cache-j3ahvz`.
+#403 with changes, PERF-00 from #402, Divisione's common income) on `merge/upstream-2026-09-27`; tenth, stage T1 (#407–#408, PERF-00, to `0c96b3bd`) on `claude/impl-t1-upstream-esposizione-5qu0x8`; stage T2 (#409–#422, PERF-01…06, to `a19a9fca`) on `claude/impl-t2-upstream-cache-j3ahvz`; stage T3 (#423–#443, PERF-07…14, to `22020f2b`) on `claude/impl-t3-upstream-compiler-boumzw`.
 
 ---
 
@@ -54,6 +54,7 @@ Keep these on every merge; each one conflicted, or will conflict, with an upstre
 | **Money-in / money-out colours in the lazy cashflow charts** | `AndamentoStoricoCharts`, `ConfrontoAnnualeCharts`, `SavingsRateLineChart` colour bars and lines from `useChartColors()` slots | The same three files take `--flow-in` / `--flow-out` (and the neutral baseline year): the PERF-04 split moved the chart bodies out of the sections, so the fork's tokens live in the new files and the sections pass no `colors` for them | `components/cashflow/{AndamentoStoricoCharts,ConfrontoAnnualeCharts,SavingsRateLineChart}.tsx` |
 | **Shared hooks and keys for the fork's FIRE and Accumulo readers** | Pages read through `useAssets` / `useSettings` / `useGoalData` and the expenses by window | Every fork hook sits on the same keys (`useFireSettings`, `useFirePlanDraft`, `useFireAssumptions`, `useFireDatedFlows`, `useWhatIfBaseline`, the FIRE tabs, `ObiettiviDialog`); the Cashflow's yearly figures are `useAnnualCashflow` (the recent expenses window, in memory); `accumulationPlans` and `modelPortfolio` keep their own keys and are NOT persisted. `lime-frost` is in `COLOR_THEMES` | `lib/hooks/useAnnualCashflow.ts`, `lib/constants/colorTheme.ts`, `lib/query/queryKeys.ts` |
 | **Solo-fork features** (older) | absent | Esposizione a cinque viste, leveraged ETF + Trend/Carry, CSV import, ticker alias, first-trade guard | see CLAUDE.md |
+| **Impostazioni › Simulazioni** | Six controlled views over one reducer draft (`settingsDraft`); no market assumptions, no IRPEF brackets | A SEVENTH view with its own slice (market draft, brackets, R5 corrections); a clean «Salva» CARRIES `monteCarloMarket`, `fireDatedFlows`, `fireEmergencyFund`, `idealAllocation` through from the document read just before, and never writes `userAge` | `lib/utils/settingsDraft.ts`, `components/settings/tabs/SimulazioniTab.tsx`, `__tests__/{settingsDraft,settingsRoundTrip}.test.ts` |
 
 Accepted from upstream as is: the light chart palette re-pitch, `RankedRows` 42% label column and share column that
 yields under 250px, `SegmentedPill` 70% inactive label and scroll, Budget's booked-vs-scheduled split, the Sankey's

@@ -10,6 +10,7 @@
  *             is a merge write, so every other setting stays as it is (settingsRoundTrip, PT7).
  * The draft never leaks out: closing the modal drops it.
  */
+import { runGuarded } from '@/lib/utils/runGuarded';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -135,18 +136,20 @@ export function ObiettiviDialog({ open, onClose, ownerId, allAssets, targets, ta
       return;
     }
     setSaving(true);
-    try {
-      // No `targets` in the payload: the merge write touches `idealAllocation` and nothing else.
-      await setSettings(ownerId, { idealAllocation: draft } as AssetAllocationSettings);
-      toast.success(OBJECTIVES_SAVED_TOAST);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.settings.all(ownerId) });
-      onSaved();
-      onClose();
-    } catch (error) {
-      toast.error(describeWriteError(error));
-    } finally {
-      setSaving(false);
-    }
+    await runGuarded(
+      async () => {
+        // No `targets` in the payload: the merge write touches `idealAllocation` and nothing else.
+        await setSettings(ownerId, { idealAllocation: draft } as AssetAllocationSettings);
+        toast.success(OBJECTIVES_SAVED_TOAST);
+        await queryClient.invalidateQueries({ queryKey: queryKeys.settings.all(ownerId) });
+        onSaved();
+        onClose();
+      },
+      (error) => {
+        toast.error(describeWriteError(error));
+      },
+      () => setSaving(false),
+    );
   };
 
   return (

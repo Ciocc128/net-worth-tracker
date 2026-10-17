@@ -10,20 +10,26 @@
  * Surface → { provider, model } (2026-09-28, doc/ai-open-models-wiki.md § 4): the app's
  * automations — the email comments and, from F3, TheBull's compilation — go through
  * `lib/server/llm` to an OPEN model on OpenRouter; the assistant and Rendimenti's report stay on
- * Anthropic, untouched (they are upstream's code, and switched off on the fork's account).
+ * Anthropic, as upstream has them (and switched off on the fork's account).
  *
- * WARNING (Checklist Comment): these routes are not all the same provider nor the same
- * generation, and that is a fact rather than an intention — the performance analysis runs on
- * Sonnet 4.6, the assistant on Sonnet 5, the emails on OpenRouter. Changing one is a product
- * decision (cost and output change with it), so they are listed separately rather than collapsed
- * into one constant that would hide the divergence.
+ * The Anthropic surfaces follow upstream's single generation (owner's decision of 2026-10-08,
+ * taken by the fork at the tenth realignment, D-UP2): the two prose surfaces on the current
+ * Sonnet, the structured extraction on the current Haiku. The email routes below are the fork's
+ * own and are a different provider on purpose. Changing one is a product decision (cost and
+ * output change with it), so they are listed separately rather than collapsed into one constant
+ * that would hide the divergence.
+ *
+ * WARNING (Checklist Comment): every Anthropic call reads content blocks by `type` and sends
+ * `thinking: { type: 'adaptive' }` with an `effort`; the memory extraction forces `tool_choice`,
+ * which Haiku accepts and Sonnet 5.5 / Opus 5.5 refuse (400) — moving the extraction up a tier
+ * means `tool_choice: 'auto'` plus `strict: true` on the tool.
  */
 
 export type LlmProvider = 'anthropic' | 'openrouter';
 
 export interface AiModelRoute {
   provider: LlmProvider;
-  /** The provider's own id: `claude-sonnet-5` on Anthropic, `z-ai/glm-5.3-flash` on OpenRouter. */
+  /** The provider's own id: `claude-sonnet-5-5` on Anthropic, `z-ai/glm-5.3-flash` on OpenRouter. */
   model: string;
   /**
    * OpenRouter only: `'off'` sends `reasoning: { enabled: false }` instead of a reasoning ceiling.
@@ -70,11 +76,11 @@ export const AI_MODELS = {
   /** TheBull's weekly macro page (F3): structured extraction, every item with its quote. */
   THEBULL_COMPILE: { provider: 'openrouter', model: 'deepseek/deepseek-v4.1-flash', reasoning: 'off' },
   /** The performance report of Rendimenti → «Analizza con AI». */
-  PERFORMANCE_ANALYSIS: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+  PERFORMANCE_ANALYSIS: { provider: 'anthropic', model: 'claude-sonnet-5-5' },
   /** The conversational assistant. */
-  ASSISTANT: { provider: 'anthropic', model: 'claude-sonnet-5' },
+  ASSISTANT: { provider: 'anthropic', model: 'claude-sonnet-5-5' },
   /** Structured extraction (assistant memory): a small, fast model on purpose. */
-  MEMORY_EXTRACTION: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001' },
+  MEMORY_EXTRACTION: { provider: 'anthropic', model: 'claude-haiku-5-5' },
 } as const satisfies Record<string, AiModelRoute>;
 
 export type AiSurface = keyof typeof AI_MODELS;

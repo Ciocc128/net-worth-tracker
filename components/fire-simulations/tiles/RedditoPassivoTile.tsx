@@ -16,7 +16,6 @@ import type { ReactNode } from 'react';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { PassiveIncome } from '@/lib/utils/fireSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import { formatCurrency } from '@/lib/services/chartService';
 import { formatRate } from '@/lib/utils/fireNarrative';
 import { cn } from '@/lib/utils';
 import { Tile } from '@/components/ui/tile';

@@ -124,6 +124,53 @@ function parseFloatField(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/** The three scenarios' accumulation runs, at module level: the React Compiler cannot lower a conditional inside a component's own try block. */
+function computeProjectionRun(inputs: ProjectionRunInputs): ProjectionRunState {
+    const years = inputs.years;
+    const snapshotYears = Array.from({ length: years }, (_, index) => index + 1);
+    // The lumps of the running year are part of the starting capital (RF6), whatever the scenario's inflation.
+    const startingLump = inputs.datedFlows ? buildFlowSchedule(inputs.datedFlows.resolved, { inflationRate: 0, planExpensesFromCashflow: inputs.datedFlows.planExpensesFromCashflow }).lump(0) : 0;
+    const startValue = inputs.initialPortfolio + inputs.inflows.filter((inflow) => inflow.year <= 0).reduce((sum, inflow) => sum + inflow.amount, 0) + startingLump;
+    const data: ProjectionRunData = {
+      scenarios: {} as ProjectionRunData['scenarios'],
+      inflation: { bear: 0, base: 0, bull: 0 },
+      startValue,
+      simulations: inputs.simulations,
+      years,
+    };
+    for (const key of SCENARIO_KEYS) {
+      const scenario = inputs.scenarios[key];
+      // RV7: a fresh generator on the SAME seed per scenario, so Bear, Base and Bull meet the same shocks.
+      const result = runAccumulationSimulation({
+        initialPortfolio: inputs.initialPortfolio,
+        annualSavings: inputs.annualSavings,
+        savingsInflationRate: scenario.inflationRate,
+        savingsYears: inputs.savingsYears,
+        annualExpenses: 0,
+        withdrawalRate: 0,
+        expenseInflationRate: scenario.inflationRate,
+        years,
+        weights: inputs.weights,
+        market: scenario,
+        correlations: inputs.correlations,
+        leverageSpread: inputs.leverageSpread,
+        annualCostRate: inputs.costRate,
+        numberOfSimulations: inputs.simulations,
+        capitalInflows: inputs.inflows.length > 0 ? inputs.inflows : undefined,
+        flows: inputs.datedFlows,
+        collectPaths: false,
+        snapshotYears,
+        random: createSeededRandom(MONTE_CARLO_SEED),
+        ...(key === 'base' && inputs.uncertainty
+          ? { uncertainty: inputs.uncertainty, parameterRandom: createSeededRandom(MONTE_CARLO_PARAMETER_SEED) }
+          : {}),
+      });
+      data.scenarios[key] = { snapshots: result.snapshots ?? {}, leverageZeroedCount: result.leverageZeroedCount ?? 0 };
+      data.inflation[key] = scenario.inflationRate;
+    }
+  return { data, inputs };
+}
+
 export function ProjectionTab() {
   const { ownerId } = useActiveAccount();
 
@@ -284,55 +331,13 @@ export function ProjectionTab() {
     // The run is CPU-bound and blocks the main thread: the delay lets the browser paint the running state first.
     window.setTimeout(() => {
       try {
-        const years = inputs.years;
-        const snapshotYears = Array.from({ length: years }, (_, index) => index + 1);
-        // The lumps of the running year are part of the starting capital (RF6), whatever the scenario's inflation.
-        const startingLump = inputs.datedFlows ? buildFlowSchedule(inputs.datedFlows.resolved, { inflationRate: 0, planExpensesFromCashflow: inputs.datedFlows.planExpensesFromCashflow }).lump(0) : 0;
-        const startValue = inputs.initialPortfolio + inputs.inflows.filter((inflow) => inflow.year <= 0).reduce((sum, inflow) => sum + inflow.amount, 0) + startingLump;
-        const data: ProjectionRunData = {
-          scenarios: {} as ProjectionRunData['scenarios'],
-          inflation: { bear: 0, base: 0, bull: 0 },
-          startValue,
-          simulations: inputs.simulations,
-          years,
-        };
-        for (const key of SCENARIO_KEYS) {
-          const scenario = inputs.scenarios[key];
-          // RV7: a fresh generator on the SAME seed per scenario, so Bear, Base and Bull meet the same shocks.
-          const result = runAccumulationSimulation({
-            initialPortfolio: inputs.initialPortfolio,
-            annualSavings: inputs.annualSavings,
-            savingsInflationRate: scenario.inflationRate,
-            savingsYears: inputs.savingsYears,
-            annualExpenses: 0,
-            withdrawalRate: 0,
-            expenseInflationRate: scenario.inflationRate,
-            years,
-            weights: inputs.weights,
-            market: scenario,
-            correlations: inputs.correlations,
-            leverageSpread: inputs.leverageSpread,
-            annualCostRate: inputs.costRate,
-            numberOfSimulations: inputs.simulations,
-            capitalInflows: inputs.inflows.length > 0 ? inputs.inflows : undefined,
-            flows: inputs.datedFlows,
-            collectPaths: false,
-            snapshotYears,
-            random: createSeededRandom(MONTE_CARLO_SEED),
-            ...(key === 'base' && inputs.uncertainty
-              ? { uncertainty: inputs.uncertainty, parameterRandom: createSeededRandom(MONTE_CARLO_PARAMETER_SEED) }
-              : {}),
-          });
-          data.scenarios[key] = { snapshots: result.snapshots ?? {}, leverageZeroedCount: result.leverageZeroedCount ?? 0 };
-          data.inflation[key] = scenario.inflationRate;
-        }
-        setLastRun({ data, inputs });
+        setLastRun(computeProjectionRun(inputs));
       } catch (error) {
         console.error('Error running the projection:', error);
         toast.error('Errore durante la simulazione');
-      } finally {
-        setIsRunning(false);
       }
+      // After the try/catch, not in a `finally`: the React Compiler cannot lower try/finally.
+      setIsRunning(false);
     }, 60);
   }, []);
 

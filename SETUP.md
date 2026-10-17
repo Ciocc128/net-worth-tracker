@@ -19,7 +19,7 @@ This guide will walk you through setting up the Portfolio Tracker web app from s
 
 Before you begin, ensure you have:
 
-- **Node.js** 18.x or higher ([Download](https://nodejs.org/))
+- **Node.js** 24.x ([Download](https://nodejs.org/)) — `engines.node` in `package.json`, which Vercel honours (Settings → Build and Deployment → Node.js Version is 24.x too). Note that a Vercel Function never `require()`s an ESM-only package at any Node version (`--no-experimental-require-module`): `package.json` `overrides` keeps `jwks-rsa` on 3.x for firebase-admin (AGENTS.md § Server Layer, 2026-10-08)
 - **npm** or **yarn** package manager
 - A **Google account** (for Firebase)
 - A **Vercel account** (free tier available at [vercel.com](https://vercel.com))
@@ -55,7 +55,7 @@ Firebase provides the backend infrastructure (database, authentication) for this
 3. Choose a starting mode:
    - **Production mode** (recommended): Start with secure rules, you'll configure them next
    - **Test mode**: Open access (not recommended for production)
-4. Select a Cloud Firestore location (choose closest to your users, e.g., `europe-west1` for Europe)
+4. Select a Cloud Firestore location (choose closest to your users, e.g., `europe-west1` for Europe). The production project is in `eur3` (the Belgium + Netherlands multi-region); the Vercel functions run in `fra1` (Frankfurt) to stay close to it — see "Function region" in the Vercel section below
 5. Click **"Enable"**
 
 ### Step 4: Configure Firestore Security Rules
@@ -455,7 +455,7 @@ and the two copies go next to THAT `server.js` (`<dir>/.next/static`, `<dir>/pub
 **Against the emulators, on its own port: `npm run perf:build` + `npm run perf:serve`**. The first builds into
 `.next-perf` with the emulator `NEXT_PUBLIC_*` baked in; the second finds `server.js`, does the two copies and serves on
 **:3200** with the Admin SDK routed to the emulators — :3000 stays the tour server and :3100 Playwright's. The benchmark
-and the size budget run on it (`perf/README.md`). A build into a new dist dir makes `next build` add that dir's
+and the size budget run on it (`doc/guide/velocita.md`). A build into a new dist dir makes `next build` add that dir's
 `types/**` to `tsconfig.json` and reformat the whole file: the `.next-perf` lines are committed, so a diff there after a
 build means another dist dir — keep its two lines, not the reformat.
 
@@ -530,6 +530,10 @@ git push -u origin main
 2. Wait for the deployment to complete (usually 1-2 minutes)
 3. Visit your deployed app at `https://your-app.vercel.app`
 
+### Function region
+
+`vercel.json` carries `"regions": ["fra1"]`: the serverless functions run in Frankfurt, next to Firestore (`eur3`), instead of Vercel's default `iad1` (Washington), which turned every Admin SDK read into a transatlantic round trip. The **Hobby** plan accepts ONE region in `regions` (more than one fails the deploy). If your Firestore is elsewhere, pick the Vercel region nearest to it. To check, read `x-vercel-id` on the response of a route that runs a function (DevTools → Network → an `/api/*` request → Headers, or `curl -sI https://your-app.vercel.app/api/benchmarks/fx-rates`): the header lists the regions the request went through and then the one where the function ran, so its FIRST segment is the edge nearest to the caller — from Italy it is European whatever `regions` says — and the function's region is the segment after it (e.g. `fra1::fra1::…` with this line, `fra1::iad1::…` without it). A preview behind Vercel's Deployment Protection answers 302 from the edge alone and says nothing about the function; Vercel → Logs names the region of each invocation as well. After a change of region, look at Vercel → Logs the day after for the two crons, and at Storico for the evening snapshot. As of 2026-10-04 none of this has been read in production: the line reaches it with the next release. A Vercel preview deploy gives no «before» either: previews do not read the production Firestore (owner, 2026-10-03).
+
 ### Step 5: Configure Cron Jobs
 
 Vercel Cron Jobs are configured in `vercel.json` file in the project root.
@@ -540,6 +544,7 @@ The current `vercel.json` file contains:
 
 ```json
 {
+  "regions": ["fra1"],
   "crons": [
     {
       "path": "/api/cron/monthly-snapshot",
