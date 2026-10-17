@@ -64,6 +64,7 @@ import { useChartColors } from '@/lib/hooks/useChartColors';
 import { CHART_COLORS } from '@/lib/constants/colors';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -1098,14 +1099,60 @@ export function AccumulationPlanDialog({
                                 </Button>
                               )}
                               {isHead && !locked && (
-                                <Button
-                                  variant="ghost"
-                                  className={`${grouped ? '' : 'ml-0 '}h-11 px-1.5 text-[11px] desktop:h-6`}
-                                  aria-pressed={replacingPositionId === position.id}
-                                  onClick={() => setReplacingPositionId(replacingPositionId === position.id ? null : position.id)}
+                                // AL9: «Sostituisci» — the new buyer takes the weight, the old one stays in the group.
+                                // D1: the picker opens anchored to this row, never below the table.
+                                <Popover
+                                  open={replacingPositionId === position.id && !newAssetDialogOpen}
+                                  onOpenChange={(next) => {
+                                    if (next) setReplacingPositionId(position.id);
+                                    else if (!newAssetDialogOpen) setReplacingPositionId(null);
+                                  }}
                                 >
-                                  {ACCUMULO_ACTION_REPLACE}
-                                </Button>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      className={`${grouped ? '' : 'ml-0 '}h-11 px-1.5 text-[11px] desktop:h-6`}
+                                      aria-haspopup="dialog"
+                                    >
+                                      {ACCUMULO_ACTION_REPLACE}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent align="start" collisionPadding={12} className="w-[min(22rem,calc(100vw-2rem))] p-3">
+                                    <p className="mb-1.5 text-[12px] text-foreground">
+                                      {ACCUMULO_STEP2_REPLACE_PROMPT}: {labelOfAsset(position.buyAssetId)}
+                                    </p>
+                                    <p className="mb-1 text-[11px] text-muted-foreground">{ACCUMULO_STEP2_REPLACE_PLACEHOLDER}</p>
+                                    <ul className="max-h-64 overflow-y-auto" aria-label={ACCUMULO_STEP2_REPLACE_PROMPT}>
+                                      {replacementCandidates.map((entry) => (
+                                        <li key={entry.asset.id}>
+                                          <button
+                                            type="button"
+                                            className="min-h-11 w-full rounded-md px-2 py-1.5 text-left text-[12px] text-foreground transition-colors hover:bg-muted desktop:min-h-8"
+                                            onClick={() => replaceBuyer(position.id, entry.asset.id)}
+                                          >
+                                            {describeAddableAsset({ name: entry.asset.name, ticker: getAssetDisplayTicker(entry.asset), held: entry.held, neverBought: entry.neverBought })}
+                                          </button>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                      <Button
+                                        variant="outline"
+                                        className="h-11 text-[12px] desktop:h-8"
+                                        onClick={() => {
+                                          setNewAssetFor('replace');
+                                          setNewAssetDialogOpen(true);
+                                        }}
+                                      >
+                                        {ACCUMULO_ACTION_NEW_ASSET}
+                                      </Button>
+                                      <Button variant="ghost" className="h-11 text-[12px] desktop:h-8" onClick={() => setReplacingPositionId(null)}>
+                                        {ACCUMULO_ACTION_REPLACE_CANCEL}
+                                      </Button>
+                                    </div>
+                                    <p className="mt-1.5 text-[11px] text-muted-foreground">{ACCUMULO_STEP2_REPLACE_HINT}</p>
+                                  </PopoverContent>
+                                </Popover>
                               )}
                             </th>
                             <td className="py-1.5 pr-2 text-center">
@@ -1275,42 +1322,6 @@ export function AccumulationPlanDialog({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            )}
-            {/* AL9: «Sostituisci» — the new buyer takes the weight, the old one stays in the group. */}
-            {replacingPosition && (
-              <div className="rounded-lg bg-muted p-3">
-                <p className="mb-1.5 text-[12px] text-foreground">
-                  {ACCUMULO_STEP2_REPLACE_PROMPT}: {labelOfAsset(replacingPosition.buyAssetId)}
-                </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Select value="" onValueChange={(assetId) => replaceBuyer(replacingPosition.id, assetId)}>
-                    <SelectTrigger className="h-11 w-full max-w-[22rem] text-[12px] desktop:h-8" aria-label={ACCUMULO_STEP2_REPLACE_PROMPT}>
-                      <SelectValue placeholder={ACCUMULO_STEP2_REPLACE_PLACEHOLDER} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {replacementCandidates.map((entry) => (
-                        <SelectItem key={entry.asset.id} value={entry.asset.id}>
-                          {describeAddableAsset({ name: entry.asset.name, ticker: getAssetDisplayTicker(entry.asset), held: entry.held, neverBought: entry.neverBought })}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    variant="outline"
-                    className="h-11 text-[12px] desktop:h-8"
-                    onClick={() => {
-                      setNewAssetFor('replace');
-                      setNewAssetDialogOpen(true);
-                    }}
-                  >
-                    {ACCUMULO_ACTION_NEW_ASSET}
-                  </Button>
-                  <Button variant="ghost" className="h-11 text-[12px] desktop:h-8" onClick={() => setReplacingPositionId(null)}>
-                    {ACCUMULO_ACTION_REPLACE_CANCEL}
-                  </Button>
-                </div>
-                <p className="mt-1.5 text-[11px] text-muted-foreground">{ACCUMULO_STEP2_REPLACE_HINT}</p>
               </div>
             )}
             {groupingMode && groupingBuyAssetId === null && <p className="text-[12px] text-muted-foreground">{ACCUMULO_STEP2_GROUP_HINT}</p>}
