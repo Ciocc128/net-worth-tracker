@@ -46,9 +46,14 @@ import {
   PARAMETRI_ASIDE,
   SCENARI_ASIDE,
   SCENARI_FOOTER,
+  MONTE_CARLO_CLOSED_ASIDES,
+  describeParametriClosedAside,
+  describeMonteCarloClosedAnswers,
 } from '@/lib/utils/monteCarloNarrative';
 import type { SustainableSpendingSummary, SustainableWithdrawal } from '@/lib/utils/sustainableWithdrawal';
-import { narrativeToText, type Narrative } from '@/lib/utils/narrative';
+import { narrativeToText, splitVerdict, type Narrative } from '@/lib/utils/narrative';
+import { selectMonteCarloStrip, MONTE_CARLO_SECTION_IDS } from '@/lib/utils/monteCarloSummary';
+import { formatStripFigure } from '@/lib/utils/verdictStrip';
 import { INACTIVE_LOCK, type FireLock } from '@/lib/utils/fireSummary';
 import type { MonteCarloPlan, MonteCarloRun, ScenarioComparison, ScenarioRunSummary } from '@/lib/utils/monteCarloSummary';
 
@@ -435,5 +440,94 @@ describe('T5 — Dopo il FIRE: partenza, euro di oggi, righe di Parametri', () =
   it('the scenario note and the percentile line say «di oggi» only for real euros', () => {
     expect(plain(describeScenarioNote(makeScenarioRow('bear', { todayEuros: true })))).toContain('mediana finale 198.000 € di oggi');
     expect(plain(describePercentili(makeRun({ todayEuros: true, p10DepletionCalendarYear: null })))).toContain('con 0 € di oggi');
+  });
+});
+
+// ─── The phone's cut and the strip's identity (2026-10-15) ────────────────────
+// Seen red one at a time: `leadLength` left `undefined` with a scenarios sentence; the bear cell
+// read from `medianFinal`; the rest labelled «orso e toro e il fondo pensione».
+
+describe('buildMonteCarloVerdict — the cut (The Binding-Clause Rule; the lock as the scope line)', () => {
+  it('keeps the base run under the title, the bear, the bull and the bridge behind «Il perché»', () => {
+    const verdict = buildMonteCarloVerdict({ runnable: true, run: makeRun(), scenarios: makeComparison(), lock: ACTIVE_LOCK });
+    const { lead, rest } = splitVerdict(verdict);
+    expect(plain(lead)).toMatch(/^Nell'84,2% delle 10\.000 simulazioni .* entro il 2053 \(73 anni\)\.$/);
+    expect(plain(rest)).toBe(' Nello scenario bear regge nel 61,5% dei casi, nel bull nel 96,8%. Numeri con il modello ponte: i 31.400 € del fondo pensione entrano nel 2045 al valore di oggi.');
+    expect(verdict.restLabel).toBe('orso, toro e il fondo pensione');
+    expect(buildMonteCarloVerdict({ runnable: true, run: makeRun(), scenarios: makeComparison(), lock: INACTIVE_LOCK }).restLabel).toBe('orso e toro');
+    expect(buildMonteCarloVerdict({ runnable: true, run: makeRun(), scenarios: null, lock: ACTIVE_LOCK }).restLabel).toBe('il fondo pensione');
+    expect(buildMonteCarloVerdict({ runnable: true, run: makeRun(), scenarios: null, lock: INACTIVE_LOCK }).leadLength).toBeUndefined();
+    expect(buildMonteCarloVerdict({ runnable: true, run: null, scenarios: null, lock: ACTIVE_LOCK }).leadLength).toBeUndefined();
+  });
+
+  it('prints in the cells the median and the bear rate the verdict prints', () => {
+    const [median, bear] = selectMonteCarloStrip({ run: makeRun(), comparison: makeComparison() });
+    const flat = (text: string) => text.replace(/[\u00a0\u202f]/g, ' ');
+    const verdict = flat(plain(buildMonteCarloVerdict({ runnable: true, run: makeRun(), scenarios: makeComparison(), lock: INACTIVE_LOCK }).sentence));
+    expect(verdict).toContain(`nel caso mediano chiudi con ${flat(formatStripFigure(median)!.text)}`);
+    expect(verdict).toContain(`Nello scenario bear regge nel ${formatStripFigure(bear)!.text}`);
+    const exhausted = buildMonteCarloVerdict({ runnable: true, run: makeRun({ medianFinal: 0 }), scenarios: null, lock: INACTIVE_LOCK });
+    expect(plain(exhausted.sentence)).toContain('nel caso mediano i soldi finiscono');
+    expect(selectMonteCarloStrip({ run: makeRun({ medianFinal: 0 }), comparison: null })[0].reason).toBe('i soldi finiscono');
+  });
+});
+
+// ─── The shown run outlives the typed form, and the closed rows' words (2026-10-16, in the retirement) ──
+// Seen red: `runnable` read before `run` (a typed capital of zero turned the headline into «non
+// calcolabile» while the strip under it still printed the shown run's Mediana and Orso); the
+// Parametri aside returning the fresh words whatever `stale` (a stale plan went unannounced from a closed row).
+
+describe('buildMonteCarloVerdict — the shown run outlives the typed form', () => {
+  it('reads the run on screen while the typed plan cannot run: verdict, strip and tiles print ONE run', () => {
+    const shown = buildMonteCarloVerdict({ runnable: true, run: makeRun(), scenarios: makeComparison(), lock: INACTIVE_LOCK });
+    const typedZero = buildMonteCarloVerdict({ runnable: false, run: makeRun(), scenarios: makeComparison(), lock: INACTIVE_LOCK });
+    expect(typedZero).toEqual(shown);
+    expect(buildMonteCarloVerdict({ runnable: false, run: null, scenarios: null, lock: INACTIVE_LOCK }).headline).toBe('Monte Carlo non calcolabile.');
+  });
+});
+
+describe('the closed rows\' asides — words, never a figure', () => {
+  it('names Distribuzione and Scenari without a digit, and Parametri by whether the typed plan is the shown one', () => {
+    expect(MONTE_CARLO_CLOSED_ASIDES).toEqual({ [MONTE_CARLO_SECTION_IDS.distribuzione]: 'valori finali', [MONTE_CARLO_SECTION_IDS.scenari]: 'orso, base e toro' });
+    for (const aside of Object.values(MONTE_CARLO_CLOSED_ASIDES)) expect(aside).not.toMatch(/\d/);
+    expect(describeParametriClosedAside(false)).toBe('il piano di oggi');
+    expect(describeParametriClosedAside(true)).toBe('modificati: premi Esegui');
+  });
+});
+
+// ─── The closed rows' answers in the landscape index (2026-10-16) ─────────────
+// Falsified on 2026-10-16, one at a time: «a stale form keeps its warning» went red with the
+// `!stale` guard dropped (the withdrawal covered «modificati: premi Esegui»), and «a depleted 90th
+// percentile» went red with the `p90 <= 0` branch removed («90° %ile 0 €»).
+
+describe('describeMonteCarloClosedAnswers', () => {
+  /** What the index shows: each segment trimmed, joined by the gap the row draws between them. */
+  const visible = (answer: Narrative | null | undefined) =>
+    answer ? answer.map((segment) => segment.text.trim()).join(' ').replace(/[  ]/g, ' ') : answer;
+  const answers = (over: Partial<Parameters<typeof describeMonteCarloClosedAnswers>[0]> = {}) =>
+    describeMonteCarloClosedAnswers({ run: makeRun({ finalPercentiles: { p10: 0, p25: 100_000, p50: 600_000, p75: 1_300_000, p90: 2_000_000 } }), comparison: makeComparison(), plan: makePlan({ annualWithdrawal: 30_000 }), stale: false, ...over });
+
+  it('answers each row with a figure the strip and the verdict do not print, in at most 22 characters', () => {
+    const all = answers();
+    expect(visible(all[MONTE_CARLO_SECTION_IDS.distribuzione])).toBe('90° %ile 2.000.000 €');
+    expect(visible(all[MONTE_CARLO_SECTION_IDS.scenari])).toBe('Toro 96,8%');
+    expect(visible(all[MONTE_CARLO_SECTION_IDS.parametri])).toBe('prelievo 30.000 €');
+    for (const answer of Object.values(all)) expect([...(visible(answer) ?? '')].length).toBeLessThanOrEqual(22);
+    // A rate never wears a sign colour: it is a probability, not a gain.
+    expect(all[MONTE_CARLO_SECTION_IDS.scenari]?.some((segment) => segment.sign)).toBe(false);
+  });
+
+  it('says a depleted 90th percentile «esaurito», as the tile does, and a whole rate without decimals', () => {
+    const depleted = answers({ run: makeRun({ finalPercentiles: { p10: 0, p25: 0, p50: 0, p75: 0, p90: 0 } }) });
+    expect(visible(depleted[MONTE_CARLO_SECTION_IDS.distribuzione])).toBe('90° %ile esaurito');
+    const whole = answers({ comparison: makeComparison({ rows: [makeScenarioRow('bear'), makeScenarioRow('base'), makeScenarioRow('bull', { successRate: 99.98 })] }) });
+    expect(visible(whole[MONTE_CARLO_SECTION_IDS.scenari])).toBe('Toro 100%');
+  });
+
+  it('keeps the scope: no run, no comparison, a stale form', () => {
+    const none = answers({ run: null, comparison: null });
+    expect(Object.values(none).every((answer) => answer === null)).toBe(true);
+    expect(answers({ comparison: null })[MONTE_CARLO_SECTION_IDS.scenari]).toBeNull();
+    expect(answers({ stale: true })[MONTE_CARLO_SECTION_IDS.parametri]).toBeNull();
   });
 });

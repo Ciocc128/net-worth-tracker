@@ -108,7 +108,7 @@ export default function RootLayout({
             </AuthProvider>
           </MotionProvider>
         </ThemeProvider>
-        {process.env.NODE_ENV === "development" && <AgentationToolbar />}
+        {process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_DISABLE_AGENTATION !== "true" && <AgentationToolbar />}
       </body>
     </html>
   );
