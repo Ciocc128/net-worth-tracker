@@ -235,7 +235,7 @@ e il titolo «cresce, ma le spese superano le entrate» segue la stessa regola; 
 di tipo a registro con Registro letto (altrimenti resta «Azzerato»); **AL6** anche la nota di metodo del Ventaglio
 (`fireNarrative.ts`, quarta frase) dice «allocazione target», e il testo di Impostazioni dice «Il portafoglio modello e il
 PAC possono proporre…» (la parola «obiettivi» resta fino ad AL19); l'e2e di «Con vendite mirate» cerca il nuovo titolo del
-modale; **AL7** `modelPortfolios/{uid}` è un documento per utente come `assetAllocationTargets`. Collaudo sull'anteprima: —
+modale; **AL7** `modelPortfolios/{uid}` è un documento per utente come `assetAllocationTargets`. Collaudo (2026-10-17, guidato sul mirror dei dati del proprietario, non sull'anteprima): superato; AL7 non verificabile (nessun portafoglio modello salvato prima del collaudo).
 
 ### 9.2 IMPL-AL2 — Rivedi il piano completo (Onda 2: AL8–AL11, D-AL1)
 
@@ -270,7 +270,7 @@ posseduti, e «Ricalcola» e «Prova» valutano anche gli strumenti del piano ap
 del modello: lo strumento abbandonato con la bozza si ritrova nel selettore dell'editor, in Ricalcola solo se è nel
 modello o in un piano aperto; **AL11** una vendita salvata con le quote cambiate in revisione è tolta e rifatta come
 vendita nuova al mese `k`, e le vendite spostate valgono da `k` all'ultima rata (altrimenti `sale_month_range`).
-Collaudo sull'anteprima: —
+Collaudo (2026-10-17, guidato sul mirror dei dati del proprietario, non sull'anteprima): superato, con un difetto: **D1** «Sostituisci» apre il selettore sotto la tabella del passo Target, staccato dalla riga, e al clic non si vede nulla; va un popover ancorato alla riga o un modale (thread a parte).
 
 ### 9.3 IMPL-AL3 — Riattiva e una sola rata (Onda 2: AL12–AL13, D-AL2)
 
@@ -291,7 +291,7 @@ conclusi che compare solo se c'è una riga riattivabile; «nessun altro piano ap
 riga. **AL13** «Rata di ottobre» vale anche per il verdetto di Accumulo; al passo 1, che non ha pesi e quindi nessuna rata,
 L ÷ N si chiama «Liquidità per mese» con una riga che rimanda ai pesi; nel pannello del passo Target la cifra grande è la
 prima rata e la media sta sotto (se coincidono si dice una cifra sola).
-Collaudo sull'anteprima: —
+Collaudo (2026-10-17, guidato sul mirror dei dati del proprietario, non sull'anteprima): superato.
 
 ### 9.4 IMPL-AL4 — Il modello comanda (Onda 3: AL14–AL16, D-AL3)
 
@@ -320,7 +320,7 @@ l'avviso di RM2. **AL14** «Usa i pesi del piano» solo con un piano attivo; il 
 errore tiene l'editor aperto su «Chiudi»; «Aggiorna anche il portafoglio modello» si accende da solo quando i pesi
 differiscono, spento in demo. **AL15** la riga sta in Questo mese solo con un piano attivo e un modello; soglia 0,5
 punti; i candidati a 0 non contano; «Rivedi dal modello» apre `reviseFromModel`.
-Collaudo sull'anteprima: —
+Collaudo (2026-10-17, guidato sul mirror dei dati del proprietario, non sull'anteprima): superato.
 
 ### 9.5 IMPL-AL5 — Bilanciamento, criteri e nomi (Onda 3: AL17–AL19, D-AL4, D-AL5, D-AL7)
 
@@ -350,7 +350,7 @@ traguardo», «Importo del traguardo»); «Età obiettivo» resta; l'assistente 
 («Allocazione ideale» → «Criteri del modello») e per «Senza il criterio…»/«sotto-criteri»/«criterio geografico».
 I test che fissavano le vecchie parole sono aggiornati nella PR: `goalsNarrative`, `settingsNarrative`,
 `weightOptimizerNarrative`, `allocazioneNarrative`, `firePlan`, `datedFlowsNarrative`, `overviewNarrative`.
-Collaudo sull'anteprima: —
+Collaudo (2026-10-17, guidato sul mirror dei dati del proprietario, non sull'anteprima): superato.
 
 ### 9.6 IMPL-AL6 — Lo strumento coperto (Onda 4: AL20, D-AL6)
 
@@ -372,7 +372,7 @@ condivisa fra gli asset dello stesso ticker, il campo è dell'asset) invece che 
 50% del valore di mercato della classe (esattamente 50% non propone), le classi sono quelle dei quattro interruttori, l'Oro
 segue la sottocategoria in vigore, i fondi bloccati restano fuori come nei pesi; «Imposta coperto» imposta la bozza, si salva
 col Salva della pagina.
-Collaudo sull'anteprima: —
+Collaudo (2026-10-17, guidato sul mirror dei dati del proprietario, non sull'anteprima): superato; «Coperto dal cambio in EUR» su MFEH da spuntare a mano in produzione.
 
 ## 10. Prompt d'avvio dei thread
 
