@@ -5,11 +5,17 @@
  * `/mnt/project-files/fire-simulazioni/p8-controllo.py`. Tolerance ± 0,01 €.
  */
 import { describe, expect, it, vi } from 'vitest';
+
+// goalMath imports assetService, which pulls the client SDK.
+vi.mock('@/lib/firebase/config', () => ({ db: {} }));
+vi.mock('@/lib/services/assetService', () => ({ calculateAssetValue: () => 0 }));
+
 import type { Asset, FIREProjectionScenarios } from '@/types/assets';
 import type { GoalAssetAssignment, InvestmentGoal } from '@/types/goals';
 import type { WhatIfBaseline } from '@/types/whatIf';
 import { assetInsideShare, buildFlowSchedule, resolveGoalFlows, type DatedFlowsInput, type ResolveGoalFlowsContext } from '@/lib/utils/datedFlows';
 import { goalFireEffect, goalFireNarrative } from '@/lib/utils/goalFire';
+import { assignmentFractionOf } from '@/lib/utils/goalMath';
 import { calculateCoastFIREMetrics, calculateFIREProjection, resolveFireRequirement } from '@/lib/services/fireService';
 import { realReturn } from '@/lib/utils/realReturn';
 
@@ -34,7 +40,7 @@ const goal = (partial: Partial<InvestmentGoal> & Pick<InvestmentGoal, 'id'>): In
 const HOUSE = goal({ id: 'house', name: 'Acquisto Casa', targetAmount: 50_000, targetDate: '2029-06-30' });
 const CAR = goal({ id: 'car', name: 'Auto', targetAmount: 30_000, targetDate: '2028-03-15' });
 
-const context = (overrides: Partial<ResolveGoalFlowsContext> = {}): ResolveGoalFlowsContext => ({ currentYear: YEAR, assetValue: () => null, ...overrides });
+const context = (overrides: Partial<ResolveGoalFlowsContext> = {}): ResolveGoalFlowsContext => ({ currentYear: YEAR, assetValue: () => null, assetFraction: (assignment) => ('percentage' in assignment ? assignment.percentage : 0) / 100, ...overrides });
 const resolve = (goals: InvestmentGoal[], assignments: GoalAssetAssignment[] = [], ctx = context()) => resolveGoalFlows(goals, assignments, ctx);
 
 const requirement = (flows: DatedFlowsInput['resolved']): number =>
@@ -195,3 +201,41 @@ describe('RO2 — the effect on the FIRE year', () => {
 function goalFArea(effect: ReturnType<typeof goalFireEffect>): string {
   return goalFireNarrative(effect!);
 }
+
+describe('R11-S1 — a quota in quote or in percent, read through assignmentFraction (doc/allineamento-upstream/undicesimo.md § 9)', () => {
+  // A 20.000 € goal that counts, one ETF OUTSIDE the capital (insideShare 0); the quota is 40% or 40 quote.
+  const GOAL = goal({ id: 'g', name: 'Casa', targetAmount: 20_000, targetDate: '2029-06-30' });
+  const outflow = (assignment: GoalAssetAssignment, quantity: number, value: number, insideShare = 0): number | undefined => {
+    const etf = { id: 'etf', quantity } as unknown as Asset;
+    const { resolved } = resolveGoalFlows([GOAL], [assignment], {
+      currentYear: YEAR,
+      assetValue: () => value,
+      assetFraction: assignmentFractionOf(new Map([[etf.id, etf]])),
+      insideShare: () => insideShare,
+    });
+    return resolved[0]?.amount;
+  };
+  const PERCENT: GoalAssetAssignment = { goalId: 'g', assetId: 'etf', percentage: 40 };
+  const UNITS: GoalAssetAssignment = { goalId: 'g', assetId: 'etf', units: 40 };
+
+  it.each([
+    ['40% of 100 shares worth 10.000 €', PERCENT, 100, 10_000, 16_000],
+    ['40 shares of 100 worth 10.000 €', UNITS, 100, 10_000, 16_000],
+    ['40% after a sale to 50 shares (5.000 €)', PERCENT, 50, 5_000, 18_000],
+    ['40 shares of 50 worth 5.000 € (fraction 0,8)', UNITS, 50, 5_000, 16_000],
+    ['40 shares of 20 worth 2.000 € (fraction 2, never clamped)', UNITS, 20, 2_000, 16_000],
+  ])('outside the capital: %s -> outflow %d', (_label, assignment, quantity, value, expected) => {
+    expect(outflow(assignment, quantity, value)).toBe(expected);
+  });
+
+  it('with the ETF inside the capital the outflow is the whole goal in every row', () => {
+    for (const [assignment, quantity, value] of [[PERCENT, 100, 10_000], [UNITS, 100, 10_000], [PERCENT, 50, 5_000], [UNITS, 50, 5_000], [UNITS, 20, 2_000]] as const) {
+      expect(outflow(assignment, quantity, value, 1)).toBe(20_000);
+    }
+  });
+
+  it('an orphaned quota (no asset behind it) reads fraction 0 and its value is skipped first', () => {
+    const { resolved } = resolveGoalFlows([GOAL], [UNITS], { currentYear: YEAR, assetValue: () => null, assetFraction: assignmentFractionOf(new Map()) });
+    expect(resolved[0]?.amount).toBe(20_000);
+  });
+});

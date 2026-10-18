@@ -11,6 +11,7 @@ import { useAssets } from '@/lib/hooks/useAssets';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { calculateAssetValue } from '@/lib/services/assetService';
+import { assignmentFractionOf } from '@/lib/utils/goalMath';
 import { useGoalData } from '@/lib/hooks/useGoalData';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { useMortgageInstalments } from '@/lib/hooks/useMortgageInstalments';
@@ -83,6 +84,7 @@ export function useFireDatedFlows({ lockedAssetIds }: UseFireDatedFlowsOptions =
     const byId = new Map(assets.map((asset) => [asset.id, asset]));
     return resolveGoalFlows(goalData.goals, goalData.assignments, {
       currentYear: getItalyYear(),
+      assetFraction: assignmentFractionOf(byId),
       assetValue: (assetId) => {
         const asset = byId.get(assetId);
         return asset ? calculateAssetValue(asset) : null;

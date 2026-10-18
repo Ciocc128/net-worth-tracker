@@ -246,6 +246,11 @@ ha peso corrente 0 e l'ottimizzatore gli dà un peso solo se un obiettivo lo chi
 
 ## Limiti noti
 
+- **I «pesi di oggi» non contano i debiti, Bilanciamento sì** (R11, D-R11-2, 2026-10-18): un prestito personale o un mutuo su un immobile
+  DENTRO l'allocazione è sottratto alla classe che finanzia in Bilanciamento e nel PAC (`resolveAllocationRoleWithin`, `compareAllocations`);
+  l'ottimizzatore e il portafoglio modello partono dagli strumenti investibili, perché un peso non è negativo e un debito non si compra
+  (`resolveAllocationRole` dà `excluded` a un `loan`). Il tile Portafoglio modello lo dice in una riga (`describeModelDebtNote`), solo
+  quando un debito c'è davvero; con un mutuo su una casa esclusa nessuna delle due basi cambia. Pinned by `__tests__/loanBases.test.ts`.
 - **I gruppi proxy assumono la stessa esposizione per euro del buy asset per tutti i membri** (§5.1
   della ATE): se un membro differisce di oltre 0,05 in qualunque classe o area dal buy asset, il
   candidato porta l'avviso `proxy_mismatch` e il calcolo procede comunque con i soli valori del buy

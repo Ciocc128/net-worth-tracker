@@ -146,6 +146,12 @@ export interface ResolveGoalFlowsContext {
   insideShare?: (assetId: string) => number;
   /** The value of an instrument in EUR (`calculateAssetValue`); orphaned assignments are skipped. */
   assetValue: (assetId: string) => number | null;
+  /**
+   * The fraction (0–1, NOT clamped) of its instrument a quota holds today — `assignmentFraction` on the caller's assets
+   * (a quota in quote reads the quantity, a percent quota its percentage). A quota grown past the instrument stays > 1:
+   * the Assegnazioni tile declares it, nothing corrects it quietly (R11-S1).
+   */
+  assetFraction: (assignment: GoalAssetAssignment) => number;
 }
 
 /**
@@ -190,7 +196,7 @@ export function resolveGoalFlows(goals: readonly InvestmentGoal[] | undefined, a
       const value = context.assetValue(assignment.assetId);
       if (value === null || !(value > 0)) continue;
       const inside = Math.min(1, Math.max(0, context.insideShare ? context.insideShare(assignment.assetId) : 1));
-      outside += ((value * assignment.percentage) / 100) * (1 - inside);
+      outside += value * Math.max(0, context.assetFraction(assignment)) * (1 - inside);
     }
     const amount = Math.max(0, target - outside);
     if (!(amount > 0)) {

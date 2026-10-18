@@ -273,6 +273,15 @@ export async function updateAsset(
     if ('dividendCashAssetId' in updates && updates.dividendCashAssetId === undefined) {
       cleanedUpdates.dividendCashAssetId = deleteField();
     }
+    // ownerMemberId is user-clearable («In comune» in AssetDialog; absent means shared,
+    // lib/utils/assetOwnership.ts). Same `in` guard: a partial caller never un-owns an asset.
+    if ('ownerMemberId' in updates && updates.ownerMemberId === undefined) {
+      cleanedUpdates.ownerMemberId = deleteField();
+    }
+    // ownerShares (the quotas by person) — cleared when the form sends none typed, same guard.
+    if ('ownerShares' in updates && updates.ownerShares === undefined) {
+      cleanedUpdates.ownerShares = deleteField();
+    }
 
     // Rebuy on the same doc: quantity goes from 0 (sold but kept) back to > 0. Stamp the new
     // holding start so YOC ignores the previous holding's dividends (mirrors the ISIN-reuse path
@@ -350,6 +359,13 @@ export async function updateAssetMetadata(
     // partial caller — a price refresh — from wiping an account it never sent.
     if ('dividendCashAssetId' in updates && updates.dividendCashAssetId === undefined) {
       cleanedUpdates.dividendCashAssetId = deleteField();
+    }
+    // ownerMemberId («In comune» = absent) — clearable here too, every ledger type edits through this path.
+    if ('ownerMemberId' in updates && updates.ownerMemberId === undefined) {
+      cleanedUpdates.ownerMemberId = deleteField();
+    }
+    if ('ownerShares' in updates && updates.ownerShares === undefined) {
+      cleanedUpdates.ownerShares = deleteField();
     }
 
     await updateDoc(assetRef, cleanedUpdates);

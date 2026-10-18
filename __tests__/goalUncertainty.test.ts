@@ -20,6 +20,9 @@ import {
   solveGoalContribution,
 } from '@/lib/utils/goalUncertainty';
 import { goalAnnualReturn } from '@/lib/utils/goalTrajectory';
+import { calculateGoalProgress } from '@/lib/utils/goalMath';
+import type { Asset } from '@/types/assets';
+import type { InvestmentGoal } from '@/types/goals';
 
 const ZERO_VOL = logNormalFromMoments(5.127_16, 0)!; // m such that CAGR = 5% … replaced below
 const FIVE_PERCENT = logNormalFromMoments(5, 0)!;
@@ -214,5 +217,19 @@ describe('computeGoalUncertainty', () => {
     const elapsed = performance.now() - t0;
     console.info(`goalUncertainty: 10 goals, one full: ${elapsed.toFixed(0)} ms`);
     expect(elapsed).toBeLessThan(2000);
+  });
+});
+
+describe('R11-S1 — the value O2 starts from is the quota\'s fraction, in quote or in percent', () => {
+  const GOAL = { id: 'g', name: 'Casa', targetAmount: 20_000 } as InvestmentGoal;
+  const ETF = { id: 'etf', quantity: 50, currentPrice: 100, assetClass: 'equity' } as unknown as Asset;
+  const simulate = (currentValue: number) => simulateGoal({ logNormal: FIVE_PERCENT, currentValue, target: 20_000, months: 12, contribution: 0, paths: 200 });
+
+  it('40 quote of 50 (a sale left 5.000 €) hold 4.000 €; 40% hold 2.000 €', () => {
+    const units = calculateGoalProgress(GOAL, [{ goalId: 'g', assetId: 'etf', units: 40 }], [ETF]).currentValue;
+    const percent = calculateGoalProgress(GOAL, [{ goalId: 'g', assetId: 'etf', percentage: 40 }], [ETF]).currentValue;
+    expect(units).toBe(4_000);
+    expect(percent).toBe(2_000);
+    expect(simulate(units).probability(0)).toBeGreaterThanOrEqual(simulate(percent).probability(0));
   });
 });

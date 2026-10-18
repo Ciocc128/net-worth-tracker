@@ -115,6 +115,22 @@ describe('buildWeeklyBudgetData', () => {
     expect(data!.yearElapsedPct).toBeGreaterThan(0);
   });
 
+  it('R11-S3 — a row marked «fuori dal budget» weighs on neither the category nor the overall ceiling', async () => {
+    mockBudgetDoc = {
+      exists: true,
+      data: () => ({
+        items: [{ id: 'g', kind: 'expense', scope: 'category', period: 'monthly', categoryId: 'c1', categoryName: 'Spesa', amount: 1100, order: 0 }],
+        overallMonthlyAmount: 1100,
+      }),
+    };
+    const refunded = { data: () => ({ type: 'variable', categoryId: 'c1', amount: -200, excludeFromBudget: true, date: { toDate: () => new Date(2026, 5, 11) } }) };
+    mockExpenseDocs = [expenseDoc(-1000, new Date(2026, 5, 10)), refunded];
+
+    const data = await buildWeeklyBudgetData('u1', now);
+    expect(data!.rows[0].spent).toBeCloseTo(1000);
+    expect(data!.overall!.spent).toBeCloseTo(1000);
+  });
+
   it('reads the category type for the pace: a fixed category is never projected by the day', async () => {
     mockBudgetDoc = {
       exists: true,

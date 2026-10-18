@@ -229,6 +229,11 @@ qui, la più recente in cima. Le eccezioni ammesse sono queste e nessun'altra: L
 prima riga chiusa resta sotto la pill (DESIGN.md → The First-Screen Rule), la pill di `PageTabBar` portata a 44 px
 (2026-10-10), la deriva del giorno o della macchina provata sul codice di develop dello stesso giorno.
 
+- **`2026-10-18: …`** (R11-T1 dell'undicesimo riallineamento, fork; la misura si rifà sul Mac): il merge porta nel budget le due voci che
+  upstream allarga a 390, `screens` su Panoramica 1,75 → 1,83 e su Patrimonio 1,67 → 1,75, con il loro `raisedBy` — una riga chiusa «Intestatari»
+  (52 px) in coda alle righe, perché il fixture nomina un membro della famiglia tramite il fondo pensione. Il primo schermo non si muove.
+  `mobile:census` + `mobile:budget` sul Mac confermano che i due tetti reggono sul fixture del fork; un tetto che non regge si allarga come sopra.
+
 - **`2026-10-17: …`** (T5 del decimo riallineamento, fork; proprietario: «Sì» all'allargamento), venticinque voci sul build di produzione di
   `merge/upstream-2026-10-17-t5`, il misurato fa da tetto: le sei schede FIRE (Calcolatore 390 `screens` 1,81 → 3,94, 768 1,22 → 2,56,
   1024 1,2 → 3,03; Coast, What If, Dopo il FIRE e Traguardi, i due ultimi finora non misurati per il nome del tab) perché «Il mio piano» sta in

@@ -30,6 +30,7 @@ import {
 } from '@/lib/utils/salesNarrative';
 import type { Narrative, NarrativeSegment, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
 import type { MonthFlows } from '@/lib/utils/marketEffect';
+import type { OwnershipSummary } from '@/lib/utils/assetOwnership';
 import type { MortgageSummary, MortgageYear } from '@/lib/utils/mortgageSummary';
 
 export interface PatrimonioVerdictInput {
@@ -597,4 +598,83 @@ export function describeMortgageYearScope(entry: MortgageYear, currentYear: numb
   if (entry.partialFrom) parts.push(`da ${MONTH_NAMES[entry.partialFrom.getMonth()].toLowerCase()}`);
   if (entry.year === currentYear) parts.push('finora');
   return parts.length > 0 ? parts.join(', ') : null;
+}
+
+// ─── Intestatari (owner, 2026-10-17) ──────────────────────────────────────────
+
+/**
+ * The reading of the «Intestatari» tile (Panoramica and Patrimonio): who holds what share of the
+ * NET total — «Il 54% è intestato a Marco, il 31% a Giulia, il resto in comune.» Members by
+ * value, each share the integer the row prints (`Math.round`, the article decided on it:
+ * «L'8%»); the shared group closes as «il resto» when it holds something, the orphaned ids as
+ * «il 5% senza intestatario»; one member and nothing else is «Tutto è intestato a Marco.»; a
+ * group that is a net debt is named as such («Giulia è in negativo»). Null with no owner set —
+ * the tile does not exist then (`OwnershipSummary.hasOwners`).
+ */
+export function describeOwnership(summary: OwnershipSummary): Narrative | null {
+  if (!summary.hasOwners || summary.rows.length === 0) return null;
+  const members = summary.rows.filter((row) => row.kind === 'member');
+  const common = summary.rows.find((row) => row.kind === 'common');
+  const unassigned = summary.rows.find((row) => row.kind === 'unassigned');
+
+  if (members.length === 1 && !common && !unassigned) {
+    return [prose('Tutto è intestato a '), prose(members[0].label), prose('.')];
+  }
+
+  const clauses: Narrative[] = [];
+  members.forEach((row, index) => {
+    if (row.sharePct === null || row.sharePct < 0) {
+      clauses.push([prose(`${row.label} è in negativo (`), figure(cachedFormatCurrencyEUR(Math.abs(row.value), true)), prose(' di debiti)')]);
+      return;
+    }
+    const pct = Math.round(row.sharePct);
+    const verb = index === 0 ? 'è intestato a ' : 'a ';
+    clauses.push([prose(`${articleForPercent(pct, 0)}`), figure(`${pct}%`), prose(` ${verb}${row.label}`)]);
+  });
+  if (common) clauses.push([prose('il resto in comune')]);
+  if (unassigned && unassigned.sharePct !== null) {
+    const pct = Math.round(unassigned.sharePct);
+    clauses.push([prose(`${articleForPercent(pct, 0)}`), figure(`${pct}%`), prose(' senza intestatario')]);
+  }
+
+  const sentence = clauses.flatMap((clause, index) => (index === 0 ? clause : [prose(', '), ...clause]));
+  // The first word capitalised: «Il 54%…», «L'8%…», «Marco è in negativo…».
+  const [first, ...rest] = sentence;
+  return [prose(first.text.charAt(0).toUpperCase() + first.text.slice(1)), ...rest, prose('.')];
+}
+
+/** The tile's aside: how many held assets the shares are made of («su 12 asset»). */
+export function describeOwnershipAside(summary: OwnershipSummary): string {
+  return `su ${summary.assetCount} asset`;
+}
+
+/** The closed row's answer (the landscape index): the largest owner and its printed share — «Marco 54%». Null with no owner. */
+export function describeOwnershipAnswer(summary: OwnershipSummary): Narrative | null {
+  const top = summary.rows.find((row) => row.kind === 'member' && row.sharePct !== null && row.sharePct >= 0);
+  if (!top || top.sharePct === null) return null;
+  return [{ text: `${top.label} ` }, { text: `${Math.round(top.sharePct)}%`, mono: true }];
+}
+
+/** The tile's footer: where the owner is set, and the two assets that derive theirs. */
+export const OWNERSHIP_FOOTER =
+  'Le quote per persona si scrivono nel form di ogni asset; un fondo pensione segue il membro di Previdenza, un mutuo le quote del suo immobile.';
+
+/**
+ * The footer of the Intestatari tile: the neutral note, or — in the warning tone — the assets
+ * whose stored quotas no longer fit their quantity («1 asset ha quote da riassegnare: VWCE.»),
+ * since a sale or a value typed lower leaves the units as written (lib/utils/assetSlice.ts).
+ * `reassign` may be missing on a payload cached before the quotas: read as none.
+ */
+export function describeOwnershipFooter(summary: Pick<OwnershipSummary, 'reassign'>): { text: string; tone: 'neutral' | 'warning' } {
+  const reassign = summary.reassign ?? [];
+  if (reassign.length === 0) return { text: OWNERSHIP_FOOTER, tone: 'neutral' };
+  const names = reassign.map((entry) => entry.name);
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`;
+  const verb = names.length === 1 ? 'ha' : 'hanno';
+  return { text: `${names.length} asset ${verb} quote da riassegnare: ${list}.`, tone: 'warning' };
+}
+
+/** The caption under a property listed net of its mortgage («Asset principali», 2026-10-17): «netto del mutuo di 95.000 €». */
+export function describeNetOfDebtCaption(debtNetted: number): string {
+  return `netto del mutuo di ${cachedFormatCurrencyEUR(debtNetted, true)}`;
 }

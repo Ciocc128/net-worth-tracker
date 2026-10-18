@@ -23,6 +23,33 @@ import {
   InvestmentGoal,
 } from '@/types/goals';
 import { calculateAssetValue } from '@/lib/services/assetService';
+import { sliceFraction, type AssetSlice } from '@/lib/utils/assetSlice';
+
+/**
+ * A quota as a slice of its asset (lib/utils/assetSlice.ts): the two forms of
+ * `GoalAssetAssignment` — percent, or units since 2026-10-17 — become ONE arithmetic here,
+ * before any formula.
+ */
+export function assignmentSlice(assignment: GoalAssetAssignment): AssetSlice {
+  return 'units' in assignment ? { units: assignment.units } : { percent: assignment.percentage };
+}
+
+/**
+ * The fraction of the asset a quota is today, 0-1 (above 1 when a units quota outgrew the
+ * asset — declared by the Assegnazioni tile, never rescaled). The ONE conversion every reader
+ * of a quota goes through: the progress below, the Panoramica's ranking, the free shares.
+ */
+export function assignmentFraction(assignment: GoalAssetAssignment, asset: Pick<Asset, 'quantity'>): number {
+  return sliceFraction(assignmentSlice(assignment), asset.quantity);
+}
+
+/** `ResolveGoalFlowsContext.assetFraction` over the caller's assets by id; an orphan reads 0 (its value is null and skipped first). */
+export function assignmentFractionOf(byId: ReadonlyMap<string, Pick<Asset, 'quantity'>>): (assignment: GoalAssetAssignment) => number {
+  return (assignment) => {
+    const asset = byId.get(assignment.assetId);
+    return asset ? assignmentFraction(assignment, asset) : 0;
+  };
+}
 
 /**
  * Priority multipliers used when computing goal-based allocation targets.
@@ -43,9 +70,9 @@ const GOAL_PRIORITY_WEIGHTS: Record<GoalPriority, number> = {
 /**
  * Calculate progress for a single goal.
  *
- * Sums the assigned portions of each asset (by percentage) to determine
- * how much value is currently allocated to this goal. Silently skips
- * orphaned assignments (asset deleted from portfolio).
+ * Sums the assigned portions of each asset (a percent or a units quota, through
+ * `assignmentFraction`) to determine how much value is currently allocated to this
+ * goal. Silently skips orphaned assignments (asset deleted from portfolio).
  */
 export function calculateGoalProgress(
   goal: InvestmentGoal,
@@ -63,7 +90,7 @@ export function calculateGoalProgress(
     if (!asset) continue; // Skip orphaned assignments
 
     const assetValue = calculateAssetValue(asset);
-    const assignedValue = (assetValue * assignment.percentage) / 100;
+    const assignedValue = assetValue * assignmentFraction(assignment, asset);
     currentValue += assignedValue;
 
     // Track allocation by asset class for comparison with recommended
@@ -230,5 +257,19 @@ export function serializeGoalForFirestore(goal: InvestmentGoal): Record<string, 
     ...(goal.notes != null ? { notes: goal.notes } : {}),
     // `false` is a value, not an absence (G15): it survives the round trip like a zero contribution.
     ...(goal.countsInFire != null ? { countsInFire: goal.countsInFire } : {}),
+  };
+}
+
+/**
+ * Serialises one quota into the shape Firestore accepts — the allowlist of
+ * `GoalAssetAssignment`, beside the goal's: a percent quota keeps `percentage`, a units quota
+ * `units`, and nothing else rides along (the document is rewritten whole by `saveGoalData`;
+ * `POST /api/goals` carries the stored quotas over verbatim and never builds one).
+ */
+export function serializeAssignmentForFirestore(assignment: GoalAssetAssignment): Record<string, unknown> {
+  return {
+    goalId: assignment.goalId,
+    assetId: assignment.assetId,
+    ...('units' in assignment ? { units: assignment.units } : { percentage: assignment.percentage }),
   };
 }
