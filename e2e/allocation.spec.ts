@@ -206,6 +206,21 @@ test('a 1440 la pagina è quella di oggi: nessuna riga chiusa, nessuna striscia,
   await expect(bilanciamento.getByText('Fuori posizione', { exact: true }).locator('xpath=following-sibling::p[1]')).toBeVisible();
 });
 
+test('a 1440 Accumulo è quello di oggi: nessuna riga chiusa, nessuna striscia, due colonne, il verdetto intero', async ({ page }) => {
+  await openAccumulo(page);
+  // Il fixture base non ha un piano: lo stato vuoto ha il suo verdetto, senza taglio («Il perché») né celle.
+  await expect(page.locator('main [id$="-trigger"]')).toHaveCount(0);
+  await expect(page.getByRole('list', { name: 'Le cifre del verdetto' })).toBeHidden();
+  await expect(page.getByRole('heading', { level: 2, name: 'Il resto della pagina' })).toBeHidden();
+  await expect(page.getByRole('button', { name: /^Il perché/ })).toHaveCount(0);
+  // Le due pile di prima: il modello a sinistra sotto lo stato vuoto, i criteri a destra, alla stessa quota.
+  const [modello, criteri] = await Promise.all(
+    ['Portafoglio modello', 'Criteri del modello'].map((name) => page.locator(`section[aria-label="${name}"]`).boundingBox()),
+  );
+  expect(criteri!.x, 'i criteri nella colonna destra').toBeGreaterThan(modello!.x + modello!.width - 1);
+  expect(Math.abs(criteri!.y - modello!.y), 'i due alla stessa quota').toBeLessThanOrEqual(1);
+});
+
 /**
  * «Composizione ideale» › «Con vendite mirate» (fork, 2026-09-27, doc/weight-optimizer-targeted-ate.md
  * §11.2). The base account has no ideal allocation, so this block turns one on for the duration —

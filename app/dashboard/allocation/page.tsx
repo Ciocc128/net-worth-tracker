@@ -18,8 +18,8 @@
  * has it, default) and «Accumulo» (`?tab=accumulo`; the fork's plan, the optimizer and its
  * objectives, `AccumuloTab`). The band is page state shared by both. The verdict follows the tab:
  * Bilanciamento's carries the accumulation plan's installment in place of Versa when a plan is
- * active (PO3, `pac` in `buildAllocazioneVerdict`). Accumulo is not composed for a phone: a plain
- * grid under the tab bar (D-UP4, doc/allineamento-upstream/README.md).
+ * active (PO3, `pac` in `buildAllocazioneVerdict`). Accumulo is composed like the shared pages
+ * below `desktop:` (strip, THE tile, closed rows; tappa A, doc/guide/accumulo.md § Composizione mobile).
  *
  * Bilanciamento:
  *   Desktop (12 col): Bilanciamento(5) | Piano(7)

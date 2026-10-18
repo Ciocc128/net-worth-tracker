@@ -28,7 +28,7 @@ import {
   describeClosedPlanInvested,
   describeClosedPlanPeriod,
 } from '@/lib/utils/accumulationNarrative';
-import { Tile } from '@/components/ui/tile';
+import { Tile, type TileCollapse } from '@/components/ui/tile';
 
 const HEAD_CLASS = 'py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground';
 const CELL_CLASS = 'whitespace-nowrap py-1.5 pr-2 text-right font-mono text-[12px] tabular-nums text-muted-foreground';
@@ -40,6 +40,9 @@ interface PianiConclusiTileProps {
   /** Every plan of the account: «Riattiva» needs to know none is open. */
   allPlans: AccumulationPlan[];
   targets: AssetAllocationTarget | null;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
 }
 
 /** The row's armed «Riattiva» (AL12): one click arms, the second reactivates; the row says why it failed. */
@@ -71,11 +74,11 @@ function ReactivateButton({ ownerId, plan }: { ownerId: string; plan: Accumulati
   );
 }
 
-export function PianiConclusiTile({ ownerId, plans, allPlans, targets }: PianiConclusiTileProps) {
+export function PianiConclusiTile({ ownerId, plans, allPlans, targets, collapse, asideWhenClosed }: PianiConclusiTileProps) {
   const now = new Date();
   const anyReactivable = plans.some((plan) => canReactivatePlan(plan, allPlans, now));
   return (
-    <Tile eyebrow={ACCUMULO_CLOSED_PLANS_EYEBROW} aside={describeClosedPlansAside(plans.length)}>
+    <Tile eyebrow={ACCUMULO_CLOSED_PLANS_EYEBROW} aside={describeClosedPlansAside(plans.length)} asideWhenClosed={asideWhenClosed} collapse={collapse}>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-[13px]">
           <thead>

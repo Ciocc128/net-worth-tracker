@@ -16,7 +16,7 @@ import type { RebalanceBand } from '@/lib/utils/allocationUtils';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import { selectClassStripRows, type ClassTrajectoryPoint } from '@/lib/utils/accumulationPlanUtils';
 import { getAssetClassCssVar } from '@/lib/constants/colors';
-import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_SUB_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { ClassDriftChart } from '@/components/allocation/ClassDriftChart';
 import { TargetTick } from '@/components/allocation/TargetTick';
 import {
@@ -33,9 +33,12 @@ interface ClassiDelPianoTileProps {
   /** `monthIndexOf(plan, today)`; the chart's cursor starts on the open month. */
   currentIndex: number;
   band: RebalanceBand;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
 }
 
-export function ClassiDelPianoTile({ plan, trajectory, currentIndex, band }: ClassiDelPianoTileProps) {
+export function ClassiDelPianoTile({ plan, trajectory, currentIndex, band, collapse, asideWhenClosed }: ClassiDelPianoTileProps) {
   const clampedIndex = Math.min(Math.max(currentIndex, 0), plan.months);
   // `null` = the cursor has not been moved: it follows the open month, so a month that turns while
   // the page is open moves it too.
@@ -57,7 +60,7 @@ export function ClassiDelPianoTile({ plan, trajectory, currentIndex, band }: Cla
   }));
 
   return (
-    <Tile eyebrow={ACCUMULO_CLASSES_TILE_EYEBROW} aside={ACCUMULO_CLASSES_TILE_ASIDE}>
+    <Tile eyebrow={ACCUMULO_CLASSES_TILE_EYEBROW} aside={ACCUMULO_CLASSES_TILE_ASIDE} asideWhenClosed={asideWhenClosed} collapse={collapse}>
       {trajectory.length > 1 && (
         <ClassDriftChart className="mt-3" points={trajectory} band={band} height={180} selectedIndex={selectedIndex} onSelect={setPicked} />
       )}
