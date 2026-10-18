@@ -229,6 +229,12 @@ qui, la più recente in cima. Le eccezioni ammesse sono queste e nessun'altra: L
 prima riga chiusa resta sotto la pill (DESIGN.md → The First-Screen Rule), la pill di `PageTabBar` portata a 44 px
 (2026-10-10), la deriva del giorno o della macchina provata sul codice di develop dello stesso giorno.
 
+- **`2026-10-18, a 1024: …`** (R11-T1, seguito del collaudo sul Mac; proprietario: «Allarga»), due voci contro HEAD: Patrimonio `figuresAboveFold`
+  11 → 12 e `figuresOutsideVerdict` 8 → 9. Nello stage in orizzontale ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The
+  Closed-Row Rule): la riga «Intestatari» («quote per persona · 4%»), nuova con R11-T1 e presente perché il fixture nomina un membro tramite
+  il fondo pensione, aggiunge UNA cifra sopra la piega e fuori dal verdetto (tessere 6 → 7). Il verdetto resta di tre cifre, `screens` 1, la
+  prima riga chiusa sopra la pill, nessun overflow. È la stessa causa della voce a 390 qui sotto, che a 1024 diventa una cifra e non 52 px.
+
 - **`2026-10-18: …`** (R11-T1 dell'undicesimo riallineamento, fork; la misura si rifà sul Mac): il merge porta nel budget le due voci che
   upstream allarga a 390, `screens` su Panoramica 1,75 → 1,83 e su Patrimonio 1,67 → 1,75, con il loro `raisedBy` — una riga chiusa «Intestatari»
   (52 px) in coda alle righe, perché il fixture nomina un membro della famiglia tramite il fondo pensione. Il primo schermo non si muove.
