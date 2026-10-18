@@ -160,7 +160,7 @@ import type { FlowsEffect } from '@/lib/utils/datedFlowsNarrative';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
-import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
+import { FireAssumptionsRow, FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { resolvePlanExpenses, type FireAssumptions } from '@/lib/utils/fireAssumptions';
 import { VerdictStrip } from '@/components/ui/verdict-strip';
@@ -174,7 +174,6 @@ import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarr
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { TraguardoTile } from '@/components/fire-simulations/tiles/TraguardoTile';
 import { buildFireLedger } from '@/lib/utils/fireBaseLedger';
-import { FireLockScope } from '@/components/fire-simulations/FireLockScope';
 import { BaseDiCalcoloTile } from '@/components/fire-simulations/tiles/BaseDiCalcoloTile';
 import { RedditoPassivoTile } from '@/components/fire-simulations/tiles/RedditoPassivoTile';
 import { ScenariTile } from '@/components/fire-simulations/tiles/ScenariTile';
@@ -836,7 +835,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
         <div ref={stageRef} className={STAGE_CLASS}>
         <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
           <FireAssumptionsRow assumptions={assumptions} />
-          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul FIRE" scope={lockScope && <FireLockScope text={lockScope} />} restCollapse={sections.collapse(VERDICT_REST_SECTION)} />
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul FIRE" scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={assumptions} /> : undefined} restCollapse={sections.collapse(VERDICT_REST_SECTION)} />
         </div>
         <div className={COMPACT_GRID_WRAPPER_CLASS}>
         <div className={COMPACT_GRID_CLASS}>
@@ -942,7 +941,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
           verdict={verdict}
           ariaLabel="Verdetto sul FIRE"
           strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={sections.eyebrows} />}
-          scope={lockScope && <FireLockScope text={lockScope} />}
+          scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={assumptions} /> : undefined}
           restCollapse={sections.collapse(VERDICT_REST_SECTION)}
         />
       </div>

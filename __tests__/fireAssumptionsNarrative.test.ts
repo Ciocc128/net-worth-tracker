@@ -8,7 +8,7 @@ vi.mock('firebase/firestore', () => ({ doc: vi.fn(), getDoc: vi.fn(), setDoc: vi
 
 import { monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
 import { buildPortfolioScenarios, type FireAssumptions } from '@/lib/utils/fireAssumptions';
-import { describeCapitalRow, describeCostsChip, describeExpensesChip, describeFireChips, describeReturnsChip } from '@/lib/utils/fireAssumptionsNarrative';
+import { describeCapitalRow, describeCostsChip, describeExpensesChip, describeFireChips, describeFireScopeLine, describeReturnsChip } from '@/lib/utils/fireAssumptionsNarrative';
 import { resolveMonteCarloMarket } from '@/lib/utils/monteCarloMarket';
 
 const market = resolveMonteCarloMarket(null);
@@ -83,5 +83,28 @@ describe('the other chips and the capital row (RC1–RC5, T11)', () => {
     expect(describeCostsChip(costs(true, true))?.label).toBe('Costi 0,36%');
     expect(describeCostsChip(costs(true, false))?.links[0].text).toBe('Attiva il bollo');
     expect(describeCostsChip(costs(false, false))?.label).toBe('Nessun costo');
+  });
+});
+
+describe('the scope line below desktop: (D-CU14)', () => {
+  const withCosts = (anyTer: boolean, stamp: boolean) => build({ cost: { total: 0.36, ter: 0.16, stampDuty: 0.2 } as never, costs: { anyTer, stampDutyEnabled: stamp } as never });
+
+  it('prints the same figures as the chips: the real Base return and the costs', () => {
+    const assumptions = withCosts(true, true);
+    expect(describeFireScopeLine(assumptions)).toBe('Ipotesi: Base 4,5% reale, costi 0,36%');
+    expect(describeReturnsChip(assumptions).label).toContain('reale 4,5%');
+    expect(describeCostsChip(assumptions)?.label).toBe('Costi 0,36%');
+  });
+
+  it('stops at the return until the tab has the costs, never a «—»', () => {
+    expect(describeFireScopeLine(build({}))).toBe('Ipotesi: Base 4,5% reale');
+  });
+
+  it('says «nessun costo» when the costs chip does', () => {
+    expect(describeFireScopeLine(withCosts(false, false))).toBe('Ipotesi: Base 4,5% reale, nessun costo');
+  });
+
+  it('the Traguardi read the return only', () => {
+    expect(describeFireScopeLine(withCosts(true, true), 'goals')).toBe('Ipotesi: Base 4,5% reale');
   });
 });

@@ -192,3 +192,16 @@ export function describeFlowsChip(assumptions: FireAssumptions, view: 'goals' | 
 export function describeFireChips(assumptions: FireAssumptions, view: 'goals' | 'default' = 'default'): FireChip[] {
   return [describeReturnsChip(assumptions), describeCostsChip(assumptions), describeExpensesChip(assumptions), describeFlowsChip(assumptions, view)].filter((chip): chip is FireChip => chip !== null);
 }
+
+/**
+ * D-CU14: «Ipotesi: Base 4,1% reale, costi 0,30%» — the scope line under the strip below `desktop:`, where the two rows of
+ * «Ipotesi usate» do not draw. The same figures and words as the chips (`describeReturnsChip`, `describeCostsChip`): the real
+ * Base return changes the meaning of every figure of the verdict (The Binding-Clause Rule), the costs qualify it. The Traguardi
+ * (`goals`) read no costs here, so the line stops at the return; a costs chip with nothing to say is left out.
+ */
+export function describeFireScopeLine(assumptions: FireAssumptions, view: 'goals' | 'default' = 'default'): string {
+  const parts = [`Base ${pct(assumptions.scenarios.base.realReturnRate)} reale`];
+  const costs = view === 'goals' ? null : describeCostsChip(assumptions);
+  if (costs) parts.push(costs.label.charAt(0).toLowerCase() + costs.label.slice(1));
+  return `Ipotesi: ${parts.join(', ')}`;
+}

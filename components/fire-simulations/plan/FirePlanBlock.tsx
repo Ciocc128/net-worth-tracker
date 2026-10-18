@@ -14,6 +14,11 @@
  * they are Impostazioni › Simulazioni's.
  *
  * Config-first: the block opens by itself once per visit when the plan is not written yet (RP5, in the hook).
+ *
+ * Below `desktop:` the disclosure is the system's closed row (D-CU13, doc/contributi-upstream/composizione-mobile.md § 5.1):
+ * `TileRowShell` at 52px, its aside in WORDS («salvato nel profilo», or the amber «Anteprima non salvata» in the label) and
+ * never a figure, remembered per device in `mobile-sections:fire-simulations:piano`, one memory for the six tabs. The hook's
+ * `open` still rules RP5 and the chips' links; the row is open when either it or the memory says so.
  */
 
 import { useDeferredValue, useMemo } from 'react';
@@ -38,17 +43,22 @@ import { cn } from '@/lib/utils';
 import { FireDatedFlowsSection } from '@/components/fire-simulations/FireDatedFlowsSection';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NarrativeText } from '@/components/ui/narrative-text';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
-import { Tile, TILE_CELL_CLASS, TILE_EYEBROW_CLASS } from '@/components/ui/tile';
+import { Tile, TileRowShell, TILE_CELL_CLASS, TILE_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
 
 /** 44px on touch, the 36px control from desktop: (`h-11 desktop:h-9`, AGENTS → Accessibility). */
 const CONTROL_CLASS =
   'mt-1 h-11 desktop:h-9 font-mono tabular-nums transition-[border-color,background-color,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-primary/25 motion-reduce:transition-none';
 const HELP_CLASS = 'mt-1 text-[11px] leading-[1.4]';
+
+/** The one row of the plan below `desktop:`; its memory is `mobile-sections:fire-simulations:piano`, shared by the six tabs. */
+const PLAN_SECTION_ID = 'fire-piano';
+const PLAN_SECTIONS: readonly SectionSpec[] = [{ id: PLAN_SECTION_ID, eyebrow: 'Il mio piano' }];
 
 function Help({ id, invalid, children }: { id: string; invalid?: string; children: React.ReactNode }) {
   return (
@@ -67,6 +77,7 @@ export function FirePlanBlock() {
   const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
   const { data: settings } = useFireSettings();
+  const sections = useMobileSections({ route: 'fire-simulations', tab: 'piano', sections: PLAN_SECTIONS });
 
   // The lock state the Pensioni tile describes, and the funds it keeps closed (the capital's `K` reads them).
   const { data: assets } = useAssets(ownerId);
@@ -143,25 +154,8 @@ export function FirePlanBlock() {
     alreadyUnlockable: userAge !== undefined && ritaUnlockAge <= userAge,
   });
 
-  return (
-    <Collapsible open={plan.open} onOpenChange={plan.setOpen}>
-      {/* No aria-label: the trigger's name is its visible text, so «Anteprima non salvata» reaches a screen reader too. */}
-      <CollapsibleTrigger className="flex min-h-11 w-full items-center justify-between gap-3 border-y border-border/40 py-3 text-left">
-        <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className={TILE_EYEBROW_CLASS}>Il mio piano</span>
-          {hasUnsavedChanges ? (
-            <span className="inline-flex items-center gap-1.5 text-[11px] text-warning-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-warning-foreground" aria-hidden="true" />
-              Anteprima non salvata
-            </span>
-          ) : (
-            <span className="text-[13px] text-muted-foreground">salvato nel profilo</span>
-          )}
-        </span>
-        <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', plan.open && 'rotate-180')} aria-hidden="true" />
-      </CollapsibleTrigger>
-
-      <CollapsibleContent className="pt-3">
+  const body = (
+    <>
         <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
           {/* Tu (4) */}
           <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4')}>
@@ -493,6 +487,66 @@ export function FirePlanBlock() {
           )}
           {isDemo && <span className="text-[11px] text-muted-foreground">non modificabile in demo</span>}
         </div>
+    </>
+  );
+
+  if (sections.compact) {
+    const memory = sections.collapse(PLAN_SECTION_ID);
+    const open = plan.open || (memory?.open ?? false);
+    // Opening writes the memory and the hook's flag together; closing clears both, so an RP5 auto-open does not hold the row.
+    const collapse: TileCollapse = {
+      id: PLAN_SECTION_ID,
+      open,
+      mounted: open || (memory?.mounted ?? false),
+      failed: false,
+      onOpenChange: (next) => {
+        plan.setOpen(next);
+        memory?.onOpenChange(next);
+      },
+    };
+    return (
+      <TileRowShell
+        collapse={collapse}
+        eyebrow={
+          <span className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className={TILE_EYEBROW_CLASS}>Il mio piano</span>
+            {hasUnsavedChanges ? (
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-warning-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-warning-foreground" aria-hidden="true" />
+                Anteprima non salvata
+              </span>
+            ) : null}
+          </span>
+        }
+        ariaLabel="Il mio piano"
+        asideWhenClosed={hasUnsavedChanges ? undefined : 'salvato nel profilo'}
+        asideWhenOpen={hasUnsavedChanges ? undefined : 'salvato nel profilo'}
+      >
+        <div className="pt-1">{body}</div>
+      </TileRowShell>
+    );
+  }
+
+  return (
+    <Collapsible open={plan.open} onOpenChange={plan.setOpen}>
+      {/* No aria-label: the trigger's name is its visible text, so «Anteprima non salvata» reaches a screen reader too. */}
+      <CollapsibleTrigger className="flex min-h-11 w-full items-center justify-between gap-3 border-y border-border/40 py-3 text-left">
+        <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className={TILE_EYEBROW_CLASS}>Il mio piano</span>
+          {hasUnsavedChanges ? (
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-warning-foreground">
+              <span className="h-1.5 w-1.5 rounded-full bg-warning-foreground" aria-hidden="true" />
+              Anteprima non salvata
+            </span>
+          ) : (
+            <span className="text-[13px] text-muted-foreground">salvato nel profilo</span>
+          )}
+        </span>
+        <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', plan.open && 'rotate-180')} aria-hidden="true" />
+      </CollapsibleTrigger>
+
+      <CollapsibleContent className="pt-3">
+        {body}
       </CollapsibleContent>
     </Collapsible>
   );

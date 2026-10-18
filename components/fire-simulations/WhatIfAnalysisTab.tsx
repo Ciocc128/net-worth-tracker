@@ -90,13 +90,12 @@ import type { WhatIfEventType, WhatIfScenario } from '@/types/whatIf';
 import { WHAT_IF_TAB_SKELETON_CELLS } from './tabSkeletons';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
-import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
+import { FireAssumptionsRow, FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
 import { VerdictStrip } from '@/components/ui/verdict-strip';
 import { PageRest } from '@/components/ui/page-rest';
 import { TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
 import { RowAnswers } from '@/components/ui/row-answers';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
-import { FireLockScope } from './FireLockScope';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
 import { categoryLeafKeys, collectLeafKeys, sumSelectedIncome } from '@/components/fire-simulations/whatif/incomeSelection';
@@ -312,7 +311,7 @@ export function WhatIfAnalysisTab() {
       <div className="space-y-4">
         <div className="pt-1">
           <FireAssumptionsRow assumptions={assumptionsWithFlows} />
-          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" />
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={assumptionsWithFlows} /> : undefined} />
         </div>
       </div>
     );
@@ -336,7 +335,7 @@ export function WhatIfAnalysisTab() {
           verdict={verdict}
           ariaLabel="Verdetto sul What If"
           strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={sections.eyebrows} />}
-          scope={lockScope && <FireLockScope text={lockScope} />}
+          scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={assumptionsWithFlows} /> : undefined}
           restCollapse={sections.collapse(VERDICT_REST_SECTION)}
         />
       </div>
