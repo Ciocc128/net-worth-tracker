@@ -59,7 +59,7 @@ import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { useWhatIfBaseline } from '@/lib/hooks/useWhatIfBaseline';
 import { goalFireEffect, goalFireNarrative } from '@/lib/utils/goalFire';
 import { assetInsideShare } from '@/lib/utils/datedFlows';
-import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
+import { FireAssumptionsRow, FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
 import { GOALS_SECTION_IDS, summarizeAssignments, summarizeDerivedAllocation, summarizeGoals, summarizeTrajectory, sumAssetValues, goalDateFromDate, withUncertainty } from '@/lib/utils/goalsSummary';
 import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
 import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
@@ -435,7 +435,7 @@ export function GoalBasedInvestingTab() {
     <>
       <div data-stage="verdict" className={cn('pt-1', hasGoals && VERDICT_CELL_CLASS)}>
         <FireAssumptionsRow assumptions={assumptions} view="goals" />
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto sui traguardi" />
+        <PageVerdict verdict={verdict} ariaLabel="Verdetto sui traguardi" scope={sections.compact ? <FireVerdictScope lockText={null} assumptions={assumptions} view="goals" /> : undefined} />
       </div>
 
       {/* ONE sequence, no `order-*` (The First-Screen Rule). Tablet: Obiettivi on two columns, the closed

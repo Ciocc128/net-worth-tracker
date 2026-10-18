@@ -115,14 +115,13 @@ import { COAST_TAB_SKELETON_CELLS } from './tabSkeletons';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
-import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
+import { FireAssumptionsRow, FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { VerdictStrip } from '@/components/ui/verdict-strip';
 import { PageRest } from '@/components/ui/page-rest';
 import { Tile, TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
 import { RowAnswers } from '@/components/ui/row-answers';
 import { EmptyState } from '@/components/ui/empty-state';
-import { FireLockScope } from './FireLockScope';
 import { FIRE_ROW_NOT_COMPUTABLE } from '@/lib/utils/fireNarrative';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
@@ -381,7 +380,7 @@ export function CoastFireTab() {
         <div ref={stageRef} className={STAGE_CLASS}>
         <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
           <FireAssumptionsRow assumptions={flowAssumptions} />
-          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" scope={lockScope && <FireLockScope text={lockScope} />} restCollapse={sections.collapse(VERDICT_REST_SECTION)} />
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={flowAssumptions} /> : undefined} restCollapse={sections.collapse(VERDICT_REST_SECTION)} />
         </div>
         <div className={COMPACT_GRID_WRAPPER_CLASS}>
         <div className={COMPACT_GRID_CLASS}>
@@ -425,7 +424,7 @@ export function CoastFireTab() {
           verdict={verdict}
           ariaLabel="Verdetto sul Coast FIRE"
           strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={sections.eyebrows} />}
-          scope={lockScope && <FireLockScope text={lockScope} />}
+          scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={flowAssumptions} /> : undefined}
           restCollapse={sections.collapse(VERDICT_REST_SECTION)}
         />
       </div>

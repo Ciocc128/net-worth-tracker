@@ -129,7 +129,7 @@ import { MONTE_CARLO_TAB_SKELETON_CELLS } from './tabSkeletons';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
-import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
+import { FireAssumptionsRow, FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { useMarketAnchors } from '@/lib/hooks/useMarketAnchors';
 import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
@@ -140,7 +140,6 @@ import { PageRest } from '@/components/ui/page-rest';
 import { TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
 import { RowAnswers } from '@/components/ui/row-answers';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
-import { FireLockScope } from './FireLockScope';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
 import { MonteCarloFanChart } from '@/components/monte-carlo/MonteCarloFanChart';
@@ -597,7 +596,7 @@ export function MonteCarloTab() {
           verdict={verdict}
           ariaLabel="Verdetto su Dopo il FIRE"
           strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={sections.eyebrows} />}
-          scope={lockScope && <FireLockScope text={lockScope} />}
+          scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={assumptionsWithFlows} /> : undefined}
           restCollapse={run ? sections.collapse(VERDICT_REST_SECTION) : undefined}
         />
       </div>

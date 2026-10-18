@@ -27,6 +27,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { useAssets } from '@/lib/hooks/useAssets';
+import { useCompactLayout } from '@/lib/hooks/useCompactLayout';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { useAnnualCashflow } from '@/lib/hooks/useAnnualCashflow';
@@ -83,7 +84,7 @@ import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
-import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
+import { FireAssumptionsRow, FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { useMarketAnchors } from '@/lib/hooks/useMarketAnchors';
 import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
@@ -172,6 +173,7 @@ function computeProjectionRun(inputs: ProjectionRunInputs): ProjectionRunState {
 }
 
 export function ProjectionTab() {
+  const compact = useCompactLayout();
   const { ownerId } = useActiveAccount();
 
   // ─── Queries (shared keys with the other FIRE tabs) ──────────────────────────
@@ -426,7 +428,7 @@ export function ProjectionTab() {
     <div className="space-y-4">
       <div className="pt-1">
         <FireAssumptionsRow assumptions={assumptionsWithFlows} />
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto sulla proiezione" />
+        <PageVerdict verdict={verdict} ariaLabel="Verdetto sulla proiezione" scope={compact ? <FireVerdictScope lockText={null} assumptions={assumptionsWithFlows} /> : undefined} />
       </div>
 
       {/* Tablet (768-1439): every tile full width, in the phone's order. */}

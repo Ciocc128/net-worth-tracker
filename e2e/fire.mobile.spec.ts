@@ -153,6 +153,48 @@ test.describe('FIRE, composto per un telefono', () => {
     await expect(cells.nth(1)).toContainText(/^Rendita oggi/);
   });
 
+  test('«Ipotesi usate» non sta sopra il verdetto: è la riga d\'ambito «Ipotesi: Base r% reale, costi c%» con «Dettagli» (D-CU14)', async ({ page }) => {
+    await gotoFire(page);
+    const verdict = page.getByRole('region', { name: 'Verdetto sul FIRE' });
+    // Le due righe di 1440 non si disegnano; l'ambito sta nel verdetto, dopo la striscia.
+    await expect(page.getByTestId('fire-assumptions-row')).toHaveCount(0);
+    const scope = verdict.getByTestId('fire-assumptions-scope');
+    await expect(scope).toBeVisible();
+    await expect(scope).toContainText(/^Ipotesi: Base \d+,\d% reale/);
+    const strip = verdict.getByRole('list', { name: 'Le cifre del verdetto' });
+    const [stripBox, scopeBox] = await Promise.all([strip.boundingBox(), scope.boundingBox()]);
+    expect(scopeBox!.y).toBeGreaterThan(stripBox!.y);
+
+    // «Dettagli» è un bersaglio da 44px e apre UN popover con il capitale e le voci dei chip.
+    const details = verdict.getByTestId('fire-assumptions-details');
+    expect((await details.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await details.click();
+    const popover = page.locator('[data-radix-popper-content-wrapper]');
+    await expect(popover).toContainText('Capitale');
+    await expect(popover.getByTestId('fire-detail-returns')).toContainText(/Rendimento Base .* reale/);
+    await expect(popover.getByTestId('fire-detail-expenses')).toBeVisible();
+  });
+
+  test('«Il mio piano» chiuso è una riga di 52px con l\'aside in parole, ricordata per dispositivo (D-CU13)', async ({ page }) => {
+    await gotoFire(page);
+    const piano = page.locator('#fire-piano-trigger');
+    await expect(piano).toContainText(/^Il mio piano/);
+    // Un aside in parole, mai una cifra: «salvato nel profilo» oppure l'ambra «Anteprima non salvata».
+    await expect(piano).not.toContainText(/\d/);
+    if ((await piano.getAttribute('aria-expanded')) === 'true') await piano.click();
+    await expect(piano).toHaveAttribute('aria-expanded', 'false');
+    expect((await piano.boundingBox())!.height).toBeGreaterThanOrEqual(52);
+
+    await piano.click();
+    await expect(piano).toHaveAttribute('aria-expanded', 'true');
+    expect(await page.evaluate(() => localStorage.getItem('mobile-sections:fire-simulations:piano'))).toBe('["fire-piano"]');
+    // La memoria è una sola per i sei tab: cambiando tab la riga resta com'è.
+    await page.getByRole('tab', { name: 'Coast FIRE' }).click();
+    await expect(page.getByRole('region', { name: 'Verdetto sul Coast FIRE' })).toBeVisible({ timeout: 30_000 });
+    await expect(piano).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByTestId('fire-assumptions-scope')).toBeVisible();
+  });
+
   test('il Calcolatore legge Traguardo, Base, Reddito, Scenari dall\'alto in basso, e nessun order-* resta', async ({ page }) => {
     await gotoFire(page);
     const { order, orderClasses } = await readOrderAndClasses(page, 'Calcolatore FIRE');
