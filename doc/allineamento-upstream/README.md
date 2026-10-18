@@ -4,6 +4,8 @@
 > un allineamento alla sua nuova versione»). Le decisioni D-UP1–D-UP5 (§ 6) le ha prese il proprietario lo stesso
 > giorno («procediamo con il tuo piano»); il codice arriva a tappe (§ 7), una PR in bozza per tappa.
 > Questo dossier non cambia codice.
+>
+> **Undicesimo riallineamento** (18/10/2026, upstream fino a #476): [`undicesimo.md`](undicesimo.md).
 Confronto: `Ciocc128/net-worth-tracker:main` (`d18415cd`, dopo la PR #112) contro
 `GiuseppeDM98/net-worth-tracker:main` (`a66f822f`, PR #470 del 17/10).
 I conflitti sono misurati con `git merge-tree` (una prova di merge che non scrive nulla).
