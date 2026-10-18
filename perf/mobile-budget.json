@@ -1,5 +1,5 @@
 {
-  "measuredAt": "2026-10-16",
+  "measuredAt": "2026-10-18",
   "account": "census@example.com",
   "tolerance": {},
   "informational": {},
@@ -53,6 +53,11 @@
       "path": "/dashboard/allocation",
       "target": true
     },
+    "allocazione-accumulo": {
+      "path": "/dashboard/allocation?tab=accumulo",
+      "tab": "Accumulo",
+      "target": true
+    },
     "previdenza": {
       "path": "/dashboard/pension",
       "target": true
@@ -80,6 +85,11 @@
     "fire-obiettivi": {
       "path": "/dashboard/fire-simulations",
       "tab": "Traguardi",
+      "target": true
+    },
+    "fire-proiezione": {
+      "path": "/dashboard/fire-simulations",
+      "tab": "Proiezione",
       "target": true
     },
     "hall-of-fame": {
@@ -694,6 +704,70 @@
         "firstClosedRowAbovePill": null,
         "overflowX": false,
         "raisedBy": "2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.56 → 1.75); 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
+      }
+    },
+    "allocazione-accumulo": {
+      "390": {
+        "screens": 1.8,
+        "tilesAboveFold": 1,
+        "tilesFullyAboveFold": 0,
+        "figuresAboveFold": 10,
+        "figuresOutsideVerdict": 6,
+        "firstClosedRowAbovePill": false,
+        "overflowX": false,
+        "raisedBy": "2026-10-18: prima misura (D-CU19) — Accumulo composto per il telefono (tappa A, doc/contributi-upstream/composizione-mobile.md § 8, D-CU19), sul fixture con un modello di 3 strumenti e un piano attivo di 12 rate"
+      },
+      "768": {
+        "screens": 1.27,
+        "tilesAboveFold": 3,
+        "tilesFullyAboveFold": 1,
+        "figuresAboveFold": 13,
+        "figuresOutsideVerdict": 10,
+        "firstClosedRowAbovePill": false,
+        "overflowX": false,
+        "raisedBy": "2026-10-18: prima misura (D-CU19) — Accumulo composto per il telefono (tappa A, doc/contributi-upstream/composizione-mobile.md § 8, D-CU19), sul fixture con un modello di 3 strumenti e un piano attivo di 12 rate"
+      },
+      "1024": {
+        "screens": 1.27,
+        "tilesAboveFold": 4,
+        "tilesFullyAboveFold": 3,
+        "figuresAboveFold": 11,
+        "figuresOutsideVerdict": 8,
+        "firstClosedRowAbovePill": true,
+        "overflowX": false,
+        "raisedBy": "2026-10-18: prima misura (D-CU19) — Accumulo composto per il telefono (tappa A, doc/contributi-upstream/composizione-mobile.md § 8, D-CU19), sul fixture con un modello di 3 strumenti e un piano attivo di 12 rate"
+      }
+    },
+    "fire-proiezione": {
+      "390": {
+        "screens": 4.91,
+        "tilesAboveFold": 1,
+        "tilesFullyAboveFold": 0,
+        "figuresAboveFold": 21,
+        "figuresOutsideVerdict": 10,
+        "overflowX": false,
+        "raisedBy": "2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste",
+        "firstClosedRowAbovePill": null
+      },
+      "768": {
+        "screens": 2.98,
+        "tilesAboveFold": 2,
+        "tilesFullyAboveFold": 1,
+        "figuresAboveFold": 53,
+        "figuresOutsideVerdict": 44,
+        "overflowX": false,
+        "raisedBy": "2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste",
+        "firstClosedRowAbovePill": null
+      },
+      "1024": {
+        "screens": 3.62,
+        "tilesAboveFold": 1,
+        "tilesFullyAboveFold": 0,
+        "figuresAboveFold": 46,
+        "figuresOutsideVerdict": 40,
+        "overflowX": false,
+        "raisedBy": "2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste",
+        "firstClosedRowAbovePill": null
       }
     }
   }
