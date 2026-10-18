@@ -235,6 +235,7 @@ qui, la più recente in cima. Le eccezioni ammesse sono queste e nessun'altra: L
 prima riga chiusa resta sotto la pill (DESIGN.md → The First-Screen Rule), la pill di `PageTabBar` portata a 44 px
 (2026-10-10), la deriva del giorno o della macchina provata sul codice di develop dello stesso giorno.
 
+- **`2026-10-18, tappa C: …`** (mobile light, tappa C «Proiezione e le righe del fork»; proprietario: «Allarga» sulla card), quattro voci contro HEAD: Dopo il FIRE `figuresAboveFold`/`figuresOutsideVerdict` a 390 10/2 → 12/4, a 768 12/5 → 14/7, a 1024 13/5 → 17/9, Calcolatore a 1024 16/12 → 17/13. Dopo il FIRE ha una terza cella nella striscia, «Spesa al 90%» (D-CU17), e Spesa sostenibile come ultima riga chiusa che stampa la sua risposta (DESIGN.md → The Closed-Row Rule); il Calcolatore a 1024 stampa la risposta «servono +X» di Età obiettivo. Il criterio «≤ 5» a 390 vale per il verdetto composto: Dopo il FIRE resta a 4. Le strette della Proiezione (fire-proiezione migliora) si fanno con `--tighten` sul Mac.
 - **`2026-10-18, a 1024: …`** (R11-T1, seguito del collaudo sul Mac; proprietario: «Allarga»), due voci contro HEAD: Patrimonio `figuresAboveFold`
   11 → 12 e `figuresOutsideVerdict` 8 → 9. Nello stage in orizzontale ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The
   Closed-Row Rule): la riga «Intestatari» («quote per persona · 4%»), nuova con R11-T1 e presente perché il fixture nomina un membro tramite

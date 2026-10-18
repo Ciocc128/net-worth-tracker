@@ -257,3 +257,109 @@ test.describe('FIRE, composto per un telefono', () => {
     await expect(page.getByRole('group', { name: 'Tipo di evento' })).toBeVisible();
   });
 });
+
+// ─── Tappa C del mobile light (2026-10-18): Proiezione composta, Età obiettivo e Sensibilità righe, Spesa sostenibile ultima riga ─────
+// Doc: doc/contributi-upstream/composizione-mobile.md §§ 4 e 6, D-CU10, D-CU12, D-CU17. Il desktop non cambia: lo guarda fire.spec.ts.
+
+test.describe('FIRE, tappa C: le righe del fork', () => {
+  const stripOf = (page: Page) => page.getByRole('list', { name: 'Le cifre del verdetto' });
+  const panel = (page: Page, id: string) => page.locator(`#${id}-panel`);
+
+  test('Calcolatore: Età obiettivo e Sensibilità sono le ultime due righe, chiuse, dopo Scenari', async ({ page }) => {
+    await gotoFire(page);
+    const { order, orderClasses } = await readOrderAndClasses(page, 'Calcolatore FIRE');
+    expect(order.map((section) => section.name).slice(0, 6)).toEqual([
+      'Traguardo FIRE',
+      'Base di calcolo del FIRE',
+      'Reddito passivo sostenibile',
+      'Scenari di mercato',
+      'Età obiettivo',
+      'Sensibilità degli anni al FIRE',
+    ]);
+    expect(isSorted(order.map((section) => section.top)), JSON.stringify(order)).toBe(true);
+    expect(orderClasses).toEqual([]);
+    for (const id of ['fire-eta', 'fire-sensibilita']) {
+      await expect(trigger(page, id)).toHaveAttribute('aria-expanded', 'false');
+      expect(await panel(page, id).evaluate((el) => ({ inert: el.hasAttribute('inert'), children: el.children.length })), id).toEqual({ inert: true, children: 0 });
+    }
+    // Nessuna cella nuova nella striscia del Calcolatore: due, come prima.
+    await expect(stripOf(page).getByRole('button')).toHaveCount(2);
+    await trigger(page, 'fire-eta').click();
+    await expect(trigger(page, 'fire-eta')).toHaveAttribute('aria-expanded', 'true');
+    expect(await page.evaluate(() => localStorage.getItem('mobile-sections:fire-simulations:fire'))).toBe('["fire-eta"]');
+  });
+
+  test('Dopo il FIRE: la terza cella «Spesa al 90%» apre l\'ultima riga, Spesa sostenibile, con il fuoco sul suo trigger', async ({ page }) => {
+    await gotoFire(page);
+    await page.getByRole('tab', { name: 'Dopo il FIRE' }).click();
+    const verdict = page.getByRole('region', { name: 'Verdetto su Dopo il FIRE' });
+    await expect(verdict.getByRole('heading', { level: 2 })).toBeVisible({ timeout: 60_000 });
+    const cells = stripOf(page).getByRole('button');
+    await expect(cells).toHaveCount(3);
+    await expect(cells.nth(2)).toContainText(/^Spesa al 90%/);
+    await expect(cells.nth(2)).toHaveAccessibleName(/, apre Spesa sostenibile$/);
+    const { order, orderClasses } = await readOrderAndClasses(page, 'Dopo il FIRE');
+    expect(order.map((section) => section.name).slice(-3)).toEqual(['Scenari a confronto', 'Parametri della simulazione', 'Spesa sostenibile']);
+    expect(isSorted(order.map((section) => section.top)), JSON.stringify(order)).toBe(true);
+    expect(orderClasses).toEqual([]);
+    await expect(trigger(page, 'mc-spesa')).toHaveAttribute('aria-expanded', 'false');
+    expect(await panel(page, 'mc-spesa').evaluate((el) => ({ inert: el.hasAttribute('inert'), children: el.children.length }))).toEqual({ inert: true, children: 0 });
+    await cells.nth(2).click();
+    await expect(trigger(page, 'mc-spesa')).toHaveAttribute('aria-expanded', 'true');
+    await expect(trigger(page, 'mc-spesa')).toBeFocused();
+    await expect(page.getByRole('table', { name: /Prelievo annuo sostenibile/ })).toBeVisible();
+  });
+
+  test('Proiezione: Tappe aperta, due celle, Ventaglio · Scenari · Parametri righe chiuse; la cella Soglia apre Scenari', async ({ page }) => {
+    await gotoFire(page);
+    await page.getByRole('tab', { name: 'Proiezione' }).click();
+    const verdict = page.getByRole('region', { name: 'Verdetto sulla proiezione' });
+    await expect(verdict.getByRole('heading', { level: 2 })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole('region', { name: 'Valore del portafoglio per tappa' })).toBeVisible();
+
+    const cells = stripOf(page).getByRole('button');
+    await expect(cells).toHaveCount(2);
+    await expect(cells.nth(0)).toContainText(/^Mediana tra \d+ anni/);
+    await expect(cells.nth(0)).toHaveAccessibleName(/, apre Ventaglio$/);
+    await expect(cells.nth(1)).toContainText(/^Soglia/);
+    await expect(cells.nth(1)).toHaveAccessibleName(/, apre Scenari a confronto$/);
+    for (let i = 0; i < 2; i += 1) expect((await cells.nth(i).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+
+    // Il DOM è l'ordine verticale: Tappe, poi le tre righe; nessun order-*.
+    const { order, orderClasses } = await readOrderAndClasses(page, 'Proiezione');
+    expect(order.map((section) => section.name).slice(0, 4)).toEqual(['Valore del portafoglio per tappa', 'Ventaglio del portafoglio', 'Scenari a confronto', 'Parametri della proiezione']);
+    expect(isSorted(order.map((section) => section.top)), JSON.stringify(order)).toBe(true);
+    expect(orderClasses).toEqual([]);
+
+    // Righe chiuse: pannello vuoto e `inert` (il Ventaglio non monta il grafico finché è chiuso).
+    for (const id of ['proj-ventaglio', 'proj-scenari', 'proj-parametri']) {
+      await expect(trigger(page, id)).toHaveAttribute('aria-expanded', 'false');
+      expect(await panel(page, id).evaluate((el) => ({ inert: el.hasAttribute('inert'), children: el.children.length })), id).toEqual({ inert: true, children: 0 });
+    }
+
+    await cells.nth(1).click();
+    await expect(trigger(page, 'proj-scenari')).toHaveAttribute('aria-expanded', 'true');
+    await expect(trigger(page, 'proj-scenari')).toBeFocused();
+    expect(await page.evaluate(() => localStorage.getItem('mobile-sections:fire-simulations:proiezione'))).toBe('["proj-scenari"]');
+
+    // La cella Mediana apre il Ventaglio, che a 390 ha il suo grafico (almeno 120px).
+    await cells.nth(0).click();
+    await expect(trigger(page, 'proj-ventaglio')).toHaveAttribute('aria-expanded', 'true');
+    const fan = page.getByRole('region', { name: 'Ventaglio del portafoglio' }).locator('svg.recharts-surface').first();
+    await expect(fan).toBeVisible();
+    expect((await fan.boundingBox())!.height).toBeGreaterThanOrEqual(120);
+  });
+
+  test('Proiezione: nessun overflow orizzontale con tutte le righe aperte', async ({ page }) => {
+    await gotoFire(page);
+    await page.getByRole('tab', { name: 'Proiezione' }).click();
+    await expect(page.getByRole('region', { name: 'Verdetto sulla proiezione' }).getByRole('heading', { level: 2 })).toBeVisible({ timeout: 60_000 });
+    await page.getByRole('button', { name: 'Apri tutte' }).click();
+    await expect(trigger(page, 'proj-parametri')).toHaveAttribute('aria-expanded', 'true');
+    const overflow = await page.evaluate(() => {
+      const main = document.querySelector('main')!;
+      return main.scrollWidth - main.clientWidth;
+    });
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+});

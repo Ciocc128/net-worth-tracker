@@ -268,10 +268,14 @@ export function buildMonteCarloVerdict(input: MonteCarloVerdictInput): PageVerdi
 
 // ─── The rows below `desktop:` ─────────────────────────────────────────────────
 
+/** Spesa sostenibile's aside, open and closed: words, the euros are of today. */
+export const SPESA_ASIDE = "euro di oggi, l'anno";
+
 /** What each closed row says beside its eyebrow — words, never a figure (The Closed-Row Rule); Parametri's is `describeParametriClosedAside`. */
 export const MONTE_CARLO_CLOSED_ASIDES = {
   [MONTE_CARLO_SECTION_IDS.distribuzione]: 'valori finali',
   [MONTE_CARLO_SECTION_IDS.scenari]: 'orso, base e toro',
+  [MONTE_CARLO_SECTION_IDS.spesa]: SPESA_ASIDE,
 } as const;
 
 /**
@@ -379,8 +383,6 @@ export function scenarioLabel(key: ScenarioRunSummary['key']): string {
 }
 
 // ─── Spesa sostenibile (S1) ───────────────────────────────────────────────────
-
-export const SPESA_ASIDE = "euro di oggi, l'anno";
 
 /** «In 9 simulazioni su 10 il capitale regge 30 anni prelevando fino a 43.300 € l'anno di oggi; nel bear 33.700 €.» */
 export function describeSpesaSostenibile(summary: SustainableSpendingSummary, horizonYears: number, context: { leverage?: number; datedOutflows?: number } = {}): Narrative {
@@ -663,6 +665,8 @@ export interface MonteCarloClosedAnswersInput {
   /** The plan the Parametri tile reads. */
   plan: MonteCarloPlan | null;
   stale: boolean;
+  /** S1: the sustainable spending of the run shown; null = not computed (the row does not exist). */
+  sustainable?: SustainableSpendingSummary | null;
 }
 
 /**
@@ -674,13 +678,16 @@ export interface MonteCarloClosedAnswersInput {
  * plan's one figure not printed above — but a stale form keeps «modificati: premi Esegui» (The
  * Stale-Run Rule: a warning is never covered by an answer).
  */
-export function describeMonteCarloClosedAnswers({ run, comparison, plan, stale }: MonteCarloClosedAnswersInput): RowAnswerMap {
+export function describeMonteCarloClosedAnswers({ run, comparison, plan, stale, sustainable = null }: MonteCarloClosedAnswersInput): RowAnswerMap {
   const bull = comparison?.rows.find((row) => row.key === 'bull') ?? null;
   const p90 = run?.finalPercentiles.p90 ?? null;
+  // Spesa sostenibile: the 95% row of the table, the one the verdict (90%) and the strip (90%) leave out.
+  const careful = sustainable?.rows.find((row) => row.probability === 0.95)?.base.withdrawal ?? null;
   return {
     [MONTE_CARLO_SECTION_IDS.distribuzione]:
       p90 === null ? null : p90 <= 0 ? [prose('90° %ile esaurito')] : [prose('90° %ile'), figure(cachedFormatCurrencyEUR(p90, true))],
     [MONTE_CARLO_SECTION_IDS.scenari]: bull ? [prose('Toro'), figure(formatPercentage(bull.successRate, rateDecimals(bull.successRate)))] : null,
     [MONTE_CARLO_SECTION_IDS.parametri]: run && plan && !stale ? [prose('prelievo'), amount(plan.annualWithdrawal)] : null,
+    [MONTE_CARLO_SECTION_IDS.spesa]: careful !== null && careful > 0 ? [prose('al 95%'), amount(careful)] : null,
   };
 }

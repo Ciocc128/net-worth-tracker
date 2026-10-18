@@ -8,6 +8,9 @@ vi.mock('@/lib/services/chartService', () => ({
 import {
   buildProjectionVerdict,
   describeFireThresholdPlaceholder,
+  describeProjectionClosedAnswers,
+  describeProjectionParametriClosedAside,
+  PROJECTION_CLOSED_ASIDES,
   describeProjectionParametri,
   describeProjectionFooter,
   describeTappe,
@@ -18,8 +21,10 @@ import {
   PROJECTION_THRESHOLD_HINT_FIXED,
   projectionScenariFooter,
 } from '@/lib/utils/projectionNarrative';
-import { narrativeToText } from '@/lib/utils/narrative';
-import type { ProjectionFigures, ProjectionSummary, ScenarioProjection } from '@/lib/utils/projectionSummary';
+import { narrativeToText, splitVerdict, type Narrative } from '@/lib/utils/narrative';
+import { PROJECTION_SECTION_IDS, selectProjectionStrip, type ProjectionFigures, type ProjectionSummary, type ScenarioProjection } from '@/lib/utils/projectionSummary';
+import { formatStripFigure, validateStrip } from '@/lib/utils/verdictStrip';
+import { VERDICT_REST_SECTION } from '@/lib/utils/mobileSections';
 
 const figures = (overrides: Partial<ProjectionFigures> = {}): ProjectionFigures => ({
   year: 30,
@@ -152,3 +157,99 @@ describe('T6 — the threshold in words', () => {
   });
 });
 
+
+// ─── The phone composition (2026-10-18) ───────────────────────────────────────
+// What a phone cut would get wrong: the cut at the second full stop (the threshold in the lead), a zero median
+// printed «0 €», «Soglia» with one decimal against the verdict's «45%», Parametri's aside covering the stale warning.
+
+describe('buildProjectionVerdict — the cut', () => {
+  const flat = (value: string) => value.replace(/[\u00a0\u202f]/g, ' ');
+  const verdictOf = (summary: ProjectionSummary, options: { leverage?: number; thresholdIsFireNumber?: boolean } = {}) =>
+    buildProjectionVerdict({ runnable: true, summary, thresholdIsFireNumber: options.thresholdIsFireNumber ?? true, leverage: options.leverage ?? 1 });
+
+  it('keeps the median and its range in the first sentence, the threshold and the leverage behind «Il perché»', () => {
+    const verdict = verdictOf(summaryWith({}, 3), { leverage: 1.5 });
+    const { lead, rest } = splitVerdict(verdict);
+    expect(flat(narrativeToText(lead))).toBe('Tra 30 anni (nel 2056) il portafoglio vale 714.000 € di oggi in mediana; più di 213.000 € in nove simulazioni su dieci, più di 2.397.000 € in una su dieci.');
+    expect(flat(narrativeToText(rest))).toContain('Supera il tuo numero FIRE');
+    expect(flat(narrativeToText(rest))).toContain('Con leva 1,5×');
+    expect(verdict.restLabel).toBe('la soglia e la leva');
+  });
+
+  it('names what the rest holds: the threshold, the leverage, or nothing to cut', () => {
+    expect(verdictOf(summaryWith()).restLabel).toBe('la soglia');
+    expect(verdictOf(summaryWith({ probabilityAtLeast: null }, 3, null), { leverage: 1.5 }).restLabel).toBe('la leva');
+    const bare = verdictOf(summaryWith({ probabilityAtLeast: null }, 0, null));
+    expect(bare.leadLength).toBeUndefined();
+    expect(bare.restLabel).toBeUndefined();
+  });
+
+  it('is the same sentence, whole, at 1440', () => {
+    expect(flat(narrativeToText(verdictOf(summaryWith()).sentence))).toContain('in una su dieci. Supera il tuo numero FIRE');
+  });
+});
+
+describe('selectProjectionStrip', () => {
+  const KNOWN = [...Object.values(PROJECTION_SECTION_IDS), VERDICT_REST_SECTION];
+  const flat = (value: string) => value.replace(/[\u00a0\u202f]/g, ' ');
+
+  it('opens the Ventaglio with the median and Scenari with the probability, each printing what the verdict prints', () => {
+    const summary = summaryWith({ probabilityAtLeast: 45.2 });
+    const strip = selectProjectionStrip(summary);
+    expect(strip.map((figure) => figure.label)).toEqual(['Mediana tra 30 anni', 'Soglia']);
+    expect(strip.map((figure) => figure.opens)).toEqual([PROJECTION_SECTION_IDS.ventaglio, PROJECTION_SECTION_IDS.scenari]);
+    expect(validateStrip(strip, KNOWN)).toEqual([]);
+    const verdict = flat(narrativeToText(buildProjectionVerdict({ runnable: true, summary, thresholdIsFireNumber: true, leverage: 1 }).sentence));
+    expect(verdict).toContain(`il portafoglio vale ${flat(formatStripFigure(strip[0])!.text)} di oggi in mediana`);
+    expect(verdict).toContain(`nel ${flat(formatStripFigure(strip[1])!.text)} delle simulazioni`);
+  });
+
+  it('prints a whole probability without decimals, as the verdict does', () => {
+    const [, soglia] = selectProjectionStrip(summaryWith({ probabilityAtLeast: 45 }));
+    expect(flat(formatStripFigure(soglia)!.text)).toBe('45%');
+  });
+
+  it('says «esaurito» for a median at zero and «nessuna soglia» without a threshold, never a printed zero', () => {
+    const [median, soglia] = selectProjectionStrip(summaryWith({ p50: 0, probabilityAtLeast: null }, 0, null));
+    expect(median.value).toBeNull();
+    expect(median.reason).toBe('esaurito');
+    expect(soglia.value).toBeNull();
+    expect(soglia.reason).toBe('nessuna soglia');
+  });
+
+  it('writes «anno» for a horizon of one year', () => {
+    expect(selectProjectionStrip({ ...summaryWith(), horizon: 1 })[0].label).toBe('Mediana tra 1 anno');
+  });
+});
+
+describe('the closed rows — asides and answers', () => {
+  const visible = (answer: Narrative | null | undefined) => (answer ? answer.map((segment) => segment.text.trim()).join(' ').replace(/[\u00a0\u202f]/g, ' ') : answer);
+
+  it('the asides are words, never a figure; Parametri names the form, or the stale warning', () => {
+    for (const aside of Object.values(PROJECTION_CLOSED_ASIDES)) expect(aside).not.toMatch(/\d/);
+    expect(PROJECTION_CLOSED_ASIDES[PROJECTION_SECTION_IDS.ventaglio]).toBe('scenario base, euro di oggi');
+    expect(PROJECTION_CLOSED_ASIDES[PROJECTION_SECTION_IDS.scenari]).toBe('orso, base e toro');
+    expect(describeProjectionParametriClosedAside(false)).toBe('capitale, pesi e orizzonte');
+    expect(describeProjectionParametriClosedAside(true)).toBe('modificati: premi Prova');
+  });
+
+  it('answers the Ventaglio with where it starts and Scenari with the bear, in at most 22 characters; Parametri stays in words', () => {
+    const summary = summaryWith();
+    summary.scenarios.bear.atHorizon = figures({ p50: 411_000 });
+    const all = describeProjectionClosedAnswers({ summary, startValue: 100_000 });
+    expect(visible(all[PROJECTION_SECTION_IDS.ventaglio])).toBe('parte da 100.000 €');
+    expect(visible(all[PROJECTION_SECTION_IDS.scenari])).toBe('Orso 411.000 €');
+    expect(all[PROJECTION_SECTION_IDS.parametri]).toBeNull();
+    for (const answer of Object.values(all)) expect([...(visible(answer) ?? '')].length).toBeLessThanOrEqual(22);
+    // A figure is a projection, neither a gain nor a loss: no sign token.
+    expect(all[PROJECTION_SECTION_IDS.scenari]?.some((segment) => segment.sign)).toBe(false);
+  });
+
+  it('says «esaurito» for a depleted bear, as the tile does, and keeps the scope without a run', () => {
+    const summary = summaryWith();
+    summary.scenarios.bear.atHorizon = figures({ p50: 0 });
+    expect(visible(describeProjectionClosedAnswers({ summary, startValue: 100_000 })[PROJECTION_SECTION_IDS.scenari])).toBe('Orso esaurito');
+    const none = describeProjectionClosedAnswers({ summary: null, startValue: null });
+    expect(Object.values(none).every((answer) => answer === null)).toBe(true);
+  });
+});

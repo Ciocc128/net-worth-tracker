@@ -32,6 +32,9 @@ export const FIRE_SECTION_IDS = {
   base: 'fire-base',
   reddito: 'fire-reddito',
   scenari: 'fire-scenari',
+  /** The fork's two tiles, rows after Scenari since 2026-10-18 (D-CU10): Età obiettivo and Sensibilità. */
+  eta: 'fire-eta',
+  sensibilita: 'fire-sensibilita',
 } as const;
 
 export interface FireStripInput {

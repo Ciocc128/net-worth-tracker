@@ -13,8 +13,10 @@ import { formatPercentage } from '@/lib/services/chartService';
 import { articleForPercent, startsWithVowel } from '@/lib/utils/patrimonioNarrative';
 import { formatLeverage } from '@/lib/utils/monteCarloNarrative';
 import { resolveSuccessTone, type PlanAllocationEntry } from '@/lib/utils/monteCarloSummary';
+import { cutAtFirstSentence, fireRestLabel } from '@/lib/utils/fireNarrative';
 import type { Narrative, NarrativeSegment, PageVerdictModel } from '@/lib/utils/narrative';
-import type { ProjectionFigures, ProjectionSummary, ScenarioKey } from '@/lib/utils/projectionSummary';
+import { PROJECTION_SECTION_IDS, type ProjectionFigures, type ProjectionSummary, type ScenarioKey } from '@/lib/utils/projectionSummary';
+import type { RowAnswerMap } from '@/components/ui/row-answers';
 
 const prose = (text: string): NarrativeSegment => ({ text });
 const figure = (text: string): NarrativeSegment => ({ text, mono: true });
@@ -101,19 +103,69 @@ export function buildProjectionVerdict(input: ProjectionVerdictInput): PageVerdi
   const tone = input.thresholdIsFireNumber && probability !== null ? resolveSuccessTone(probability) : 'neutral';
   const when: Narrative = [prose('Tra '), figure(years(summary.horizon)), prose(summary.endAge !== null ? ` (a ${summary.endAge} anni, nel ` : ' (nel '), figure(String(summary.endCalendarYear)), prose(')')];
 
+  const threshold = thresholdSentence(summary, input.thresholdIsFireNumber);
+  const leverage = leverageSentence(summary, input.leverage);
+  const sentence: Narrative = [
+    ...when,
+    ...(isDepleted(base.p50) ? [prose(' il portafoglio è '), capital(base.p50), prose(' in mediana; ')] : [prose(' il portafoglio vale '), amount(base.p50), prose(' di oggi in mediana; ')]),
+    ...(isDepleted(base.p10) ? [prose('in nove simulazioni su dieci è '), capital(base.p10)] : [prose('più di '), amount(base.p10), prose(' in nove simulazioni su dieci')]),
+    prose(', '),
+    ...(isDepleted(base.p90) ? [prose('in una su dieci è '), capital(base.p90)] : [prose('più di '), amount(base.p90), prose(' in una su dieci')]),
+    prose('.'),
+    ...threshold,
+    ...leverage,
+  ];
   return {
     headline: isDepleted(base.p50) ? `Tra ${years(summary.horizon)}, il portafoglio è esaurito in mediana.` : `Tra ${years(summary.horizon)}, ${cachedFormatCurrencyEUR(Math.round(base.p50), true)} di oggi in mediana.`,
     tone,
-    sentence: [
-      ...when,
-      ...(isDepleted(base.p50) ? [prose(' il portafoglio è '), capital(base.p50), prose(' in mediana; ')] : [prose(' il portafoglio vale '), amount(base.p50), prose(' di oggi in mediana; ')]),
-      ...(isDepleted(base.p10) ? [prose('in nove simulazioni su dieci è '), capital(base.p10)] : [prose('più di '), amount(base.p10), prose(' in nove simulazioni su dieci')]),
-      prose(', '),
-      ...(isDepleted(base.p90) ? [prose('in una su dieci è '), capital(base.p90)] : [prose('più di '), amount(base.p90), prose(' in una su dieci')]),
-      prose('.'),
-      ...thresholdSentence(summary, input.thresholdIsFireNumber),
-      ...leverageSentence(summary, input.leverage),
-    ],
+    sentence,
+    // The first sentence is the median and its range; the threshold and the leverage come after the full stop, behind «Il perché».
+    ...cutAtFirstSentence(sentence, fireRestLabel(projectionRestContent(threshold.length > 0, leverage.length > 0), false)),
+  };
+}
+
+/** What «Il perché» holds: «la soglia», «la leva» or «la soglia e la leva»; null with neither sentence. */
+function projectionRestContent(hasThreshold: boolean, hasLeverage: boolean): string | null {
+  if (hasThreshold && hasLeverage) return 'la soglia e la leva';
+  if (hasThreshold) return 'la soglia';
+  return hasLeverage ? 'la leva' : null;
+}
+
+// ─── The rows below `desktop:` ─────────────────────────────────────────────────
+
+/** What each closed row says beside its eyebrow — words, never a figure (The Closed-Row Rule); Parametri's is `describeProjectionParametriClosedAside`. */
+export const PROJECTION_CLOSED_ASIDES = {
+  [PROJECTION_SECTION_IDS.ventaglio]: 'scenario base, euro di oggi',
+  [PROJECTION_SECTION_IDS.scenari]: 'orso, base e toro',
+} as const;
+
+/**
+ * The Parametri row's aside while closed: what the form holds, or the warning that it differs from
+ * the run the figures above come from (The Stale-Run Rule holds from a closed row too).
+ */
+export function describeProjectionParametriClosedAside(stale: boolean): string {
+  return stale ? 'modificati: premi Prova' : 'capitale, pesi e orizzonte';
+}
+
+export interface ProjectionClosedAnswersInput {
+  /** The summary shown; null before the first run (the rows do not exist). */
+  summary: ProjectionSummary | null;
+  /** The value at year 0 of the run shown (`ProjectionRunData.startValue`). */
+  startValue: number | null;
+}
+
+/**
+ * What the Proiezione's closed rows answer in the landscape index (components/ui/row-answers.tsx).
+ * Ventaglio: where the median starts from, the one figure the first screen does not print. Scenari:
+ * the bear's median, the cautious scenario the verdict and the strip leave out — «esaurito» as the
+ * tile says a depleted one. Parametri: nothing (a form is an inventory, not an answer).
+ */
+export function describeProjectionClosedAnswers({ summary, startValue }: ProjectionClosedAnswersInput): RowAnswerMap {
+  const bear = summary?.scenarios.bear.atHorizon.p50 ?? null;
+  return {
+    [PROJECTION_SECTION_IDS.ventaglio]: startValue === null ? null : [prose('parte da'), amount(startValue)],
+    [PROJECTION_SECTION_IDS.scenari]: bear === null ? null : [prose('Orso'), isDepleted(bear) ? figure('esaurito') : amount(bear)],
+    [PROJECTION_SECTION_IDS.parametri]: null,
   };
 }
 

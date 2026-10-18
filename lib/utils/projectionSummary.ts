@@ -12,7 +12,8 @@ import { MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
 import type { MonteCarloCapitalInflow, MonteCarloMarketScenarios } from '@/types/assets';
 import type { MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { datedFlowsSignature, type DatedFlowsInput } from '@/lib/utils/datedFlows';
-import { SCENARIO_KEYS, type MonteCarloContext, type ScenarioKey } from '@/lib/utils/monteCarloSummary';
+import { rateDecimals, SCENARIO_KEYS, type MonteCarloContext, type ScenarioKey } from '@/lib/utils/monteCarloSummary';
+import type { StripFigure } from '@/lib/utils/verdictStrip';
 
 export type { ScenarioKey };
 
@@ -191,6 +192,50 @@ function figuresAt(
     probabilityAtLeast: atLeast,
     probabilityBelowStart: belowStart,
   };
+}
+
+// ─── The phone composition (2026-10-18) ───────────────────────────────────────
+
+/**
+ * The ids of the tab's rows below `desktop:` (`useMobileSections` with `tab: 'proiezione'`, The
+ * Closed-Row Rule): every tile but Tappe, THE tile, which never closes (D-CU12). Without a run
+ * Parametri is the one tile and is not a row.
+ */
+export const PROJECTION_SECTION_IDS = {
+  /** THE tile: not a row, the median cell's `onOpen` scrolls to it. */
+  tappe: 'proj-tappe',
+  ventaglio: 'proj-ventaglio',
+  scenari: 'proj-scenari',
+  parametri: 'proj-parametri',
+} as const;
+
+/**
+ * The two figures of the Proiezione's first screen (D-CU12): the Base median at the horizon — the
+ * verdict's «{X} di oggi in mediana» — opening the Ventaglio that draws it, and the probability of
+ * the threshold — the verdict's «nel 45% delle simulazioni» — opening Scenari, which carries it for
+ * the three scenarios. A median at zero is the verdict's «esaurito», never «0 €»; no threshold, no
+ * probability. Tappe repeats neither: it is a table by year, not a block lifted (The Lifted-Figure Rule).
+ */
+export function selectProjectionStrip(summary: ProjectionSummary): StripFigure[] {
+  const base = summary.scenarios.base.atHorizon;
+  const depleted = Math.round(base.p50) <= 0;
+  const probability = base.probabilityAtLeast;
+  return [
+    {
+      label: `Mediana tra ${summary.horizon} ${summary.horizon === 1 ? 'anno' : 'anni'}`,
+      value: depleted ? null : base.p50,
+      format: 'currency',
+      opens: PROJECTION_SECTION_IDS.ventaglio,
+      ...(depleted ? { reason: 'esaurito' } : {}),
+    },
+    {
+      label: 'Soglia',
+      value: probability,
+      format: 'percent',
+      opens: PROJECTION_SECTION_IDS.scenari,
+      ...(probability === null ? { reason: 'nessuna soglia' } : { decimals: rateDecimals(probability) }),
+    },
+  ];
 }
 
 /** Which years the Tappe table lists: the milestones within the horizon of the run, plus the chosen horizon. */

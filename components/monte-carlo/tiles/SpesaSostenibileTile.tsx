@@ -16,7 +16,7 @@ import type { SustainableSpendingSummary } from '@/lib/utils/sustainableWithdraw
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { describeSpesaCell, describeSpesaHeroAside, SPESA_METHOD, SPESA_FOOTER } from '@/lib/utils/monteCarloNarrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_SUB_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { TileMethodNote } from '@/components/ui/tile-method-note';
 import { cn } from '@/lib/utils';
 
@@ -24,6 +24,9 @@ interface SpesaSostenibileTileProps {
   reading: Narrative;
   aside: string;
   summary: SustainableSpendingSummary;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
   className?: string;
 }
 
@@ -33,13 +36,13 @@ const COLUMNS = [
   { key: 'bull', label: 'Bull' },
 ] as const;
 
-export function SpesaSostenibileTile({ reading, aside, summary, className }: SpesaSostenibileTileProps) {
+export function SpesaSostenibileTile({ reading, aside, summary, collapse, asideWhenClosed, className }: SpesaSostenibileTileProps) {
   const verdictRow = summary.rows.find((row) => row.probability === 0.9) ?? summary.rows[0];
   const hero = verdictRow.base;
   const heroAside = describeSpesaHeroAside(hero);
 
   return (
-    <Tile eyebrow="Spesa sostenibile" aside={aside} reading={reading} ariaLabel="Spesa sostenibile" className={className}>
+    <Tile eyebrow="Spesa sostenibile" aside={aside} asideWhenClosed={asideWhenClosed} reading={reading} ariaLabel="Spesa sostenibile" className={className} collapse={collapse}>
       <div className="@container mt-3.5 flex flex-col gap-5">
         <div className="grid grid-cols-1 gap-5 @[640px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @[640px]:items-center">
           <div>

@@ -10,7 +10,7 @@
 import type { ReactNode } from 'react';
 import type { Narrative } from '@/lib/utils/narrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_SUB_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
 
 interface VentaglioTileProps {
@@ -23,6 +23,9 @@ interface VentaglioTileProps {
   horizonLabel: string;
   chart: ReactNode;
   footer: Narrative;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
   className?: string;
 }
 
@@ -37,17 +40,17 @@ function Kpi({ label, value, hero = false }: { label: string; value: number; her
   );
 }
 
-export function VentaglioTile({ reading, aside, p10, p50, p90, horizonLabel, chart, footer, className }: VentaglioTileProps) {
+export function VentaglioTile({ reading, aside, p10, p50, p90, horizonLabel, chart, footer, collapse, asideWhenClosed, className }: VentaglioTileProps) {
   return (
-    <Tile eyebrow="Ventaglio" aside={aside} reading={reading} ariaLabel="Ventaglio del portafoglio" className={className}>
+    <Tile eyebrow="Ventaglio" aside={aside} asideWhenClosed={asideWhenClosed} reading={reading} ariaLabel="Ventaglio del portafoglio" className={className} collapse={collapse}>
       <div className="mt-3.5 flex flex-wrap items-end gap-x-6 gap-y-3">
         <Kpi label={`Mediana · ${horizonLabel}`} value={p50} hero />
         <Kpi label="10° %ile" value={p10} />
         <Kpi label="90° %ile" value={p90} />
       </div>
 
-      {/* The chart stretches with the tile's free height (the SVG's 100% resolves against the absolute box). */}
-      <div className="relative mt-4 min-h-[240px] flex-1">
+      {/* The chart stretches with the tile's free height (the SVG's 100% resolves against the absolute box); below `desktop:` it yields to 120px, never the reading (The First-Screen Rule). */}
+      <div className="relative mt-4 flex-1 max-desktop:min-h-[120px] desktop:min-h-[240px]">
         <div className="absolute inset-0">{chart}</div>
       </div>
 

@@ -218,17 +218,17 @@ const SKELETON_CELLS: TileSkeletonCell[] = [
 
 /**
  * The cells of the grid: one class per tile, shared by the data and the empty branches. ONE
- * sequence, no `order-*` (The First-Screen Rule): Traguardo, then Base, Reddito, Scenari at every width; on
- * a tablet a row cell adds the place `useTabletComposition` gives it at 768 (in landscape the rows
- * sit in the index beside the verdict and THE tile, lib/utils/tabletComposition.ts). Età obiettivo
- * and Sensibilità (fork) are plain full-width tiles after the stage (D-UP4).
+ * sequence, no `order-*` (The First-Screen Rule): Traguardo, then Base, Reddito, Scenari, Età obiettivo
+ * and Sensibilità (the fork's, rows since 2026-10-18, D-CU10) at every width; on a tablet a row cell adds
+ * the place `useTabletComposition` gives it at 768 (in landscape the rows sit in the index beside the
+ * verdict and THE tile, lib/utils/tabletComposition.ts). At 1440 the last two stay full-width tiles.
  */
 const TRAGUARDO_CELL = cn(TILE_CELL_CLASS, LEAD_CELL_CLASS, 'desktop:col-span-5 desktop:row-span-2');
 const BASE_CELL = cn(TILE_ROW_CELL_CLASS, 'desktop:col-span-7');
 const REDDITO_CELL = cn(TILE_ROW_CELL_CLASS, 'desktop:col-span-7');
 const SCENARI_CELL = cn(TILE_ROW_CELL_CLASS, 'desktop:col-span-12');
-const ETA_CELL = TILE_CELL_CLASS;
-const SENSIBILITA_CELL = TILE_CELL_CLASS;
+const ETA_CELL = cn(TILE_ROW_CELL_CLASS, 'desktop:col-span-12');
+const SENSIBILITA_CELL = cn(TILE_ROW_CELL_CLASS, 'desktop:col-span-12');
 
 /**
  * The rows below `desktop:`, in the DOM's order (The Closed-Row Rule): every tile but Traguardo,
@@ -239,8 +239,10 @@ const FIRE_SECTIONS: readonly SectionSpec[] = [
   { id: FIRE_SECTION_IDS.base, eyebrow: 'Base di calcolo' },
   { id: FIRE_SECTION_IDS.reddito, eyebrow: 'Reddito passivo' },
   { id: FIRE_SECTION_IDS.scenari, eyebrow: 'Scenari' },
+  { id: FIRE_SECTION_IDS.eta, eyebrow: 'Età obiettivo' },
+  { id: FIRE_SECTION_IDS.sensibilita, eyebrow: 'Sensibilità' },
 ];
-/** The three rows are on both branches of the tab: their DOM order is the tablet's. */
+/** The five rows are on both branches of the tab: their DOM order is the tablet's. */
 const FIRE_ORDER = FIRE_SECTIONS.map((section) => section.id);
 
 /** The one action of the empty state: a link the size of a touch target, in the tile's own ink. */
@@ -870,22 +872,20 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
               <EmptyState className="mt-2" message={empty.scenarios} />
             </Tile>
           </div>
-          </div>
-        </div>
-        </div>
-        </div>
-        </div>
-        <div className="grid grid-cols-1 gap-3">
-          <div className={ETA_CELL}>
-            <Tile eyebrow="Età obiettivo" ariaLabel="Età obiettivo">
+          <div className={cn(ETA_CELL, tablet.cellClass(FIRE_SECTION_IDS.eta))}>
+            <Tile eyebrow="Età obiettivo" ariaLabel="Età obiettivo" collapse={sections.collapse(FIRE_SECTION_IDS.eta)} asideWhenClosed={FIRE_ROW_NOT_COMPUTABLE}>
               <EmptyState className="mt-2" message={empty.targetAge} />
             </Tile>
           </div>
-          <div className={SENSIBILITA_CELL}>
-            <Tile eyebrow="Sensibilità" ariaLabel="Sensibilità degli anni al FIRE">
+          <div className={cn(SENSIBILITA_CELL, tablet.cellClass(FIRE_SECTION_IDS.sensibilita))}>
+            <Tile eyebrow="Sensibilità" ariaLabel="Sensibilità degli anni al FIRE" collapse={sections.collapse(FIRE_SECTION_IDS.sensibilita)} asideWhenClosed={FIRE_ROW_NOT_COMPUTABLE}>
               <EmptyState className="mt-2" message={empty.sensitivity} />
             </Tile>
           </div>
+          </div>
+        </div>
+        </div>
+        </div>
         </div>
           {dettaglio}
       </div>
@@ -979,7 +979,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
 
         {/* What each closed row answers in the landscape index (2026-10-16): the same base, allowance
             and scenario rows the tiles print. */}
-        <RowAnswers value={describeFireClosedAnswers({ base, passiveIncome, scenarioRows, horizonYears: PROJECTION_HORIZON_YEARS })}>
+        <RowAnswers value={describeFireClosedAnswers({ base, passiveIncome, scenarioRows, horizonYears: PROJECTION_HORIZON_YEARS, targetAge: targetAgeSummary })}>
         <div className={INDEX_CLASS}>
         <PageRest sections={sections} className={REST_CELL_CLASS} />
 
@@ -1031,27 +1031,28 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
             </Tile>
           )}
         </div>
-        </div>
-        </RowAnswers>
-      </div>
-      </div>
-      </div>
-      </div>
 
-      {/* Fork-only tiles (D-UP4): plain tiles after the stage, never closed rows. */}
-      <div className="grid grid-cols-1 gap-3">
-        <div className={ETA_CELL}>
+        <div className={cn(ETA_CELL, tablet.cellClass(FIRE_SECTION_IDS.eta))}>
           {targetAgeSummary ? (
-            <EtaObiettivoTile reading={describeTargetAge(targetAgeSummary)} summary={targetAgeSummary} method={describeTargetAgeMethod()} onOpenCoast={onOpenCoast} />
+            <EtaObiettivoTile
+              collapse={sections.collapse(FIRE_SECTION_IDS.eta)}
+              asideWhenClosed={FIRE_CLOSED_ASIDES[FIRE_SECTION_IDS.eta]}
+              reading={describeTargetAge(targetAgeSummary)}
+              summary={targetAgeSummary}
+              method={describeTargetAgeMethod()}
+              onOpenCoast={onOpenCoast}
+            />
           ) : (
-            <Tile eyebrow="Età obiettivo" ariaLabel="Età obiettivo">
+            <Tile eyebrow="Età obiettivo" ariaLabel="Età obiettivo" collapse={sections.collapse(FIRE_SECTION_IDS.eta)} asideWhenClosed={FIRE_ROW_NOT_COMPUTABLE}>
               <EmptyState className="mt-2" message={describeEmptyTiles('no-expenses').targetAge} />
             </Tile>
           )}
         </div>
 
-        <div className={SENSIBILITA_CELL}>
+        <div className={cn(SENSIBILITA_CELL, tablet.cellClass(FIRE_SECTION_IDS.sensibilita))}>
           <SensibilitaTile
+            collapse={sections.collapse(FIRE_SECTION_IDS.sensibilita)}
+            asideWhenClosed={FIRE_CLOSED_ASIDES[FIRE_SECTION_IDS.sensibilita]}
             reading={sensitivityReading ? describeSensitivity(sensitivityReading, PROJECTION_HORIZON_YEARS, { quotaMissing: targetYears === null }) : [{ text: 'Servono un patrimonio FIRE e spese annue maggiori di zero.' }]}
             aside={sensitivityMatrix?.byQuota ? `quota del numero FIRE all’età obiettivo (${Math.round(previewTargetAge)} anni, ${currentYear + (sensitivityMatrix.targetYears ?? 0)}) · scenario base · piano di oggi` : SENSITIVITY_ASIDE}
             baselineInput={sensitivityBaselineInput}
@@ -1061,6 +1062,11 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
             footer={SENSITIVITY_FOOTER}
           />
         </div>
+        </div>
+        </RowAnswers>
+      </div>
+      </div>
+      </div>
       </div>
 
       {dettaglio}

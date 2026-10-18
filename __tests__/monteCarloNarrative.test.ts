@@ -488,7 +488,7 @@ describe('buildMonteCarloVerdict — the shown run outlives the typed form', () 
 
 describe('the closed rows\' asides — words, never a figure', () => {
   it('names Distribuzione and Scenari without a digit, and Parametri by whether the typed plan is the shown one', () => {
-    expect(MONTE_CARLO_CLOSED_ASIDES).toEqual({ [MONTE_CARLO_SECTION_IDS.distribuzione]: 'valori finali', [MONTE_CARLO_SECTION_IDS.scenari]: 'orso, base e toro' });
+    expect(MONTE_CARLO_CLOSED_ASIDES).toEqual({ [MONTE_CARLO_SECTION_IDS.distribuzione]: 'valori finali', [MONTE_CARLO_SECTION_IDS.scenari]: 'orso, base e toro', [MONTE_CARLO_SECTION_IDS.spesa]: "euro di oggi, l'anno" });
     for (const aside of Object.values(MONTE_CARLO_CLOSED_ASIDES)) expect(aside).not.toMatch(/\d/);
     expect(describeParametriClosedAside(false)).toBe('il piano di oggi');
     expect(describeParametriClosedAside(true)).toBe('modificati: premi Esegui');
@@ -529,5 +529,44 @@ describe('describeMonteCarloClosedAnswers', () => {
     expect(Object.values(none).every((answer) => answer === null)).toBe(true);
     expect(answers({ comparison: null })[MONTE_CARLO_SECTION_IDS.scenari]).toBeNull();
     expect(answers({ stale: true })[MONTE_CARLO_SECTION_IDS.parametri]).toBeNull();
+  });
+
+  // D-CU17: Spesa sostenibile is the last row; its answer is the 95% row, the one level the verdict (90%) and the strip (90%) leave out.
+  it('answers Spesa sostenibile with the 95% withdrawal, and keeps the scope where there is none', () => {
+    expect(visible(answers({ sustainable: makeSummary(43_300) })[MONTE_CARLO_SECTION_IDS.spesa])).toBe('al 95% 38.500 €');
+    expect(answers()[MONTE_CARLO_SECTION_IDS.spesa]).toBeNull();
+    const none: SustainableSpendingSummary = { capital: 1_000_000, rows: [{ probability: 0.95, bear: cell(null), base: cell(null), bull: cell(null) }] };
+    expect(answers({ sustainable: none })[MONTE_CARLO_SECTION_IDS.spesa]).toBeNull();
+    const zero: SustainableSpendingSummary = { capital: 1_000_000, rows: [{ probability: 0.95, bear: cell(0), base: cell(0), bull: cell(0) }] };
+    expect(answers({ sustainable: zero })[MONTE_CARLO_SECTION_IDS.spesa]).toBeNull();
+    for (const answer of Object.values(answers({ sustainable: makeSummary(43_300) }))) expect([...(visible(answer) ?? '')].length).toBeLessThanOrEqual(22);
+  });
+});
+
+// ─── The third cell: Spesa al 90% (D-CU17, 2026-10-18) ────────────────────────
+// What the cell would get wrong: the 80% row instead of the 90% one; a zero withdrawal printed «0 €» (the `> 0` guard).
+
+describe('selectMonteCarloStrip — Spesa al 90%', () => {
+  const flat = (text: string) => text.replace(/[\u00a0\u202f]/g, ' ');
+
+  it('adds the third cell, opening the last row, and prints the figure the verdict prints', () => {
+    const sustainable = makeSummary(43_300);
+    const strip = selectMonteCarloStrip({ run: makeRun(), comparison: makeComparison(), sustainable });
+    expect(strip.map((figure) => figure.label)).toEqual(['Mediana', 'Orso', 'Spesa al 90%']);
+    expect(strip[2].opens).toBe(MONTE_CARLO_SECTION_IDS.spesa);
+    const verdict = flat(plain(buildMonteCarloVerdict({ runnable: true, run: makeRun(), scenarios: makeComparison(), lock: INACTIVE_LOCK, sustainable: { base90: cell(43_300), capital: 1_000_000, typedWithdrawal: 30_000 } }).sentence));
+    expect(verdict).toContain(`potresti prelevare fino a ${flat(formatStripFigure(strip[2])!.text)}`);
+  });
+
+  it('says no withdrawal holds where the verdict prints no figure (none reaches 90%, or not even 100 €)', () => {
+    for (const base90 of [null, 0]) {
+      const [, , spesa] = selectMonteCarloStrip({ run: makeRun(), comparison: makeComparison(), sustainable: makeSummary(base90) });
+      expect(spesa.value).toBeNull();
+      expect(spesa.reason).toBe('nessun prelievo regge');
+    }
+  });
+
+  it('without the sustainable spending there are two cells, as before', () => {
+    expect(selectMonteCarloStrip({ run: makeRun(), comparison: makeComparison(), sustainable: null })).toHaveLength(2);
   });
 });

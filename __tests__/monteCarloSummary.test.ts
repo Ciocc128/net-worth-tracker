@@ -40,7 +40,8 @@ import { monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
 const defaultScenarios = () => getDefaultMonteCarloMarket().scenarios;
 /** Weights: the named classes, every other at 0. */
 const weightsOf = (named: Partial<Record<'equity' | 'bonds' | 'gold' | 'commodity' | 'cash' | 'trendFollowing' | 'carry', number>>) => monteCarloClassRecord((cls) => named[cls] ?? 0);
-import { MONTE_CARLO_SECTION_IDS, rateDecimals, selectMonteCarloStrip } from '@/lib/utils/monteCarloSummary';
+import { MONTE_CARLO_SECTION_IDS, rateDecimals, selectMonteCarloStrip, SUSTAINABLE_STRIP_PROBABILITY } from '@/lib/utils/monteCarloSummary';
+import { SUSTAINABLE_VERDICT_PROBABILITY } from '@/lib/utils/sustainableWithdrawal';
 import { formatStripFigure, validateStrip } from '@/lib/utils/verdictStrip';
 import { VERDICT_REST_SECTION } from '@/lib/utils/mobileSections';
 
@@ -419,6 +420,12 @@ describe('T5 — euro di oggi (RD6) e partenza dal FIRE', () => {
 // ─── The phone's strip (2026-10-15) ───────────────────────────────────────────
 // Seen red one at a time: a median at zero printed «0 €» (the guard removed); the bear cell on the
 // base row; `decimals` fixed to 1 («95,0%» against the verdict's «95%»).
+
+describe('SUSTAINABLE_STRIP_PROBABILITY', () => {
+  it('is the verdict\'s level (restated here to keep this module SDK-free)', () => {
+    expect(SUSTAINABLE_STRIP_PROBABILITY).toBe(SUSTAINABLE_VERDICT_PROBABILITY);
+  });
+});
 
 describe('selectMonteCarloStrip', () => {
   const KNOWN = [...Object.values(MONTE_CARLO_SECTION_IDS), VERDICT_REST_SECTION];

@@ -312,6 +312,8 @@ export const FIRE_CLOSED_ASIDES = {
   [FIRE_SECTION_IDS.base]: 'spese, risparmio e SWR',
   [FIRE_SECTION_IDS.reddito]: 'al tasso di prelievo',
   [FIRE_SECTION_IDS.scenari]: 'orso, base e toro',
+  [FIRE_SECTION_IDS.eta]: 'cosa serve per smettere',
+  [FIRE_SECTION_IDS.sensibilita]: 'anni al FIRE per spesa e risparmio',
 } as const;
 
 /** What a closed row says while the tab has nothing to compute from («Nulla registrato»). */
@@ -326,6 +328,8 @@ export interface FireClosedAnswersInput {
   /** Empty without a projection: the Scenari row then keeps its aside. */
   scenarioRows: ScenarioRow[];
   horizonYears: number;
+  /** The Età obiettivo tile's summary; null without expenses (the row keeps its words). */
+  targetAge?: TargetAgeSummary | null;
 }
 
 /**
@@ -365,14 +369,34 @@ function fireScenariAnswer(rows: ScenarioRow[], horizonYears: number): Narrative
 }
 
 /**
+ * «servono +4.000 € l'anno» — the saving the target age asks beyond today's, the figure the tile's
+ * reading prints inside a longer sentence («servono 12.000 € di risparmio l'anno (oggi 8.000 €)»);
+ * «basta il risparmio di oggi» when the capital alone or today's saving gets there. Null where the
+ * tile has no figure to give (no age, an age already passed, already FIRE, or no saving that reaches).
+ */
+function fireTargetAgeAnswer(summary: TargetAgeSummary | null | undefined): Narrative | null {
+  if (!summary || summary.kind !== 'figures') return null;
+  const { required, annualSavings, onTrack } = summary;
+  if (required.amount === null) return null;
+  const extra = Math.max(0, required.amount - annualSavings);
+  if (required.amount === 0 || onTrack || extra === 0) return [prose("basta il risparmio di oggi")];
+  const gap = `+${cachedFormatCurrencyEUR(extra, true)}`;
+  // «servono +8.000 € l'anno» is 23 characters: past the index's 22 the sentence shortens, never the figure.
+  return `servono ${gap} l'anno`.length > CLOSED_ANSWER_MAX_CHARS ? [prose('servono'), figure(gap)] : [prose('servono'), figure(gap), prose("l'anno")];
+}
+
+/**
  * What the Calcolatore's closed rows answer in the landscape index (components/ui/row-answers.tsx;
  * 2026-10-16), only on the computed tab: with nothing recorded every row says «non ancora calcolabile».
  */
-export function describeFireClosedAnswers({ base, passiveIncome, scenarioRows, horizonYears }: FireClosedAnswersInput): RowAnswerMap {
+export function describeFireClosedAnswers({ base, passiveIncome, scenarioRows, horizonYears, targetAge }: FireClosedAnswersInput): RowAnswerMap {
   return {
     [FIRE_SECTION_IDS.base]: fireBaseAnswer(base),
     [FIRE_SECTION_IDS.reddito]: fireRedditoAnswer(passiveIncome),
     [FIRE_SECTION_IDS.scenari]: fireScenariAnswer(scenarioRows, horizonYears),
+    [FIRE_SECTION_IDS.eta]: fireTargetAgeAnswer(targetAge),
+    // A table: the tile has no single figure to say, the row keeps its words.
+    [FIRE_SECTION_IDS.sensibilita]: null,
   };
 }
 
