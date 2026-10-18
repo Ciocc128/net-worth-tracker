@@ -332,7 +332,7 @@ describe('G8 — Monte Carlo reads a goal that counts (doc/fire-ipotesi/README.m
   const house = resolveGoalFlows(
     [{ id: 'house', name: 'Acquisto Casa', priority: 'alta', color: '#3B82F6', countsInFire: true, targetAmount: 50_000, targetDate: '2029-06-30', createdAt: new Date(), updatedAt: new Date() }],
     [],
-    { currentYear: YEAR, assetValue: () => null },
+    { currentYear: YEAR, assetValue: () => null, assetFraction: () => 0 },
   ).resolved;
   const succeeds = (withdrawal: number, flows: typeof house) =>
     runMonteCarloSimulation({

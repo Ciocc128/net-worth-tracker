@@ -8,10 +8,10 @@
  * comment) and fixes the factor label to match this file's own convention: "Momentum nell'azionario",
  * not "Momentum (Azioni)".
  */
-import type { AssetClass } from '@/types/assets';
+import { isLoanAsset, type Asset, type AssetClass } from '@/types/assets';
 import type { GeoArea } from '@/lib/constants/geoAreas';
 import type { ConflictReport, ObjectiveReport, OptimizerMode, OptimizerSaleReport, OptimizerWarning, SecondLevelGap } from './weightOptimizer';
-import { ASSET_CLASS_LABELS } from './allocationUtils';
+import { ASSET_CLASS_LABELS, resolveAllocationRoleWithin } from './allocationUtils';
 import { GEO_AREA_LABELS } from '@/lib/constants/geoAreas';
 import { cachedFormatCurrencyEUR, formatCurrency, formatNumberIt, formatPercentageIt } from './formatters';
 import { formatSignedCurrency } from './accumulationNarrative';
@@ -408,6 +408,18 @@ export function describeModelOrigin(origin: 'manual' | 'optimizer', updatedAt: D
   }
   const proposed = `Proposto dall'ottimizzatore il ${formatModelDay(snapshot.computedAt)} (${OPTIMIZER_MODE_LABELS[snapshot.mode]})`;
   return origin === 'optimizer' ? `${proposed}.` : `${proposed}, poi cambiato a mano.`;
+}
+
+/** R11-S2 (D-R11-2): the two bases differ only when a debt sits inside the allocation. */
+export const MODEL_DEBT_BASE_NOTE = 'I pesi di oggi non contano i debiti: Bilanciamento li sottrae alla classe che finanziano.';
+
+/**
+ * The line under the model's table, only when it is true: a loan with a debt that Bilanciamento nets (a personal loan, or a
+ * mortgage on a property INSIDE the allocation). A mortgage on an excluded home changes no figure on either side, so it says nothing.
+ */
+export function describeModelDebtNote(assets: readonly Asset[], valueOf: (asset: Asset) => number): string | null {
+  const nets = assets.some((asset) => isLoanAsset(asset) && valueOf(asset) < 0 && resolveAllocationRoleWithin(asset, assets) !== 'excluded');
+  return nets ? MODEL_DEBT_BASE_NOTE : null;
 }
 
 /** The tile's aside: «pesi di mercato · base 182.000 €». */

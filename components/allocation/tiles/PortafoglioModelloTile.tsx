@@ -28,6 +28,7 @@ import { describeWriteError } from '@/lib/utils/dialogNarrative';
 import { cachedFormatCurrencyEUR, formatPercentageIt } from '@/lib/utils/formatters';
 import {
   describeModelOrigin,
+  describeModelDebtNote,
   describeModelSalesHint,
   describeModelTileAside,
   MODEL_ACTION_ADD_CANDIDATE,
@@ -112,6 +113,7 @@ export function PortafoglioModelloTile({
   };
 
   const comparison = useMemo(() => (model ? describeModelVsToday(model.weights, allAssets, calculateAssetValue) : null), [model, allAssets]);
+  const debtNote = useMemo(() => describeModelDebtNote(allAssets, calculateAssetValue), [allAssets]);
   const toBuyEur = comparison ? comparison.rows.reduce((sum, row) => sum + Math.max(0, row.diffEur), 0) : 0;
 
   const objectivesOn = !!idealAllocation?.enabled;
@@ -246,6 +248,7 @@ export function PortafoglioModelloTile({
               </p>
             )}
             <p className="mt-2 text-[11px] text-muted-foreground">{describeModelSalesHint(overweightLabels)}</p>
+            {debtNote && <p className="mt-1 text-[11px] text-muted-foreground">{debtNote}</p>}
           </div>
         )}
 

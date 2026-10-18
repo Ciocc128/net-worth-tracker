@@ -163,6 +163,16 @@ export interface AssetComposition {
   subCategory?: string; // Specific sub-category for this component of the composite asset
 }
 
+/**
+ * One row of «Intestatari» on an asset: a household member and their part, in UNITS (quote, or
+ * euro where the value lives in `quantity` at price 1) or in PERCENT of the asset — the form's
+ * % | quote switch, the owner's choice of 2026-10-17 (a joint account stays 50/50 while its
+ * balance moves; a unit count stays put while the price moves). See `Asset.ownerShares`.
+ */
+export type AssetOwnerShare =
+  | { memberId: string; units: number } // > 0
+  | { memberId: string; percent: number }; // 0-100
+
 // Core asset model representing a single financial holding.
 // Supports stocks, ETFs, bonds, crypto, real estate, cash, commodities.
 // Includes automatic price updates via Yahoo Finance (unless autoUpdatePrice=false).
@@ -217,6 +227,28 @@ export interface Asset {
   financedAssetId?: string;
   isPrimaryResidence?: boolean; // Indicates if this real estate is the primary residence (excluded from FIRE calculations based on user setting)
   allocationRole?: AllocationRole; // How the Allocazione page treats this asset. See AllocationRole. Absent → legacy excludeFromAllocation, else 'tradable'.
+  // «Intestatario» (owner, 2026-10-17): the household member this asset belongs to — the id of a
+  // FamilyMember of the settings, the same people Previdenza and Divisione name. ABSENT MEANS «IN
+  // COMUNE», like `Expense.personalMemberId`: every asset ever written is already shared, so there
+  // is no migration and a household marks only the exception. Two assets never read it: a pension
+  // fund's owner IS `pensionFundDetails.familyMemberId` (one field, not two), and a loan that
+  // finances a property follows that property's owner — `resolveAssetOwnerSlices`
+  // (lib/utils/assetOwnership.ts) is the ONE resolution. Not denormalized to a name: the members
+  // live in the settings every page already loads, so renaming a person costs no bulk update; an
+  // id whose member was deleted reads «Senza intestatario», never folded into anyone's figures.
+  // Since the quotas (same day, `ownerShares` below) this field names WHO TAKES THE REST — every
+  // unit `ownerShares` does not name, the ones a trade adds included (the form's «Nessuna quota
+  // in comune»); absent, the rest is in comune. A document with this field and no `ownerShares`
+  // is the whole asset to one member, exactly what it meant before: no migration.
+  ownerMemberId?: string;
+  // The quotas by person (owner, 2026-10-17; lib/utils/assetSlice.ts): the rows typed in the
+  // form, each a member and a number of UNITS — quote of an instrument, euro of an account, a
+  // property or a loan (whose value lives in `quantity` at price 1) — or a PERCENT of the asset
+  // (the form's switch, % by default where the value is money, quote on a quoted instrument).
+  // Units do not move with the price, and a quantity that falls below their sum is declared
+  // («quote da riassegnare»), never rescaled in silence; a percent follows the asset whole.
+  // Absent or empty: the whole asset goes to `ownerMemberId`, else in comune.
+  ownerShares?: AssetOwnerShare[];
   /** @deprecated Superseded by `allocationRole`. Read-only legacy fallback: true → 'excluded'. Never write it. */
   excludeFromAllocation?: boolean;
   // For a leveraged/composite ETF: 2 = 2x, 3 = 3x, 1 or absent = no leverage. Shown in AssetDialog
@@ -269,6 +301,8 @@ export interface AssetFormData {
   financedAssetId?: string; // The property a loan finances (see Asset)
   isPrimaryResidence?: boolean;
   allocationRole?: AllocationRole; // How the Allocazione page treats this asset. See AllocationRole.
+  ownerMemberId?: string; // «Intestatario»: the member who takes the rest; absent = in comune (see Asset)
+  ownerShares?: AssetOwnerShare[]; // The quotas by person, in units or percent (see Asset); absent = none typed
   leverageRatio?: number; // For a leveraged/composite ETF: 2 = 2x, 3 = 3x, 1 or absent = no leverage.
   isin?: string; // ISIN code for dividend scraping (optional)
   // The cash account this instrument's dividends and coupons credit (lib/utils/dividendAccount.ts).
