@@ -146,6 +146,8 @@ build e non sul dev server, i dati sono quelli di un mese dopo. Solo conteggi, n
 
 **2026-10-18, tappa A (Accumulo)**: il fixture ha ora un portafoglio modello e un piano attivo (`seedAccumulo`, `scripts/seedCensusE2E.mts`); le superfici `allocazione-accumulo` e `fire-proiezione` entrano nel budget alla prima misura sul Mac (`raisedBy` «prima misura»). Le voci di Allocazione e Panoramica, rilette sullo stesso fixture, non si sono mosse oltre il budget (390: 1,67 e 1,82 contro 1,67 e 1,83): nessun ritocco. La Proiezione resta fuori dal criterio «≤ 5 cifre» di doc/contributi-upstream/composizione-mobile.md § 9 (21 a 390): è il suo stato prima della composizione.
 
+**2026-10-18, tappa B (testa della pagina FIRE)**: «Ipotesi usate» diventa la riga d'ambito «Ipotesi: Base r% reale, costi c%» con «Dettagli» nel verdetto, «Il mio piano» chiuso è una riga di 52px (D-CU13, D-CU14). Misurato sul Mac (census@example.com, build `perf:build` su :3200): a 390 le superfici FIRE scendono (calcolatore 3,94 → 3,75 schermate e 13 → 10 cifre fuori dal verdetto, coast 2,12 → 1,92 e 14 → 10, what-if 2,08 → 1,89 e 9 → 5, Dopo il FIRE 2,69 → 2,50 e 9 → 2, Traguardi 1,57 → 1,39 e 13 → 10) e la prima riga chiusa sta ora sopra la pill; `--tighten` ha registrato i nuovi valori sulle sole superfici FIRE tranne la Proiezione. **Voci allargate a mano** (`raisedBy` «tappa B: riga d'ambito Ipotesi»): `fire-proiezione` @390 `figuresAboveFold` 21 → 25 e `figuresOutsideVerdict` 10 → 11, e `firstClosedRowAbovePill` registrata `true` a 390, 768 e 1024 — la Proiezione sarà ricomposta nella tappa C.
+
 | Superficie | 390 | 768 | 1024 |
 |---|---|---|---|
 | Panoramica | 1,77 · 1/1 · 5 / 5 | 1,17 · 8/7 · 5 / 5 | 1 · 8/8 · 12 / 12 |

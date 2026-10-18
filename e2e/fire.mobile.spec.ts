@@ -158,7 +158,7 @@ test.describe('FIRE, composto per un telefono', () => {
     const verdict = page.getByRole('region', { name: 'Verdetto sul FIRE' });
     // Le due righe di 1440 non si disegnano; l'ambito sta nel verdetto, dopo la striscia.
     await expect(page.getByTestId('fire-assumptions-row')).toHaveCount(0);
-    const scope = verdict.getByTestId('fire-assumptions-scope');
+    const scope = verdict.getByTestId('fire-assumptions-scope').locator('visible=true');
     await expect(scope).toBeVisible();
     await expect(scope).toContainText(/^Ipotesi: Base \d+,\d% reale/);
     const strip = verdict.getByRole('list', { name: 'Le cifre del verdetto' });
@@ -166,7 +166,7 @@ test.describe('FIRE, composto per un telefono', () => {
     expect(scopeBox!.y).toBeGreaterThan(stripBox!.y);
 
     // «Dettagli» è un bersaglio da 44px e apre UN popover con il capitale e le voci dei chip.
-    const details = verdict.getByTestId('fire-assumptions-details');
+    const details = verdict.getByTestId('fire-assumptions-details').locator('visible=true');
     expect((await details.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await details.click();
     const popover = page.locator('[data-radix-popper-content-wrapper]');
@@ -192,7 +192,7 @@ test.describe('FIRE, composto per un telefono', () => {
     await page.getByRole('tab', { name: 'Coast FIRE' }).click();
     await expect(page.getByRole('region', { name: 'Verdetto sul Coast FIRE' })).toBeVisible({ timeout: 30_000 });
     await expect(piano).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.getByTestId('fire-assumptions-scope')).toBeVisible();
+    await expect(page.getByTestId('fire-assumptions-scope').locator('visible=true')).toBeVisible();
   });
 
   test('il Calcolatore legge Traguardo, Base, Reddito, Scenari dall\'alto in basso, e nessun order-* resta', async ({ page }) => {
