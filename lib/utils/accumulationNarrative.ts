@@ -18,6 +18,7 @@
 import type { MonthKey } from '@/types/accumulationPlan';
 import type { LineUiState } from './accumulationPlanMatching';
 import type { Narrative, PageVerdictModel } from './narrative';
+import type { RowAnswerMap } from '@/components/ui/row-answers';
 import type { ClassTrajectoryPoint } from './accumulationPlanUtils';
 import { ASSET_CLASS_LABELS, bandForTarget, type RebalanceBand } from './allocationUtils';
 import { cachedFormatCurrencyEUR, formatDate, formatNumberIt, formatPercentageIt } from './formatters';
@@ -948,6 +949,17 @@ export type AccumuloVerdictInput =
 
 const mono = (text: string) => ({ text, mono: true });
 
+/** «Il perché · il rientro nella banda»: what stands behind the first sentence below `desktop:`. */
+export const ACCUMULO_REST_LABEL = 'il rientro nella banda';
+
+/** The lead of the verdict's sentence: up to its first full stop, when a second sentence follows (`splitVerdict`). */
+function cutAtFirstSentence(sentence: Narrative, restLabel: string | null): Pick<PageVerdictModel, 'leadLength' | 'restLabel'> {
+  if (restLabel === null) return {};
+  const leadLength = sentence.findIndex((segment) => segment.text.endsWith('.')) + 1;
+  if (leadLength <= 0 || leadLength >= sentence.length) return {};
+  return { leadLength, restLabel };
+}
+
 /** The Accumulo tab's verdict: one headline, one sentence, a tone (RV3). */
 export function describeAccumuloVerdict(input: AccumuloVerdictInput): PageVerdictModel {
   if (input.state === 'none') {
@@ -996,10 +1008,14 @@ export function describeAccumuloVerdict(input: AccumuloVerdictInput): PageVerdic
     mono(cachedFormatCurrencyEUR(input.investedEur, true)),
     { text: ' su ' },
     mono(cachedFormatCurrencyEUR(input.planTotalEur, true)),
-    { text: input.reentry ? `. ${input.reentry}` : '.' },
+    { text: '.' },
+    // The band re-entry is a sentence of its own: below `desktop:` it goes behind «Il perché» (The
+    // Binding-Clause Rule). The first sentence restates ONE strip cell, «Investito», so it is not a
+    // lead of length 0.
+    ...(input.reentry ? ([{ text: ` ${input.reentry}` }] as Narrative) : []),
   ];
   const tone = input.lateCount > 0 ? 'warning' : input.installmentClosed ? 'positive' : 'neutral';
-  return { headline, tone, sentence };
+  return { headline, tone, sentence, ...cutAtFirstSentence(sentence, input.reentry ? ACCUMULO_REST_LABEL : null) };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1138,3 +1154,66 @@ export function describeSuggestedInflow(monthlyEur: number, referenceYear: numbe
   return `Il tuo risparmio medio è di ${Math.round(monthlyEur)} € al mese (${source}).`;
 }
 export const ACCUMULO_USE_SUGGESTED_INFLOW = 'Usa';
+
+// ─────────────────────────────────────────────────────────────────────────
+// La composizione sul telefono (2026-10-18; doc/contributi-upstream/composizione-mobile.md § 3)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * The ids of the tab's cells below `desktop:` (`useMobileSections`, The Closed-Row Rule). `mese` is THE
+ * tile — Questo mese, or the empty state — and never closes (The First-Screen Rule): it is among the ids
+ * only as the target of the strip's first cell. Re-exported by `accumuloSummary.ts`.
+ */
+export const ACCUMULO_SECTION_IDS = {
+  mese: 'acc-mese',
+  modello: 'acc-modello',
+  classi: 'acc-classi',
+  criteri: 'acc-criteri',
+  conclusi: 'acc-conclusi',
+} as const;
+
+/** What a CLOSED row says beside its eyebrow: words, never a figure (The Closed-Row Rule). */
+export const ACCUMULO_CLOSED_ASIDES = {
+  [ACCUMULO_SECTION_IDS.modello]: 'pesi per strumento',
+  [ACCUMULO_SECTION_IDS.classi]: 'scostamento mese per mese',
+  [ACCUMULO_SECTION_IDS.criteri]: 'cosa chiedi al modello',
+  [ACCUMULO_SECTION_IDS.conclusi]: 'piani chiusi e interrotti',
+} as const;
+
+/** The Portafoglio modello row with no saved model says so beside its eyebrow instead of the usual words. */
+export const ACCUMULO_MODEL_MISSING_ASIDE = 'nessun modello salvato';
+
+export interface AccumuloClosedAnswersInput {
+  /** `comparePlanToModel(...).count` with an active plan and a saved model; `null` otherwise. */
+  modelDifferenceCount: number | null;
+  /** `selectClassStripRows(...)` at the cursor's month, `[]` without a trajectory. */
+  classRows: { outOfBandNow: boolean; reentryMonth?: MonthKey | 'baseline' }[];
+  /** The plan's first month: where a `baseline` re-entry reads. */
+  planStartMonth: MonthKey | null;
+  /** The number of criteria the saved objectives ask the model, `0` when off. */
+  criteriaCount: number;
+  /** The most recently closed plan's last month, `null` without a closed plan. */
+  lastClosedMonth: MonthKey | null;
+}
+
+/**
+ * What each closed row answers in the landscape index (the rows' `RowAnswers`): one short phrase with at
+ * most ONE figure that the strip, THE tile and the verdict's first sentence do not print; `null` where the
+ * row keeps its words. Months and counts read from the figures the tiles already hold.
+ */
+export function describeAccumuloClosedAnswers(input: AccumuloClosedAnswersInput): RowAnswerMap {
+  const outNow = input.classRows.filter((row) => row.outOfBandNow);
+  const everyReenters = outNow.length > 0 && outNow.every((row) => !!row.reentryMonth);
+  const lastReentry = everyReenters
+    ? outNow.map((row) => (row.reentryMonth === 'baseline' ? input.planStartMonth : (row.reentryMonth as MonthKey))).filter((month): month is MonthKey => !!month).sort().pop()
+    : undefined;
+  return {
+    [ACCUMULO_SECTION_IDS.modello]:
+      input.modelDifferenceCount === null
+        ? null
+        : [{ text: input.modelDifferenceCount === 0 ? 'allineato al piano' : `differisce su ${input.modelDifferenceCount} ${input.modelDifferenceCount === 1 ? 'strumento' : 'strumenti'}` }],
+    [ACCUMULO_SECTION_IDS.classi]: lastReentry ? [{ text: `rientro a ${monthLabelLong(lastReentry, false)}` }] : null,
+    [ACCUMULO_SECTION_IDS.criteri]: input.criteriaCount > 0 ? [{ text: `${input.criteriaCount} ${input.criteriaCount === 1 ? 'criterio' : 'criteri'}` }] : null,
+    [ACCUMULO_SECTION_IDS.conclusi]: input.lastClosedMonth ? [{ text: `ultimo a ${monthLabelLong(input.lastClosedMonth, false)}` }] : null,
+  };
+}

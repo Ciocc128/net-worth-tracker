@@ -14,6 +14,11 @@
  * tab was composed for a phone; doc/guide/prima-schermata.md), with ONE invented goal whose deadline is
  * relative to the run — seven years out, a pace that keeps it «in rotta» from the 5th to the
  * penultimate day — so the budget looks at the `goals-*` rows; the goal-driven targets stay off.
+ * Allocazione › Accumulo is ON since 2026-10-18 (doc/contributi-upstream/composizione-mobile.md § 8): a model
+ * portfolio and ONE active plan of 12 installments that started two months before the run, the two past
+ * installments registered, the open one (the third) with nothing registered yet — so the tab shows its
+ * five states' richest one (Questo mese, Classi del piano, the model, the criteria) from the 5th to the
+ * penultimate day, the same window the other surfaces need.
  *
  * THE DATES are relative to the day of the run, so every surface counts the same on any day of
  * the month: the month's rows sit on the 5th, the previous month is whole, the snapshots end last
@@ -73,8 +78,8 @@ const now = new Date();
 
 // The same lists `scripts/mirrorProdAccount.mts` clears for its account, plus the two per-user
 // documents only this fixture can have left behind.
-const USER_COLLECTIONS = ['assets', 'expenses', 'expenseCategories', 'monthly-snapshots', 'assetTransactions', 'pensionContributions', 'dividends', 'costCenters', 'goals', 'assistantThreads'];
-const PER_USER_DOCS = ['users', 'assetAllocationTargets', 'assetTransactionsMeta', 'budgets', 'hall-of-fame', 'performance-cache', 'dashboardOverviewSummaries', 'goalBasedInvesting', 'userPreferences'];
+const USER_COLLECTIONS = ['assets', 'expenses', 'expenseCategories', 'monthly-snapshots', 'assetTransactions', 'pensionContributions', 'dividends', 'costCenters', 'goals', 'assistantThreads', 'accumulationPlans'];
+const PER_USER_DOCS = ['users', 'modelPortfolios', 'assetAllocationTargets', 'assetTransactionsMeta', 'budgets', 'hall-of-fame', 'performance-cache', 'dashboardOverviewSummaries', 'goalBasedInvesting', 'userPreferences'];
 
 // ── The calendar of the run ─────────────────────────────────────────────────────────────────────
 
@@ -491,6 +496,94 @@ async function seedGoals(): Promise<void> {
   console.info('  ✓ 1 goal (Obiettivi on, targets from the settings)');
 }
 
+// ── Accumulo (Allocazione › Accumulo) ──────────────────────────────────────────────────────────
+
+/** The 'YYYY-MM' key of the month `offset` months from the current one. */
+const monthKeyAt = (offset: number): string => {
+  const m = monthAt(offset);
+  return `${m.year}-${String(m.month + 1).padStart(2, '0')}`;
+};
+
+/**
+ * The model portfolio and ONE active plan. Round invented figures (WORKFLOW.md § 1 rule 7): three
+ * instruments at 50 · 20 · 30, one installment of 606 € (3 × 110 + 1 × 175 + 1 × 101) a month for 12
+ * months. The plan started two months before the run (`startMonth` = −2, so the open installment is the
+ * third, whatever the day), the first two installments executed — no late line, «Rata 3 di 12» — and the
+ * third with nothing registered: the state the tab is read in. The baseline is the portfolio two months
+ * ago (the purchases undone, the cash back), so the trajectory's first point is consistent with today.
+ */
+async function seedAccumulo(): Promise<void> {
+  const weights = [
+    { assetId: 'census-vwce', targetPercentage: 50 },
+    { assetId: 'census-aapl', targetPercentage: 20 },
+    { assetId: 'census-btp', targetPercentage: 30 },
+  ];
+  await db.collection('modelPortfolios').doc(UID).set({ userId: UID, weights, origin: 'manual', updatedAt: now });
+
+  const positions = weights.map((weight) => ({
+    id: `census-pos-${weight.assetId.replace('census-', '')}`,
+    label: weight.assetId === 'census-vwce' ? 'Vanguard FTSE All-World' : weight.assetId === 'census-aapl' ? 'Apple Inc.' : 'BTP Valore 2030',
+    targetPercentage: weight.targetPercentage,
+    memberAssetIds: [weight.assetId],
+    buyAssetId: weight.assetId,
+  }));
+  const rate = [
+    { positionId: 'census-pos-vwce', assetId: 'census-vwce', quantity: 3, price: 110 },
+    { positionId: 'census-pos-aapl', assetId: 'census-aapl', quantity: 1, price: 175 },
+    { positionId: 'census-pos-btp', assetId: 'census-btp', quantity: 1, price: 101 },
+  ];
+  const installments = Array.from({ length: 12 }, (_, k) => {
+    const index = k + 1;
+    const executed = index <= 2;
+    return {
+      index,
+      month: monthKeyAt(index - 3),
+      carryInEur: {},
+      ...(executed ? { confirmedAt: dayOf(monthAt(index - 3), 12) } : {}),
+      lines: rate.map((line) => ({
+        positionId: line.positionId,
+        assetId: line.assetId,
+        plannedQuantity: line.quantity,
+        priceEurAtPlan: line.price,
+        plannedAmountEur: line.quantity * line.price,
+        status: executed ? 'executed' : 'planned',
+        ...(executed ? { executedQuantity: line.quantity, executedAmountEur: line.quantity * line.price } : {}),
+      })),
+    };
+  });
+
+  // Two months ago: today's portfolio minus the two installments' purchases, the cash back.
+  const baselineClasses = { equity: 14940, bonds: 303, crypto: 27500, cash: 9212 };
+  const plan = {
+    userId: UID,
+    name: 'Piano Ghiandaia',
+    status: 'active',
+    startMonth: monthKeyAt(-2),
+    months: 12,
+    liquidity: { sourceCashAssetIds: ['census-cash'], reserveEur: 2000, monthlyInflowEur: 0 },
+    positions,
+    disposals: [],
+    baseline: {
+      capturedAt: dayOf(monthAt(-2), 2),
+      positionValuesEur: { 'census-pos-vwce': 1540, 'census-pos-aapl': 1400, 'census-pos-btp': 303 },
+      sourceCashEur: 9212,
+      pricesEur: { 'census-vwce': 110, 'census-aapl': 175, 'census-btp': 101 },
+      measurement: {
+        measuredAt: dayOf(monthAt(-2), 2),
+        classNotionalEur: baselineClasses,
+        marketBaseEur: Object.values(baselineClasses).reduce((sum, value) => sum + value, 0),
+      },
+    },
+    installments,
+    residualEur: 0,
+    createdAt: dayOf(monthAt(-2), 1),
+    updatedAt: dayOf(monthAt(-2), 2),
+    activatedAt: dayOf(monthAt(-2), 2),
+  };
+  await db.collection('accumulationPlans').doc('census-plan').set(plan);
+  console.info('  ✓ 1 model portfolio and 1 active plan (installment 3 of 12 open)');
+}
+
 console.info(`Seeding the census fixture for ${UID} on ${PROJECT_ID}…`);
 await seedAccount();
 await removeEverything();
@@ -503,5 +596,6 @@ await seedBudget();
 await seedCoupon();
 await seedPensionContributions();
 await seedGoals();
+await seedAccumulo();
 console.info('Done.');
 process.exit(0);

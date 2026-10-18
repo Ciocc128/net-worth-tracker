@@ -87,6 +87,7 @@ const COMPOSED_GRID_FILES = [
   'app/dashboard/performance/page.tsx',
   'app/dashboard/history/page.tsx',
   'app/dashboard/allocation/page.tsx',
+  'components/allocation/AccumuloTab.tsx',
   'app/dashboard/hall-of-fame/page.tsx',
   'components/cashflow/ExpenseTrackingTab.tsx',
   'components/cashflow/BudgetTab.tsx',

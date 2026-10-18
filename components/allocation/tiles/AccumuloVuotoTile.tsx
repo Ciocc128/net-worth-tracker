@@ -53,9 +53,11 @@ interface AccumuloVuotoTileProps {
   model: ModelPortfolio | null;
   today: Date;
   onAssetsChanged: () => void;
+  /** Where «Apri il portafoglio modello» goes when the model is a closed row (below `desktop:`); absent = scroll to the anchor. */
+  onGoToComposition?: () => void;
 }
 
-export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLeverageRatio, idealAllocation, model, today, onAssetsChanged }: AccumuloVuotoTileProps) {
+export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLeverageRatio, idealAllocation, model, today, onAssetsChanged, onGoToComposition }: AccumuloVuotoTileProps) {
   const isDemo = useDemoMode();
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -72,6 +74,8 @@ export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLev
   );
 
   const goToComposition = () => {
+    // Below `desktop:` the model portfolio is a row that may be closed: the tab opens it and scrolls itself.
+    if (onGoToComposition) return onGoToComposition();
     document.getElementById(COMPOSITION_ANCHOR_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 

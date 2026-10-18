@@ -144,6 +144,8 @@ Lo stesso mirror riseminato il giorno della misura, `npm run mobile:census -- --
 la pill — le colonne del fixture (§ Il fixture), non quelle della tabella sopra: la definizione di cifra è quella del censimento (2026-10-10), la misura è sulla
 build e non sul dev server, i dati sono quelli di un mese dopo. Solo conteggi, nessun importo.
 
+**2026-10-18, tappa A (Accumulo)**: il fixture ha ora un portafoglio modello e un piano attivo (`seedAccumulo`, `scripts/seedCensusE2E.mts`); le superfici `allocazione-accumulo` e `fire-proiezione` entrano nel budget alla prima misura sul Mac (`raisedBy` «prima misura»), e le voci di Allocazione/Panoramica si rileggono (la clausola «pac» del verdetto).
+
 | Superficie | 390 | 768 | 1024 |
 |---|---|---|---|
 | Panoramica | 1,77 · 1/1 · 5 / 5 | 1,17 · 8/7 · 5 / 5 | 1 · 8/8 · 12 / 12 |

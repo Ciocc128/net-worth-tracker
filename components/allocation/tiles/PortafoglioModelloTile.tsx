@@ -54,7 +54,7 @@ import {
 import type { Narrative } from '@/lib/utils/narrative';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { useSaveModelPortfolio } from '@/lib/hooks/useModelPortfolio';
-import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_SUB_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { Button } from '@/components/ui/button';
 import { AssetDialog } from '@/components/assets/AssetDialog';
 import { IdealCompositionDialog } from '@/components/allocation/IdealCompositionDialog';
@@ -74,6 +74,9 @@ interface PortafoglioModelloTileProps {
   /** The open plan: an active one with no model saved offers «Usa i pesi del piano» (AL14). */
   plan?: AccumulationPlan | null;
   readFailed: boolean;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
   onAssetsChanged: () => void;
 }
 
@@ -98,6 +101,8 @@ export function PortafoglioModelloTile({
   model,
   plan = null,
   readFailed,
+  collapse,
+  asideWhenClosed,
   onAssetsChanged,
 }: PortafoglioModelloTileProps) {
   const isDemo = useDemoMode();
@@ -179,7 +184,13 @@ export function PortafoglioModelloTile({
 
   return (
     <>
-      <Tile eyebrow={MODEL_TILE_EYEBROW} aside={comparison ? describeModelTileAside(comparison.baseEur) : undefined} reading={reading}>
+      <Tile
+        eyebrow={MODEL_TILE_EYEBROW}
+        aside={comparison ? describeModelTileAside(comparison.baseEur) : undefined}
+        asideWhenClosed={asideWhenClosed}
+        collapse={collapse}
+        reading={reading}
+      >
         {comparison && comparison.rows.length > 0 && (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-[13px]">
