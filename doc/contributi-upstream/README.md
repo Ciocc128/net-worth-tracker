@@ -5,7 +5,7 @@
 > del mobile e quali togliere». Un solo dossier per le due domande, perché ciò che va verso upstream deve già uscire
 > nella forma per telefono e tablet.
 > Questo dossier non cambia codice e non apre nulla verso upstream: niente PR, issue o commenti. Le decisioni D-CU1–D-CU12
-> (§ 7) aspettano la conferma del proprietario.
+> (§ 7) le ha prese il proprietario lo stesso giorno («ok mi torna»).
 
 Confronto: `Ciocc128/net-worth-tracker:main` (`34a3a71`, dopo la PR #120) contro `GiuseppeDM98/net-worth-tracker:main`
 (`9a5b318e`, PR #476 del 17/10) e `develop` (`c54a6159`).
@@ -199,9 +199,9 @@ della striscia si leggono dai riassunti già esistenti (`buildAccumuloVerdict`, 
 - Le voci in `perf/mobile-budget.json` sulla fixture del censimento (`census@example.com` va estesa con un piano PAC e un
   modello) e le spec `.mobile` e `.tablet`, sul Mac.
 
-## 7. Decisioni (da confermare)
+## 7. Decisioni (prese dal proprietario il 18/10/2026)
 
-| ID | Decisione proposta | Alternative scartate e motivo |
+| ID | Decisione | Alternative scartate e motivo |
 |---|---|---|
 | **D-CU1** | Tre gruppi: PAC e ottimizzatore, Simulazioni e FIRE, piccole correzioni. Restano nel fork AI/email/Wiki, Esposizione a cinque viste con `currencyHedge`, Lime Frost e le scelte di resa, «Traguardi» | *Portare tutto*: 75.000 righe, e upstream rifà i disegni che non ha chiesto (#402). *Solo il PAC*: il Monte Carlo e il FIRE sono il valore più generale, ma vanno chiesti prima |
 | **D-CU2** | Una PR per capacità, su `upstream/develop`, un commit, branch `pr/<nome>`, lo stato di oggi riscritto sulla base di upstream (RC1, RC2) | *Cherry-pick dei commit del fork*: 400 commit intrecciati con dieci riallineamenti. *Una PR grande*: upstream la spezzerebbe o la rifarebbe |
@@ -230,7 +230,7 @@ della striscia si leggono dai riassunti già esistenti (`buildAccumuloVerdict`, 
 
 ## 9. Criteri di accettazione
 
-- **Del dossier**: Giorgio conferma o cambia D-CU1–D-CU12; le card Todoist seguono il § 5 (R11, M1–M5, U1–U3, C1–C4, I-SIM).
+- **Del dossier**: D-CU1–D-CU12 confermate (18/10); le card Todoist seguono il § 5 (R11, M1–M5, U1–U3, C1–C4, I-SIM).
 - **Di ogni M**: a 390 il primo schermo ha il verdetto, al massimo quattro cifre nella striscia, il tile aperto e la prima
   riga chiusa sopra la pillola; `npm run mobile:budget` verde con le voci nuove; le spec `.mobile` e `.tablet` della
   superficie verdi sul Mac; a 1440 la pagina è identica a oggi (nessuna regressione in `e2e/allocation.spec.ts`,
