@@ -3,7 +3,7 @@
 > Specifiche del passo M1–M5 del dossier `doc/contributi-upstream/README.md` (§ 5, § 6), scritte il 18/10/2026 leggendo
 > il codice di `main` dopo la PR #124. Il dossier dice COSA si toglie sotto `desktop:` (§ 6.2, D-CU7–D-CU12); qui c'è COME,
 > superficie per superficie, con i file, gli id, le parole e le prove. Le decisioni D-CU1–D-CU12 non si riaprono: dove il
-> codice obbliga a precisarle, la precisazione è una decisione nuova (§ 8, D-CU13–D-CU20, **proposte, da confermare**).
+> codice obbliga a precisarle, la precisazione è una decisione nuova (§ 10, D-CU13–D-CU20, **prese dal proprietario il 18/10/2026**, «Sì»).
 > Le regole sono quelle di DESIGN.md (§ 5 → Small-Screen Composition: The First-Screen, Lifted-Figure, Closed-Row e
 > Binding-Clause Rules); i primitivi e la pagina campione sono quelli di Hall of Fame (`doc/guide/hall-of-fame.md`
 > § Composizione mobile). Nessuna riga di codice cambia con questo documento.
@@ -278,7 +278,7 @@ Quelli del dossier (§ 9, «Di ogni M»), più:
   ai loro casi esistenti;
 - `tsc`, eslint (`npx eslint app components lib types e2e scripts __tests__`) e Vitest verdi sotto `TZ=Europe/Rome` e `TZ=UTC`.
 
-## 10. Decisioni proposte (da confermare)
+## 10. Decisioni (prese dal proprietario il 18/10/2026)
 
 | ID | Proposta | Alternative scartate e motivo |
 |---|---|---|
