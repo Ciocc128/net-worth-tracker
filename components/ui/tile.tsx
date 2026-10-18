@@ -178,8 +178,8 @@ export function TileRowShell({ collapse, eyebrow, ariaLabel, asideWhenClosed, as
               className="flex min-h-[52px] w-full items-center justify-between gap-3 rounded-2xl px-5 text-left active:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             >
               {eyebrow}
-              <span className="flex min-w-0 shrink-0 items-center justify-end gap-2">
-                {asideText && <span className={cn('text-[10px] text-muted-foreground', answer && ASIDE_YIELDS_TO_ANSWER_CLASS)}>{asideText}</span>}
+              <span className={cn('flex min-w-0 items-center justify-end gap-2', open ? 'shrink' : 'shrink-0')}>
+                {asideText && <span className={cn('min-w-0 text-[10px] text-muted-foreground', open && 'text-right', answer && ASIDE_YIELDS_TO_ANSWER_CLASS)}>{asideText}</span>}
                 {answer && <RowAnswerText segments={answer} />}
                 <ChevronDown
                   className={cn('h-4 w-4 text-muted-foreground motion-safe:transition-transform', ROW_MOTION_CLASS, open && 'rotate-180')}

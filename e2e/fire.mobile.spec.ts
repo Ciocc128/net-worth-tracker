@@ -345,7 +345,7 @@ test.describe('FIRE, tappa C: le righe del fork', () => {
     // La cella Mediana apre il Ventaglio, che a 390 ha il suo grafico (almeno 120px).
     await cells.nth(0).click();
     await expect(trigger(page, 'proj-ventaglio')).toHaveAttribute('aria-expanded', 'true');
-    const fan = page.getByRole('region', { name: 'Ventaglio del portafoglio' }).locator('svg').first();
+    const fan = page.getByRole('region', { name: 'Ventaglio del portafoglio' }).locator('svg.recharts-surface').first();
     await expect(fan).toBeVisible();
     expect((await fan.boundingBox())!.height).toBeGreaterThanOrEqual(120);
   });
