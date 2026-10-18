@@ -194,6 +194,9 @@ della striscia si leggono dai riassunti già esistenti (`buildAccumuloVerdict`, 
 
 ### 6.3 Cosa serve per chiudere ogni M
 
+Le specifiche di M1–M5, superficie per superficie, sono in [`composizione-mobile.md`](composizione-mobile.md) (18/10/2026,
+con le decisioni D-CU13–D-CU20, prese dal proprietario lo stesso giorno).
+
 - Il controller `useMobileSections` della superficie, gli id e gli aside nei suoi `*Summary.ts`/`*Narrative.ts`.
 - La `§ Composizione mobile` nella guida dell'area (`accumulo.md`, `fire-proiezione.md`, `fire.md`, `fire-monte-carlo.md`).
 - Le voci in `perf/mobile-budget.json` sulla fixture del censimento (`census@example.com` va estesa con un piano PAC e un
