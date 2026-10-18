@@ -440,7 +440,11 @@ export function TransactionFeed({
     const button = focusRowRef?.current ?? document.querySelector<HTMLButtonElement>(`[data-expense-id="${CSS.escape(focusRowId)}"]`);
     if (!button) return;
     focusedRowId.current = focusRowId;
-    button.focus();
+    // No browser scroll on the focus: the panel's `reveal` may still be scrolling smoothly and the
+    // focus's own "nearest" jump would cancel it, leaving the row at an edge or past it (red on the
+    // Mac, green in the container, 2026-10-18). The row is centred once, after the focus.
+    button.focus({ preventScroll: true });
+    button.scrollIntoView({ block: 'center', behavior: 'auto' });
   }, [focusRowId, focusRowRef, sliced]);
 
   // Bucket by day with Oggi / Ieri / "EEE d MMM" labels; flat when not grouped.
