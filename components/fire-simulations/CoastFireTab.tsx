@@ -13,7 +13,13 @@
  *   Desktop (12 col): Traguardo(5, 2 rows) | Afflussi(7)
  *                                          | Scenari(7)
  *   Without any inflow (§ 17 RCO7–RCO8) the Afflussi tile is not drawn: Traguardo(5) | Scenari(7).
- *   Mobile (1 col):   Traguardo → Afflussi → Scenari
+ *   Below desktop:    ONE sequence, the DOM above (DESIGN.md → The First-Screen Rule,
+ *                     since 2026-10-15): the verdict's title → the first sentence (the gap and the
+ *                     walk) → the strip of two figures («Ti mancano» or «Margine», «Nell'orso») →
+ *                     the lock as the scope line (The Binding-Clause Rule) → «Il perché» (the pace, the lock
+ *                     sentence) → Traguardo open, its plot at 120px → «Il resto della pagina» →
+ *                     Afflussi, Scenari as closed rows (`useMobileSections` with `tab: 'coast'`,
+ *                     doc/guide/fire-coast.md § Composizione mobile) → Ipotesi → Dettaglio.
  *
  * Below the grid, two disclosures: «Ipotesi» (the form — ages, expenses, state pensions, IRPEF
  * brackets — config-first: open only while no age is saved, reopening on an unsaved edit or an
@@ -56,16 +62,33 @@ import { buildFlowSchedule } from '@/lib/utils/datedFlows';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import { summarizeLock } from '@/lib/utils/fireSummary';
+import { describeFireLockScope } from '@/lib/utils/fireNarrative';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
+import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
+import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
+import {
+  COMPACT_GRID_CLASS,
+  COMPACT_GRID_WRAPPER_CLASS,
+  INDEX_CLASS,
+  LEAD_CELL_CLASS,
+  REST_CELL_CLASS,
+  STAGE_CLASS,
+  STAGE_WRAPPER_CLASS,
+  VERDICT_CELL_CLASS,
+} from '@/lib/utils/tabletComposition';
+import { VERDICT_REST_SECTION } from '@/lib/utils/mobileSections';
 import {
   buildBaseScenarioInterpretation,
   buildCoastCoverageSteps,
   buildCoastInflowEvents,
   buildCoastVerdict,
+  COAST_CLOSED_ASIDES,
+  COAST_SECTION_IDS,
   COAST_INFLOWS_FOOTER,
   COAST_INFLOWS_METHOD,
   COAST_SCENARIOS_FOOTER,
   COAST_SCENARIOS_METHOD,
+  describeCoastClosedAnswers,
   describeCoastDettaglio,
   describeCoastEmptyTiles,
   describeCoastInflows,
@@ -82,6 +105,7 @@ import {
   resolveCoastEmptyKind,
   resolveCoastIncompleteReason,
   resolveCoastPace,
+  selectCoastStrip,
   sortPensionBreakdown,
   summarizeCoastPensions,
   summarizeCoastScenarios,
@@ -93,8 +117,13 @@ import { PageVerdict } from '@/components/ui/page-verdict';
 import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
 import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
-import { Tile, TILE_CELL_CLASS } from '@/components/ui/tile';
+import { VerdictStrip } from '@/components/ui/verdict-strip';
+import { PageRest } from '@/components/ui/page-rest';
+import { Tile, TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
+import { RowAnswers } from '@/components/ui/row-answers';
 import { EmptyState } from '@/components/ui/empty-state';
+import { FireLockScope } from './FireLockScope';
+import { FIRE_ROW_NOT_COMPUTABLE } from '@/lib/utils/fireNarrative';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
@@ -109,14 +138,28 @@ import { CoastFireProjectionChart } from './CoastFireProjectionChart';
 /** Three cells: the loading state does not know yet whether the Afflussi tile will exist. */
 const SKELETON_CELLS = COAST_TAB_SKELETON_CELLS;
 
-/** The three cells of the grid: one class per tile, shared by the data and the empty branches. */
-const GRID_CLASS = 'grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12';
-/* Tablet (768-1439): every tile full width, in the phone's order. */
-const TRAGUARDO_CELL = cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5 desktop:row-span-2');
-const AFFLUSSI_CELL = cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-7');
-const SCENARI_CELL = cn(TILE_CELL_CLASS, 'order-3 tablet:col-span-2 desktop:order-none desktop:col-span-7');
-/* Without the Afflussi tile the Traguardo is one row tall and the Scenari sits beside it. */
-const TRAGUARDO_ALONE_CELL = cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5');
+/**
+ * The cells of the grid: one class per tile, shared by the data and the empty branches. ONE
+ * sequence, no `order-*` (The First-Screen Rule); on a tablet a row cell adds the place
+ * `useTabletComposition` gives it at 768 (in landscape the rows sit in the index beside the verdict
+ * and THE tile, lib/utils/tabletComposition.ts). Without the Afflussi tile (§ 17 RCO7) the Traguardo
+ * is one row tall and the Scenari sits beside it.
+ */
+const TRAGUARDO_CELL = cn(TILE_CELL_CLASS, LEAD_CELL_CLASS, 'desktop:col-span-5 desktop:row-span-2');
+const TRAGUARDO_ALONE_CELL = cn(TILE_CELL_CLASS, LEAD_CELL_CLASS, 'desktop:col-span-5');
+const AFFLUSSI_CELL = cn(TILE_ROW_CELL_CLASS, 'desktop:col-span-7');
+const SCENARI_CELL = cn(TILE_ROW_CELL_CLASS, 'desktop:col-span-7');
+
+/** The rows below `desktop:`, in the DOM's order: every tile but Traguardo, THE tile (The First-Screen Rule). No row carries `failed`. */
+const COAST_SECTIONS: readonly SectionSpec[] = [
+  { id: COAST_SECTION_IDS.afflussi, eyebrow: 'Afflussi' },
+  { id: COAST_SECTION_IDS.scenari, eyebrow: 'Scenari' },
+];
+/** Without inflows (§ 17 RCO7) the Afflussi row is not drawn: one row, Scenari. */
+const COAST_SECTIONS_NO_INFLOWS: readonly SectionSpec[] = COAST_SECTIONS.filter((section) => section.id === COAST_SECTION_IDS.scenari);
+/** The rows are on both branches of the tab: their DOM order is the tablet's. */
+const COAST_ORDER = COAST_SECTIONS.map((section) => section.id);
+const COAST_ORDER_NO_INFLOWS = COAST_SECTIONS_NO_INFLOWS.map((section) => section.id);
 
 /** The one action of the empty state: a link (or a button) the size of a touch target, in the tile's own ink. */
 const EMPTY_ACTION_CLASS =
@@ -273,6 +316,20 @@ export function CoastFireTab() {
 
   // ─── The words (pure layer) ───────────────────────────────────────────────────
   const verdict = useMemo(() => buildCoastVerdict({ target, incompleteReason, pace, lock }), [target, incompleteReason, pace, lock]);
+
+  // ─── The phone composition (2026-10-15) ──────────────────────────────────────
+  // The rows and «Il perché» from the controller (one memory per tab); the strip from the target
+  // and the scenario rows the tiles print; the lock as the scope line only below `desktop:`.
+  // §17 RCO7: no event at all (pensions, fund, dated flows) = no Afflussi tile; its one line moves to the Traguardo's footer.
+  const hasInflows = inflowEvents.length > 0;
+  const drawsAfflussi = hasInflows || !coastProjection || !baseScenario || !target;
+  const sections = useMobileSections({ route: 'fire-simulations', tab: 'coast', sections: drawsAfflussi ? COAST_SECTIONS : COAST_SECTIONS_NO_INFLOWS });
+  const stageRef = useTabletStage();
+  const tablet = useTabletComposition({ sections, order: drawsAfflussi ? COAST_ORDER : COAST_ORDER_NO_INFLOWS });
+  const { reveal: handleStripOpen } = sections;
+  const strip = target ? selectCoastStrip({ target, scenarios: scenarioRows }) : [];
+  const lockScope = sections.compact ? describeFireLockScope(lock) : null;
+
   // ─── Loading ─────────────────────────────────────────────────────────────────
   // A failed read comes BEFORE the wait: these queries default to undefined, and a plan built
   // on a base that was never read is a number with nothing behind it.
@@ -315,46 +372,67 @@ export function CoastFireTab() {
           {emptyAction.label}
         </button>
       );
+    // The same rows as the full tab, closed and saying «non ancora calcolabile»; the Traguardo keeps the action.
     return (
       <div className="space-y-4">
-        <div className="pt-1">
+        {/* The stage: the verdict over the grid; on a tablet in landscape the answer on the left
+            (verdict and THE tile) and the index on the right (lib/utils/tabletComposition.ts). */}
+        <div className={STAGE_WRAPPER_CLASS}>
+        <div ref={stageRef} className={STAGE_CLASS}>
+        <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
           <FireAssumptionsRow assumptions={flowAssumptions} />
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" />
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" scope={lockScope && <FireLockScope text={lockScope} />} restCollapse={sections.collapse(VERDICT_REST_SECTION)} />
         </div>
-        <div className={GRID_CLASS}>
-          <div className={TRAGUARDO_CELL}>
+        <div className={COMPACT_GRID_WRAPPER_CLASS}>
+        <div className={COMPACT_GRID_CLASS}>
+          <div data-stage="lead" className={TRAGUARDO_CELL}>
             <Tile eyebrow="Traguardo" ariaLabel="Traguardo Coast FIRE">
               <EmptyState className="mt-2" message={empty.traguardo} action={action} />
             </Tile>
           </div>
-          <div className={AFFLUSSI_CELL}>
-            <Tile eyebrow="Afflussi" ariaLabel="Afflussi già considerati">
+          <div className={INDEX_CLASS}>
+          <PageRest sections={sections} className={REST_CELL_CLASS} />
+          <div className={cn(AFFLUSSI_CELL, tablet.cellClass(COAST_SECTION_IDS.afflussi))}>
+            <Tile eyebrow="Afflussi" ariaLabel="Afflussi già considerati" collapse={sections.collapse(COAST_SECTION_IDS.afflussi)} asideWhenClosed={FIRE_ROW_NOT_COMPUTABLE}>
               <EmptyState className="mt-2" message={empty.afflussi} />
             </Tile>
           </div>
-          <div className={SCENARI_CELL}>
-            <Tile eyebrow="Scenari" ariaLabel="Scenari Coast FIRE">
+          <div className={cn(SCENARI_CELL, tablet.cellClass(COAST_SECTION_IDS.scenari))}>
+            <Tile eyebrow="Scenari" ariaLabel="Scenari Coast FIRE" collapse={sections.collapse(COAST_SECTION_IDS.scenari)} asideWhenClosed={FIRE_ROW_NOT_COMPUTABLE}>
               <EmptyState className="mt-2" message={empty.scenari} />
             </Tile>
           </div>
+          </div>
+        </div>
+        </div>
+        </div>
         </div>
       </div>
     );
   }
 
-  // §17 RCO7: no event at all (pensions, fund, dated flows) = no tile; its one line moves to the Traguardo's footer.
-  const hasInflows = inflowEvents.length > 0;
   const lastPoint = coastProjection.projectionData[coastProjection.projectionData.length - 1];
 
   return (
     <div className="space-y-4">
-      <div className="pt-1">
+      {/* The stage: the verdict over the grid; on a tablet in landscape the answer on the left
+          (verdict and THE tile) and the index on the right (lib/utils/tabletComposition.ts). */}
+      <div className={STAGE_WRAPPER_CLASS}>
+      <div ref={stageRef} className={STAGE_CLASS}>
+      <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
         <FireAssumptionsRow assumptions={flowAssumptions} />
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" />
+        <PageVerdict
+          verdict={verdict}
+          ariaLabel="Verdetto sul Coast FIRE"
+          strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={sections.eyebrows} />}
+          scope={lockScope && <FireLockScope text={lockScope} />}
+          restCollapse={sections.collapse(VERDICT_REST_SECTION)}
+        />
       </div>
 
-      <div className={GRID_CLASS}>
-        <div className={hasInflows ? TRAGUARDO_CELL : TRAGUARDO_ALONE_CELL}>
+      <div className={COMPACT_GRID_WRAPPER_CLASS}>
+      <div className={COMPACT_GRID_CLASS}>
+        <div data-stage="lead" className={hasInflows ? TRAGUARDO_CELL : TRAGUARDO_ALONE_CELL}>
           <CoastTraguardoTile
             stagesMethod={describeCoastRegimeMethod(target)}
             reading={describeCoastTarget(target)}
@@ -381,9 +459,17 @@ export function CoastFireTab() {
           />
         </div>
 
+        {/* What each closed row answers in the landscape index (2026-10-16): the same events,
+            pensions and scenario rows the tiles print. */}
+        <RowAnswers value={describeCoastClosedAnswers({ events: inflowEvents, pensions, scenarios: scenarioRows })}>
+        <div className={INDEX_CLASS}>
+        <PageRest sections={sections} className={REST_CELL_CLASS} />
+
         {hasInflows && (
-          <div className={AFFLUSSI_CELL}>
+          <div className={cn(AFFLUSSI_CELL, tablet.cellClass(COAST_SECTION_IDS.afflussi))}>
             <AfflussiTile
+              collapse={sections.collapse(COAST_SECTION_IDS.afflussi)}
+              asideWhenClosed={COAST_CLOSED_ASIDES[COAST_SECTION_IDS.afflussi]}
               reading={describeCoastInflows(inflowEvents, pensions, resolvedRetirementAge)}
               events={inflowEvents}
               footer={COAST_INFLOWS_FOOTER}
@@ -392,9 +478,21 @@ export function CoastFireTab() {
           </div>
         )}
 
-        <div className={SCENARI_CELL}>
-          <CoastScenariTile reading={describeCoastScenarios(scenarioRows)} rows={scenarioRows} footer={COAST_SCENARIOS_FOOTER} method={COAST_SCENARIOS_METHOD} />
+        <div className={cn(SCENARI_CELL, tablet.cellClass(COAST_SECTION_IDS.scenari))}>
+          <CoastScenariTile
+            collapse={sections.collapse(COAST_SECTION_IDS.scenari)}
+            asideWhenClosed={COAST_CLOSED_ASIDES[COAST_SECTION_IDS.scenari]}
+            reading={describeCoastScenarios(scenarioRows)}
+            rows={scenarioRows}
+            footer={COAST_SCENARIOS_FOOTER}
+            method={COAST_SCENARIOS_METHOD}
+          />
         </div>
+        </div>
+        </RowAnswers>
+      </div>
+      </div>
+      </div>
       </div>
 
       <CoastDettaglio

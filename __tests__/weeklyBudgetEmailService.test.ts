@@ -13,6 +13,8 @@ let mockCategoryDocs: Array<{ id: string; data: () => unknown }> = [];
 
 // The provider layer (lib/server/llm) is server-only.
 vi.mock('server-only', () => ({}));
+// allocazioneNarrative (read by the email narrative) reaches the client SDK through allocazioneSummary.
+vi.mock('@/lib/firebase/config', () => ({ db: {} }));
 vi.mock('firebase-admin/firestore', () => ({ Timestamp: { fromDate: (d: Date) => d } }));
 // Every sent email lands here, so a test can check it left WITHOUT the AI comment.
 const { mockSentEmails } = vi.hoisted(() => ({ mockSentEmails: [] as Array<{ html: string }> }));
@@ -36,6 +38,17 @@ vi.mock('@/lib/firebase/admin', () => ({
       };
       return chain;
     },
+  },
+}));
+
+// The SDK is imported lazily inside the comment generator: one fake client answers on both
+// `messages.create` and `beta.messages.create`, so the test reads the response handling, not
+// which door the request went through.
+const { anthropicCreateMock } = vi.hoisted(() => ({ anthropicCreateMock: vi.fn() }));
+vi.mock('@anthropic-ai/sdk', () => ({
+  default: class {
+    messages = { create: anthropicCreateMock };
+    beta = { messages: { create: anthropicCreateMock } };
   },
 }));
 

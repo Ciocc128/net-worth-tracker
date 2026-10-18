@@ -1,6 +1,6 @@
 # Email periodiche e PDF export
 
-> **Quando aprire questa guida** — chi tocca `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailHtml,emailPeriodComparison}.ts`, `lib/utils/{emailNarrative,pdfNarrative}.ts`, `lib/utils/pdfGenerator.tsx`, `lib/services/pdfDataService.ts`, `components/pdf/*`, `lib/constants/printTokens.ts`, il cron `app/api/cron/monthly-snapshot/route.ts`. Entrambe rendono fuori dal DOM: si verificano renderizzandole, e nessuna verifica è nella suite. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: § *Files*, sotto.
+> **Quando aprire questa guida** — chi tocca `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailHtml,emailPeriodComparison,emailAiComment}.ts`, `lib/utils/{emailNarrative,pdfNarrative}.ts`, `lib/utils/pdfGenerator.tsx`, `lib/services/pdfDataService.ts`, `components/pdf/*`, `lib/constants/printTokens.ts`, il cron `app/api/cron/monthly-snapshot/route.ts`. Entrambe rendono fuori dal DOM: si verificano renderizzandole, e nessuna verifica è nella suite. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: § *Files*, sotto.
 
 ## Files
 

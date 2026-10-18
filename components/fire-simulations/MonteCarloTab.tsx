@@ -14,7 +14,14 @@
  *   Desktop (12 col): Spesa sostenibile(12)
  *                     Probabilità(8) | Scenari a confronto(4)
  *                     Parametri(12)
- *   Mobile (1 col):   Spesa sostenibile → Probabilità → Scenari → Parametri
+ *   Below desktop:    ONE sequence, the DOM above (DESIGN.md → The First-Screen Rule,
+ *                     since 2026-10-15): the verdict's title → the first sentence (the base run) →
+ *                     the strip of two figures («Mediana», «Orso») → the lock as the scope line
+ *                     → «Il perché» (the bear and the bull, the bridge) → Probabilità open,
+ *                     its fan at 120px → «Il resto della pagina» → Scenari,
+ *                     Parametri as closed rows (`useMobileSections` with `tab: 'montecarlo'`,
+ *                     doc/guide/fire-monte-carlo.md § Composizione mobile) → Dettaglio. Without a
+ *                     run Parametri is the one tile, open, and there is no strip and no rest.
  *
  * ONE run = the three scenarios (Bear · Base · Bull) with the plan's shared inputs; the verdict,
  * Probabilità read Base, the Scenari tile reads all three. The old
@@ -59,13 +66,30 @@ import { marketUncertainty, resolveMonteCarloMarketForPortfolio } from '@/lib/ut
 import { MONTE_CARLO_CLASSES, monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { summarizeLock } from '@/lib/utils/fireSummary';
+import { describeFireLockScope } from '@/lib/utils/fireNarrative';
+import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
+import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
+import {
+  COMPACT_GRID_CLASS,
+  COMPACT_GRID_WRAPPER_CLASS,
+  INDEX_CLASS,
+  PLAIN_GRID_CLASS,
+  leadCellClass,
+  REST_CELL_CLASS,
+  STAGE_CLASS,
+  STAGE_WRAPPER_CLASS,
+  VERDICT_CELL_CLASS,
+} from '@/lib/utils/tabletComposition';
+import { VERDICT_REST_SECTION } from '@/lib/utils/mobileSections';
 import {
   buildOverlaySeries,
   buildPercentileRows,
   deflatePercentiles,
   formatInputAmount,
   haveRunInputsChanged,
+  MONTE_CARLO_SECTION_IDS,
   parseItalianNumber,
+  selectMonteCarloStrip,
   summarizeMonteCarloPlan,
   summarizeMonteCarloRun,
   summarizeScenarios,
@@ -78,6 +102,9 @@ import {
   START_MODE_LABELS,
   type StartMode,
   describeMarketDeclaration,
+  describeMonteCarloClosedAnswers,
+  describeParametriClosedAside,
+  MONTE_CARLO_CLOSED_ASIDES,
   describeParametri,
   describeParametriFooter,
   resolveAllocationTotalState,
@@ -108,8 +135,12 @@ import { useMarketAnchors } from '@/lib/hooks/useMarketAnchors';
 import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
 import type { DatedFlowsInput } from '@/lib/utils/datedFlows';
 import { describeSimulationFlowsRow } from '@/lib/utils/datedFlowsNarrative';
-import { TILE_CELL_CLASS } from '@/components/ui/tile';
+import { VerdictStrip } from '@/components/ui/verdict-strip';
+import { PageRest } from '@/components/ui/page-rest';
+import { TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
+import { RowAnswers } from '@/components/ui/row-answers';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
+import { FireLockScope } from './FireLockScope';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
 import { MonteCarloFanChart } from '@/components/monte-carlo/MonteCarloFanChart';
@@ -125,6 +156,14 @@ const SKELETON_CELLS = MONTE_CARLO_TAB_SKELETON_CELLS;
 
 const DEFAULT_SIMULATIONS = DEFAULT_MONTE_CARLO_SIMULATIONS;
 const DEFAULT_WITHDRAWAL = 30000;
+
+/** The rows below `desktop:`, in the DOM's order: every tile but Probabilità, THE tile, which never closes. No row carries `failed`. */
+const MONTE_CARLO_SECTIONS: readonly SectionSpec[] = [
+  { id: MONTE_CARLO_SECTION_IDS.scenari, eyebrow: 'Scenari a confronto' },
+  { id: MONTE_CARLO_SECTION_IDS.parametri, eyebrow: 'Parametri' },
+];
+/** Without a run Parametri is the one tile and not a row: the controller sees no row at all. */
+const NO_SECTIONS: readonly SectionSpec[] = [];
 
 /** A run keeps the inputs it was made with, so the page can tell a stale form from a fresh one. */
 interface MonteCarloRunState {
@@ -488,6 +527,32 @@ export function MonteCarloTab() {
     () => buildMonteCarloVerdict({ runnable, run, scenarios: comparison, lock, unleveragedSuccessRate, sustainable: sustainableVerdictInput, start: verdictStart }),
     [runnable, run, comparison, lock, unleveragedSuccessRate, sustainableVerdictInput, verdictStart],
   );
+  // What each closed row answers in the landscape index (2026-10-16): the run's 90th percentile, the
+  // bull's rate and the plan's withdrawal — the same run, comparison and plan the tiles print.
+  const rowAnswers = useMemo(() => describeMonteCarloClosedAnswers({ run, comparison, plan: typedPlan, stale }), [run, comparison, typedPlan, stale]);
+
+  // ─── The phone composition (2026-10-15) ──────────────────────────────────────
+  // The rows exist only with a run shown (Parametri alone is open); the strip is the SHOWN run's
+  // until «Esegui» (The Stale-Run Rule: a stale form moves the Parametri aside, not the cells).
+  const sections = useMobileSections({ route: 'fire-simulations', tab: 'montecarlo', sections: run ? MONTE_CARLO_SECTIONS : NO_SECTIONS });
+  // At 768 the rows on two columns, on a tablet in landscape the index beside the verdict and THE
+  // tile (lib/utils/tabletComposition.ts): the ones the run renders, in DOM order (Scenari a
+  // confronto only with a comparison). Without a run the grid of before, Parametri alone, and no
+  // stage: there is no THE tile to set on the left.
+  const stageRef = useTabletStage();
+  const tablet = useTabletComposition({
+    sections,
+    order: run
+      ? MONTE_CARLO_SECTIONS.filter((section) => comparison || section.id !== MONTE_CARLO_SECTION_IDS.scenari).map((section) => section.id)
+      : [],
+  });
+  // THE tile is not a row: its cell scrolls to it, every other one opens its row.
+  const handleStripOpen = (id: string) => {
+    if (id === MONTE_CARLO_SECTION_IDS.probabilita) document.getElementById(id)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    else sections.reveal(id);
+  };
+  const strip = run ? selectMonteCarloStrip({ run, comparison }) : [];
+  const lockScope = sections.compact ? describeFireLockScope(lock) : null;
 
   // ─── Loading: until the seeded plan has run once ─────────────────────────────
   const awaitingFirstRun = runnable && canRun && !lastRun;
@@ -523,23 +588,27 @@ export function MonteCarloTab() {
       : null;
 
   // ─── Render ──────────────────────────────────────────────────────────────────
-  return (
-    <div className="space-y-4">
-      <div className="pt-1">
+  // The verdict and the grid: the stage's children, in both of its forms below.
+  const stageContent = (
+    <>
+      <div data-stage="verdict" className={cn('pt-1', run && VERDICT_CELL_CLASS)}>
         <FireAssumptionsRow assumptions={assumptionsWithFlows} />
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto su Dopo il FIRE" />
+        <PageVerdict
+          verdict={verdict}
+          ariaLabel="Verdetto su Dopo il FIRE"
+          strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={sections.eyebrows} />}
+          scope={lockScope && <FireLockScope text={lockScope} />}
+          restCollapse={run ? sections.collapse(VERDICT_REST_SECTION) : undefined}
+        />
       </div>
 
-      {/* Tablet (768-1439): every tile full width, in the phone's order. */}
-      <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
-        {sustainable && runParams && (
-          <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
-            <SpesaSostenibileTile reading={describeSpesaSostenibile(sustainable, runParams.retirementYears, { leverage, datedOutflows })} aside={SPESA_ASIDE} summary={sustainable} />
-          </div>
-        )}
-
+      {/* ONE sequence, no `order-*` (The First-Screen Rule). Tablet: Probabilità on two columns, the closed
+          rows two by two at 768, an open row on the whole grid row; in landscape the rows in the
+          index beside the verdict and Probabilità. */}
+      <div className={run ? COMPACT_GRID_WRAPPER_CLASS : undefined}>
+      <div className={run ? COMPACT_GRID_CLASS : PLAIN_GRID_CLASS}>
         {run && lastRun && (
-          <div className={cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-8')}>
+          <div id={MONTE_CARLO_SECTION_IDS.probabilita} data-stage="lead" className={cn('scroll-mt-24', TILE_CELL_CLASS, leadCellClass(Boolean(run)), 'desktop:col-span-8')}>
             <ProbabilitaTile
               reading={describeProbabilita(run)}
               aside={describeProbabilitaAside(run)}
@@ -558,9 +627,17 @@ export function MonteCarloTab() {
           </div>
         )}
 
+        {/* The index: «Il resto» and every row; without a run a plain `contents` box (Parametri
+            stays a cell of the plain grid). */}
+        <RowAnswers value={rowAnswers}>
+        <div className={run ? INDEX_CLASS : 'contents'}>
+        {run && <PageRest sections={sections} className={REST_CELL_CLASS} />}
+
         {comparison && (
-          <div className={cn(TILE_CELL_CLASS, 'order-3 tablet:col-span-2 desktop:order-none desktop:col-span-4')}>
+          <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(MONTE_CARLO_SECTION_IDS.scenari), 'desktop:col-span-4')}>
             <ScenariConfrontoTile
+              collapse={sections.collapse(MONTE_CARLO_SECTION_IDS.scenari)}
+              asideWhenClosed={MONTE_CARLO_CLOSED_ASIDES[MONTE_CARLO_SECTION_IDS.scenari]}
               reading={describeScenari(comparison)}
               aside={SCENARI_ASIDE}
               rows={comparison.rows.map((row) => ({ key: row.key, label: scenarioLabel(row.key), successRate: row.successRate, note: describeScenarioNote(row) }))}
@@ -569,8 +646,12 @@ export function MonteCarloTab() {
           </div>
         )}
 
-        <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
+        <div
+          className={cn(run ? TILE_ROW_CELL_CLASS : TILE_CELL_CLASS, run ? tablet.cellClass(MONTE_CARLO_SECTION_IDS.parametri) : 'tablet:col-span-2', 'desktop:col-span-12')}
+        >
           <ParametriTile
+            collapse={run ? sections.collapse(MONTE_CARLO_SECTION_IDS.parametri) : undefined}
+            asideWhenClosed={describeParametriClosedAside(stale)}
             reading={describeParametri(typedPlan)}
             aside={PARAMETRI_ASIDE}
             plan={typedPlan}
@@ -606,7 +687,37 @@ export function MonteCarloTab() {
             stale={stale}
           />
         </div>
+        </div>
+        </RowAnswers>
       </div>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* The stage: the verdict over the grid; on a tablet in landscape, with a run, the answer on
+          the left (verdict and Probabilità) and the index on the right (lib/utils/tabletComposition.ts).
+          Without a run there is no THE tile: a plain box, unmeasured. The two forms are the same
+          `div` in the same place, so React keeps the node and its subtree (the form's focus, the
+          Parametri's state) when the first run lands, and the measuring ref attaches then — a ref
+          on a stage mounted without THE tile would never measure it. */}
+      <div className={STAGE_WRAPPER_CLASS}>
+        {run ? (
+          <div ref={stageRef} className={STAGE_CLASS}>{stageContent}</div>
+        ) : (
+          <div className="space-y-4">{stageContent}</div>
+        )}
+      </div>
+
+      {/* The fork's Spesa sostenibile (D-UP4): a plain tile after the stage, never a closed row. */}
+      {sustainable && runParams && (
+        <div className="grid grid-cols-1 gap-3">
+          <div className={TILE_CELL_CLASS}>
+            <SpesaSostenibileTile reading={describeSpesaSostenibile(sustainable, runParams.retirementYears, { leverage, datedOutflows })} aside={SPESA_ASIDE} summary={sustainable} />
+          </div>
+        </div>
+      )}
 
       {lastRun && run && comparison && runPlan && (
         <MonteCarloDettaglio

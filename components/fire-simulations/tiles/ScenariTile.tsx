@@ -24,7 +24,7 @@ import type { ScenarioRow } from '@/lib/utils/fireSummary';
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { formatRate } from '@/lib/utils/fireNarrative';
 import { cn } from '@/lib/utils';
-import { Tile } from '@/components/ui/tile';
+import { Tile, type TileCollapse } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
 
 interface ScenariTileProps {
@@ -36,6 +36,9 @@ interface ScenariTileProps {
   chart: ReactNode;
   /** The chart's legend in words, then the model: `describeScenariosChartLegend` + `describeScenariosFooter`. */
   footer: Narrative;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
   className?: string;
 }
 
@@ -48,10 +51,10 @@ function distance(years: number | null, horizonYears: number, quotaLabel?: strin
   return years === 1 ? 'tra 1 anno' : `tra ${years} anni`;
 }
 
-export function ScenariTile({ reading, rows, horizonYears, chart, footer, className }: ScenariTileProps) {
+export function ScenariTile({ reading, rows, horizonYears, chart, footer, collapse, asideWhenClosed, className }: ScenariTileProps) {
 
   return (
-    <Tile eyebrow="Scenari" aside="crescita · inflazione" reading={reading} ariaLabel="Scenari di mercato" className={className}>
+    <Tile eyebrow="Scenari" aside="crescita · inflazione" asideWhenClosed={asideWhenClosed} reading={reading} ariaLabel="Scenari di mercato" className={className} collapse={collapse}>
       <div className="mt-2.5 grid grid-cols-1 gap-x-8 gap-y-3 desktop:grid-cols-[minmax(0,1fr)_minmax(0,19rem)]">
       <div className="relative order-2 min-h-[240px] desktop:order-1">
         <div className="absolute inset-0">{chart}</div>

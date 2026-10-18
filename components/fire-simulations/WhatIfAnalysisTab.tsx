@@ -9,8 +9,14 @@
  * to the capital, the FIRE number, the year, the passive income and the Coast plan, over a
  * 12-column grid of tiles that each answer one question with a reading line above their figures.
  *
- *   Desktop (12 col): Evento(4) | the verdict over  Prima e dopo(5) | Delta(3)  (a column of 8)
- *   Mobile (1 col):   Evento → verdict → Prima e dopo → Delta
+ *   Desktop (12 col): Evento(4) | Prima e dopo(5) | Delta(3)  (under the verdict, full width)
+ *   Below desktop:    ONE sequence, the DOM above (The First-Screen Rule, The Input Tile Rule,
+ *                     since 2026-10-15): the verdict's title → the first sentence (the event
+ *                     and its clauses) → the strip of two figures (the hit today, the hit at the
+ *                     FIRE year) → the lock as the scope line with the bridge on → «Il perché»
+ *                     (the Coast, the bridge note) → Evento open → «Il resto della pagina» → Prima
+ *                     e dopo, Delta as closed rows (`useMobileSections` with `tab: 'whatif'`,
+ *                     doc/guide/fire-what-if.md § Composizione mobile).
  *
  * The Evento comes first at every width, BEFORE the verdict (FEAT FIRE 2026-10-05): on this tab the
  * event IS the question, the verdict is about what is typed there. The page has NO period axis — an
@@ -44,15 +50,32 @@ import type { IncomeSourceCategory } from '@/lib/services/fireService';
 import { calculateWhatIfImpact, maxEventYear, parseWhenYear, WHAT_IF_HORIZON_YEARS } from '@/lib/services/whatIfService';
 import { useWhatIfBaseline } from '@/lib/hooks/useWhatIfBaseline';
 import { summarizeLock } from '@/lib/utils/fireSummary';
+import { describeFireLockScope } from '@/lib/utils/fireNarrative';
+import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
+import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
+import {
+  COMPACT_GRID_CLASS,
+  COMPACT_GRID_WRAPPER_CLASS,
+  INDEX_CLASS,
+  LEAD_CELL_CLASS,
+  REST_CELL_CLASS,
+  STAGE_CLASS,
+  STAGE_WRAPPER_CLASS,
+  VERDICT_CELL_CLASS,
+} from '@/lib/utils/tabletComposition';
+import { VERDICT_REST_SECTION } from '@/lib/utils/mobileSections';
 import {
   buildWhatIfComparisonSeries,
   decomposeJobLossHit,
+  selectWhatIfStrip,
   summarizeDivergence,
   summarizeWhatIf,
   summarizeWhatIfEvent,
+  WHAT_IF_SECTION_IDS,
 } from '@/lib/utils/whatIfSummary';
 import {
   buildDeltaView,
+  WHAT_IF_CLOSED_ASIDES,
   buildWhatIfVerdict,
   describeBeforeAfter,
   describeBeforeAfterAside,
@@ -61,14 +84,19 @@ import {
   describeDeltaFooter,
   describeEvent,
   describeEventFooter,
+  describeWhatIfClosedAnswers,
 } from '@/lib/utils/whatIfNarrative';
 import type { WhatIfEventType, WhatIfScenario } from '@/types/whatIf';
 import { WHAT_IF_TAB_SKELETON_CELLS } from './tabSkeletons';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
-import { TILE_CELL_CLASS } from '@/components/ui/tile';
+import { VerdictStrip } from '@/components/ui/verdict-strip';
+import { PageRest } from '@/components/ui/page-rest';
+import { TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
+import { RowAnswers } from '@/components/ui/row-answers';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
+import { FireLockScope } from './FireLockScope';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
 import { categoryLeafKeys, collectLeafKeys, sumSelectedIncome } from '@/components/fire-simulations/whatif/incomeSelection';
@@ -80,6 +108,15 @@ import { JobLossEffect } from '@/components/fire-simulations/whatif/JobLossEffec
 
 /** The grid's geometry, for the skeleton: the same spans as the tiles below — shared with the page's lazy-tab wait. */
 const SKELETON_CELLS = WHAT_IF_TAB_SKELETON_CELLS;
+
+/** The rows below `desktop:`, in the DOM's order: every tile but Evento, THE tile (The Input Tile Rule). No row carries `failed`. */
+const WHAT_IF_SECTIONS: readonly SectionSpec[] = [
+  { id: WHAT_IF_SECTION_IDS.primaDopo, eyebrow: 'Prima e dopo' },
+  { id: WHAT_IF_SECTION_IDS.delta, eyebrow: 'Delta' },
+];
+
+/** Without a base the tab renders the verdict alone: the controller knows no row (since 2026-10-16, as Monte Carlo and Obiettivi do). */
+const NO_SECTIONS: readonly SectionSpec[] = [];
 
 const EMPTY_FORM: WhatIfEventForm = {
   monthsWithoutIncome: '6',
@@ -229,6 +266,26 @@ export function WhatIfAnalysisTab() {
 
   // ─── The words (pure layer) ───────────────────────────────────────────────────
   const verdict = useMemo(() => buildWhatIfVerdict({ hasBaseline, event, summary }), [hasBaseline, event, summary]);
+  // What each closed row answers in the landscape index (2026-10-16): the Delta's progress row,
+  // read from the same summary the tile prints.
+  const rowAnswers = useMemo(
+    () => describeWhatIfClosedAnswers({ event, summary, sensitivity: null }),
+    [event, summary],
+  );
+
+  // ─── The phone composition (2026-10-15) ──────────────────────────────────────
+  // The rows and «Il perché» from the controller (one memory per tab); the strip from the event's
+  // hit today and at the FIRE year; the lock as the scope line only with the bridge on and below
+  // `desktop:` — the bridge note in the paragraph says it at 1440.
+  const whatIfSections = hasBaseline && impact && event && summary ? WHAT_IF_SECTIONS : NO_SECTIONS;
+  const sections = useMobileSections({ route: 'fire-simulations', tab: 'whatif', sections: whatIfSections });
+  // At 768 the same rows on two columns; on a tablet in landscape the index beside the verdict and
+  // THE tile (lib/utils/tabletComposition.ts). The specs ARE the DOM's rows.
+  const stageRef = useTabletStage();
+  const tablet = useTabletComposition({ sections, order: whatIfSections.map((section) => section.id) });
+  const { reveal: handleStripOpen } = sections;
+  const strip = event && summary ? selectWhatIfStrip({ event, summary, divergence }) : [];
+  const lockScope = sections.compact && summary?.isBridge ? describeFireLockScope(lock) : null;
 
   // ─── Loading ─────────────────────────────────────────────────────────────────
   // A failed read comes BEFORE the wait: these queries default to undefined, and a plan built
@@ -269,15 +326,27 @@ export function WhatIfAnalysisTab() {
   const deltaView = buildDeltaView(summary);
   return (
     <div className="space-y-4">
-      {/* D-W7 (2026-10-09, revises D-W1): the verdict under «Ipotesi usate», full width and left-aligned as on every
-          other FIRE tab; then Evento 4 | Prima e dopo 5 | Delta 3. Below `desktop:` one column, in that order. */}
-      <div className="pt-1">
+      {/* The stage: the verdict over the grid; on a tablet in landscape the answer on the left
+          (verdict and THE tile) and the index on the right (lib/utils/tabletComposition.ts). */}
+      <div className={STAGE_WRAPPER_CLASS}>
+      <div ref={stageRef} className={STAGE_CLASS}>
+      <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
         <FireAssumptionsRow assumptions={assumptionsWithFlows} />
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" />
+        <PageVerdict
+          verdict={verdict}
+          ariaLabel="Verdetto sul What If"
+          strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={sections.eyebrows} />}
+          scope={lockScope && <FireLockScope text={lockScope} />}
+          restCollapse={sections.collapse(VERDICT_REST_SECTION)}
+        />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 desktop:grid-cols-12">
-        <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4')}>
+      {/* ONE sequence, Evento first at every width (The First-Screen Rule, The Input Tile Rule).
+          Tablet: Evento on two columns, the closed rows two by two at 768, an open row on the whole
+          grid row; in landscape the rows in the index beside the verdict and Evento. */}
+      <div className={COMPACT_GRID_WRAPPER_CLASS}>
+      <div className={COMPACT_GRID_CLASS}>
+        <div data-stage="lead" className={cn(TILE_CELL_CLASS, LEAD_CELL_CLASS, 'desktop:col-span-4')}>
           <EventoTile
             reading={describeEvent(event)}
             event={event}
@@ -306,8 +375,14 @@ export function WhatIfAnalysisTab() {
           />
         </div>
 
-        <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-5')}>
+        <RowAnswers value={rowAnswers}>
+        <div className={INDEX_CLASS}>
+        <PageRest sections={sections} className={REST_CELL_CLASS} />
+
+        <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(WHAT_IF_SECTION_IDS.primaDopo), 'desktop:col-span-5')}>
           <PrimaDopoTile
+            collapse={sections.collapse(WHAT_IF_SECTION_IDS.primaDopo)}
+            asideWhenClosed={WHAT_IF_CLOSED_ASIDES[WHAT_IF_SECTION_IDS.primaDopo]}
             reading={describeBeforeAfter(summary, divergence)}
             aside={describeBeforeAfterAside(scenarios.base)}
             chart={
@@ -325,8 +400,10 @@ export function WhatIfAnalysisTab() {
           />
         </div>
 
-        <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-3')}>
+        <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(WHAT_IF_SECTION_IDS.delta), 'desktop:col-span-3')}>
           <DeltaTile
+            collapse={sections.collapse(WHAT_IF_SECTION_IDS.delta)}
+            asideWhenClosed={WHAT_IF_CLOSED_ASIDES[WHAT_IF_SECTION_IDS.delta]}
             reading={describeDelta(summary)}
             view={deltaView}
             coastRetirementAge={summary.coast?.retirementAge ?? null}
@@ -334,6 +411,11 @@ export function WhatIfAnalysisTab() {
             effect={jobLossHit && event.kind === 'jobLoss' ? <JobLossEffect hit={jobLossHit} months={event.months} annualSavings={annualSavings} lostAnnualIncome={event.lostAnnualIncome} /> : null}
           />
         </div>
+        </div>
+        </RowAnswers>
+      </div>
+      </div>
+      </div>
       </div>
     </div>
   );

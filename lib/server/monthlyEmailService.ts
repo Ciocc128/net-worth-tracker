@@ -1026,7 +1026,8 @@ export function emailAiOutputBudget(periodType: EmailPeriodType): OutputBudget {
  * Exported for the guided verification, which generates one real comment on the mirror
  * without sending the email.
  *
- * @returns The AI-generated markdown text, or null on failure.
+ * @returns The AI-generated markdown text, or null on failure or on a reply that did not end
+ *   on `end_turn` (a truncated answer: `lib/server/llm`). Exported for testing.
  */
 export async function generateEmailAiComment(
   userId: string,

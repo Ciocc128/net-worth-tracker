@@ -1976,6 +1976,14 @@ export function resolveFanFireTargets(todayRequirement: number, projection: FIRE
   return [todayRequirement, ...projection.yearlyData.map((row) => row.baseFireNumber)];
 }
 
+/**
+ * What If › Sensibilità: the years to FIRE of the base scenario over a grid of expenses × savings.
+ * Every cell is `calculateFIREProjection` with the page's OWN tail — horizon, locked fund, the
+ * pensions and the tax on withdrawals — so the base cell is the verdict's figure. Until
+ * 2026-10-16 the matrix took none of them and walked the plain model: on the census fixture its
+ * base cell said «28 anni» under a verdict saying «FIRE nel 2059» (~33 years). The trailing
+ * arguments mirror `calculateFIREProjection`'s; absent, the matrix of before, byte-identical.
+ */
 export function calculateFIRESensitivityMatrix(
   initialNetWorth: number,
   baselineAnnualExpenses: number,
@@ -1986,29 +1994,33 @@ export function calculateFIRESensitivityMatrix(
   indexSavings: boolean = false,
   // § 12: the dated flows, the same list the Calcolatore walks (the matrix varies the expenses and the saving, not the flows).
   flows?: FireFlowsInput,
-  // The Calcolatore's own walk (the Sensibilità lives there since 2026-10-05): the pension bridge and the honest inputs, so the
+  // The page's own walk (the Calcolatore's and the What If's): the pension bridge and the honest inputs, so the
   // baseline cell is the year the verdict names. Absent → the matrix of before, byte-identical.
   pensionBridge?: FireProjectionPensionBridge,
   honest?: FireHonestInputs,
   // § 21 RE7: the years to the target age. Given, every cell also carries its share of the FIRE number at that age; absent →
   // the matrix of before, byte-identical.
-  targetYears?: number
+  targetYears?: number,
+  // The walk's horizon (the What If's own, 2026-10-16); absent → `calculateFIREProjection`'s default.
+  maxYears?: number
 ): FIRESensitivityMatrix {
-  const baselineProjection =
-    initialNetWorth > 0 && baselineAnnualExpenses > 0 && withdrawalRate > 0
+  // ONE walk per cell, the same call the What If and the Calcolatore make (never a parallel formula).
+  const projectionFor = (annualExpenses: number, annualSavings: number): FIREProjectionResult | null =>
+    initialNetWorth > 0 && annualExpenses > 0 && withdrawalRate > 0
       ? calculateFIREProjection(
           initialNetWorth,
-          baselineAnnualExpenses,
-          baselineAnnualSavings,
+          annualExpenses,
+          annualSavings,
           withdrawalRate,
           scenarios,
-          undefined,
+          maxYears,
           pensionBridge,
           honest,
           indexSavings,
           flows
         )
       : null;
+  const baselineProjection = projectionFor(baselineAnnualExpenses, baselineAnnualSavings);
   const baselineYearsToFIRE = baselineProjection?.baseYearsToFIRE ?? null;
   const baselineQuota = targetYears === undefined ? null : quotaAtTarget(baselineProjection, targetYears);
   // RE6: the quota replaces the years only when the plan's own cell never reaches the FIRE and the target age is on the walk.
@@ -2033,21 +2045,7 @@ export function calculateFIRESensitivityMatrix(
     const annualExpenses = baselineAnnualExpenses * multiplier;
 
     const cells = columns.map((column) => {
-      const projection =
-        initialNetWorth > 0 && annualExpenses > 0 && withdrawalRate > 0
-          ? calculateFIREProjection(
-              initialNetWorth,
-              annualExpenses,
-              column.annualSavings,
-              withdrawalRate,
-              scenarios,
-              undefined,
-              pensionBridge,
-              honest,
-              indexSavings,
-              flows
-            )
-          : null;
+      const projection = projectionFor(annualExpenses, column.annualSavings);
       const yearsToFIRE = projection?.baseYearsToFIRE ?? null;
       let relationToBaseline: FIRESensitivityCell['relationToBaseline'] = 'neutral';
       const isBaseline = multiplier === 1 && column.isBaseline;
