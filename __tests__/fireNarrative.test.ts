@@ -796,7 +796,7 @@ describe('selectFireStrip — the two cells of the Calcolatore', () => {
 
 describe('the closed rows\' asides — words, never a figure', () => {
   it('names each row of the Calcolatore and the empty branch without a digit', () => {
-    expect(FIRE_CLOSED_ASIDES).toEqual({ [FIRE_SECTION_IDS.base]: 'spese, risparmio e SWR', [FIRE_SECTION_IDS.reddito]: 'al tasso di prelievo', [FIRE_SECTION_IDS.scenari]: 'orso, base e toro' });
+    expect(FIRE_CLOSED_ASIDES).toEqual({ [FIRE_SECTION_IDS.base]: 'spese, risparmio e SWR', [FIRE_SECTION_IDS.reddito]: 'al tasso di prelievo', [FIRE_SECTION_IDS.scenari]: 'orso, base e toro', [FIRE_SECTION_IDS.eta]: 'cosa serve per smettere', [FIRE_SECTION_IDS.sensibilita]: 'anni al FIRE per spesa e risparmio' });
     expect(FIRE_ROW_NOT_COMPUTABLE).toBe('non ancora calcolabile');
     for (const aside of [...Object.values(FIRE_CLOSED_ASIDES), FIRE_ROW_NOT_COMPUTABLE]) expect(aside).not.toMatch(/\d/);
   });
@@ -838,6 +838,45 @@ describe('describeFireClosedAnswers', () => {
 
   it('keeps the scope without a cashflow year, expenses or a projection', () => {
     const none = answers({ base: { referenceYear: null, isAnnualized: false }, passiveIncome: income({ shareOfExpensesPct: null }), scenarioRows: [] });
-    expect(none).toEqual({ [FIRE_SECTION_IDS.base]: null, [FIRE_SECTION_IDS.reddito]: null, [FIRE_SECTION_IDS.scenari]: null });
+    expect(none).toEqual({ [FIRE_SECTION_IDS.base]: null, [FIRE_SECTION_IDS.reddito]: null, [FIRE_SECTION_IDS.scenari]: null, [FIRE_SECTION_IDS.eta]: null, [FIRE_SECTION_IDS.sensibilita]: null });
+  });
+
+  // D-CU10 (2026-10-18): Età obiettivo is a row; its answer is the saving ABOVE today's, which the tile prints only inside a sentence.
+  describe('Età obiettivo', () => {
+    const figures = {
+      kind: 'figures' as const,
+      targetAge: 50,
+      years: 15,
+      calendarYear: 2041,
+      baseCalendarYear: 2046,
+      onTrack: false,
+      annualSavings: 18_000,
+      required: { amount: 26_000, cap: 600_000 },
+      tail: { kind: 'total' as const, amount: 34_500, extra: 16_500 },
+      planExpenses: 32_000,
+      maxExpenses: 21_100,
+    };
+
+    it('asks for the difference with today\'s saving, in at most 22 characters', () => {
+      const answer = visible(answers({ targetAge: figures })[FIRE_SECTION_IDS.eta])!;
+      expect(answer).toMatch(/^servono \+8\.?000\s€/);
+      expect([...answer].length).toBeLessThanOrEqual(22);
+      expect(answers({ targetAge: figures })[FIRE_SECTION_IDS.eta]!.filter((segment) => segment.mono)).toHaveLength(1);
+      expect(visible(answers({ targetAge: { ...figures, required: { amount: 120_000, cap: 600_000 } } })[FIRE_SECTION_IDS.eta])).toMatch(/^servono \+102\.000\s€$/);
+    });
+
+    it('says today\'s saving is enough when the capital, the course or the saving already gets there', () => {
+      expect(visible(answers({ targetAge: { ...figures, required: { amount: 0, cap: 600_000 } } })[FIRE_SECTION_IDS.eta])).toBe('basta il risparmio di oggi');
+      expect(visible(answers({ targetAge: { ...figures, onTrack: true, required: { amount: 14_000, cap: 600_000 } } })[FIRE_SECTION_IDS.eta])).toBe('basta il risparmio di oggi');
+      expect(visible(answers({ targetAge: { ...figures, required: { amount: 18_000, cap: 600_000 } } })[FIRE_SECTION_IDS.eta])).toBe('basta il risparmio di oggi');
+    });
+
+    it('keeps the scope where the tile has no figure: no summary, no age, passed, already FIRE, beyond the cap', () => {
+      for (const targetAge of [null, undefined, { kind: 'no-age' as const }, { kind: 'passed' as const, targetAge: 40 }, { kind: 'already-fire' as const }, { ...figures, required: { amount: null, cap: 600_000 } }]) {
+        expect(answers({ targetAge })[FIRE_SECTION_IDS.eta]).toBeNull();
+      }
+      // Sensibilità is a table: no answer, ever.
+      expect(answers({ targetAge: figures })[FIRE_SECTION_IDS.sensibilita]).toBeNull();
+    });
   });
 });

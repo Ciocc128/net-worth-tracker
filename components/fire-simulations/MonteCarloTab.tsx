@@ -11,15 +11,15 @@
  * the year the worst tenth runs out, the bear and bull probabilities, the pension bridge — over a
  * 12-column grid of tiles that each answer one question with a reading line above their figures.
  *
- *   Desktop (12 col): Spesa sostenibile(12)
- *                     Probabilità(8) | Scenari a confronto(4)
+ *   Desktop (12 col): Probabilità(8) | Scenari a confronto(4)
  *                     Parametri(12)
+ *                     Spesa sostenibile(12)
  *   Below desktop:    ONE sequence, the DOM above (DESIGN.md → The First-Screen Rule,
  *                     since 2026-10-15): the verdict's title → the first sentence (the base run) →
- *                     the strip of two figures («Mediana», «Orso») → the lock as the scope line
+ *                     the strip of three figures («Mediana», «Orso», «Spesa al 90%») → the lock as the scope line
  *                     → «Il perché» (the bear and the bull, the bridge) → Probabilità open,
  *                     its fan at 120px → «Il resto della pagina» → Scenari,
- *                     Parametri as closed rows (`useMobileSections` with `tab: 'montecarlo'`,
+ *                     Parametri, Spesa sostenibile as closed rows (`useMobileSections` with `tab: 'montecarlo'`,
  *                     doc/guide/fire-monte-carlo.md § Composizione mobile) → Dettaglio. Without a
  *                     run Parametri is the one tile, open, and there is no strip and no rest.
  *
@@ -160,6 +160,8 @@ const DEFAULT_WITHDRAWAL = 30000;
 const MONTE_CARLO_SECTIONS: readonly SectionSpec[] = [
   { id: MONTE_CARLO_SECTION_IDS.scenari, eyebrow: 'Scenari a confronto' },
   { id: MONTE_CARLO_SECTION_IDS.parametri, eyebrow: 'Parametri' },
+  // The fork's Spesa sostenibile, the last row (D-CU17): a plain tile after the stage until 2026-10-18 (D-UP4).
+  { id: MONTE_CARLO_SECTION_IDS.spesa, eyebrow: 'Spesa sostenibile' },
 ];
 /** Without a run Parametri is the one tile and not a row: the controller sees no row at all. */
 const NO_SECTIONS: readonly SectionSpec[] = [];
@@ -528,7 +530,7 @@ export function MonteCarloTab() {
   );
   // What each closed row answers in the landscape index (2026-10-16): the run's 90th percentile, the
   // bull's rate and the plan's withdrawal — the same run, comparison and plan the tiles print.
-  const rowAnswers = useMemo(() => describeMonteCarloClosedAnswers({ run, comparison, plan: typedPlan, stale }), [run, comparison, typedPlan, stale]);
+  const rowAnswers = useMemo(() => describeMonteCarloClosedAnswers({ run, comparison, plan: typedPlan, stale, sustainable }), [run, comparison, typedPlan, stale, sustainable]);
 
   // ─── The phone composition (2026-10-15) ──────────────────────────────────────
   // The rows exist only with a run shown (Parametri alone is open); the strip is the SHOWN run's
@@ -542,7 +544,7 @@ export function MonteCarloTab() {
   const tablet = useTabletComposition({
     sections,
     order: run
-      ? MONTE_CARLO_SECTIONS.filter((section) => comparison || section.id !== MONTE_CARLO_SECTION_IDS.scenari).map((section) => section.id)
+      ? MONTE_CARLO_SECTIONS.filter((section) => (comparison || section.id !== MONTE_CARLO_SECTION_IDS.scenari) && (sustainable || section.id !== MONTE_CARLO_SECTION_IDS.spesa)).map((section) => section.id)
       : [],
   });
   // THE tile is not a row: its cell scrolls to it, every other one opens its row.
@@ -550,7 +552,7 @@ export function MonteCarloTab() {
     if (id === MONTE_CARLO_SECTION_IDS.probabilita) document.getElementById(id)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     else sections.reveal(id);
   };
-  const strip = run ? selectMonteCarloStrip({ run, comparison }) : [];
+  const strip = run ? selectMonteCarloStrip({ run, comparison, sustainable }) : [];
   const lockScope = sections.compact ? describeFireLockScope(lock) : null;
 
   // ─── Loading: until the seeded plan has run once ─────────────────────────────
@@ -686,6 +688,18 @@ export function MonteCarloTab() {
             stale={stale}
           />
         </div>
+
+        {sustainable && runParams && (
+          <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(MONTE_CARLO_SECTION_IDS.spesa), 'desktop:col-span-12')}>
+            <SpesaSostenibileTile
+              collapse={sections.collapse(MONTE_CARLO_SECTION_IDS.spesa)}
+              asideWhenClosed={MONTE_CARLO_CLOSED_ASIDES[MONTE_CARLO_SECTION_IDS.spesa]}
+              reading={describeSpesaSostenibile(sustainable, runParams.retirementYears, { leverage, datedOutflows })}
+              aside={SPESA_ASIDE}
+              summary={sustainable}
+            />
+          </div>
+        )}
         </div>
         </RowAnswers>
       </div>
@@ -708,15 +722,6 @@ export function MonteCarloTab() {
           <div className="space-y-4">{stageContent}</div>
         )}
       </div>
-
-      {/* The fork's Spesa sostenibile (D-UP4): a plain tile after the stage, never a closed row. */}
-      {sustainable && runParams && (
-        <div className="grid grid-cols-1 gap-3">
-          <div className={TILE_CELL_CLASS}>
-            <SpesaSostenibileTile reading={describeSpesaSostenibile(sustainable, runParams.retirementYears, { leverage, datedOutflows })} aside={SPESA_ASIDE} summary={sustainable} />
-          </div>
-        </div>
-      )}
 
       {lastRun && run && comparison && runPlan && (
         <MonteCarloDettaglio

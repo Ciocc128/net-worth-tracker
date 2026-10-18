@@ -13,7 +13,7 @@ import type { ReactNode } from 'react';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { TargetAgeSummary } from '@/lib/utils/fireTargetAge';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import { Tile } from '@/components/ui/tile';
+import { Tile, type TileCollapse } from '@/components/ui/tile';
 import { TileMethodNote } from '@/components/ui/tile-method-note';
 import { NarrativeSegments } from '@/components/ui/narrative-text';
 import { describeTargetAgeFooter } from '@/lib/utils/fireNarrative';
@@ -25,6 +25,9 @@ interface EtaObiettivoTileProps {
   method: string[];
   /** Opens the Coast FIRE tab, where the age is written; absent = no action. */
   onOpenCoast?: () => void;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
   className?: string;
 }
 
@@ -41,11 +44,11 @@ function Figure({ label, value, caption, reference }: { label: string; value: Re
   );
 }
 
-export function EtaObiettivoTile({ reading, summary, method, onOpenCoast, className }: EtaObiettivoTileProps) {
+export function EtaObiettivoTile({ reading, summary, method, onOpenCoast, collapse, asideWhenClosed, className }: EtaObiettivoTileProps) {
   const aside = summary.kind === 'figures' ? `a ${summary.targetAge} anni · ${summary.calendarYear}` : undefined;
 
   return (
-    <Tile eyebrow="Età obiettivo" aside={aside} reading={reading} ariaLabel="Età obiettivo" className={className}>
+    <Tile eyebrow="Età obiettivo" aside={aside} asideWhenClosed={asideWhenClosed} reading={reading} ariaLabel="Età obiettivo" className={className} collapse={collapse}>
       {summary.kind === 'figures' && (
         <div className="mt-3.5 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Figure
