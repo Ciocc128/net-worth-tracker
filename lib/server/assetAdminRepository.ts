@@ -96,18 +96,14 @@ export async function getAssetTransactionsAdmin(userId: string): Promise<AssetTr
 }
 
 /**
- * Every pension contribution of a user, Admin SDK (server-side only) — what the Panoramica's
- * market digest and the periodic email's Driver need to split a fund's growth into contributions
- * and return. Moved here from `dashboardOverviewService` (2026-09-28) so the two read one reader.
+ * The owner's pension contributions (server-side only) — for the Panoramica's digest, which splits
+ * a fund's growth into contributions and return, and for the periodic email, which names them
+ * beside the market. The collection name is a literal on purpose: `pensionContributionService`
+ * exports the constant but top-level-imports the CLIENT Firebase SDK (the same trap as goalService
+ * — doc/guide/panoramica.md § Panoramica and Dashboard Data Isolation).
  */
 export async function getPensionContributionsAdmin(userId: string): Promise<PensionContribution[]> {
-  const snapshot = await adminDb
-    // Literal on purpose: `pensionContributionService` exports the constant but top-level-imports
-    // the CLIENT Firebase SDK (the same trap as goalService — doc/guide/panoramica.md § Panoramica and Dashboard Data Isolation).
-    .collection('pensionContributions')
-    .where('userId', '==', userId)
-    .get();
-
+  const snapshot = await adminDb.collection('pensionContributions').where('userId', '==', userId).get();
   return snapshot.docs.map((doc) => {
     const data = doc.data();
     return {

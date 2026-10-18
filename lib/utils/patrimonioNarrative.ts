@@ -16,7 +16,7 @@
  * `cachedFormatCurrencyEUR` (no-break space before €) — AGENTS.md → Italian Localization.
  */
 
-import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
+import { cachedFormatCurrencyEUR, isPrintedZero } from '@/lib/utils/formatters';
 import { formatPercentageIt as formatPercentage } from '@/lib/utils/formatters';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { getItalyDate } from '@/lib/utils/dateHelpers';
@@ -29,6 +29,8 @@ import {
   taxedGrowthHeadline,
 } from '@/lib/utils/salesNarrative';
 import type { Narrative, NarrativeSegment, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
+import type { MonthFlows } from '@/lib/utils/marketEffect';
+import type { OwnershipSummary } from '@/lib/utils/assetOwnership';
 import type { MortgageSummary, MortgageYear } from '@/lib/utils/mortgageSummary';
 
 export interface PatrimonioVerdictInput {
@@ -36,13 +38,23 @@ export interface PatrimonioVerdictInput {
   month: number;
   totalValue: number;
   monthlyVariation: { value: number; percentage: number } | null;
+  /**
+   * Since the first snapshot of the year; null without one, absent on an older caller. Its
+   * sentence opens what a phone keeps behind «Il perché» (2026-10-14; doc/guide/patrimonio.md
+   * § Composizione mobile).
+   */
+  yearlyVariation?: { value: number; percentage: number } | null;
   isNewATH: boolean;
   /** Positions other than cash accounts (the rows of the Strumenti table). */
   instrumentCount: number;
   /** Cash accounts (type cash AND class cash). */
   accountCount: number;
+  /** Loans with a principal left (types/assets.ts → LOAN_ASSET_TYPE); absent on an older caller. */
+  loanCount?: number;
   /** Portfolio-wide market effect this month; null when not attributable. */
   marketEffect: number | null;
+  /** The pension contributions and the debts repaid this month, named in the split; absent on an older payload. */
+  monthFlows?: MonthFlows | null;
   /** The instrument whose market price moved the most; null when none. */
   topMover: { id: string; name: string; delta: number } | null;
   /**
@@ -64,23 +76,25 @@ export type PatrimonioVerdict = PageVerdictModel;
 const prose = (text: string): NarrativeSegment => ({ text });
 const figure = (text: string): NarrativeSegment => ({ text, mono: true });
 
-/** Signed euro figure with a typographic minus, coloured by sign. */
+/**
+ * A signed figure, or a bare one when it prints as zero: «0,00 €» and «0,00%» take no sign and no
+ * colour whatever the sign of the raw value (`isPrintedZero`, the strip's rule — AGENTS.md § Layout
+ * and Color Tokens; on this page since 2026-10-14, at 1440 too). It used to print «+0,00 €»
+ * in green.
+ */
+function signed(value: number, unsigned: string): NarrativeSegment {
+  if (isPrintedZero(unsigned)) return { text: unsigned, mono: true };
+  const negative = value < 0;
+  return { text: `${negative ? '−' : '+'}${unsigned}`, mono: true, sign: negative ? 'negative' : 'positive' };
+}
+
+/** Signed euro figure with a typographic minus, coloured by sign; a printed zero unsigned. */
 function signedCurrency(value: number, compact = false): NarrativeSegment {
-  const sign = value >= 0 ? '+' : '−';
-  return {
-    text: `${sign}${cachedFormatCurrencyEUR(Math.abs(value), compact)}`,
-    mono: true,
-    sign: value >= 0 ? 'positive' : 'negative',
-  };
+  return signed(value, cachedFormatCurrencyEUR(Math.abs(value), compact));
 }
 
 function signedPercent(value: number, decimals = 2): NarrativeSegment {
-  const sign = value >= 0 ? '+' : '−';
-  return {
-    text: `${sign}${formatPercentage(Math.abs(value), decimals)}`,
-    mono: true,
-    sign: value >= 0 ? 'positive' : 'negative',
-  };
+  return signed(value, formatPercentage(Math.abs(value), decimals));
 }
 
 function monthInSentence(month: number): string {
@@ -202,8 +216,12 @@ function resolveHeadline(input: PatrimonioVerdictInput): ResolvedHeadline {
   };
 }
 
-/** ", 16 strumenti e 3 conti" — whichever counts are non-zero, in the singular when one. */
-function buildCountClause(instrumentCount: number, accountCount: number): Narrative {
+/**
+ * ", 16 strumenti, 3 conti e 1 prestito" — whichever counts are non-zero, in the singular when
+ * one; the loans (types/assets.ts → LOAN_ASSET_TYPE) are neither instruments nor accounts and
+ * are counted apart, so «18 strumenti» never includes a debt.
+ */
+function buildCountClause(instrumentCount: number, accountCount: number, loanCount: number = 0): Narrative {
   const parts: Narrative[] = [];
   if (instrumentCount > 0) {
     parts.push([figure(String(instrumentCount)), prose(` ${pluralize(instrumentCount, 'strumento', 'strumenti')}`)]);
@@ -211,18 +229,21 @@ function buildCountClause(instrumentCount: number, accountCount: number): Narrat
   if (accountCount > 0) {
     parts.push([figure(String(accountCount)), prose(` ${pluralize(accountCount, 'conto', 'conti')}`)]);
   }
+  if (loanCount > 0) {
+    parts.push([figure(String(loanCount)), prose(` ${pluralize(loanCount, 'prestito', 'prestiti')}`)]);
+  }
   if (parts.length === 0) return [];
   const clause: Narrative = [prose(', ')];
   parts.forEach((part, i) => {
-    if (i > 0) clause.push(prose(' e '));
+    if (i > 0) clause.push(prose(i === parts.length - 1 ? ' e ' : ', '));
     clause.push(...part);
   });
   return clause;
 }
 
-/** "16 strumenti e 3 conti" as plain text — the hero tile's count line. Empty when both are 0. */
-export function formatHoldingCounts(instrumentCount: number, accountCount: number): string {
-  return buildCountClause(instrumentCount, accountCount)
+/** "16 strumenti e 3 conti" as plain text — the hero tile's count line. Empty when all are 0. */
+export function formatHoldingCounts(instrumentCount: number, accountCount: number, loanCount: number = 0): string {
+  return buildCountClause(instrumentCount, accountCount, loanCount)
     .map((segment) => segment.text)
     .join('')
     .replace(/^, /, '');
@@ -232,6 +253,13 @@ export function formatHoldingCounts(instrumentCount: number, accountCount: numbe
  * The headline + the sentence under it. Assembled clause by clause so a missing input drops
  * its clause: no prior snapshot → no monthly clause; no attributable market effect → no
  * driver, even if a top mover was handed in.
+ *
+ * Where a phone cuts (2026-10-14; DESIGN.md → The Binding-Clause Rule, its full stop at 1440 too): after
+ * the first sentence — the total, the month and the counts. Behind «Il perché» go the year
+ * (a sentence of its own: its chip is lifted whole from THE tile, so its euro lives here, in brackets after
+ * the percentage, at 1440 too), the market — a sentence of its own at every width, «; sul
+ * mercato» until then — the month's split and the sale. The sale's tax and counterfactual are
+ * `binding` (`describeSales`): that month the whole paragraph stays under the title.
  */
 export function buildPatrimonioVerdict(input: PatrimonioVerdictInput): PatrimonioVerdict {
   const { headline, tone } = resolveHeadline(input);
@@ -247,29 +275,36 @@ export function buildPatrimonioVerdict(input: PatrimonioVerdictInput): Patrimoni
     );
   }
 
-  sentence.push(...buildCountClause(input.instrumentCount, input.accountCount));
+  sentence.push(...buildCountClause(input.instrumentCount, input.accountCount, input.loanCount ?? 0));
+  sentence.push(prose('.'));
+  const leadLength = sentence.length;
+
+  const yearly = input.yearlyVariation ?? null;
+  if (yearly) {
+    sentence.push(prose(' Da inizio anno '), signedPercent(yearly.percentage), prose(' ('), signedCurrency(yearly.value), prose(').'));
+  }
 
   // The top mover explains the MARKET half, not the month (the Panoramica's driver clause says the
   // same): «ha fatto il grosso» credited an instrument with more than the month's whole change.
+  const hasDriver = input.topMover !== null && input.marketEffect !== null;
   if (input.topMover && input.marketEffect !== null) {
     const action = input.topMover.delta >= 0 ? 'ha spinto' : 'ha pesato';
     sentence.push(
-      prose(`; sul mercato ${action} soprattutto ${input.topMover.name} (`),
+      prose(` Sul mercato ${action} soprattutto ${input.topMover.name} (`),
       signedCurrency(input.topMover.delta, true),
-      prose(')'),
+      prose(').'),
     );
   }
-
-  sentence.push(prose('.'));
 
   // The market-vs-flows split and the sale behind it, the same words the Panoramica prints. A
   // taxed sale carries the split itself, with the month without the tax, so the
   // plain split is printed only when there is no tax to take out.
   const split =
     input.monthlyVariation && input.marketEffect !== null
-      ? { delta: input.monthlyVariation.value, marketEffect: input.marketEffect, savings: input.savings ?? null }
+      ? { delta: input.monthlyVariation.value, marketEffect: input.marketEffect, savings: input.savings ?? null, flows: input.monthFlows ?? null }
       : undefined;
   const saleCarriesSplit = split !== undefined && (input.sales?.estimatedTax ?? 0) > 0;
+  const hasSplit = split !== undefined && !saleCarriesSplit;
   if (split && !saleCarriesSplit) {
     sentence.push(prose(' '), ...describeMonthSplit(split));
   }
@@ -278,7 +313,28 @@ export function buildPatrimonioVerdict(input: PatrimonioVerdictInput): Patrimoni
     const purchases = describePurchases(input.sales);
     if (purchases.length > 0) sentence.push(prose(' '), ...purchases);
   }
-  return { headline, tone, sentence };
+
+  if (sentence.length <= leadLength) return { headline, tone, sentence };
+  const restLabel = patrimonioRestLabel({ year: yearly !== null, market: hasDriver || hasSplit, sale: Boolean(input.sales) });
+  return { headline, tone, sentence, leadLength, restLabel };
+}
+
+/**
+ * What «Il perché» opens on a phone, from what the rest holds: «il mercato del mese», «la vendita
+ * del mese», «mercato e vendita del mese» (the `overviewRestLabel` of the Panoramica, on this
+ * page's subjects); with the year in front of them (since 2026-10-14) «l'anno», «l'anno e il mercato
+ * del mese», «l'anno e la vendita del mese», «l'anno, il mercato e la vendita del mese».
+ */
+export function patrimonioRestLabel(subjects: { year: boolean; market: boolean; sale: boolean }): string {
+  const { year, market, sale } = subjects;
+  if (!year) {
+    if (market && sale) return 'mercato e vendita del mese';
+    return sale ? 'la vendita del mese' : 'il mercato del mese';
+  }
+  if (market && sale) return "l'anno, il mercato e la vendita del mese";
+  if (market) return "l'anno e il mercato del mese";
+  if (sale) return "l'anno e la vendita del mese";
+  return "l'anno";
 }
 
 // ─── Tile readings ────────────────────────────────────────────────────────────
@@ -417,6 +473,18 @@ export function describeManualValuation(lastUpdate: Date | null | undefined, now
 }
 
 /**
+ * «mutuo su Casa · TAN 3,2%» / «prestito · senza TAN» — the sub-line of a loan row (types/assets.ts
+ * → LOAN_ASSET_TYPE): what it finances and the rate its instalments are split on. A TAN prints with
+ * the decimals it was typed with, never a padded «3,20%».
+ */
+export function describeLoanRow(financedAssetName: string | null, annualRatePct: number | undefined): string {
+  const subject = financedAssetName ? `mutuo su ${financedAssetName}` : 'prestito';
+  if (!annualRatePct || annualRatePct <= 0) return `${subject} · senza TAN`;
+  const rate = new Intl.NumberFormat('it-IT', { style: 'percent', maximumFractionDigits: 3 }).format(annualRatePct / 100);
+  return `${subject} · TAN ${rate}`;
+}
+
+/**
  * "prezzi aggiornati oggi alle 09:12" — the compact header's description. Day words follow the
  * Italian wall clock of both instants; beyond yesterday the date is spelled as dd/MM.
  */
@@ -449,13 +517,29 @@ function dayMonthOf(date: Date): string {
   return `${date.getDate()} ${MONTH_NAMES[date.getMonth()].toLowerCase()}`;
 }
 
+/** «nov 2036» — the projected end, short enough for a KPI and for the closed row's answer (moved out of MutuoTile, 2026-10-16). */
+export function shortMonthYear(date: Date): string {
+  return `${MONTH_NAMES[date.getMonth()].slice(0, 3).toLowerCase()} ${date.getFullYear()}`;
+}
+
+/** The «Fine prevista» KPI of the Mutuo tile: «nov 2036», «estinto», or «—» without a projection the debt follows. */
+export function payoffKpiValue(payoff: MortgageSummary['payoff']): string {
+  if (payoff?.kind === 'date') return shortMonthYear(payoff.date);
+  return payoff?.kind === 'repaid' ? 'estinto' : '—';
+}
+
+/** «il mutuo» or «il prestito», by what the loan finances (lib/utils/mortgageSummary.ts). */
+export function loanNoun(kind: MortgageSummary['kind']): string {
+  return kind === 'mortgage' ? 'mutuo' : 'prestito';
+}
+
 /** Where the plan ends, as the clause that closes the reading; null without a projection. */
 function describePayoff(summary: MortgageSummary): NarrativeSegment[] | null {
   const payoff = summary.payoff;
   if (!payoff) return null;
   if (payoff.kind === 'repaid') return [prose('il debito è estinto.')];
   if (payoff.kind === 'never') return [prose('con questa rata il debito non scende: copre appena gli interessi.')];
-  return [prose('al ritmo di oggi il mutuo si chiude a '), figure(monthYearOf(payoff.date)), prose('.')];
+  return [prose(`al ritmo di oggi il ${loanNoun(summary.kind)} si chiude a `), figure(monthYearOf(payoff.date)), prose('.')];
 }
 
 /**
@@ -514,4 +598,83 @@ export function describeMortgageYearScope(entry: MortgageYear, currentYear: numb
   if (entry.partialFrom) parts.push(`da ${MONTH_NAMES[entry.partialFrom.getMonth()].toLowerCase()}`);
   if (entry.year === currentYear) parts.push('finora');
   return parts.length > 0 ? parts.join(', ') : null;
+}
+
+// ─── Intestatari (owner, 2026-10-17) ──────────────────────────────────────────
+
+/**
+ * The reading of the «Intestatari» tile (Panoramica and Patrimonio): who holds what share of the
+ * NET total — «Il 54% è intestato a Marco, il 31% a Giulia, il resto in comune.» Members by
+ * value, each share the integer the row prints (`Math.round`, the article decided on it:
+ * «L'8%»); the shared group closes as «il resto» when it holds something, the orphaned ids as
+ * «il 5% senza intestatario»; one member and nothing else is «Tutto è intestato a Marco.»; a
+ * group that is a net debt is named as such («Giulia è in negativo»). Null with no owner set —
+ * the tile does not exist then (`OwnershipSummary.hasOwners`).
+ */
+export function describeOwnership(summary: OwnershipSummary): Narrative | null {
+  if (!summary.hasOwners || summary.rows.length === 0) return null;
+  const members = summary.rows.filter((row) => row.kind === 'member');
+  const common = summary.rows.find((row) => row.kind === 'common');
+  const unassigned = summary.rows.find((row) => row.kind === 'unassigned');
+
+  if (members.length === 1 && !common && !unassigned) {
+    return [prose('Tutto è intestato a '), prose(members[0].label), prose('.')];
+  }
+
+  const clauses: Narrative[] = [];
+  members.forEach((row, index) => {
+    if (row.sharePct === null || row.sharePct < 0) {
+      clauses.push([prose(`${row.label} è in negativo (`), figure(cachedFormatCurrencyEUR(Math.abs(row.value), true)), prose(' di debiti)')]);
+      return;
+    }
+    const pct = Math.round(row.sharePct);
+    const verb = index === 0 ? 'è intestato a ' : 'a ';
+    clauses.push([prose(`${articleForPercent(pct, 0)}`), figure(`${pct}%`), prose(` ${verb}${row.label}`)]);
+  });
+  if (common) clauses.push([prose('il resto in comune')]);
+  if (unassigned && unassigned.sharePct !== null) {
+    const pct = Math.round(unassigned.sharePct);
+    clauses.push([prose(`${articleForPercent(pct, 0)}`), figure(`${pct}%`), prose(' senza intestatario')]);
+  }
+
+  const sentence = clauses.flatMap((clause, index) => (index === 0 ? clause : [prose(', '), ...clause]));
+  // The first word capitalised: «Il 54%…», «L'8%…», «Marco è in negativo…».
+  const [first, ...rest] = sentence;
+  return [prose(first.text.charAt(0).toUpperCase() + first.text.slice(1)), ...rest, prose('.')];
+}
+
+/** The tile's aside: how many held assets the shares are made of («su 12 asset»). */
+export function describeOwnershipAside(summary: OwnershipSummary): string {
+  return `su ${summary.assetCount} asset`;
+}
+
+/** The closed row's answer (the landscape index): the largest owner and its printed share — «Marco 54%». Null with no owner. */
+export function describeOwnershipAnswer(summary: OwnershipSummary): Narrative | null {
+  const top = summary.rows.find((row) => row.kind === 'member' && row.sharePct !== null && row.sharePct >= 0);
+  if (!top || top.sharePct === null) return null;
+  return [{ text: `${top.label} ` }, { text: `${Math.round(top.sharePct)}%`, mono: true }];
+}
+
+/** The tile's footer: where the owner is set, and the two assets that derive theirs. */
+export const OWNERSHIP_FOOTER =
+  'Le quote per persona si scrivono nel form di ogni asset; un fondo pensione segue il membro di Previdenza, un mutuo le quote del suo immobile.';
+
+/**
+ * The footer of the Intestatari tile: the neutral note, or — in the warning tone — the assets
+ * whose stored quotas no longer fit their quantity («1 asset ha quote da riassegnare: VWCE.»),
+ * since a sale or a value typed lower leaves the units as written (lib/utils/assetSlice.ts).
+ * `reassign` may be missing on a payload cached before the quotas: read as none.
+ */
+export function describeOwnershipFooter(summary: Pick<OwnershipSummary, 'reassign'>): { text: string; tone: 'neutral' | 'warning' } {
+  const reassign = summary.reassign ?? [];
+  if (reassign.length === 0) return { text: OWNERSHIP_FOOTER, tone: 'neutral' };
+  const names = reassign.map((entry) => entry.name);
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`;
+  const verb = names.length === 1 ? 'ha' : 'hanno';
+  return { text: `${names.length} asset ${verb} quote da riassegnare: ${list}.`, tone: 'warning' };
+}
+
+/** The caption under a property listed net of its mortgage («Asset principali», 2026-10-17): «netto del mutuo di 95.000 €». */
+export function describeNetOfDebtCaption(debtNetted: number): string {
+  return `netto del mutuo di ${cachedFormatCurrencyEUR(debtNetted, true)}`;
 }

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * TRAIETTORIA — «dove arriva l'obiettivo selezionato?»: the projected value at the deadline as the
+ * TRAIETTORIA — «dove arriva il traguardo selezionato?»: the projected value at the deadline as the
  * hero figure, four grouped chips (the pace paid, the pace required, the months left, the return)
  * and the glide path filling the tile's free height. The chart is passed in as `chart` so this
  * tile knows nothing about Recharts: a shell with a reading, a number, chips and a footer.
@@ -17,7 +17,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { TraiettoriaChip } from '@/lib/utils/goalsNarrative';
 import { cn } from '@/lib/utils';
-import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_SUB_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 
@@ -37,6 +37,9 @@ interface TraiettoriaTileProps {
   onEdit: () => void;
   onDelete: () => void;
   isDemo: boolean;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
   className?: string;
 }
 
@@ -80,17 +83,19 @@ function DeleteButton({ onDelete, disabled }: { onDelete: () => void; disabled: 
         {armed ? 'Conferma eliminazione' : 'Elimina'}
       </button>
       <span className="sr-only" role="status" aria-live="polite">
-        {armed ? "Premi di nuovo per eliminare l'obiettivo" : wasArmed ? 'Eliminazione annullata' : ''}
+        {armed ? "Premi di nuovo per eliminare il traguardo" : wasArmed ? 'Eliminazione annullata' : ''}
       </span>
     </>
   );
 }
 
-export function TraiettoriaTile({ reading, name, hero, chips, notes, uncertainty, chart, footer, fireEffect, onEdit, onDelete, isDemo, className }: TraiettoriaTileProps) {
+export function TraiettoriaTile({ reading, name, hero, chips, notes, uncertainty, chart, footer, fireEffect, onEdit, onDelete, isDemo, collapse, asideWhenClosed, className }: TraiettoriaTileProps) {
   return (
     <Tile
       eyebrow="Traiettoria"
       ariaLabel={`Traiettoria di ${name}`}
+      collapse={collapse}
+      asideWhenClosed={asideWhenClosed}
       aside={
         <div className="flex w-full flex-wrap items-center justify-end gap-x-2 gap-y-2 desktop:w-auto">
           <span className="truncate">

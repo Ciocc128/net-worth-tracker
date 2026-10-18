@@ -33,28 +33,33 @@
  */
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { Timestamp } from 'firebase/firestore';
-import { useForm, useFieldArray, useWatch, type FieldErrors } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch, type Control, type FieldErrors, type UseFormSetValue } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
-import { Asset, AssetFormData, AssetType, AssetClass, AllocationRole, AssetAllocationTarget, AssetComposition, CouponFrequency, BondDetails, BondInflationIndexation } from '@/types/assets';
+import { Asset, AssetFormData, AssetType, AssetClass, AllocationRole, AssetComposition, CouponFrequency, BondDetails, BondInflationIndexation, type AssetOwnerShare, type FamilyMember } from '@/types/assets';
 import type { PensionFundDetails } from '@/types/pension';
 import { createAsset, updateAsset, updateAssetMetadata } from '@/lib/services/assetService';
 import { isLedgerAssetType, type AssetTransactionFormData } from '@/types/assetTransactions';
 import { deleteAllAssetTransactionsForAsset } from '@/lib/services/assetTransactionService';
 import { useAssets } from '@/lib/hooks/useAssets';
 import { useAssetLedgerMeta, useCreateAssetTransaction } from '@/lib/hooks/useAssetTransactions';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSettings } from '@/lib/hooks/useSettings';
 import { queryKeys } from '@/lib/query/queryKeys';
 import { formatCurrency, formatNumberIt, formatPercentageIt } from '@/lib/utils/formatters';
 import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
+import { hasOwnOwnerField } from '@/lib/utils/assetOwnership';
 import { suggestIsLiquid } from '@/lib/utils/assetLiquidity';
 import { hasMarketPrice } from '@/lib/utils/assetPricing';
+import { sliceBase, sliceUnit, sliceUnitLabel, summarizeSlices, type AssetSlice } from '@/lib/utils/assetSlice';
+import { formatOwnerPercent, formatOwnerUnits, ownerShareSlice } from '@/lib/utils/assetOwnership';
+import { SegmentedPill } from '@/components/ui/segmented-pill';
 import {
   effectiveBondNominal,
   isBondQuotedInPercent,
@@ -63,11 +68,17 @@ import {
   type BondQuoteBasis,
 } from '@/lib/utils/bondPricing';
 import { buildBondDetailsFromForm, NO_INFLATION_INDEXATION } from '@/lib/utils/bondDetailsForm';
-import { latestIndexationCoefficient, resolveInflationIndexation } from '@/lib/utils/couponUtils';
+import {
+  bondTermYears,
+  calculateMaturityCouponPerShare,
+  getPeriodsPerYear,
+  isSingleCouponAtMaturity,
+  latestIndexationCoefficient,
+  resolveInflationIndexation,
+} from '@/lib/utils/couponUtils';
 import { NO_DIVIDEND_ACCOUNT, dividendAccountFromForm, paysDividends } from '@/lib/utils/dividendAccount';
 import { scheduleNextCoupon, scheduleFinalPremium } from '@/lib/services/couponScheduling';
-import { getTargets, addSubCategory, getSettings } from '@/lib/services/assetAllocationService';
-import type { Settings } from '@/types/settings';
+import { addSubCategory } from '@/lib/services/assetAllocationService';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import {
   ASSET_TYPE_PICKER_READING,
@@ -90,7 +101,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Calculator, Plus, X, BarChart3, Landmark, Bitcoin, Wallet, Home, Package, TrendingUp, ChevronLeft, PiggyBank } from 'lucide-react';
+import { Calculator, Plus, X, BarChart3, Landmark, Bitcoin, Wallet, Home, Package, TrendingUp, ChevronLeft, PiggyBank, HandCoins } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 
 /**
@@ -236,7 +247,10 @@ function buildAssetFormDataFromValues(
       data.type === 'etf' && data.leverageRatio && !isNaN(data.leverageRatio) && data.leverageRatio > 1
         ? data.leverageRatio
         : undefined,
-    stampDutyExempt: data.stampDutyExempt || false,
+    // AL20: only an ETF carries the flag; unchecked = absent (the metadata save deletes the key).
+    currencyHedge: data.type === 'etf' && data.currencyHedge ? ('EUR' as const) : undefined,
+    // A loan is no securities account: never in the stamp duty, whatever the switch says.
+    stampDutyExempt: data.type === 'loan' ? true : data.stampDutyExempt || false,
     currentPrice,
     currentPriceEur: fetchedCurrentPriceEur,
     isLiquid: data.isLiquid,
@@ -247,17 +261,31 @@ function buildAssetFormDataFromValues(
       ? data.autoUpdatePrice
       : false,
     composition: isComposite && composition.length > 0 ? composition : undefined,
-    outstandingDebt:
-      data.outstandingDebt && !isNaN(data.outstandingDebt) && data.outstandingDebt > 0
-        ? data.outstandingDebt
-        : undefined,
-    // The TAN only means something beside a debt (lib/utils/mortgageRepayment.ts).
+    // LEGACY, always cleared: a property saved after the migration sheds its old debt field
+    // (`updateAsset`'s `in` guard turns the undefined into a deleteField).
+    outstandingDebt: undefined,
+    // The TAN and the financed property belong to a loan (lib/utils/mortgageRepayment.ts).
     debtInterestRate:
-      data.outstandingDebt && data.outstandingDebt > 0 && data.debtInterestRate && !isNaN(data.debtInterestRate) && data.debtInterestRate > 0
+      data.type === 'loan' && data.debtInterestRate && !isNaN(data.debtInterestRate) && data.debtInterestRate > 0
         ? data.debtInterestRate
         : undefined,
+    financedAssetId: data.type === 'loan' && data.financedAssetId && data.financedAssetId !== '__none__' ? data.financedAssetId : undefined,
     isPrimaryResidence: data.isPrimaryResidence || false,
-    allocationRole: data.allocationRole ?? 'tradable',
+    // A loan's role is derived from what it finances (lib/utils/allocationUtils.ts), so none is
+    // written; a value an older document carries is inert.
+    allocationRole: data.type === 'loan' ? undefined : (data.allocationRole ?? 'tradable'),
+    // «In comune» is the ABSENCE of the field (`updateAsset` turns the undefined into a
+    // deleteField); a pension fund and a linked mortgage derive their owner and carry none.
+    // `ownerMemberId` names who takes the REST of the quotas, `ownerShares` the rows typed —
+    // none typed and a rest member is the whole asset to that member, the shape of before.
+    ...(() => {
+      const owns = hasOwnOwnerField({ type: data.type, financedAssetId: data.type === 'loan' && data.financedAssetId !== '__none__' ? data.financedAssetId : undefined });
+      const shares = owns ? typedOwnerShares(data.ownerShares, data.ownerMemberId, resolveOwnerSharesMode(data)) : [];
+      return {
+        ownerMemberId: owns && data.ownerMemberId && data.ownerMemberId !== '__none__' ? data.ownerMemberId : undefined,
+        ownerShares: shares.length > 0 ? shares : undefined,
+      };
+    })(),
     pensionFundDetails: buildPensionFundDetailsFromForm(data),
   };
 }
@@ -312,7 +340,16 @@ const TYPE_TO_CLASS: Record<AssetType, AssetClass> = {
   // composition has not been filled in yet; 'equity' is the least-wrong default for the typical
   // (equity-tilted) comparto. The form always prompts for the composition.
   pensionFund: 'equity',
+  // A loan takes the class of what it finances (types/assets.ts → LOAN_ASSET_TYPE): `realestate`
+  // once «Immobile finanziato» names a property (the effect below re-points it), `cash` for a
+  // personal loan — negative liquidity, like a credit card.
+  loan: 'cash',
 };
+
+/** The class a loan sits in, from the property it finances. */
+function loanClassOf(financedAssetId: string | undefined): AssetClass {
+  return financedAssetId && financedAssetId !== '__none__' ? 'realestate' : 'cash';
+}
 
 // Type picker card definitions for step 1 of the create flow
 const TYPE_CARDS: { type: AssetType; label: string; title: string; Icon: React.ElementType; description: string }[] = [
@@ -324,6 +361,7 @@ const TYPE_CARDS: { type: AssetType; label: string; title: string; Icon: React.E
   { type: 'realestate', label: 'Immobile', title: 'Nuovo Immobile', Icon: Home, description: 'Proprietà immobiliari' },
   { type: 'commodity', label: 'Materia Prima', title: 'Nuova Materia Prima', Icon: Package, description: 'Oro, argento, petrolio, ecc.' },
   { type: 'pensionFund', label: 'Fondo Pensione', title: 'Nuovo Fondo Pensione', Icon: PiggyBank, description: 'Previdenza complementare, valore da estratto conto' },
+  { type: 'loan', label: 'Prestito', title: 'Nuovo Prestito', Icon: HandCoins, description: 'Mutuo o prestito: il debito residuo, che le rate riducono' },
 ];
 
 // Zod validation schema for asset form
@@ -349,7 +387,7 @@ const assetSchema = z.object({
   // Mirrors the AssetType union in types/assets.ts — keep the two in lock-step (tsc catches drift
   // where the form value is passed back as an AssetType). 'pensionFund' is accepted here from P0 on;
   // its type card and its dedicated fields land with the pension UI phase.
-  type: z.enum(['stock', 'etf', 'bond', 'crypto', 'commodity', 'cash', 'realestate', 'pensionFund']),
+  type: z.enum(['stock', 'etf', 'bond', 'crypto', 'commodity', 'cash', 'realestate', 'pensionFund', 'loan']),
   // Mirrors the AssetClass union in types/assets.ts (tsc catches drift the same way as `type` above).
   // 'trendFollowing'/'carry' are accepted here from L0 on but have no picker entry yet in the
   // `assetClasses` composition-leg Select below — that lands with the leverage UI (phase L2).
@@ -367,12 +405,14 @@ const assetSchema = z.object({
   // type 'etf' only. It is metadata (multiplies notional
   // exposure), independent of quantity/PMC — so for ledger types it rides updateAssetMetadata.
   leverageRatio: z.number().min(1, 'La leva deve essere almeno 1').max(10, 'Leva massima 10').optional().or(z.nan()),
+  currencyHedge: z.boolean().optional(),
   stampDutyExempt: z.boolean().optional(),
   isLiquid: z.boolean().optional(),
   autoUpdatePrice: z.boolean().optional(),
   isComposite: z.boolean().optional(),
-  outstandingDebt: z.number().nonnegative('Il debito non può essere negativo').optional().or(z.nan()),
+  // A loan's TAN and the property it finances ('__none__' = a personal loan), type 'loan' only.
   debtInterestRate: z.number().nonnegative('Il TAN non può essere negativo').max(30, 'Un TAN tra 0 e 30%').optional().or(z.nan()),
+  financedAssetId: z.string().optional(),
   isPrimaryResidence: z.boolean().optional(),
   allocationRole: z.enum(['tradable', 'frozen', 'excluded']).optional(),
   // Opening-position fields (ledger create only): the first buy's date + optional settlement account.
@@ -384,7 +424,7 @@ const assetSchema = z.object({
   dividendCashAssetId: z.string().optional(),
   // Bond coupon details (optional, only shown for type=bond + assetClass=bonds)
   bondCouponRate: z.number().min(0).max(100).optional().or(z.nan()),
-  bondCouponFrequency: z.enum(['monthly', 'quarterly', 'semiannual', 'annual']).optional(),
+  bondCouponFrequency: z.enum(['monthly', 'quarterly', 'semiannual', 'annual', 'maturity']).optional(),
   bondIssueDate: z.string().optional(),
   bondMaturityDate: z.string().optional(),
   bondNominalValue: z.number().positive('Il valore nominale deve essere positivo').optional().or(z.nan()),
@@ -410,15 +450,56 @@ const assetSchema = z.object({
   pensionProvider: z.string().optional(),
   pensionUnlockDate: z.string().optional(),
   pensionFamilyMemberId: z.string().optional(),
+  // «Intestatari» (lib/utils/assetOwnership.ts): `ownerMemberId` is the member who takes the
+  // REST of the quotas, '__none__' = in comune («Nessuna quota in comune» off); `ownerShares` the
+  // rows typed, member → units (quote, or euro at price 1). Not for a pension fund (its member is
+  // `pensionFamilyMemberId`) nor a mortgage (it follows its property).
+  ownerMemberId: z.string().optional(),
+  // The rows' figures, read in `ownerSharesMode`: a percent of the asset, or units (quote, or
+  // euro where the value lives in quantity at price 1). Absent mode = the type's default
+  // (`defaultOwnerSharesMode`): % where the value is money, quote on a quoted instrument.
+  ownerShares: z.array(z.object({ memberId: z.string(), amount: z.number().min(0, 'Una quota non può essere negativa').or(z.nan()) })).optional(),
+  ownerSharesMode: z.enum(['percent', 'units']).optional(),
 }).superRefine((data, ctx) => {
-  const tickerRequired = data.type !== 'cash' && data.type !== 'realestate' && data.type !== 'pensionFund';
+  const tickerRequired = data.type !== 'cash' && data.type !== 'realestate' && data.type !== 'pensionFund' && data.type !== 'loan';
   if (tickerRequired && (!data.ticker || data.ticker.trim().length === 0)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Serve il ticker', path: ['ticker'] });
   }
   if (data.type !== 'cash' && data.quantity < 0) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'La quantità non può essere negativa', path: ['quantity'] });
   }
+  // The typed quotas never exceed the quantity: a refusal in the reading line, never a save that
+  // the row would then declare «da riassegnare» (lib/utils/assetSlice.ts).
+  const mode = resolveOwnerSharesMode(data);
+  const typed = typedOwnerShares(data.ownerShares, data.ownerMemberId, mode);
+  if (typed.length > 0) {
+    if (mode === 'percent') {
+      const total = typed.reduce((sum, share) => sum + ('percent' in share ? share.percent : 0), 0);
+      if (total > 100 + 1e-9) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Le percentuali intestate superano il 100%', path: ['ownerShares'] });
+    } else if (!Number.isNaN(data.quantity) && summarizeSlices(typed.map(ownerShareSlice), data.quantity).needsReassignment) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Le quote intestate superano la quantità', path: ['ownerShares'] });
+    }
+  }
 });
+
+type OwnerSharesMode = 'percent' | 'units';
+
+/** The default form of the quotas: % where the value is money (an account stays 50/50 as it moves), quote on a quoted instrument. */
+function defaultOwnerSharesMode(type: AssetType, subCategory: string | undefined): OwnerSharesMode {
+  return hasMarketPrice(type, subCategory) ? 'units' : 'percent';
+}
+
+function resolveOwnerSharesMode(data: Pick<AssetFormValues, 'ownerSharesMode' | 'type' | 'subCategory'>): OwnerSharesMode {
+  return data.ownerSharesMode ?? defaultOwnerSharesMode(data.type, data.subCategory || undefined);
+}
+
+/** The quota rows that count, in the block's form: a positive figure, not the rest member's (its row is computed). */
+function typedOwnerShares(shares: { memberId: string; amount: number }[] | undefined, restMemberId: string | undefined, mode: OwnerSharesMode): AssetOwnerShare[] {
+  const rest = restMemberId && restMemberId !== '__none__' ? restMemberId : null;
+  return (shares ?? [])
+    .filter((share) => share.memberId !== rest && !Number.isNaN(share.amount) && share.amount > 0)
+    .map((share) => (mode === 'percent' ? { memberId: share.memberId, percent: share.amount } : { memberId: share.memberId, units: share.amount }));
+}
 
 type AssetFormValues = z.infer<typeof assetSchema>;
 
@@ -438,6 +519,10 @@ interface AssetDialogProps {
    * (2026-09-14). Ignored in edit mode.
    */
   initialType?: AssetType;
+  /** The control that opened the dialog: the focus goes back to it on close (`ResponsiveModal`). */
+  returnFocusTo?: React.RefObject<HTMLElement | null>;
+  /** The exit animation is over: a host that mounts the dialog only while open unmounts it here. */
+  onExitComplete?: () => void;
   /** Create the asset at quantity 0 with no opening trade (Accumulo → Nuovo asset). */
   createEmpty?: boolean;
   /** Called with the new asset id after a successful create. */
@@ -463,14 +548,15 @@ const FIELD_LABELS: Partial<Record<keyof AssetFormValues, string>> = {
   taxRate: 'Aliquota fiscale',
   totalExpenseRatio: 'TER',
   leverageRatio: 'Leva',
-  outstandingDebt: 'Debito residuo',
-  debtInterestRate: 'TAN del mutuo',
+  debtInterestRate: 'TAN',
+  financedAssetId: 'Immobile finanziato',
   openingDate: 'Data di acquisto',
   bondCouponRate: 'Tasso cedola',
   bondNominalValue: 'Valore nominale',
   bondFinalPremiumRate: 'Premio finale',
   bondIndexationCoefficient: 'Coefficiente di indicizzazione',
   bondCouponRateSchedule: 'Tasso variabile',
+  ownerShares: 'Intestatari',
 };
 
 const assetTypes: { value: AssetType; label: string }[] = [
@@ -482,6 +568,7 @@ const assetTypes: { value: AssetType; label: string }[] = [
   { value: 'cash', label: 'Liquidità' },
   { value: 'realestate', label: 'Immobile' },
   { value: 'pensionFund', label: 'Fondo Pensione' },
+  { value: 'loan', label: 'Prestito' },
 ];
 
 /**
@@ -527,7 +614,327 @@ const assetClasses: { value: AssetClass; label: string }[] = [
   { value: 'carry', label: 'Carry' },
 ];
 
-export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType, createEmpty, onCreated }: AssetDialogProps) {
+/*
+ * The fields typed key by key, watched WHERE they are read (since 2026-10-07). With their
+ * `useWatch` at the dialog's root, every key in «Quantità» re-rendered the whole form — 562
+ * components per key on the census, two commits each, with the React Compiler on: the compiler
+ * compiles `AssetDialog` but leaves the step-2 form outside every memo scope, so nothing under the
+ * root was skipped. Each preview or notice below is the only reader of its fields and subscribes to
+ * them itself; the root keeps the watches that decide the form's SHAPE (type, class, the toggles,
+ * the selects — one change per click) and the ISIN, which turns every bond label to «% del
+ * nominale». `useWatch` for the render, `getValues` in the handlers, never `watch()` (AGENTS.md
+ * § Dialog Form Reset).
+ */
+type AssetFormControl = Control<AssetFormValues>;
+
+/** The scaling of a typed bond quote, from the three fields that decide it, watched here. */
+function useBondQuoteBasis(control: AssetFormControl, knownCoefficient: number | undefined): BondQuoteBasis {
+  const bondNominalValue = useWatch({ control, name: 'bondNominalValue' });
+  const bondInflationIndexation = useWatch({ control, name: 'bondInflationIndexation' });
+  const bondIndexationCoefficient = useWatch({ control, name: 'bondIndexationCoefficient' });
+  return bondQuoteBasisOf({ bondNominalValue, bondInflationIndexation, bondIndexationCoefficient }, knownCoefficient);
+}
+
+/**
+ * Edit mode, a non-ledger asset: a quantity moved by hand is capital in or out of the portfolio,
+ * which the performance metrics only see through a cashflow entry.
+ */
+function QuantityChangeNotice({ control, previousQuantity }: { control: AssetFormControl; previousQuantity: number }) {
+  const quantity = useWatch({ control, name: 'quantity' }) ?? 0;
+  if (quantity > previousQuantity) {
+    return (
+      <p className="text-xs text-warning-foreground">
+        Hai investito nuovo capitale? Se i fondi provengono dall&apos;esterno del portafoglio tracciato, registra un&apos;entrata nel cashflow per mantenere le metriche di performance accurate.
+      </p>
+    );
+  }
+  if (quantity < previousQuantity) {
+    return (
+      <p className="text-xs text-warning-foreground">
+        Hai venduto questo asset? Se il ricavato è uscito dal portafoglio tracciato, registra un&apos;uscita nel cashflow per mantenere le metriche di performance accurate.
+      </p>
+    );
+  }
+  return null;
+}
+
+/** «≈ 0,9950 € per unità» under a purchase price typed as a Borsa Italiana quote. */
+function BondPurchasePricePreview({
+  control,
+  knownCoefficient,
+  isEuroIndexed,
+}: {
+  control: AssetFormControl;
+  knownCoefficient: number | undefined;
+  isEuroIndexed: boolean;
+}) {
+  const biPrice = useWatch({ control, name: 'averageCost' });
+  const bondQuoteBasis = useBondQuoteBasis(control, knownCoefficient);
+  if (!biPrice || isNaN(biPrice)) return null;
+  const eurVal = resolveBondPrice(biPrice, bondQuoteBasis, true);
+  return (
+    <p className="text-xs font-medium text-primary">
+      ≈ {formatNumberIt(eurVal, 4)} € per unità
+      {isEuroIndexed ? ' (al coefficiente di indicizzazione inserito sotto)' : ''}
+    </p>
+  );
+}
+
+/** The euro value of a sample quote with the nominal (and coefficient) typed so far — inline text. */
+function BondQuoteInEuro({ control, knownCoefficient, quote }: { control: AssetFormControl; knownCoefficient: number | undefined; quote: number }) {
+  const bondQuoteBasis = useBondQuoteBasis(control, knownCoefficient);
+  return <>{formatNumberIt(resolveBondPrice(quote, bondQuoteBasis, true), 4)}</>;
+}
+
+/**
+ * Dynamic coupon preview based on current form values. The nominal defaults to 1 € exactly as the
+ * saved bond will (effectiveBondNominal), so the preview and the first materialised coupon agree.
+ * A rate of 0 is a zero coupon: no preview. A single coupon at maturity reads the two dates too:
+ * it is the rate capitalised over the term (`calculateMaturityCouponPerShare`), so the owner can
+ * check it against the MEF's scheda before saving.
+ */
+function CouponPreview({
+  control,
+  couponFrequency,
+  inflationIndexation,
+  isEuroIndexed,
+  currency,
+}: {
+  control: AssetFormControl;
+  couponFrequency: CouponFrequency | undefined;
+  inflationIndexation: AssetFormValues['bondInflationIndexation'];
+  isEuroIndexed: boolean;
+  currency: string;
+}) {
+  const rate = useWatch({ control, name: 'bondCouponRate' });
+  const nominal = effectiveBondNominal(useWatch({ control, name: 'bondNominalValue' }));
+  const qty = useWatch({ control, name: 'quantity' });
+  const typedCoefficient = useWatch({ control, name: 'bondIndexationCoefficient' });
+  const issueDateStr = useWatch({ control, name: 'bondIssueDate' });
+  const maturityDateStr = useWatch({ control, name: 'bondMaturityDate' });
+  const atMaturity = couponFrequency ? isSingleCouponAtMaturity(couponFrequency) : false;
+  const periods = couponFrequency && !atMaturity ? getPeriodsPerYear(couponFrequency) : null;
+  const termYears = atMaturity && issueDateStr && maturityDateStr ? bondTermYears(new Date(issueDateStr), new Date(maturityDateStr)) : null;
+  if (rate && !isNaN(rate) && (periods || termYears) && qty > 0) {
+    const coefficient = isEuroIndexed && typedCoefficient && !isNaN(typedCoefficient) && typedCoefficient > 0
+      ? typedCoefficient
+      : 1;
+    const perShare = termYears ? calculateMaturityCouponPerShare(rate, nominal, termYears) : (rate / 100 / (periods as number)) * nominal * coefficient;
+    const total = perShare * qty;
+    const label = termYears
+      ? `Cedola unica a scadenza (${formatNumberIt(rate, 2)}% capitalizzato per ${formatNumberIt(termYears, 2)} anni)`
+      : inflationIndexation === 'italia'
+        ? 'Cedola minima (solo fisso)'
+        : isEuroIndexed
+          ? `Cedola stimata (al coefficiente ${formatNumberIt(coefficient, 5)})`
+          : 'Cedola stimata';
+    return (
+      <p className="text-xs text-primary font-medium">
+        → {label}: {formatNumberIt(perShare, 4)} {currency}/unità × {formatNumberIt(qty, 0)} = {formatNumberIt(total)} {currency} per pagamento
+        {inflationIndexation === 'italia' && (
+          <span className="block font-normal text-muted-foreground">La componente inflazione FOI si aggiunge a ogni periodo (inserita dalla tab Dividendi).</span>
+        )}
+        {isEuroIndexed && (
+          <span className="block font-normal text-muted-foreground">Ogni cedola usa il coefficiente alla sua data di stacco (inserito dalla tab Dividendi).</span>
+        )}
+      </p>
+    );
+  }
+  return (
+    <div className="text-xs text-muted-foreground space-y-1">
+      <p>Valore facciale di una unità nella tua valuta: decide cosa conta la quantità.</p>
+      <p>• Quantità = nominale in euro, come sull&apos;estratto del broker (5.000 € di BTP → quantità 5000) → <strong>lascia vuoto</strong></p>
+      <p>• Quantità = lotti da 1.000 € (5 lotti → quantità 5) → inserisci <strong>1000</strong></p>
+    </div>
+  );
+}
+
+/** The final premium a bond pays at maturity, on the quantity typed so far. */
+function FinalPremiumPreview({ control, currency }: { control: AssetFormControl; currency: string }) {
+  const premRate = useWatch({ control, name: 'bondFinalPremiumRate' });
+  const nominal = effectiveBondNominal(useWatch({ control, name: 'bondNominalValue' }));
+  const qty = useWatch({ control, name: 'quantity' });
+  if (premRate && !isNaN(premRate) && qty > 0) {
+    const perShare = (premRate / 100) * nominal;
+    const total = perShare * qty;
+    return (
+      <p className="text-xs text-primary font-medium">
+        → Premio stimato: {formatNumberIt(perShare, 4)} {currency}/unità × {formatNumberIt(qty, 0)} = {formatNumberIt(total)} {currency} alla scadenza
+      </p>
+    );
+  }
+  return (
+    <p className="text-xs text-muted-foreground">
+      Bonus una-tantum pagato alla scadenza (es. 0.8% per BTP Valore)
+    </p>
+  );
+}
+
+/**
+ * The «Intestatari» rows (owner, 2026-10-17; lib/utils/assetSlice.ts): one input per member, in
+ * PERCENT of the asset or in UNITS — quote of an instrument, euro of an account or a property —,
+ * the % | quote switch above them (a `SegmentedPill`; % by default where the value is money, so
+ * a joint account stays 50/50 as its balance moves, quote on a quoted instrument), the other
+ * figure derived beside each row, and the LAST row the rest, computed and never typed: «In
+ * comune» by default, or the last member when «Nessuna quota in comune» is on (then the rest
+ * member's row moves last and reads what the others leave: «scrivo 40 a Giuseppe, Marcella legge
+ * 60 da sola»). Under the rows the sum («50% + 50% = 100%», «40 + 60 = 100 quote»); a sum past
+ * the whole is red here and a refusal in the reading line at submit (the schema's superRefine),
+ * never a save. Switching the form converts what is typed, so a figure keeps its meaning. A leaf:
+ * it watches the quantity and the rows itself, so a key in «Quantità» re-renders this block and
+ * not the form.
+ */
+function OwnerSharesRows({
+  control,
+  setValue,
+  members,
+  restMemberId,
+  unitOf,
+  errorMessage,
+}: {
+  control: AssetFormControl;
+  setValue: UseFormSetValue<AssetFormValues>;
+  members: readonly FamilyMember[];
+  /** `ownerMemberId` as watched at the root: the member who takes the rest, '__none__' = in comune. */
+  restMemberId: string;
+  unitOf: { type: AssetType; subCategory?: string; currency: string };
+  errorMessage?: string;
+}) {
+  const quantity = useWatch({ control, name: 'quantity' });
+  const shares = useWatch({ control, name: 'ownerShares' }) ?? [];
+  const chosenMode = useWatch({ control, name: 'ownerSharesMode' });
+  const mode: OwnerSharesMode = chosenMode ?? defaultOwnerSharesMode(unitOf.type, unitOf.subCategory);
+  const unit = sliceUnit(unitOf);
+  const base = Number.isNaN(quantity) ? 0 : sliceBase(quantity);
+  const rest = restMemberId !== '__none__' ? restMemberId : null;
+  const noCommon = rest !== null && members.some((member) => member.id === rest);
+  // The rest member's row goes last; the others keep the settings' order.
+  const typedMembers = members.filter((member) => member.id !== rest);
+  const amountOf = (memberId: string): number => {
+    const share = shares.find((s) => s.memberId === memberId);
+    return share && !Number.isNaN(share.amount) ? share.amount : 0;
+  };
+  const sliceOf = (amount: number): AssetSlice => (mode === 'percent' ? { percent: amount } : { units: amount });
+  const typedSlices = typedMembers.map((member) => sliceOf(amountOf(member.id)));
+  const budget = summarizeSlices(typedSlices, base);
+  const typedPercent = typedMembers.reduce((sum, member) => sum + (mode === 'percent' ? amountOf(member.id) : 0), 0);
+  // Over the whole: a percent block past 100, a units block past the quantity.
+  const over = mode === 'percent' ? typedPercent > 100 + 1e-9 : budget.needsReassignment;
+  const restPercent = Math.max(0, 100 - typedPercent);
+  const restUnits = budget.freeUnits;
+  const unitWord = sliceUnitLabel(unit);
+  const modeWord = mode === 'percent' ? '%' : unitWord;
+  const restLabel = noCommon ? `${members.find((member) => member.id === rest)?.name ?? ''} (il resto)` : 'In comune';
+
+  // The figure typed in the block's form, and the other form derived beside it.
+  const primary = (amount: number) => (mode === 'percent' ? formatOwnerPercent(amount) : formatOwnerUnits(amount, unit));
+  const derived = (amount: number) =>
+    mode === 'percent'
+      ? `${formatOwnerUnits((amount / 100) * base, unit)}${unit.kind === 'units' ? ` ${unitWord}` : ''}`
+      : base > 0
+        ? formatOwnerPercent((amount / base) * 100)
+        : '—';
+
+  const updateAmount = (memberId: string, raw: string) => {
+    const amount = raw === '' ? NaN : Number(raw);
+    const next = shares.filter((s) => s.memberId !== memberId);
+    setValue('ownerShares', Number.isNaN(amount) ? next : [...next, { memberId, amount }], { shouldValidate: !!errorMessage });
+  };
+  const switchMode = (next: OwnerSharesMode) => {
+    if (next === mode) return;
+    // The figures follow the switch: 50 % of 100 quote becomes 50 quote, and back.
+    const converted = shares
+      .filter((s) => !Number.isNaN(s.amount))
+      .map((s) => ({ memberId: s.memberId, amount: Math.round((next === 'percent' ? (base > 0 ? (s.amount / base) * 100 : 0) : (s.amount / 100) * base) * 10000) / 10000 }));
+    setValue('ownerShares', converted, { shouldValidate: !!errorMessage });
+    setValue('ownerSharesMode', next, { shouldValidate: !!errorMessage });
+  };
+  const toggleNoCommon = (checked: boolean) => {
+    // On: the last member takes the rest (its typed row, if any, is dropped — it is computed now).
+    const last = members[members.length - 1];
+    setValue('ownerMemberId', checked && last ? last.id : '__none__', { shouldValidate: !!errorMessage });
+  };
+
+  const restFigure = mode === 'percent' ? formatOwnerPercent(restPercent) : formatOwnerUnits(restUnits, unit);
+  const wholeFigure = mode === 'percent' ? formatOwnerPercent(100) : `${formatOwnerUnits(base, unit)}${unit.kind === 'units' ? ` ${unitWord}` : ''}`;
+  const sumWords = `${typedMembers.map((member) => primary(amountOf(member.id))).join(' + ')}${typedMembers.length > 0 ? ' + ' : ''}${restFigure} = ${wholeFigure}`;
+  const overWords =
+    mode === 'percent'
+      ? `Le percentuali intestate (${formatOwnerPercent(typedPercent)}) superano il 100%.`
+      : `Le quote intestate (${formatOwnerUnits(budget.assignedUnits, unit)}) superano la quantità (${wholeFigure}).`;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs text-muted-foreground">Forma delle quote</span>
+        <SegmentedPill
+          options={[{ value: 'percent', label: '%' }, { value: 'units', label: unitWord }] as const}
+          value={mode}
+          onChange={switchMode}
+          layoutId="owner-shares-mode"
+          ariaLabel="Forma delle quote"
+          semantics="radio"
+        />
+      </div>
+      <div className="space-y-2">
+        {typedMembers.map((member) => {
+          const id = `ownerShare-${member.id}`;
+          const amount = amountOf(member.id);
+          return (
+            <div key={member.id} className="grid grid-cols-[1fr_auto_4.5rem] items-center gap-2">
+              <Label htmlFor={id} className="truncate text-sm font-normal">{member.name}</Label>
+              <div className="flex items-center gap-1.5">
+                <Input
+                  id={id}
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="any"
+                  className="w-28 text-right font-mono tabular-nums"
+                  value={shares.find((s) => s.memberId === member.id && !Number.isNaN(s.amount)) ? amount : ''}
+                  onChange={(event) => updateAmount(member.id, event.target.value)}
+                  aria-describedby={`${id}-derived`}
+                />
+                <span className="w-10 text-xs text-muted-foreground">{modeWord}</span>
+              </div>
+              <span id={`${id}-derived`} className="truncate text-right font-mono text-xs tabular-nums text-muted-foreground">{derived(amount)}</span>
+            </div>
+          );
+        })}
+        <div className="grid grid-cols-[1fr_auto_4.5rem] items-center gap-2" aria-live="polite">
+          <span className="truncate text-sm text-muted-foreground">{restLabel}</span>
+          <div className="flex items-center gap-1.5">
+            <span className="inline-flex h-9 w-28 items-center justify-end rounded-md border border-dashed border-border px-3 font-mono text-sm tabular-nums text-muted-foreground">
+              {restFigure}
+            </span>
+            <span className="w-10 text-xs text-muted-foreground">{modeWord}</span>
+          </div>
+          <span className="truncate text-right font-mono text-xs tabular-nums text-muted-foreground">{derived(mode === 'percent' ? restPercent : restUnits)}</span>
+        </div>
+      </div>
+      <p className={over || errorMessage ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
+        {over ? overWords : errorMessage ?? sumWords}
+      </p>
+      {members.length > 0 && (
+        <div className="flex items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <Label htmlFor="ownerNoCommon">Nessuna quota in comune</Label>
+            <p className="text-xs text-muted-foreground">Il resto va a {members[members.length - 1].name}, anche le quote che arriveranno.</p>
+          </div>
+          <Switch id="ownerNoCommon" checked={noCommon} onCheckedChange={toggleNoCommon} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** When the opening purchase settles on its account, from the date typed. */
+function SettlementTimingHint({ control, todayIso }: { control: AssetFormControl; todayIso: string }) {
+  const openingDate = useWatch({ control, name: 'openingDate' });
+  return <p className="text-xs text-muted-foreground">{describeSettlementTiming(openingDate ?? '', todayIso)}</p>;
+}
+
+export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType, returnFocusTo, onExitComplete, createEmpty, onCreated }: AssetDialogProps) {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const queryClient = useQueryClient();
@@ -541,22 +948,22 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
   const { data: ledgerMeta } = useAssetLedgerMeta(ownerId);
   const { data: ledgerAllAssets = [] } = useAssets(ownerId);
   const createTradeMutation = useCreateAssetTransaction(ownerId || '');
-  // Family members for the "Membro famiglia" Select on the pensionFund details section — sourced
-  // from Settings (Impostazioni → Preferenze → Famiglia), same queryKey every other settings
-  // consumer uses so a save there is picked up here too.
-  const { data: settings } = useQuery<Settings | null>({
-    queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(ownerId!),
-    enabled: !!ownerId,
-  });
+  // The settings document — the family members for the pensionFund «Membro famiglia» Select and
+  // the allocation targets for the sub-category Select — from the ONE settings key (2026-09-29),
+  // read only while the dialog is OPEN: Patrimonio mounts this dialog closed, and until
+  // 2026-09-29 it read the targets at mount and the settings on its own key. A save in
+  // Impostazioni invalidates the key, so it is picked up here too.
+  const { data: settings } = useSettings(ownerId, { enabled: open });
+  // What `getTargets` used to read in a second round trip: the same document's `targets`.
+  const allocationTargets = settings?.targets ?? null;
   const ledgerCashAssets = ledgerAllAssets.filter((a) => a.type === 'cash' && a.assetClass === 'cash');
   const [fetchingPrice, setFetchingPrice] = useState(false);
-  const [allocationTargets, setAllocationTargets] = useState<AssetAllocationTarget | null>(null);
   const [showNewSubCategory, setShowNewSubCategory] = useState(false);
   const [newSubCategoryName, setNewSubCategoryName] = useState('');
   const [isAddingSubCategory, setIsAddingSubCategory] = useState(false);
   const [composition, setComposition] = useState<AssetComposition[]>([]);
-  const [hasOutstandingDebt, setHasOutstandingDebt] = useState(false);
+  // The properties a loan can finance («Immobile finanziato»): the owner's real estate.
+  const financeableProperties = ledgerAllAssets.filter((a) => a.type === 'realestate' && a.assetClass === 'realestate');
   // True once the user has picked an allocation role by hand — from then on the type/sub-category
   // driven suggestion stops overriding their choice.
   const [allocationRoleTouched, setAllocationRoleTouched] = useState(false);
@@ -583,12 +990,13 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
       isLiquid: true,
       autoUpdatePrice: true,
       isComposite: false,
-      outstandingDebt: undefined,
       debtInterestRate: undefined,
+      financedAssetId: '__none__',
       isPrimaryResidence: false,
       allocationRole: 'tradable',
       openingCashAssetId: '__none__',
       dividendCashAssetId: NO_DIVIDEND_ACCOUNT,
+      ownerShares: [],
     },
   });
 
@@ -603,22 +1011,19 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
   const watchIsLiquid = useWatch({ control, name: 'isLiquid' });
   const watchAutoUpdatePrice = useWatch({ control, name: 'autoUpdatePrice' });
   const watchIsComposite = useWatch({ control, name: 'isComposite' });
-  const watchQuantity = useWatch({ control, name: 'quantity' });
   const watchCurrency = useWatch({ control, name: 'currency' });
   const watchIsin = useWatch({ control, name: 'isin' });
-  const watchBondNominalValue = useWatch({ control, name: 'bondNominalValue' });
-  const watchBondCouponRate = useWatch({ control, name: 'bondCouponRate' });
   const watchBondCouponFrequency = useWatch({ control, name: 'bondCouponFrequency' });
-  const watchBondFinalPremiumRate = useWatch({ control, name: 'bondFinalPremiumRate' });
   const watchBondInflationIndexation = useWatch({ control, name: 'bondInflationIndexation' });
-  const watchBondIndexationCoefficient = useWatch({ control, name: 'bondIndexationCoefficient' });
-  const watchAverageCost = useWatch({ control, name: 'averageCost' });
   const watchIsPrimaryResidence = useWatch({ control, name: 'isPrimaryResidence' });
   const watchAllocationRole = useWatch({ control, name: 'allocationRole' });
+  const watchOwnerMemberId = useWatch({ control, name: 'ownerMemberId' });
+  // A loan's property: one change per click, and it decides the class and the liquidity default.
+  const watchFinancedAssetId = useWatch({ control, name: 'financedAssetId' });
   const watchStampDutyExempt = useWatch({ control, name: 'stampDutyExempt' });
+  const watchCurrencyHedge = useWatch({ control, name: 'currencyHedge' });
   const watchOpeningCashAssetId = useWatch({ control, name: 'openingCashAssetId' });
   const watchDividendCashAssetId = useWatch({ control, name: 'dividendCashAssetId' });
-  const watchOpeningDate = useWatch({ control, name: 'openingDate' });
   const watchPensionFamilyMemberId = useWatch({ control, name: 'pensionFamilyMemberId' });
 
   // Ledger gating (Phase C):
@@ -651,21 +1056,14 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
     asset?.bondDetails && resolveInflationIndexation(asset.bondDetails) === 'euro'
       ? (latestIndexationCoefficient(asset.bondDetails.indexationCoefficients, new Date()) ?? undefined)
       : undefined;
-  const bondQuoteBasis = bondQuoteBasisOf(
-    {
-      bondNominalValue: watchBondNominalValue,
-      bondInflationIndexation: watchBondInflationIndexation,
-      bondIndexationCoefficient: watchBondIndexationCoefficient,
-    },
-    knownCoefficient
-  );
 
   // Field visibility based on asset type — applies to both create and edit modes.
-  const newAsset_showTicker = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund';
+  const isLoan = selectedType === 'loan';
+  const newAsset_showTicker = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund' && !isLoan;
   const newAsset_showISIN = selectedType === 'stock' || selectedType === 'etf' || selectedType === 'bond';
-  const newAsset_quantityLabel = selectedType === 'cash' ? 'Saldo' : selectedType === 'realestate' ? 'Valore stimato' : selectedType === 'pensionFund' ? 'Valore attuale' : 'Quantità';
-  const newAsset_showAutoUpdate = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund';
-  const newAsset_showCostBasis = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund';
+  const newAsset_quantityLabel = selectedType === 'cash' ? 'Saldo' : selectedType === 'realestate' ? 'Valore stimato' : selectedType === 'pensionFund' ? 'Valore attuale' : isLoan ? 'Debito residuo' : 'Quantità';
+  const newAsset_showAutoUpdate = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund' && !isLoan;
+  const newAsset_showCostBasis = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund' && !isLoan;
   // TER applies to funds/ETC (ongoing management fee), never to a single stock. `commodity` and
   // `crypto` both double as either a direct spot holding (no TER) or an ETC wrapper around that
   // same underlying (e.g. WisdomTree Agriculture AIGA.MI, WisdomTree Physical Bitcoin) — the toggle
@@ -689,7 +1087,8 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
   // select before saving and one click from changed — never a read-time fallback: no existing
   // asset's role changes without the user asking. Once they pick a role, we stop steering.
   useEffect(() => {
-    if (isEdit || allocationRoleTouched) return;
+    // A loan has no role of its own: it follows what it finances (`resolveAllocationRoleWithin`).
+    if (isEdit || allocationRoleTouched || selectedType === 'loan') return;
     const suggested: AllocationRole =
       selectedAssetClass === 'realestate'
         ? 'excluded'
@@ -715,11 +1114,19 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
   // manual toggle, and no existing asset changes without the user asking (edit is out).
   useEffect(() => {
     if (isEdit || isLiquidTouched) return;
-    const suggested = suggestIsLiquid(selectedType, selectedSubCategory);
+    const suggested = suggestIsLiquid(selectedType, selectedSubCategory, watchFinancedAssetId === '__none__' ? undefined : watchFinancedAssetId);
     if (watchIsLiquid !== suggested) {
       setValue('isLiquid', suggested);
     }
-  }, [isEdit, isLiquidTouched, selectedType, selectedSubCategory, watchIsLiquid, setValue]);
+  }, [isEdit, isLiquidTouched, selectedType, selectedSubCategory, watchFinancedAssetId, watchIsLiquid, setValue]);
+
+  // A loan's class follows what it finances (TYPE_TO_CLASS): a property puts it among the
+  // Immobili, so the class still sums to the equity; none leaves it in Liquidità.
+  useEffect(() => {
+    if (selectedType !== 'loan') return;
+    const suggested = loanClassOf(watchFinancedAssetId);
+    if (selectedAssetClass !== suggested) setValue('assetClass', suggested);
+  }, [selectedType, selectedAssetClass, watchFinancedAssetId, setValue]);
 
   // The three blocks below adjust UI state DURING render when the thing it follows changes
   // (React's "adjusting state when a prop changes"), never from an effect — a setter called
@@ -756,7 +1163,10 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
   // touched flags, the section toggles, the composition and the calculator. Re-running on every
   // open is what makes a second "new asset" start clean — `asset` stays null between opens.
   // The form itself is reset in the effect further down: `reset`, `setValue` and `replaceTiers`
-  // are not state setters.
+  // are not state setters. Patrimonio mounts this dialog only while it is open, where a
+  // `useState(asset ? 2 : 1)` initializer would be right too; the reset stays here anyway, because
+  // it is the one way that also holds for a host that keeps the dialog mounted (doc/guide/dialog.md
+  // § Two-Step Create Dialogs), and two ways to open a dialog are one too many.
   const [openSubject, setOpenSubject] = useState<{ open: boolean; asset: Asset | null | undefined } | null>(null);
   if (!openSubject || openSubject.open !== open || openSubject.asset !== asset) {
     setOpenSubject({ open, asset });
@@ -772,7 +1182,6 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
       setBrokerEntries([{ qty: '', price: '' }]);
       if (asset) {
         setComposition(asset.composition && asset.composition.length > 0 ? asset.composition : []);
-        setHasOutstandingDebt(!!(asset.outstandingDebt && asset.outstandingDebt > 0));
         setShowCostBasis(!!((asset.averageCost && asset.averageCost > 0) || (asset.taxRate && asset.taxRate > 0)));
         setShowTER(!!(asset.totalExpenseRatio && asset.totalExpenseRatio > 0));
         setShowBondDetails(!!asset.bondDetails);
@@ -784,7 +1193,6 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
         }
       } else {
         setComposition([]);
-        setHasOutstandingDebt(false);
         setShowCostBasis(false);
         setShowTER(false);
         setShowBondDetails(false);
@@ -792,24 +1200,6 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
       }
     }
   }
-
-  // Promise-style on purpose: the setter runs inside `.then`, which the
-  // `react-hooks/set-state-in-effect` rule accepts from an effect — an `await` in an async
-  // function it does not see through.
-  const loadAllocationTargets = useCallback((): Promise<void> => {
-    if (!user || !ownerId) return Promise.resolve();
-
-    return getTargets(ownerId)
-      .then((targets) => setAllocationTargets(targets))
-      .catch((error) => console.error('Error loading allocation targets:', error));
-  }, [user, ownerId]);
-
-  // Load allocation targets when dialog opens
-  useEffect(() => {
-    if (open && user) {
-      loadAllocationTargets();
-    }
-  }, [open, user, loadAllocationTargets]);
 
   useEffect(() => {
     // Re-run on every open so a second "new asset" dialog starts clean.
@@ -822,7 +1212,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
       // predicate as the create-mode suggestion and calculateLiquidNetWorth.
       const defaultIsLiquid = asset.isLiquid !== undefined
         ? asset.isLiquid
-        : suggestIsLiquid(asset.type, asset.subCategory);
+        : suggestIsLiquid(asset.type, asset.subCategory, asset.financedAssetId);
 
       reset({
         ticker: asset.ticker,
@@ -864,12 +1254,13 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
         taxRate: asset.taxRate ?? undefined,
         totalExpenseRatio: asset.totalExpenseRatio || undefined,
         leverageRatio: asset.leverageRatio || undefined,
+        currencyHedge: asset.currencyHedge === 'EUR',
         stampDutyExempt: asset.stampDutyExempt || false,
         isLiquid: defaultIsLiquid,
         autoUpdatePrice: asset.autoUpdatePrice !== undefined ? asset.autoUpdatePrice : shouldUpdatePrice(asset.type, asset.subCategory),
         isComposite: !!(asset.composition && asset.composition.length > 0),
-        outstandingDebt: asset.outstandingDebt || undefined,
         debtInterestRate: asset.debtInterestRate || undefined,
+        financedAssetId: asset.financedAssetId || '__none__',
         isPrimaryResidence: asset.isPrimaryResidence || false,
         allocationRole: resolveAllocationRole(asset),
         isin: asset.isin || undefined,
@@ -879,6 +1270,10 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
         pensionProvider: asset.pensionFundDetails?.provider || undefined,
         pensionUnlockDate: asset.pensionFundDetails?.unlockDate || undefined,
         pensionFamilyMemberId: asset.pensionFundDetails?.familyMemberId || '__none__',
+        ownerMemberId: asset.ownerMemberId || '__none__',
+        ownerShares: (asset.ownerShares ?? []).map((share) => ({ memberId: share.memberId, amount: 'percent' in share ? share.percent : share.units })),
+        // The block's form follows the stored rows; none stored, the type's default decides.
+        ownerSharesMode: (asset.ownerShares ?? []).some((share) => 'percent' in share) ? 'percent' : (asset.ownerShares ?? []).length > 0 ? 'units' : undefined,
       });
 
       // Pre-fill the bond detail fields (the toggles were set during render, above)
@@ -916,12 +1311,13 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
         taxRate: undefined,
         totalExpenseRatio: undefined,
         leverageRatio: undefined,
+        currencyHedge: false,
         stampDutyExempt: false,
         isLiquid: true,
         autoUpdatePrice: true,
         isComposite: false,
-        outstandingDebt: undefined,
         debtInterestRate: undefined,
+        financedAssetId: '__none__',
         isPrimaryResidence: false,
         allocationRole: 'tradable',
         openingDate: todayIso,
@@ -939,6 +1335,9 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
         pensionProvider: undefined,
         pensionUnlockDate: undefined,
         pensionFamilyMemberId: '__none__',
+        ownerMemberId: '__none__',
+        ownerShares: [],
+        ownerSharesMode: undefined,
       });
       replaceTiers([]);
     }
@@ -979,8 +1378,8 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
       await addSubCategory(ownerId, selectedAssetClass, newSubCategoryName.trim());
       toast.success(`Sottocategoria "${newSubCategoryName}" creata con successo!`);
 
-      // Ricarica i targets per ottenere la nuova sottocategoria
-      await loadAllocationTargets();
+      // Re-read the settings so the new sub-category is in the Select (every reader of the key sees it).
+      await queryClient.invalidateQueries({ queryKey: queryKeys.settings.all(ownerId) });
 
       // Seleziona automaticamente la nuova sottocategoria
       setValue('subCategory', newSubCategoryName.trim());
@@ -991,9 +1390,9 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
     } catch (error) {
       console.error('Error adding subcategory:', error);
       toast.error(describeWriteError(error));
-    } finally {
-      setIsAddingSubCategory(false);
     }
+    // After the try/catch, not in a `finally`: the React Compiler cannot lower try/finally.
+    setIsAddingSubCategory(false);
   };
 
   const addCompositionEntry = () => {
@@ -1122,7 +1521,11 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
       return;
     }
 
-    try {
+    // The save lives in a nested function so the try below wraps ONE await: the React Compiler
+    // cannot lower try/finally, nor conditionals/logicals inside a try block. An early `return`
+    // here leaves `save`, and `setFetchingPrice(false)` after the try/catch still runs, as the
+    // `finally` did.
+    const save = async () => {
       setFetchingPrice(true);
 
       // Bonds with ISIN use Borsa Italiana pricing (% of par convention).
@@ -1293,12 +1696,15 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
       }
 
       onClose();
+    };
+
+    try {
+      await save();
     } catch (error) {
       console.error('Error saving asset:', error);
       setStatus({ phase: 'error', message: describeWriteError(error) });
-    } finally {
-      setFetchingPrice(false);
     }
+    setFetchingPrice(false);
   };
 
   // taxRate is asset metadata, not a ledger concept: the trade ledger derives quantity/PMC from
@@ -1353,6 +1759,8 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
     <ResponsiveModal
       open={open}
       onClose={onClose}
+      returnFocusTo={returnFocusTo}
+      onExitComplete={onExitComplete}
       eyebrow={
         isTypePicker
           ? 'Patrimonio · Passo 1 di 2'
@@ -1740,17 +2148,17 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                   Può essere negativo: una carta di credito è un conto in rosso fino all&apos;addebito. Per non contarla nella liquidità fuori dal portafoglio, escludila dall&apos;allocazione.
                 </p>
               )}
-              {/* Show hint only in edit mode — in create mode there's no previous quantity to compare.
-                  Quantity changes represent capital flowing in/out of the portfolio. */}
-              {isEdit && asset && selectedAssetClass !== 'cash' && (watchQuantity ?? 0) > (asset.quantity ?? 0) && (
-                <p className="text-xs text-warning-foreground">
-                  Hai investito nuovo capitale? Se i fondi provengono dall&apos;esterno del portafoglio tracciato, registra un&apos;entrata nel cashflow per mantenere le metriche di performance accurate.
+              {isLoan && (
+                <p className="text-xs text-muted-foreground">
+                  Il capitale ancora dovuto oggi, come lo dice la banca: vale in negativo nel patrimonio. Le rate collegate lo
+                  riducono da sole; per allinearlo alla banca correggilo qui.
                 </p>
               )}
-              {isEdit && asset && selectedAssetClass !== 'cash' && (watchQuantity ?? 0) < (asset.quantity ?? 0) && (
-                <p className="text-xs text-warning-foreground">
-                  Hai venduto questo asset? Se il ricavato è uscito dal portafoglio tracciato, registra un&apos;uscita nel cashflow per mantenere le metriche di performance accurate.
-                </p>
+              {/* Show hint only in edit mode — in create mode there's no previous quantity to compare.
+                  Quantity changes represent capital flowing in/out of the portfolio. */}
+              {/* Not on a loan either: a changed principal is a correction of the debt, not capital. */}
+              {isEdit && asset && selectedAssetClass !== 'cash' && !isLoan && (
+                <QuantityChangeNotice control={control} previousQuantity={asset.quantity ?? 0} />
               )}
             </div>
             )}
@@ -1848,17 +2256,9 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                       {errors.averageCost && (
                         <p className="text-sm text-destructive">{errors.averageCost.message}</p>
                       )}
-                      {isBondPctMode && (() => {
-                        const biPrice = watchAverageCost;
-                        if (!biPrice || isNaN(biPrice)) return null;
-                        const eurVal = resolveBondPrice(biPrice, bondQuoteBasis, true);
-                        return (
-                          <p className="text-xs font-medium text-primary">
-                            ≈ {formatNumberIt(eurVal, 4)} € per unità
-                            {isEuroIndexed ? ' (al coefficiente di indicizzazione inserito sotto)' : ''}
-                          </p>
-                        );
-                      })()}
+                      {isBondPctMode && (
+                        <BondPurchasePricePreview control={control} knownCoefficient={knownCoefficient} isEuroIndexed={isEuroIndexed} />
+                      )}
                     </div>
                   </div>
 
@@ -1890,9 +2290,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">
-                        {describeSettlementTiming(watchOpeningDate ?? '', todayIso)}
-                      </p>
+                      <SettlementTimingHint control={control} todayIso={todayIso} />
                     </div>
                   </div>
                 </>
@@ -2008,7 +2406,16 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
 
           {/* Ruolo nell'allocazione — tre stati, non due switch sovrapposti. Le due domande
               ("fa parte del portafoglio investito?" e "lo posso muovere?") sono distinte, e
-              confonderle era ciò che rendeva la vecchia coppia di flag indistinguibile. */}
+              confonderle era ciò che rendeva la vecchia coppia di flag indistinguibile.
+              Not for a loan (2026-10-17): its role is DERIVED — it follows what it finances
+              (`resolveAllocationRoleWithin`) — and the sentence below the loan's fields says so. */}
+          {selectedType === 'loan' ? (
+            <p className="rounded-lg border p-4 text-xs text-muted-foreground">
+              In Allocazione il prestito segue ciò che finanzia: un mutuo sta con il suo immobile (dentro o
+              fuori dall&apos;allocazione, e ne riduce il valore), un prestito personale riduce la Liquidità. Non
+              compare mai in Ribilancia, Versa e Preleva.
+            </p>
+          ) : (
           <div className="space-y-3 rounded-lg border p-4">
             <div className="space-y-0.5">
               <Label htmlFor="allocationRole">Ruolo nell&apos;allocazione</Label>
@@ -2050,6 +2457,38 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                 ?.description}
             </p>
           </div>
+          )}
+
+          {/* Intestatari (owner, 2026-10-17; lib/utils/assetOwnership.ts): whose this asset is,
+              by QUOTA, among the members of Impostazioni › Famiglia — one row per member, the LAST
+              row the rest, computed («In comune», or the last member with «Nessuna quota in
+              comune»); the Panoramica's and Patrimonio's «Intestatari» tile and the Strumenti
+              filter read it. Nothing typed and no rest member is «in comune», the absence of both
+              fields. Not shown for a pension fund (its «Membro famiglia» IS its owner) nor for a
+              loan that finances a property (it follows the property's quotas). */}
+          {selectedType !== 'pensionFund' && (settings?.familyMembers ?? []).length > 0 && (
+            <div id="ownerShares" tabIndex={-1} className="space-y-3 rounded-lg border p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <div className="space-y-0.5">
+                <Label>Intestatari</Label>
+                <p className="text-xs text-muted-foreground">
+                  A chi appartiene, in percentuale o in quote: le quote per persona in Panoramica e Patrimonio sommano gli asset
+                  per intestatario, quelle in comune a parte. L&apos;ultima riga è il resto, calcolato.
+                </p>
+              </div>
+              {selectedType === 'loan' && watchFinancedAssetId && watchFinancedAssetId !== '__none__' ? (
+                <p className="text-xs text-muted-foreground">Un mutuo segue le quote dell&apos;immobile che finanzia.</p>
+              ) : (
+                <OwnerSharesRows
+                  control={control}
+                  setValue={setValue}
+                  members={settings?.familyMembers ?? []}
+                  restMemberId={watchOwnerMemberId ?? '__none__'}
+                  unitOf={{ type: selectedType, subCategory: selectedSubCategory || undefined, currency: watchCurrency }}
+                  errorMessage={errors.ownerShares?.message ?? (errors.ownerShares as { root?: { message?: string } } | undefined)?.root?.message}
+                />
+              )}
+            </div>
+          )}
 
           {/* autoUpdatePrice — hidden for cash/realestate (they don't use market prices) */}
           {newAsset_showAutoUpdate && (
@@ -2189,66 +2628,53 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
           </div>
           )}
 
-          {/* Debito Residuo - solo per immobili */}
-          {selectedType === 'realestate' && selectedAssetClass === 'realestate' && (
-            <div className="space-y-2 rounded-lg border p-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="hasOutstandingDebt">Debito residuo</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Es. mutuo residuo sull&apos;immobile. Il valore netto sarà: valore - debito
-                  </p>
-                </div>
-                <Switch
-                  id="hasOutstandingDebt"
-                  checked={hasOutstandingDebt}
-                  onCheckedChange={(checked) => {
-                    setHasOutstandingDebt(checked);
-                    if (!checked) {
-                      setValue('outstandingDebt', undefined);
-                      setValue('debtInterestRate', undefined);
-                    }
-                  }}
+          {/* Prestito: the TAN its instalments are split on and the property it finances
+              (types/assets.ts → LOAN_ASSET_TYPE). The debt itself is the «Debito residuo» field above. */}
+          {isLoan && (
+            <div className="space-y-4 rounded-lg border p-4">
+              <div className="space-y-2">
+                <Label htmlFor="debtInterestRate">
+                  TAN (%) <span className="text-muted-foreground font-normal">(opzionale)</span>
+                </Label>
+                <Input
+                  id="debtInterestRate"
+                  type="number"
+                  step="any"
+                  min="0"
+                  {...register('debtInterestRate', { valueAsNumber: true })}
+                  placeholder="es. 3,2"
                 />
+                {errors.debtInterestRate && (
+                  <p className="text-sm text-destructive">{errors.debtInterestRate.message}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Ogni rata «Debiti» collegata a questo prestito riduce il debito della sola quota capitale
+                  (rata − debito × TAN / 12). Senza TAN, l&apos;intera rata riduce il debito. Un&apos;estinzione anticipata
+                  va tutta in capitale.
+                </p>
               </div>
-
-              {hasOutstandingDebt && (
-                <div className="mt-4 space-y-2">
-                  <Label htmlFor="outstandingDebt">Importo del debito residuo ({watchCurrency})</Label>
-                  <Input
-                    id="outstandingDebt"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    {...register('outstandingDebt', { valueAsNumber: true })}
-                    placeholder="es. 150000"
-                  />
-                  {errors.outstandingDebt && (
-                    <p className="text-sm text-destructive">{errors.outstandingDebt.message}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Il valore netto dell&apos;immobile sarà calcolato come: valore lordo - debito residuo
-                  </p>
-                  <Label htmlFor="debtInterestRate" className="pt-2">
-                    TAN del mutuo (%) <span className="text-muted-foreground font-normal">(opzionale)</span>
-                  </Label>
-                  <Input
-                    id="debtInterestRate"
-                    type="number"
-                    step="any"
-                    min="0"
-                    {...register('debtInterestRate', { valueAsNumber: true })}
-                    placeholder="es. 3,2"
-                  />
-                  {errors.debtInterestRate && (
-                    <p className="text-sm text-destructive">{errors.debtInterestRate.message}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Serve alle rate collegate a questo immobile: ognuna riduce il debito della sola quota capitale
-                    (rata − debito × TAN / 12). Senza TAN, l&apos;intera rata riduce il debito.
-                  </p>
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="financedAssetId">
+                  Immobile finanziato <span className="text-muted-foreground font-normal">(opzionale)</span>
+                </Label>
+                <Select value={watchFinancedAssetId || '__none__'} onValueChange={(value) => setValue('financedAssetId', value)}>
+                  <SelectTrigger id="financedAssetId">
+                    <SelectValue placeholder="Nessun immobile" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Nessun immobile (prestito personale)</SelectItem>
+                    {financeableProperties.map((property) => (
+                      <SelectItem key={property.id} value={property.id}>
+                        {property.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Un mutuo sta nella classe Immobili accanto alla casa, che resta al suo valore lordo; un prestito
+                  personale è liquidità negativa, come una carta di credito.
+                </p>
+              </div>
             </div>
           )}
 
@@ -2397,8 +2823,15 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                           <SelectItem value="quarterly">Trimestrale (4/anno)</SelectItem>
                           <SelectItem value="semiannual">Semestrale (2/anno)</SelectItem>
                           <SelectItem value="annual">Annuale (1/anno)</SelectItem>
+                          <SelectItem value="maturity">Unica a scadenza (BTP Valore Insieme)</SelectItem>
                         </SelectContent>
                       </Select>
+                      {watchBondCouponFrequency === 'maturity' && (
+                        <p className="text-xs text-muted-foreground">
+                          Una sola cedola, pagata col rimborso: il tasso annuo si capitalizza per tutta la durata, come
+                          per il BTP Valore Insieme.
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -2445,50 +2878,17 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                     {errors.bondNominalValue && (
                       <p className="text-sm text-destructive">{errors.bondNominalValue.message}</p>
                     )}
-                    {/* Dynamic coupon preview based on current form values. The nominal defaults to 1 €
-                        exactly as the saved bond will (effectiveBondNominal), so the preview and the
-                        first materialised coupon agree. A rate of 0 is a zero coupon: no preview. */}
-                    {(() => {
-                      const rate = watchBondCouponRate;
-                      const freq = watchBondCouponFrequency;
-                      const nominal = effectiveBondNominal(watchBondNominalValue);
-                      const qty = watchQuantity;
-                      const periodsMap: Record<string, number> = { monthly: 12, quarterly: 4, semiannual: 2, annual: 1 };
-                      const periods = freq ? periodsMap[freq] : null;
-                      if (rate && !isNaN(rate) && periods && qty > 0) {
-                        const coefficient = isEuroIndexed && watchBondIndexationCoefficient && !isNaN(watchBondIndexationCoefficient) && watchBondIndexationCoefficient > 0
-                          ? watchBondIndexationCoefficient
-                          : 1;
-                        const perShare = (rate / 100 / periods) * nominal * coefficient;
-                        const total = perShare * qty;
-                        const label = watchBondInflationIndexation === 'italia'
-                          ? 'Cedola minima (solo fisso)'
-                          : isEuroIndexed
-                            ? `Cedola stimata (al coefficiente ${formatNumberIt(coefficient, 5)})`
-                            : 'Cedola stimata';
-                        return (
-                          <p className="text-xs text-primary font-medium">
-                            → {label}: {formatNumberIt(perShare, 4)} {watchCurrency}/unità × {formatNumberIt(qty, 0)} = {formatNumberIt(total)} {watchCurrency} per pagamento
-                            {watchBondInflationIndexation === 'italia' && (
-                              <span className="block font-normal text-muted-foreground">La componente inflazione FOI si aggiunge a ogni periodo (inserita dalla tab Dividendi).</span>
-                            )}
-                            {isEuroIndexed && (
-                              <span className="block font-normal text-muted-foreground">Ogni cedola usa il coefficiente alla sua data di stacco (inserito dalla tab Dividendi).</span>
-                            )}
-                          </p>
-                        );
-                      }
-                      return (
-                        <div className="text-xs text-muted-foreground space-y-1">
-                          <p>Valore facciale di una unità nella tua valuta: decide cosa conta la quantità.</p>
-                          <p>• Quantità = nominale in euro, come sull&apos;estratto del broker (5.000 € di BTP → quantità 5000) → <strong>lascia vuoto</strong></p>
-                          <p>• Quantità = lotti da 1.000 € (5 lotti → quantità 5) → inserisci <strong>1000</strong></p>
-                        </div>
-                      );
-                    })()}
+                    <CouponPreview
+                      control={control}
+                      couponFrequency={watchBondCouponFrequency}
+                      inflationIndexation={watchBondInflationIndexation}
+                      isEuroIndexed={isEuroIndexed}
+                      currency={watchCurrency}
+                    />
                   </div>
 
-                  {/* Step-Up Coupon Rate Schedule */}
+                  {/* Step-Up Coupon Rate Schedule — not for a single coupon at maturity, which has one rate */}
+                  {watchBondCouponFrequency !== 'maturity' && (
                   <div className="space-y-3 rounded-md border border-dashed p-3">
                     <div className="flex items-center gap-2">
                       <input
@@ -2572,6 +2972,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                       </div>
                     )}
                   </div>
+                  )}
 
                   {/* Premio Finale */}
                   <div className="space-y-2">
@@ -2591,25 +2992,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                     {errors.bondFinalPremiumRate && (
                       <p className="text-sm text-destructive">{errors.bondFinalPremiumRate.message}</p>
                     )}
-                    {(() => {
-                      const premRate = watchBondFinalPremiumRate;
-                      const nominal = effectiveBondNominal(watchBondNominalValue);
-                      const qty = watchQuantity;
-                      if (premRate && !isNaN(premRate) && qty > 0) {
-                        const perShare = (premRate / 100) * nominal;
-                        const total = perShare * qty;
-                        return (
-                          <p className="text-xs text-primary font-medium">
-                            → Premio stimato: {formatNumberIt(perShare, 4)} {watchCurrency}/unità × {formatNumberIt(qty, 0)} = {formatNumberIt(total)} {watchCurrency} alla scadenza
-                          </p>
-                        );
-                      }
-                      return (
-                        <p className="text-xs text-muted-foreground">
-                          Bonus una-tantum pagato alla scadenza (es. 0.8% per BTP Valore)
-                        </p>
-                      );
-                    })()}
+                    <FinalPremiumPreview control={control} currency={watchCurrency} />
                   </div>
                 </div>
               )}
@@ -2681,17 +3064,9 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                         ? 'Inserire il prezzo di acquisto come riportato su Borsa Italiana (per 100€ di nominale).'
                         : 'Il costo medio di acquisto per singola azione/unità'}
                     </p>
-                    {isBondPctMode && (() => {
-                      const biPrice = watchAverageCost;
-                      if (!biPrice || isNaN(biPrice)) return null;
-                      const eurVal = resolveBondPrice(biPrice, bondQuoteBasis, true);
-                      return (
-                        <p className="text-xs font-medium text-primary">
-                          ≈ {formatNumberIt(eurVal, 4)} € per unità
-                          {isEuroIndexed ? ' (al coefficiente di indicizzazione inserito sotto)' : ''}
-                        </p>
-                      );
-                    })()}
+                    {isBondPctMode && (
+                      <BondPurchasePricePreview control={control} knownCoefficient={knownCoefficient} isEuroIndexed={isEuroIndexed} />
+                    )}
 
                   </div>
                   {renderTaxRateField()}
@@ -2860,6 +3235,23 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
           </div>
           )}
 
+          {/* AL20: the instrument's own currency hedge, read by Esposizione › Valute and Simulazioni. */}
+          {newAsset_showLeverage && (
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="currencyHedge">Coperto dal cambio in EUR</Label>
+              <p className="text-xs text-muted-foreground">
+                Se attivo, l&apos;Esposizione conta questo strumento in euro e le Simulazioni possono proporre la copertura per la sua classe
+              </p>
+            </div>
+            <Switch
+              id="currencyHedge"
+              checked={!!watchCurrencyHedge}
+              onCheckedChange={(checked) => setValue('currencyHedge', checked)}
+            />
+          </div>
+          )}
+
           {/* Stamp duty exemption (imposta di bollo) */}
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">
@@ -2896,19 +3288,27 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                 <p className="text-sm text-destructive">{errors.manualPrice.message}</p>
               )}
               <p className="text-xs text-muted-foreground">
-                {isBondPctMode
-                  ? `Inserire come % del nominale, come su Borsa Italiana (es. 104.20 → ${formatNumberIt(resolveBondPrice(104.2, bondQuoteBasis, true), 4)} € per unità con il nominale indicato sotto${isEuroIndexed ? ' e il coefficiente di indicizzazione' : ''}). Lascia vuoto per recupero automatico da ${priceSource}.`
-                  : `Se inserisci un prezzo manuale, questo verrà utilizzato al posto del recupero automatico da ${priceSource}.`}
+                {isBondPctMode ? (
+                  <>
+                    Inserire come % del nominale, come su Borsa Italiana (es. 104.20 →{' '}
+                    <BondQuoteInEuro control={control} knownCoefficient={knownCoefficient} quote={104.2} /> € per unità con il
+                    nominale indicato sotto{isEuroIndexed ? ' e il coefficiente di indicizzazione' : ''}). Lascia vuoto per recupero
+                    automatico da {priceSource}.
+                  </>
+                ) : (
+                  `Se inserisci un prezzo manuale, questo verrà utilizzato al posto del recupero automatico da ${priceSource}.`
+                )}
               </p>
             </div>
           )}
 
           {/* color-mix() on --primary so the info box tracks the active theme colour. */}
-          {(selectedType === 'realestate' || selectedType === 'pensionFund' || selectedSubCategory === 'Private Equity' || shouldUpdatePrice(selectedType, selectedSubCategory)) && (
+          {(selectedType === 'realestate' || selectedType === 'pensionFund' || isLoan || selectedSubCategory === 'Private Equity' || shouldUpdatePrice(selectedType, selectedSubCategory)) && (
           <div className="rounded-lg bg-[color-mix(in_oklch,var(--primary)_8%,transparent)] border border-[color-mix(in_oklch,var(--primary)_20%,transparent)] p-3">
             <p className="text-sm text-foreground">
               <strong>Nota:</strong>
-              {selectedType === 'realestate' && ' Per immobili, il prezzo deve essere aggiornato manualmente.'}
+              {selectedType === 'realestate' && ' Per immobili, il prezzo deve essere aggiornato manualmente; un mutuo è un prestito a parte, collegato all’immobile.'}
+              {isLoan && ' Il debito residuo scende con le rate «Debiti» collegate a questo prestito dal form spesa, e con un’estinzione anticipata.'}
               {selectedType === 'pensionFund' && " Per i fondi pensione, il valore va aggiornato manualmente quando arriva l'estratto conto: i versamenti registrati da Previdenza si sommano da soli."}
               {selectedSubCategory === 'Private Equity' && ' Per Private Equity, il prezzo deve essere aggiornato manualmente.'}
               {shouldUpdatePrice(selectedType, selectedSubCategory) && ` Puoi inserire un prezzo manuale nel campo apposito, oppure il prezzo verrà recuperato automaticamente da ${priceSource}. In caso di errore nel recupero automatico, potrai sempre impostare il prezzo manualmente.`}

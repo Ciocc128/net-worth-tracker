@@ -42,12 +42,20 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_SUB_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { AsideToggle } from '@/components/ui/aside-toggle';
 import { RankedRows, type RankedRow } from '@/components/ui/ranked-rows';
 
 interface EsposizioneTileProps {
   userId: string;
+  /**
+   * Whether the exposure may be read: below `desktop:` the page passes it only once the row has
+   * been opened (`collapse.mounted`), so a closed Esposizione downloads nothing (2026-10-15).
+   */
+  enabled?: boolean;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
   className?: string;
 }
 
@@ -141,12 +149,12 @@ function SourcesBlock({ row }: { row: ExposureRow }) {
   );
 }
 
-export function EsposizioneTile({ userId, className }: EsposizioneTileProps) {
+export function EsposizioneTile({ userId, enabled = true, collapse, asideWhenClosed, className }: EsposizioneTileProps) {
   const [view, setView] = useState<ExposureViewKey>('holdings');
   const [activeKey, setActiveKey] = useState<string | null>(null);
 
   // Fetched on mount: the server answers from its 24h cache unless `refresh()` forces a recompute.
-  const { data, isError, isFetching, refresh, refetch } = usePortfolioExposure(userId, true);
+  const { data, isError, isFetching, refresh, refetch } = usePortfolioExposure(userId, enabled);
   const exposure = data?.exposure;
   const cached = data?.cached ?? false;
   // React Query keeps the last payload through a failed refresh, so "no data" and "error" are
@@ -193,7 +201,7 @@ export function EsposizioneTile({ userId, className }: EsposizioneTileProps) {
   const aside = !isEmpty && <AsideToggle options={VIEW_OPTIONS} value={view} onChange={handleViewChange} ariaLabel="Vista dell'esposizione" />;
 
   return (
-    <Tile eyebrow="Esposizione" aside={aside} reading={reading} className={className} ariaLabel="Esposizione del portafoglio">
+    <Tile eyebrow="Esposizione" aside={aside} asideWhenClosed={asideWhenClosed} reading={reading} className={className} ariaLabel="Esposizione del portafoglio" collapse={collapse}>
       {isLoading && (
         <>
           <p className="mt-2 text-[13px] leading-[1.45] text-muted-foreground">Sto leggendo la composizione degli ETF…</p>
@@ -205,8 +213,11 @@ export function EsposizioneTile({ userId, className }: EsposizioneTileProps) {
         </>
       )}
 
+      {/* A failed «Aggiorna» over profiles already read keeps the list and adds this notice. As a row
+          of the phone composition it is silent: the page's ONE live node for failed reads is
+          `PageRest`'s announcement, and the row's red eyebrow says it (AGENTS.md § Accessibility). */}
       {isError && (
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5" role="alert">
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5" role={collapse ? undefined : 'alert'}>
           <p className="text-[13px] leading-[1.45] text-destructive">Errore nel caricamento dell&apos;esposizione.</p>
           <Button type="button" variant="outline" className="h-11 px-2.5 text-[11px] desktop:h-8" disabled={isFetching} onClick={() => refetch()}>
             Riprova
@@ -228,7 +239,7 @@ export function EsposizioneTile({ userId, className }: EsposizioneTileProps) {
             <RankedRows
               rows={rows}
               color="var(--exposure-bar)"
-              remainder={exposureView.remainder}
+              remainders={exposureView.remainder ? [exposureView.remainder] : null}
               onRowClick={handleRowClick}
               activeKey={openRow?.key ?? null}
               ariaLabel={LIST_LABELS[view]}

@@ -7,6 +7,7 @@
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 - **Landing**: `app/page.tsx`, `components/landing/LandingPromiseTile.tsx`, pure `lib/utils/{landingNarrative,landingSampleData}.ts`
+- **Suites to run after a change here — Landing pubblica** (moved from `AGENTS.md` § Commands on 2026-09-30): **Parole** `landingNarrative` · **Invarianti del profilo** `landingSampleData` (+ `authNarrative` per la promessa condivisa e la precedenza registrazioni)
 
 ## Landing pubblica (`app/page.tsx`, `components/landing/LandingPromiseTile.tsx`, `lib/utils/{landingNarrative,landingSampleData}.ts`)
 
@@ -18,7 +19,9 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `DashboardOverviewPayload` and read five fields of it; it takes those five as props
   (`variations`, `isNewATH`, `movers`, `assetCount`, `hasCurrentMonthSnapshot`), because the landing
   has no account and therefore no payload. `movers` no longer defaults to `overview.topMovers`: the
-  Panoramica maps its per-CLASS movers at the call site, Patrimonio passes instruments.
+  Panoramica maps its per-CLASS movers at the call site, Patrimonio passes instruments. Since 2026-10-11 the
+  shared tile also takes `liftedFigures` and `id` (the Panoramica's phone composition) and draws its curve at 120px
+  below `desktop:` on every surface: the landing passes neither prop, so it keeps every block and only the shorter curve.
 - **The sample profile has invariants, and `__tests__/landingSampleData.test.ts` pins them**: the six
   classes sum to the gross total and their shares to 100%, both variations are DERIVED from the
   sparkline (last two points; the previous December), the market digest is smaller than the monthly

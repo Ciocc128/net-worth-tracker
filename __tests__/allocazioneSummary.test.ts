@@ -18,6 +18,8 @@ import {
   buildPlanView,
   collapseRepeatedLevels,
   estimatePlanSaleTax,
+  findPacSubstitutions,
+  listPlanBuyAssetIds,
   isDormantClass,
   largestGapByValue,
   offTargetGaps,
@@ -29,8 +31,17 @@ import {
   summarizeHoldings,
   summarizeNextMoney,
   untargetedClassLabels,
+  ALLOCAZIONE_SECTION_IDS,
+  BILANCIAMENTO_MISALLOCATION_BLOCK,
   MIN_VISIBLE_AMOUNT,
+  selectAllocazioneStrip,
+  resolveAllocazioneSections,
 } from '@/lib/utils/allocazioneSummary';
+import { buildAllocazioneVerdict, describeBalance } from '@/lib/utils/allocazioneNarrative';
+import { DEFAULT_REBALANCE_BAND } from '@/lib/utils/allocationUtils';
+import { formatStripFigure, liftedBlocks, validateStrip, type StripFigure } from '@/lib/utils/verdictStrip';
+import { narrativeToText } from '@/lib/utils/narrative';
+import { VERDICT_REST_SECTION } from '@/lib/utils/mobileSections';
 import type { AllocationData, Asset } from '@/types/assets';
 import type { PortfolioExposureData } from '@/types/exposure';
 import { buildHoldings, sumTradableByClass, type AllocatableHolding, type PlanNode } from '@/lib/utils/allocationUtils';
@@ -727,5 +738,165 @@ describe('buildPensionLookThrough', () => {
     expect(look!.combinedSlices[0].assetClass).toBe('realestate');
     expect(look!.hasExcluded).toBe(true);
     expect(look!.allFrozen).toBe(true);
+  });
+
+  // «Tutto il patrimonio» is the NET worth (owner, 2026-10-17): a mortgage lowers Immobili, a
+  // personal loan Liquidità. Seen red with the non-positive skip put back (the house gross).
+  it('nets a loan into the class of what it finances, in the whole-wealth mix', () => {
+    const mortgage = asset({ id: 'm', name: 'Mutuo Casa', type: 'loan', assetClass: 'realestate', quantity: 80000, currentPrice: 1, financedAssetId: 'h' } as Partial<Asset>);
+    const netValueOf = (a: Asset) => (a.type === 'loan' ? -a.quantity : a.quantity * a.currentPrice);
+    const look = buildPensionLookThrough([fund, house, etf, mortgage], netValueOf)!;
+    const realestate = look.combinedSlices.find((s) => s.assetClass === 'realestate')!;
+    expect(realestate.value).toBe(100000);
+    expect(look.combinedTotal).toBeCloseTo(284835, 2);
+    expect(realestate.percentage).toBeCloseTo((100000 / 284835) * 100, 6);
+    // The funds' own mix never sees a debt.
+    expect(look.fundValue).toBe(42000);
+  });
+});
+
+// AL17 (D-AL4): the Piano buys an instrument the open plan replaced with another member of its group.
+describe('listPlanBuyAssetIds / findPacSubstitutions', () => {
+  const instrument = (key: string, amount = 100): PlanNode => ({
+    key,
+    label: key,
+    amount,
+    currentValue: 0,
+    newValue: amount,
+    newPercentage: 100,
+    targetPercentage: 0,
+    children: [],
+    isInstrument: true,
+  });
+  const klass = (key: string, children: PlanNode[]): PlanNode => ({ ...instrument(key), isInstrument: false, children });
+  const holdings = [holding({ id: 'dbmfe', assetId: 'dbmfe' }), holding({ id: 'ntsg-0', assetId: 'ntsg' })];
+  const positions = [
+    { id: 'p1', label: 'Managed futures', targetPercentage: 18, memberAssetIds: ['dbmfe', 'mfeh'], buyAssetId: 'mfeh' },
+    { id: 'p2', label: 'Mondo', targetPercentage: 82, memberAssetIds: ['vwce'], buyAssetId: 'vwce' },
+  ];
+
+  it('reads the instruments Versa buys, through classes, and maps a sleeve back to its asset', () => {
+    const view = { mode: 'contribute', amount: 200, nodes: [klass('trendFollowing', [instrument('dbmfe')]), klass('equity', [instrument('ntsg-0')])], trades: null, overTarget: [] } as never;
+    expect(listPlanBuyAssetIds(view, holdings).sort()).toEqual(['dbmfe', 'ntsg']);
+  });
+
+  it('reads only the COMPRA legs of a rebalance, and nothing from a withdrawal', () => {
+    const rebalance = {
+      mode: 'rebalance',
+      moves: [
+        { assetClass: 'trendFollowing', action: 'COMPRA', children: [instrument('dbmfe')] },
+        { assetClass: 'equity', action: 'VENDI', children: [instrument('ntsg-0')] },
+      ],
+      trades: null,
+      resultingLeverageRatio: null,
+    } as never;
+    expect(listPlanBuyAssetIds(rebalance, holdings)).toEqual(['dbmfe']);
+    expect(listPlanBuyAssetIds({ mode: 'withdraw', nodes: [klass('equity', [instrument('ntsg-0')])], trades: null } as never, holdings)).toEqual([]);
+  });
+
+  it('uses the leverage engine\'s positive trades when it ran', () => {
+    const view = { mode: 'contribute', amount: 100, nodes: [], trades: [{ assetId: 'dbmfe', ticker: 'DBMFE', name: 'x', amount: 50 }, { assetId: 'vwce', ticker: 'VWCE', name: 'y', amount: 0 }], overTarget: [] } as never;
+    expect(listPlanBuyAssetIds(view, holdings)).toEqual(['dbmfe']);
+  });
+
+  it('flags a group member that the Piano buys although the plan buys another one', () => {
+    expect(findPacSubstitutions(positions, ['dbmfe'])).toEqual([{ replacedAssetId: 'dbmfe', buyAssetId: 'mfeh' }]);
+  });
+
+  it('says nothing when the Piano buys the plan\'s own buyer, a single instrument or nothing', () => {
+    expect(findPacSubstitutions(positions, ['mfeh', 'vwce'])).toEqual([]);
+    expect(findPacSubstitutions(positions, [])).toEqual([]);
+  });
+});
+
+// ─── selectAllocazioneStrip — the phone's two cells (2026-10-15) ──────────────
+// Seen red one at a time: the floor removed (a «0,0%» cell under 0,05); `decimals: 2` on the drift
+// cell («3,30 pp» against the verdict's «3,3 pp»); the dormant filter dropped (a 0% class as the
+// largest drift). On 2026-10-16: the cell deciding «nulla» on the floor alone (a reading that says
+// «lo 0,0% è fuori posizione e …» beside a cell that says «nulla»).
+
+describe('selectAllocazioneStrip', () => {
+  const plain = (text: string) => text.replace(/[  ]/g, ' ');
+  const cellText = (figure: StripFigure) => plain(narrativeToText([formatStripFigure(figure)!]));
+  const KNOWN = [...Object.values(ALLOCAZIONE_SECTION_IDS), VERDICT_REST_SECTION];
+  const gaps = summarizeClassGaps(BY_CLASS);
+  const balance = { misallocationPct: 3.47, leverageGapPp: 0, score: 96.5 };
+
+  it('should open the Piano and Per classe, lift only the KPI of Bilanciamento and pass the strip rules', () => {
+    const strip = selectAllocazioneStrip({ balance, gaps });
+    expect(strip.map((figure) => figure.label)).toEqual(['Fuori posizione', 'Azioni sopra']);
+    expect(strip.map((figure) => figure.opens)).toEqual([ALLOCAZIONE_SECTION_IDS.piano, ALLOCAZIONE_SECTION_IDS.perClasse]);
+    expect(strip.every((figure) => figure.tone === 'neutral')).toBe(true);
+    expect(validateStrip(strip, KNOWN)).toEqual([]);
+    expect(liftedBlocks(strip, ALLOCAZIONE_SECTION_IDS.bilanciamento)).toEqual([BILANCIAMENTO_MISALLOCATION_BLOCK]);
+    expect(liftedBlocks(strip, ALLOCAZIONE_SECTION_IDS.perClasse)).toEqual([]);
+  });
+
+  it('should print exactly what the Bilanciamento reading and the verdict print', () => {
+    const [outOfPosition, drift] = selectAllocazioneStrip({ balance, gaps });
+    const reading = plain(narrativeToText(describeBalance({ marketValue: 245000, misallocationPct: balance.misallocationPct, leverageGapPp: 0, offTargetCount: 2, classCount: 5, band: DEFAULT_REBALANCE_BAND })));
+    expect(reading).toContain(cellText(outOfPosition));
+    expect(cellText(outOfPosition)).toBe('3,5%');
+    const verdict = plain(
+      narrativeToText(
+        buildAllocazioneVerdict({ hasAssets: true, excludedValue: 0, score: 96.5, isBalanced: false, band: DEFAULT_REBALANCE_BAND, offTarget: offTargetGaps(activeClassGaps(gaps)), leverage: null, nextMoney: null, orphans: [] }).sentence,
+      ),
+    );
+    expect(verdict).toContain(`Le azioni pesano ${cellText(drift)} più del target`);
+    expect(cellText(drift)).toBe('3,4 pp');
+  });
+
+  it('should say «nulla» under the floor and «tutte in soglia» with every class in the band', () => {
+    const inBand = Object.fromEntries(Object.entries(BY_CLASS).map(([key, value]) => [key, { ...value, action: 'OK' as const }]));
+    const strip = selectAllocazioneStrip({ balance: { ...balance, misallocationPct: 0.04 }, gaps: summarizeClassGaps(inBand) });
+    expect(strip[0].value).toBeNull();
+    expect(strip[0].reason).toBe('nulla');
+    expect(liftedBlocks(strip, ALLOCAZIONE_SECTION_IDS.bilanciamento)).toEqual([]);
+    expect(strip[1].value).toBeNull();
+    expect(strip[1].reason).toBe('tutte in soglia');
+    expect(validateStrip(strip, KNOWN)).toEqual([]);
+  });
+
+  it('should print the KPI\'s «0,0%» under the floor when the reading does, and «nulla» only when the reading says so (2026-10-16)', () => {
+    // Wealth in classes without a target (the base fixture's house and cash account): the reading
+    // prints «lo 0,0% è fuori posizione e il 12% è in classi senza target», so the cell prints that
+    // 0,0% too and lifts the KPI; «nulla» is the reading's word only when nothing qualifies it.
+    const untargeted = { pct: 12, labels: ['Immobili'] };
+    const balanceInput = { marketValue: 245000, misallocationPct: 0.04, leverageGapPp: 0, offTargetCount: 0, classCount: 5, band: DEFAULT_REBALANCE_BAND, untargeted };
+    const [cell] = selectAllocazioneStrip({ balance: { ...balance, misallocationPct: 0.04 }, gaps, leverageGapPp: 0, untargeted });
+    const reading = plain(narrativeToText(describeBalance(balanceInput)));
+    expect(cellText(cell)).toBe('0,0%');
+    expect(reading).toContain(`${cellText(cell)} è fuori posizione`);
+    expect(liftedBlocks([cell], ALLOCAZIONE_SECTION_IDS.bilanciamento)).toEqual([BILANCIAMENTO_MISALLOCATION_BLOCK]);
+    const [nothing] = selectAllocazioneStrip({ balance: { ...balance, misallocationPct: 0.04 }, gaps, leverageGapPp: 0, untargeted: null });
+    expect(nothing.reason).toBe('nulla');
+    expect(plain(narrativeToText(describeBalance({ ...balanceInput, untargeted: null })))).toContain('nulla è fuori posizione');
+    const [leverage] = selectAllocazioneStrip({ balance: { ...balance, misallocationPct: 0.04 }, gaps, leverageGapPp: 3, untargeted: null });
+    expect(cellText(leverage)).toBe('0,0%');
+  });
+
+  it('should name the class farthest in points, over or under, and never a dormant one', () => {
+    const bonds = gaps.find((gap) => gap.assetClass === 'bonds')!;
+    const dormant = { ...bonds, assetClass: 'realestate', label: 'Immobili', differencePp: -40, currentValue: 0, targetPercentage: 0, dormant: true, action: 'COMPRA' as const };
+    const [, drift] = selectAllocazioneStrip({ balance, gaps: [...gaps, dormant] });
+    expect(drift.label).toBe('Azioni sopra');
+    const [, under] = selectAllocazioneStrip({ balance, gaps: [{ ...bonds, differencePp: -12.4, action: 'COMPRA' }] });
+    expect(under.label).toBe('Obbligazioni sotto');
+    expect(cellText(under)).toBe('12,4 pp');
+  });
+});
+
+// ─── resolveAllocazioneSections — the rows present (2026-10-16, in the retirement) ───────────────
+// Seen red with `hasRows` ignored (the four rows known to the controller on a page without an asset, which renders none).
+
+describe('resolveAllocazioneSections', () => {
+  const ids = (input: Parameters<typeof resolveAllocazioneSections>[0]) => resolveAllocazioneSections(input).map((section) => section.id);
+
+  it('keeps Previdenza only with a fund, flags the Esposizione when its read failed, and knows no row without assets', () => {
+    expect(ids({ hasRows: true, hasPension: true, exposureFailed: false })).toEqual([ALLOCAZIONE_SECTION_IDS.perClasse, ALLOCAZIONE_SECTION_IDS.piano, ALLOCAZIONE_SECTION_IDS.esposizione, ALLOCAZIONE_SECTION_IDS.previdenza]);
+    expect(ids({ hasRows: true, hasPension: false, exposureFailed: false })).not.toContain(ALLOCAZIONE_SECTION_IDS.previdenza);
+    expect(resolveAllocazioneSections({ hasRows: true, hasPension: false, exposureFailed: true }).find((section) => section.id === ALLOCAZIONE_SECTION_IDS.esposizione)?.failed).toBe(true);
+    expect(resolveAllocazioneSections({ hasRows: true, hasPension: false, exposureFailed: false }).find((section) => section.id === ALLOCAZIONE_SECTION_IDS.esposizione)?.failed).toBe(false);
+    expect(resolveAllocazioneSections({ hasRows: false, hasPension: true, exposureFailed: true })).toEqual([]);
   });
 });

@@ -28,7 +28,7 @@ import type { AssetClass, IdealAllocationSettings, ObjectivePriority } from '@/t
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import { INDEX_PROFILES } from '@/lib/constants/instrumentProfiles';
 import type { TargetProblem } from '@/lib/utils/allocationTargetValidation';
-import { MONTE_CARLO_DEFAULTS_LAST_YEAR, type MonteCarloHedgeSwitches, hedgedClassList } from '@/lib/constants/monteCarloMarketDefaults';
+import { MONTE_CARLO_DEFAULTS_LAST_YEAR, type MonteCarloHedgeSwitches, type MonteCarloHedgeableClass, hedgedClassList } from '@/lib/constants/monteCarloMarketDefaults';
 import { MONTE_CARLO_CLASS_LABELS } from '@/lib/constants/monteCarloClasses';
 import type { MonteCarloMarketOrigin } from '@/lib/utils/monteCarloMarket';
 
@@ -157,7 +157,7 @@ export interface FireTogglesInput {
   goalDrivenAllocationEnabled: boolean;
 }
 
-/** FIRE e obiettivi — the three toggles this page owns. */
+/** FIRE e traguardi — the three toggles this page owns. */
 export function describeFireToggles({
   includePrimaryResidenceInFIRE,
   goalBasedInvestingEnabled,
@@ -167,10 +167,10 @@ export function describeFireToggles({
     ? 'La casa è dentro il patrimonio FIRE'
     : 'La casa resta fuori dal patrimonio FIRE';
   const goals = !goalBasedInvestingEnabled
-    ? '; obiettivi di investimento spenti.'
+    ? '; traguardi di investimento spenti.'
     : goalDrivenAllocationEnabled
-      ? '; obiettivi attivi e target di allocazione derivati dagli obiettivi.'
-      : '; obiettivi attivi, con target di allocazione manuali.';
+      ? '; traguardi attivi e target di allocazione derivati dai traguardi.'
+      : '; traguardi attivi, con target di allocazione manuali.';
   return [prose(house), prose(goals)];
 }
 
@@ -655,13 +655,13 @@ export function listIdealObjectives({ classPriority, leveragePriority, targetLev
  */
 export function describeIdealAllocation(input: IdealAllocationInput): Narrative {
   if (!input.enabled) {
-    return [prose('Spenta: nel PAC i pesi si inseriscono solo a mano.')];
+    return [prose('Spenta: nel portafoglio modello e nel PAC i pesi si inseriscono solo a mano.')];
   }
   const objectiveTexts = listIdealObjectives(input);
   const count = objectiveTexts.length;
   return [
     prose(
-      `Il PAC può proporre i pesi da ${count} obiettiv${count === 1 ? 'o' : 'i'}: ${objectiveTexts.join(', ')}.`
+      `Il portafoglio modello e il PAC possono proporre i pesi da ${count} ${count === 1 ? 'criterio' : 'criteri'}: ${objectiveTexts.join(', ')}.`
     ),
   ];
 }
@@ -674,7 +674,7 @@ export function describeIdealAllocation(input: IdealAllocationInput): Narrative 
  */
 export function describeIdealComposition(input: IdealAllocationInput): Narrative {
   const objectiveTexts = listIdealObjectives(input);
-  const whose = objectiveTexts.length === 1 ? 'il tuo obiettivo' : `i tuoi ${objectiveTexts.length} obiettivi`;
+  const whose = objectiveTexts.length === 1 ? 'il tuo criterio' : `i tuoi ${objectiveTexts.length} criteri`;
   return [prose(`Il portafoglio che rispetta meglio ${whose}, strumento per strumento: ${objectiveTexts.join(', ')}.`)];
 }
 
@@ -762,15 +762,15 @@ export interface TransferFeeCategoryInput {
 }
 
 /**
- * Commissioni sui trasferimenti — where the fee typed on a transfer lands. Without a category the
+ * Commissioni bancarie — where the fee typed on any row lands (a transfer's alone until 2026-10-10). Without a category the
  * form's field stays off, and the sentence says so: that is what stalls without the input.
  */
 export function describeTransferFeeCategory({ categoryName, subCategoryName }: TransferFeeCategoryInput): Narrative {
   if (!categoryName) {
-    return [prose('Senza una categoria, il campo «Commissione» dei trasferimenti resta spento.')];
+    return [prose('Senza una categoria, il campo «Commissione» del form spesa resta spento.')];
   }
   const target = subCategoryName ? `${categoryName} › ${subCategoryName}` : categoryName;
-  return [prose(`La commissione scritta su un trasferimento diventa una spesa in ${target}, addebitata sul conto di origine.`)];
+  return [prose(`La commissione scritta su una voce diventa una spesa in ${target}, addebitata sul suo conto alla sua data; su una serie, una per ogni voce.`)];
 }
 
 export interface ExpenseCategoryCounts {
@@ -1022,6 +1022,15 @@ export function describeHedgeReading(hedged: MonteCarloHedgeSwitches): string {
     ? 'Nessuna classe coperta: volatilità e correlazioni di chi tiene strumenti in dollari senza copertura.'
     : `Coperte: ${list.map((cls) => MONTE_CARLO_CLASS_LABELS[cls]).join(', ')}.`;
   return `${first} Il Base non cambia: la copertura costa la differenza fra i tassi a breve in dollari e in euro, nulla in media nel modello.`;
+}
+
+/**
+ * AL20: the proposal under a hedge switch that is off while most of its class is held in instruments flagged
+ * «Coperto dal cambio in EUR». A sentence, never a switch: «Imposta coperto» is the reader's click.
+ */
+export function describeHedgeProposal(cls: MonteCarloHedgeableClass, share: number): string {
+  const subject: Record<MonteCarloHedgeableClass, string> = { equity: 'le azioni sono coperte', gold: "l'oro è coperto", trendFollowing: 'il Trend è coperto', carry: 'il Carry è coperto' };
+  return `Nel tuo portafoglio ${subject[cls]} per il ${Math.round(share * 100)}%.`;
 }
 
 export interface MonteCarloCorrelationsInput {

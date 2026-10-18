@@ -20,6 +20,7 @@ vi.mock('firebase/firestore', () => ({
 
 import {
   buildAllocazioneVerdict,
+  describeAllocazioneClosedAnswers,
   describeAllocazioneHeader,
   describeBalance,
   describeBalanceFooter,
@@ -30,17 +31,20 @@ import {
   describeExposureCoverage,
   describeExposureEmpty,
   describeExposureFooter,
+  describePacOverlap,
   describeFrozen,
+  describeNegativeClassNote,
   describePension,
   describePensionAside,
   describePlan,
   describePlanFooter,
   formatLeverage,
   type AllocazioneVerdictInput,
+  ALLOCAZIONE_CLOSED_ASIDES,
 } from '@/lib/utils/allocazioneNarrative';
-import type { ClassGap, HoldingsGroup, PlanView } from '@/lib/utils/allocazioneSummary';
+import { ALLOCAZIONE_SECTION_IDS, type ClassGap, type HoldingsGroup, type PlanView } from '@/lib/utils/allocazioneSummary';
 import type { RebalanceMove } from '@/lib/utils/allocationUtils';
-import { narrativeToText, type Narrative } from '@/lib/utils/narrative';
+import { narrativeToText, splitVerdict, type Narrative } from '@/lib/utils/narrative';
 
 /** The screen prints a no-break space before €; the tests read it as a normal one. */
 const flat = (text: string | undefined) => text?.replace(/[  ]/g, ' ');
@@ -115,7 +119,7 @@ describe('buildAllocazioneVerdict', () => {
     expect(verdict.headline).toBe('Allineato al 97%.');
     expect(verdict.tone).toBe('warning');
     expect(plain(verdict.sentence)).toBe(
-      'Le azioni pesano 3,3 pp più del target e le obbligazioni 3,3 pp meno; con 1000 € in più compreresti 940 € di obbligazioni e 60 € di liquidità.',
+      'Le azioni pesano 3,3 pp più del target e le obbligazioni 3,3 pp meno. Con 1000 € in più compreresti 940 € di obbligazioni e 60 € di liquidità.',
     );
   });
 
@@ -124,7 +128,7 @@ describe('buildAllocazioneVerdict', () => {
       verdictInput({ pac: { monthTotalEur: 3134, instrumentCount: 4, monthLabel: 'ottobre', allClosed: false } }),
     );
     expect(plain(verdict.sentence)).toBe(
-      'Le azioni pesano 3,3 pp più del target e le obbligazioni 3,3 pp meno; il piano di accumulo compra questo mese 3134 € in 4 strumenti.',
+      'Le azioni pesano 3,3 pp più del target e le obbligazioni 3,3 pp meno. Il piano di accumulo compra questo mese 3134 € in 4 strumenti.',
     );
   });
 
@@ -133,7 +137,7 @@ describe('buildAllocazioneVerdict', () => {
       verdictInput({ pac: { monthTotalEur: 3134, instrumentCount: 4, monthLabel: 'ottobre', allClosed: true } }),
     );
     expect(plain(verdict.sentence)).toBe(
-      'Le azioni pesano 3,3 pp più del target e le obbligazioni 3,3 pp meno; la rata di ottobre del piano di accumulo è chiusa.',
+      'Le azioni pesano 3,3 pp più del target e le obbligazioni 3,3 pp meno. La rata di ottobre del piano di accumulo è chiusa.',
     );
   });
 
@@ -156,7 +160,7 @@ describe('buildAllocazioneVerdict', () => {
     const verdict = buildAllocazioneVerdict(verdictInput({ isBalanced: true, offTarget: [], score: 99 }));
     expect(verdict.tone).toBe('positive');
     expect(plain(verdict.sentence)).toBe(
-      'Tutte le classi sono entro la soglia del ±2%; con 1000 € in più compreresti 940 € di obbligazioni e 60 € di liquidità.',
+      'Tutte le classi sono entro la soglia del ±2%. Con 1000 € in più compreresti 940 € di obbligazioni e 60 € di liquidità.',
     );
   });
 
@@ -206,10 +210,10 @@ describe('buildAllocazioneVerdict', () => {
   it('states the leverage against its target, or in line with it', () => {
     const off = buildAllocazioneVerdict(verdictInput({ leverage: { current: 1.3, target: 1.5 }, nextMoney: null }));
     expect(plain(off.sentence)).toBe(
-      'Le azioni pesano 3,3 pp più del target e le obbligazioni 3,3 pp meno; la leva è 1,30× contro un target di 1,50×.',
+      'Le azioni pesano 3,3 pp più del target e le obbligazioni 3,3 pp meno. La leva è 1,30× contro un target di 1,50×.',
     );
     const inLine = buildAllocazioneVerdict(verdictInput({ leverage: { current: 1.5, target: 1.5 }, nextMoney: null }));
-    expect(plain(inLine.sentence)).toContain('; la leva è 1,50×, in linea col target.');
+    expect(plain(inLine.sentence)).toContain('. La leva è 1,50×, in linea col target.');
   });
 
   it('declares an orphaned target in a sentence of its own', () => {
@@ -253,7 +257,12 @@ describe('buildAllocazioneVerdict', () => {
 describe('describeAllocazioneHeader', () => {
   it('says the total, the class count and where the targets come from', () => {
     expect(flat(describeAllocazioneHeader({ marketValue: 245000, classCount: 5, targetSource: 'settings' }))).toBe('245.000 € allocati · 5 classi · target dalle impostazioni');
-    expect(flat(describeAllocazioneHeader({ marketValue: 12000, classCount: 1, targetSource: 'goals' }))).toBe('12.000 € allocati · 1 classe · target dagli obiettivi');
+    expect(flat(describeAllocazioneHeader({ marketValue: 12000, classCount: 1, targetSource: 'goals' }))).toBe('12.000 € allocati · 1 classe · target dai traguardi');
+  });
+
+  it('says where the Accumulo tab weights come from (AL6 · R9)', () => {
+    expect(flat(describeAllocazioneHeader({ marketValue: 112574, classCount: 5, targetSource: 'model' }))).toBe('112.574 € allocati · 5 classi · pesi dal portafoglio modello');
+    expect(flat(describeAllocazioneHeader({ marketValue: 112574, classCount: 5, targetSource: 'plan' }))).toBe('112.574 € allocati · 5 classi · dai pesi del piano');
   });
 
   it('is absent without assets', () => {
@@ -748,6 +757,17 @@ describe('describePensionAside', () => {
   });
 });
 
+// A class below zero (2026-10-17): its debts outweigh its assets, and the row says so.
+describe('describeNegativeClassNote', () => {
+  it('names the figure and the cause by class', () => {
+    // Four-digit amounts print ungrouped in it-IT (AGENTS.md § Italian Localization); Intl's no-break space read as a space.
+    const spaced = (note: string) => note.replace(/[  ]/g, ' ');
+    expect(spaced(describeNegativeClassNote('cash', -3000))).toBe('−3000 €: i prestiti superano i conti');
+    expect(spaced(describeNegativeClassNote('realestate', -12500.4))).toBe('−12.500 €: i mutui superano gli immobili');
+    expect(spaced(describeNegativeClassNote('equity', -10))).toBe('−10 €: i debiti superano gli asset della classe');
+  });
+});
+
 describe('describeFrozen / describeExcluded', () => {
   it('explain the two roles in the Dettaglio', () => {
     expect(plain(describeFrozen(holdings(1, 42000)))).toBe(
@@ -756,5 +776,189 @@ describe('describeFrozen / describeExcluded', () => {
     expect(plain(describeExcluded(holdings(2, 200000)))).toBe(
       '2 asset, 200.000 €: nel patrimonio, fuori da ogni calcolo di questa pagina; per questo il totale allocato è più basso del patrimonio netto.',
     );
+  });
+});
+
+// AL17 (D-AL4): the line above the Piano's moves while an accumulation plan is active.
+describe('describePacOverlap', () => {
+  const pac = { monthTotalEur: 4207, instrumentCount: 7, monthLabel: 'ottobre', allClosed: false };
+
+  it('says what the plan buys this month and that this plan does not count it', () => {
+    expect(plain(describePacOverlap(pac))).toBe('Il piano di accumulo compra questo mese 4207 € in 7 strumenti; questo piano non ne tiene conto.');
+    expect(plain(describePacOverlap({ ...pac, instrumentCount: 1 }))).toBe('Il piano di accumulo compra questo mese 4207 € in 1 strumento; questo piano non ne tiene conto.');
+  });
+
+  it('names the instrument the plan buys in place of one this Piano proposes', () => {
+    expect(plain(describePacOverlap(pac, [{ replaced: 'DBMFE', buying: 'MFEH' }]))).toBe(
+      'Il piano di accumulo compra questo mese 4207 € in 7 strumenti; questo piano non ne tiene conto. Il piano di accumulo compra MFEH al posto di DBMFE.',
+    );
+    expect(plain(describePacOverlap(pac, [{ replaced: 'DBMFE', buying: 'MFEH' }, { replaced: 'AAA', buying: 'BBB' }]))).toContain('compra MFEH al posto di DBMFE e BBB al posto di AAA.');
+  });
+
+  it('still says it when the month\'s installment is closed', () => {
+    expect(plain(describePacOverlap({ ...pac, allClosed: true }))).toBe('La rata di ottobre del piano di accumulo è chiusa, ma questo piano non ne tiene conto.');
+  });
+});
+
+// ─── The phone's cut (2026-10-15, the composition of the page) ────────────────
+// Seen red one at a time: `leadLength` left `undefined` (no cut: `rest` empty with a next-money
+// clause); the joiner put back to «; » (the lead no longer ends on «.»); `binding` dropped from
+// the orphan sentence (the cut survived an unreachable target).
+
+describe('buildAllocazioneVerdict — the cut (a full stop, at 1440 too)', () => {
+  it('closes the first sentence on a full stop, at 1440 too, and names the rest', () => {
+    const { lead, rest, restLabel } = splitVerdict(buildAllocazioneVerdict(verdictInput()));
+    expect(plain(lead)).toBe('Le azioni pesano 3,3 pp più del target e le obbligazioni 3,3 pp meno.');
+    expect(plain(rest)).toBe(' Con 1000 € in più compreresti 940 € di obbligazioni e 60 € di liquidità.');
+    expect(restLabel).toBe('dove vanno i prossimi soldi');
+  });
+
+  it('labels the rest by what it holds: the leverage, the next money, or both', () => {
+    expect(buildAllocazioneVerdict(verdictInput({ leverage: { current: 1.3, target: 1.5 }, nextMoney: null })).restLabel).toBe('la leva');
+    expect(buildAllocazioneVerdict(verdictInput({ leverage: { current: 1.3, target: 1.5 } })).restLabel).toBe('la leva e i prossimi soldi');
+    expect(plain(splitVerdict(buildAllocazioneVerdict(verdictInput({ leverage: { current: 1.3, target: 1.5 } }))).rest)).toBe(
+      ' La leva è 1,30× contro un target di 1,50×. Con 1000 € in più compreresti 940 € di obbligazioni e 60 € di liquidità.',
+    );
+  });
+
+  it('does not cut a verdict with nothing after the first sentence', () => {
+    const verdict = buildAllocazioneVerdict(verdictInput({ nextMoney: null }));
+    expect(verdict.leadLength).toBeUndefined();
+    expect(verdict.restLabel).toBeUndefined();
+    expect(splitVerdict(verdict).rest).toEqual([]);
+  });
+
+  it('keeps an unreachable target on the first screen: the orphan sentence is binding and cancels the cut', () => {
+    const verdict = buildAllocazioneVerdict(
+      verdictInput({ orphans: [{ assetClass: 'realestate', subCategory: 'Prima casa', label: 'Immobili → Prima casa', targetPercentage: 70, excludedValue: 180000 }] }),
+    );
+    expect(verdict.leadLength).toBeDefined();
+    expect(verdict.sentence.filter((segment) => segment.binding).map((segment) => segment.text).join('')).toContain('non è raggiungibile');
+    expect(splitVerdict(verdict).rest).toEqual([]);
+    expect(plain(splitVerdict(verdict).lead)).toContain('Con 1000 € in più compreresti');
+  });
+});
+
+// ─── The closed rows' words (2026-10-16, in the retirement of the composition) ───────────────────
+
+describe('the closed rows\' asides — words, never a figure', () => {
+  it('names the four rows without a digit', () => {
+    expect(ALLOCAZIONE_CLOSED_ASIDES).toEqual({
+      [ALLOCAZIONE_SECTION_IDS.perClasse]: 'corrente, target e gap',
+      [ALLOCAZIONE_SECTION_IDS.piano]: 'Ribilancia, Versa o Preleva',
+      [ALLOCAZIONE_SECTION_IDS.esposizione]: 'titoli, settori, emittenti',
+      [ALLOCAZIONE_SECTION_IDS.previdenza]: 'il fondo nel mix',
+    });
+    for (const aside of Object.values(ALLOCAZIONE_CLOSED_ASIDES)) expect(aside).not.toMatch(/\d/);
+  });
+});
+
+// ─── The closed rows' answers (landscape index, 2026-10-16) ──────────────────
+
+/**
+ * Each closed row's answer: one figure the strip, THE tile and the verdict's first sentence do not
+ * print, or null where the row keeps its scope. Read as the index lays it out (segments trimmed,
+ * one gap between them). Falsified on 2026-10-16, one at a time: the in-line null of Per classe
+ * went red with the `every(OK)` branch dropped; the long-label null with the `ANSWER_MAX_CHARS`
+ * guard removed; the Piano's Versa null with the `mode !== 'rebalance'` check dropped; the
+ * frozen-sell count with `isPlanOperation` counting every move (the reading's «due operazioni»
+ * went red with it too).
+ */
+describe('describeAllocazioneClosedAnswers', () => {
+  const answerText = (answer: Narrative | null | undefined) => (answer ? flat(answer.map((segment) => segment.text.trim()).join(' ')) : null);
+  const move = (overrides: Partial<RebalanceMove> = {}): RebalanceMove => ({
+    assetClass: 'realestate',
+    label: 'Immobili',
+    action: 'VENDI' as const,
+    amount: 20000,
+    requestedAmount: 20000,
+    limitedByFrozen: false,
+    differencePp: 4,
+    currentPercentage: 44,
+    targetPercentage: 40,
+    children: [],
+    ...overrides,
+  });
+  const rebalance = (moves: RebalanceMove[]): PlanView => ({ mode: 'rebalance', moves, trades: null, resultingLeverageRatio: null });
+  const pension = {
+    fundCount: 1,
+    fundValue: 12000,
+    fundSlices: [{ assetClass: 'equity', label: 'Azioni', value: 12000, percentage: 100 }],
+    combinedTotal: 312000,
+    combinedSlices: [{ assetClass: 'realestate', label: 'Immobili', value: 250000, percentage: 80.1 }],
+    hasExcluded: false,
+    allFrozen: true,
+  };
+  const gaps = [
+    gap({ assetClass: 'realestate', label: 'Immobili', differenceValue: 250000, action: 'VENDI' }),
+    gap({ assetClass: 'equity', label: 'Azioni', differenceValue: -150000, action: 'COMPRA' }),
+    gap({ assetClass: 'cash', label: 'Liquidità', differenceValue: 800, action: 'OK' }),
+  ];
+  const fourMoves = rebalance([
+    move(),
+    move({ assetClass: 'cash', label: 'Liquidità', amount: 5000, requestedAmount: 5000 }),
+    move({ assetClass: 'equity', label: 'Azioni', action: 'COMPRA', amount: 15000, requestedAmount: 15000 }),
+    move({ assetClass: 'bonds', label: 'Obbligazioni', action: 'COMPRA', amount: 10000, requestedAmount: 10000 }),
+  ]);
+  const input = { gaps, planView: fourMoves, pension };
+  const answers = describeAllocazioneClosedAnswers(input);
+
+  it('answers every row, Esposizione never', () => {
+    expect(answerText(answers[ALLOCAZIONE_SECTION_IDS.perClasse])).toBe('Immobili +250.000 €');
+    expect(answerText(answers[ALLOCAZIONE_SECTION_IDS.piano])).toBe('quattro operazioni');
+    expect(answerText(answers[ALLOCAZIONE_SECTION_IDS.previdenza])).toBe('Azioni 100%');
+    expect(answers[ALLOCAZIONE_SECTION_IDS.esposizione]).toBeNull();
+  });
+
+  it('fits in 22 characters; one uncoloured figure, none in the Piano (its count is a word)', () => {
+    for (const id of [ALLOCAZIONE_SECTION_IDS.perClasse, ALLOCAZIONE_SECTION_IDS.piano, ALLOCAZIONE_SECTION_IDS.previdenza]) {
+      expect(answerText(answers[id])!.length).toBeLessThanOrEqual(22);
+    }
+    for (const id of [ALLOCAZIONE_SECTION_IDS.perClasse, ALLOCAZIONE_SECTION_IDS.previdenza]) {
+      const figures = answers[id]!.filter((segment) => segment.mono);
+      expect(figures).toHaveLength(1);
+      // A drift and a share are neither a gain nor a loss.
+      expect(figures[0].sign).toBeUndefined();
+    }
+    expect(answers[ALLOCAZIONE_SECTION_IDS.piano]!.some((segment) => segment.mono)).toBe(false);
+  });
+
+  it('Per classe: a class short of its target with the minus, null when every class is in line or the label is too long', () => {
+    const short = describeAllocazioneClosedAnswers({ ...input, gaps: [gap({ label: 'Azioni', differenceValue: -90000, action: 'COMPRA' })] });
+    expect(answerText(short[ALLOCAZIONE_SECTION_IDS.perClasse])).toBe('Azioni −90.000 €');
+    const inLine = describeAllocazioneClosedAnswers({ ...input, gaps: [gap({ differenceValue: 800, action: 'OK' }), gap({ assetClass: 'bonds', label: 'Obbligazioni', differenceValue: -800, action: 'OK' })] });
+    expect(inLine[ALLOCAZIONE_SECTION_IDS.perClasse]).toBeNull();
+    const long = describeAllocazioneClosedAnswers({ ...input, gaps: [gap({ assetClass: 'trendFollowing', label: 'Trend Following', differenceValue: 12000, action: 'VENDI' })] });
+    expect(long[ALLOCAZIONE_SECTION_IDS.perClasse]).toBeNull();
+    expect(describeAllocazioneClosedAnswers({ ...input, gaps: [] })[ALLOCAZIONE_SECTION_IDS.perClasse]).toBeNull();
+  });
+
+  it('Piano: one operation, none, a frozen sell not counted; null outside Ribilancia and on the leverage engine', () => {
+    expect(answerText(describeAllocazioneClosedAnswers({ ...input, planView: rebalance([move()]) })[ALLOCAZIONE_SECTION_IDS.piano])).toBe('una sola operazione');
+    expect(answerText(describeAllocazioneClosedAnswers({ ...input, planView: rebalance([]) })[ALLOCAZIONE_SECTION_IDS.piano])).toBe('nessuna operazione');
+    const frozen = rebalance([
+      move({ amount: 0, requestedAmount: 3000, limitedByFrozen: true }),
+      move({ assetClass: 'cash', label: 'Liquidità', amount: 2000, requestedAmount: 8000, limitedByFrozen: true }),
+      move({ assetClass: 'equity', label: 'Azioni', action: 'COMPRA', amount: 11000, requestedAmount: 11000 }),
+    ]);
+    expect(answerText(describeAllocazioneClosedAnswers({ ...input, planView: frozen })[ALLOCAZIONE_SECTION_IDS.piano])).toBe('due operazioni');
+    // The reading counts the same moves.
+    expect(plain(describePlan(frozen, { type: 'fixed', pp: 2 }))).toContain('due operazioni');
+    const allFrozen = rebalance([move({ amount: 0, requestedAmount: 3000, limitedByFrozen: true })]);
+    expect(describeAllocazioneClosedAnswers({ ...input, planView: allFrozen })[ALLOCAZIONE_SECTION_IDS.piano]).toBeNull();
+    const contribute: PlanView = { mode: 'contribute', amount: 1000, nodes: [], trades: null, overTarget: [] };
+    expect(describeAllocazioneClosedAnswers({ ...input, planView: contribute })[ALLOCAZIONE_SECTION_IDS.piano]).toBeNull();
+    const withdraw: PlanView = { mode: 'withdraw', amount: 1000, grossAmount: 1000, grossedUp: false, nodes: [], trades: null, tradableTotal: 50000, exceedsPortfolio: false, overTarget: [] };
+    expect(describeAllocazioneClosedAnswers({ ...input, planView: withdraw })[ALLOCAZIONE_SECTION_IDS.piano]).toBeNull();
+    const leveraged: PlanView = { ...fourMoves, trades: [] } as PlanView;
+    expect(describeAllocazioneClosedAnswers({ ...input, planView: leveraged })[ALLOCAZIONE_SECTION_IDS.piano]).toBeNull();
+    expect(describeAllocazioneClosedAnswers({ ...input, planView: null })[ALLOCAZIONE_SECTION_IDS.piano]).toBeNull();
+  });
+
+  it('Previdenza: the largest slice of the funds\' mix to the unit, null without funds or a mix', () => {
+    const mixed = { ...pension, fundSlices: [{ assetClass: 'bonds', label: 'Obbligazioni', value: 8400, percentage: 70.4 }, { assetClass: 'equity', label: 'Azioni', value: 3600, percentage: 29.6 }] };
+    expect(answerText(describeAllocazioneClosedAnswers({ ...input, pension: mixed })[ALLOCAZIONE_SECTION_IDS.previdenza])).toBe('Obbligazioni 70%');
+    expect(describeAllocazioneClosedAnswers({ ...input, pension: { ...pension, fundSlices: [] } })[ALLOCAZIONE_SECTION_IDS.previdenza]).toBeNull();
+    expect(describeAllocazioneClosedAnswers({ ...input, pension: null })[ALLOCAZIONE_SECTION_IDS.previdenza]).toBeNull();
   });
 });

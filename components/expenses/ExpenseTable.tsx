@@ -27,14 +27,15 @@ import { Expense, ExpenseCategory, EXPENSE_TYPE_LABELS } from '@/types/expenses'
 import { LAZY_CATEGORY_ICONS } from '@/components/expenses/IconPickerPopover';
 import {
   deleteExpenseRows,
-  getTransferFeeOf,
+  getFeeOf,
+  getFeesOf,
   deleteRecurringExpenses,
   deleteInstallmentExpenses,
   getExpensesByRecurringParentId,
   getExpensesByInstallmentParentId,
 } from '@/lib/services/expenseService';
 import { reverseAppliedBalances } from '@/lib/services/cashBalanceReconciliation';
-import { rowsDeletedWith } from '@/lib/utils/transferFee';
+import { rowsDeletedWith } from '@/lib/utils/expenseFee';
 import { queryKeys } from '@/lib/query/queryKeys';
 import {
   Table,
@@ -57,7 +58,7 @@ import { getExpenseDate } from '@/lib/utils/expenseHelpers';
 import { isScheduledRow } from '@/lib/utils/tracciamentoSummary';
 import { resolveOwnerLabel } from '@/lib/utils/movementsOwnerFilter';
 import { categoryIconBackground, categoryIconColor } from '@/lib/utils/categoryIconStyle';
-import { describeExpenseDeleteConsequence } from '@/lib/utils/dialogNarrative';
+import { describeExpenseDeleteConsequence, EXPENSE_BUDGET_EXCLUSION_CHIP } from '@/lib/utils/dialogNarrative';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 import { EXPENSE_TYPE_BADGE_CLASS } from '@/lib/constants/expenseTypeColors';
 import { SeriesDeleteDialog, resolveSeriesDeleteMode, type SeriesDeleteRequest } from '@/components/expenses/SeriesDeleteDialog';
@@ -179,6 +180,11 @@ function ExpenseTableRow({ expense, scheduled, ownerLabel, singleType, categoryM
               {ownerLabel}
             </Badge>
           )}
+          {expense.excludeFromBudget && (
+            <Badge variant="outline" className="flex-shrink-0 text-[10px] font-normal text-muted-foreground">
+              {EXPENSE_BUDGET_EXCLUSION_CHIP}
+            </Badge>
+          )}
         </div>
       </TableCell>
       <TableCell className="text-sm text-muted-foreground">{expense.subCategoryName || '-'}</TableCell>
@@ -295,14 +301,17 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasA
   // ========== Delete Handlers ==========
 
   const deleteSingleExpense = async (expense: Expense) => {
+    // Read before the try, and the reset after the catch rather than in a finally: the React
+    // Compiler does not compile a logical expression inside a try/catch, nor a try/finally.
+    const invalidationOwner = user && ownerId ? ownerId : null;
     try {
       setDeletingId(expense.id);
       // Give back what the row has applied — both accounts of a transfer — before deleting it;
       // a row still waiting for its date moved nothing (lib/utils/cashSettlement.ts).
-      // A transfer's fee row goes with it (lib/utils/transferFee.ts), its balance given back too.
-      const rows = rowsDeletedWith(expense, await getTransferFeeOf(expense));
-      if ((await reverseAppliedBalances(rows)) && user && ownerId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
+      // The row's fee goes with it (lib/utils/expenseFee.ts), its balance given back too.
+      const rows = rowsDeletedWith(expense, await getFeeOf(expense));
+      if (await reverseAppliedBalances(rows)) {
+        if (invalidationOwner) queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(invalidationOwner) });
       }
       await deleteExpenseRows(expense.userId, rows);
       toast.success('Voce eliminata con successo');
@@ -310,22 +319,22 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasA
     } catch (error) {
       console.error('Error deleting expense:', error);
       toast.error('Errore nell\'eliminazione della voce');
-    } finally {
-      setDeletingId(null);
     }
+    setDeletingId(null);
   };
 
   const deleteAllRecurringExpenses = async (recurringParentId: string) => {
     // The series query is scoped by owner (firestore.rules refuses an unscoped list), so
     // without an owner there is nothing to delete — and no way to ask for it.
     if (!ownerId) return;
+    const invalidationOwner = user && ownerId ? ownerId : null;
     try {
       setDeletingId(recurringParentId);
-      // Give back what the occurrences already happened have applied, in one transaction; the
-      // ones still waiting for their date moved nothing.
+      // Give back what the occurrences already happened have applied, their fees included, in one
+      // transaction (lib/utils/expenseFee.ts); the ones still waiting for their date moved nothing.
       const seriesExpenses = await getExpensesByRecurringParentId(ownerId, recurringParentId);
-      if ((await reverseAppliedBalances(seriesExpenses)) && user && ownerId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
+      if (await reverseAppliedBalances([...seriesExpenses, ...(await getFeesOf(ownerId, seriesExpenses))])) {
+        if (invalidationOwner) queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(invalidationOwner) });
       }
       await deleteRecurringExpenses(ownerId, recurringParentId);
       toast.success('Tutte le voci ricorrenti sono state eliminate');
@@ -333,22 +342,22 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasA
     } catch (error) {
       console.error('Error deleting recurring expenses:', error);
       toast.error('Errore nell\'eliminazione delle voci ricorrenti');
-    } finally {
-      setDeletingId(null);
     }
+    setDeletingId(null);
   };
 
   const deleteAllInstallmentExpenses = async (installmentParentId: string) => {
     // The series query is scoped by owner (firestore.rules refuses an unscoped list), so
     // without an owner there is nothing to delete — and no way to ask for it.
     if (!ownerId) return;
+    const invalidationOwner = user && ownerId ? ownerId : null;
     try {
       setDeletingId(installmentParentId);
-      // Give back what the instalments already due have applied, in one transaction; the ones
-      // still waiting for their date moved nothing.
+      // Give back what the instalments already due have applied, their fees included, in one
+      // transaction; the ones still waiting for their date moved nothing.
       const seriesExpenses = await getExpensesByInstallmentParentId(ownerId, installmentParentId);
-      if ((await reverseAppliedBalances(seriesExpenses)) && user && ownerId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
+      if (await reverseAppliedBalances([...seriesExpenses, ...(await getFeesOf(ownerId, seriesExpenses))])) {
+        if (invalidationOwner) queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(invalidationOwner) });
       }
       await deleteInstallmentExpenses(ownerId, installmentParentId);
       toast.success('Tutte le rate sono state eliminate');
@@ -356,9 +365,8 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasA
     } catch (error) {
       console.error('Error deleting installment expenses:', error);
       toast.error('Errore nell\'eliminazione delle rate');
-    } finally {
-      setDeletingId(null);
     }
+    setDeletingId(null);
   };
 
   /** A plain row arrives here from its own armed confirm; a series row opens the question. */

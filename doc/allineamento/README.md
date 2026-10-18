@@ -227,7 +227,15 @@ I fixture dei test lo riproducono con nomi inventati.
   Accumulo dice «pesi dal portafoglio modello» (o «dai pesi del piano» senza modello) e non mostra «Modifica target».
 - **AL7** (R10): `modelPortfolios` fra i documenti per utente di `scripts/mirrorProdAccount.mts` (copiato e rimosso).
 
-**Esito**: —
+**Esito** (2026-10-16, IMPL-AL1): AL1–AL7 fatti, `tsc`, ESLint e Vitest (265 file) verdi sotto `Europe/Rome`.
+Default dell'agente: **AL1** la testa è `orderGroupMembers(...)[0]` e basta (l'anteprima è la stessa tabella del passo
+Target); **AL2** il filtro «classi con peso o target» è `liveClassEntries` (|x| ≥ 0,05%, come la tabella del passo 3);
+**AL3** la clausola in euro scatta con risparmio vissuto negativo e tasso nullo o < −100% (anche con entrate vissute a 0),
+e il titolo «cresce, ma le spese superano le entrate» segue la stessa regola; **AL5** «Mai comprato» solo per strumenti
+di tipo a registro con Registro letto (altrimenti resta «Azzerato»); **AL6** anche la nota di metodo del Ventaglio
+(`fireNarrative.ts`, quarta frase) dice «allocazione target», e il testo di Impostazioni dice «Il portafoglio modello e il
+PAC possono proporre…» (la parola «obiettivi» resta fino ad AL19); l'e2e di «Con vendite mirate» cerca il nuovo titolo del
+modale; **AL7** `modelPortfolios/{uid}` è un documento per utente come `assetAllocationTargets`. Collaudo (2026-10-17, guidato sul mirror dei dati del proprietario, non sull'anteprima): superato; AL7 non verificabile (nessun portafoglio modello salvato prima del collaudo).
 
 ### 9.2 IMPL-AL2 — Rivedi il piano completo (Onda 2: AL8–AL11, D-AL1)
 
@@ -251,7 +259,18 @@ I fixture dei test lo riproducono con nomi inventati.
   Test in `accumulationPlanUtils.test.ts` sul fixture F del dossier PAC (§ 8) con un conto aggiunto e una vendita
   tolta: `L` atteso scritto nel test con il conto.
 
-**Esito**: —
+**Esito** (2026-10-16, IMPL-AL2): AL8–AL11 fatti, `tsc`, ESLint e Vitest (266 file, 6073 test) verdi sotto `Europe/Rome`
+(test in `__tests__/accumulationPlanReviewFlow.test.ts`). Default dell'agente: **AL8** il gruppo prende l'id della
+posizione dello strumento che compra e Separa lo restituisce a quello che compra, così le righe chiuse restano della
+posizione che le ha comprate; le righe di una posizione sparita si leggono col nome dello strumento
+(`installmentLineLabel`, nel Calendario); **AL9** «Sostituisci» dà alla posizione un id nuovo (le righe chiuse nominano il
+vecchio strumento), non vende nulla e il vecchio resta nel gruppo; su un gruppo il nuovo può essere un membro o uno
+strumento da fuori; **AL10** «Aggiungi uno strumento» ordina i mai comprati (Registro letto) prima degli azzerati e dei
+posseduti, e «Ricalcola» e «Prova» valutano anche gli strumenti del piano aperto (`planMemberAssetIds`), non solo quelli
+del modello: lo strumento abbandonato con la bozza si ritrova nel selettore dell'editor, in Ricalcola solo se è nel
+modello o in un piano aperto; **AL11** una vendita salvata con le quote cambiate in revisione è tolta e rifatta come
+vendita nuova al mese `k`, e le vendite spostate valgono da `k` all'ultima rata (altrimenti `sale_month_range`).
+Collaudo (2026-10-17, guidato sul mirror dei dati del proprietario, non sull'anteprima): superato, con un difetto: **D1** «Sostituisci» apre il selettore sotto la tabella del passo Target, staccato dalla riga, e al clic non si vede nulla; va un popover ancorato alla riga o un modale (thread a parte).
 
 ### 9.3 IMPL-AL3 — Riattiva e una sola rata (Onda 2: AL12–AL13, D-AL2)
 
@@ -264,7 +283,15 @@ I fixture dei test lo riproducono con nomi inventati.
   4455 € al mese; la prima, ottobre, 4207 €») al passo 1 (ora L/N, che diventa «Liquidità per mese»), nel pannello del
   passo Target e nella sintesi del passo 3. Un solo modulo di parole in `accumulationNarrative.ts`.
 
-**Esito**: —
+**Esito** (2026-10-16, IMPL-AL3): AL12–AL13 fatti, `tsc`, ESLint e Vitest (267 file, 6082 test) verdi sotto
+`Europe/Rome` (test in `__tests__/accumulationReactivate.test.ts`; le attese «Rata di …» aggiornate in
+`accumulationNarrative` e `accumuloSummary`). Default dell'agente: **AL12** il bottone sta in una colonna di Piani
+conclusi che compare solo se c'è una riga riattivabile; «nessun altro piano aperto» si legge prima della transazione
+(il client non può fare query dentro `runTransaction`), le altre due condizioni dentro; un rifiuto mostra l'errore nella
+riga. **AL13** «Rata di ottobre» vale anche per il verdetto di Accumulo; al passo 1, che non ha pesi e quindi nessuna rata,
+L ÷ N si chiama «Liquidità per mese» con una riga che rimanda ai pesi; nel pannello del passo Target la cifra grande è la
+prima rata e la media sta sotto (se coincidono si dice una cifra sola).
+Collaudo (2026-10-17, guidato sul mirror dei dati del proprietario, non sull'anteprima): superato.
 
 ### 9.4 IMPL-AL4 — Il modello comanda (Onda 3: AL14–AL16, D-AL3)
 
@@ -285,7 +312,15 @@ I fixture dei test lo riproducono con nomi inventati.
   «Parti da › Portafoglio modello». Test con il caso di prova (modello salvato dai pesi del piano → nessuna riga; un
   peso spostato di 1 punto → una).
 
-**Esito**: —
+**Esito** (2026-10-16, IMPL-AL4): AL16, AL14, AL15 fatti, `tsc`, ESLint e Vitest (268 file, 6100 test) verdi sotto
+`Europe/Rome` (test in `__tests__/modelPortfolioGroups.test.ts`). Default dell'agente: **AL16** la riga del gruppo ha il
+buyer in `assetId` e i membri in `memberAssetIds` (buyer incluso); nel PAC il modello si applica con
+`applyModelToPositions`, che non spezza una posizione che esce dal gruppo; il membro frozen sparisce dal gruppo con
+l'avviso di RM2. **AL14** «Usa i pesi del piano» solo con un piano attivo; il modello si scrive dopo il piano e un
+errore tiene l'editor aperto su «Chiudi»; «Aggiorna anche il portafoglio modello» si accende da solo quando i pesi
+differiscono, spento in demo. **AL15** la riga sta in Questo mese solo con un piano attivo e un modello; soglia 0,5
+punti; i candidati a 0 non contano; «Rivedi dal modello» apre `reviseFromModel`.
+Collaudo (2026-10-17, guidato sul mirror dei dati del proprietario, non sull'anteprima): superato.
 
 ### 9.5 IMPL-AL5 — Bilanciamento, criteri e nomi (Onda 3: AL17–AL19, D-AL4, D-AL5, D-AL7)
 
@@ -302,7 +337,20 @@ I fixture dei test lo riproducono con nomi inventati.
   `?obiettivi=1` non cambiano. Le stringhe nei moduli di parole, mai nel JSX; i test che le fissano si aggiornano nella
   PR, dichiarandolo. È un rinomina di superficie di upstream: voce in `fork-scelte-ui.md`.
 
-**Esito**: —
+**Esito** (2026-10-16, IMPL-AL5): AL17–AL19 fatti, `tsc`, ESLint e Vitest (268 file, 6111 test) verdi sotto `Europe/Rome`.
+Default dell'agente: **AL17** la riga sta nella tile Piano per tutte e tre le modalità e solo con un piano attivo e non
+finito (la stessa condizione del verdetto); a rata chiusa dice «è chiusa, ma questo piano non ne tiene conto»; la
+sostituzione si legge solo dove il Piano nomina davvero lo strumento (gambe COMPRA scese agli strumenti, nodi del Versa,
+trade del motore a leva) e mai nel Preleva; il collegamento è «Apri Accumulo». **AL18** la sezione «Target di classe»
+sta in cima al modale, classi con target > 0 o importo fisso, e la leva è «Somma 110%: leva 1,10×.» (`describeClassTargets`,
+il rapporto lo passa il chiamante perché il modulo non importa Firebase). **AL19** «Traguardi» vale anche per la
+Panoramica (tile e «Traguardo raggiunto.») e per la sezione di Impostazioni «FIRE e traguardi» (un traguardo, «Nuovo
+traguardo», «Importo del traguardo»); «Età obiettivo» resta; l'assistente AI, le email, i prompt e i budget di entrata
+(«obiettivo di entrata») non cambiano; «Criteri del modello» vale anche per l'intestazione del riepilogo in Impostazioni
+(«Allocazione ideale» → «Criteri del modello») e per «Senza il criterio…»/«sotto-criteri»/«criterio geografico».
+I test che fissavano le vecchie parole sono aggiornati nella PR: `goalsNarrative`, `settingsNarrative`,
+`weightOptimizerNarrative`, `allocazioneNarrative`, `firePlan`, `datedFlowsNarrative`, `overviewNarrative`.
+Collaudo (2026-10-17, guidato sul mirror dei dati del proprietario, non sull'anteprima): superato.
 
 ### 9.6 IMPL-AL6 — Lo strumento coperto (Onda 4: AL20, D-AL6)
 
@@ -316,7 +364,15 @@ I fixture dei test lo riproducono con nomi inventati.
 - Test: `profileResolver.test.ts` (uno strumento coperto senza riga curata legge EUR), la quota coperta per classe
   (pura). MFEH: il proprietario spunta il campo dopo il merge.
 
-**Esito**: —
+**Esito** (2026-10-16, IMPL-AL6): AL20 fatto, `tsc`, ESLint e Vitest (269 file, 6121 test) verdi sotto `Europe/Rome` (test in
+`__tests__/monteCarloHedgeShare.test.ts`, `profileResolver.test.ts`, `exposureCacheKey.test.ts`). Default dell'agente: il campo sta
+nel form dei soli ETF (come la leva) ed è un interruttore, spento = chiave assente (`deleteField` in `updateAsset` e
+`updateAssetMetadata`); la sostituzione a EUR è `withCurrencyHedge`, applicata DOPO la cache di profilo per ticker (la cache è
+condivisa fra gli asset dello stesso ticker, il campo è dell'asset) invece che dentro `resolveCurrency`; il tile propone sopra il
+50% del valore di mercato della classe (esattamente 50% non propone), le classi sono quelle dei quattro interruttori, l'Oro
+segue la sottocategoria in vigore, i fondi bloccati restano fuori come nei pesi; «Imposta coperto» imposta la bozza, si salva
+col Salva della pagina.
+Collaudo (2026-10-17, guidato sul mirror dei dati del proprietario, non sull'anteprima): superato; «Coperto dal cambio in EUR» su MFEH da spuntare a mano in produzione.
 
 ## 10. Prompt d'avvio dei thread
 

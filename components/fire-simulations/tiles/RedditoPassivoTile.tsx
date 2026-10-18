@@ -16,15 +16,17 @@ import type { ReactNode } from 'react';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { PassiveIncome } from '@/lib/utils/fireSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import { formatCurrency } from '@/lib/services/chartService';
 import { formatRate } from '@/lib/utils/fireNarrative';
 import { cn } from '@/lib/utils';
-import { Tile } from '@/components/ui/tile';
+import { Tile, type TileCollapse } from '@/components/ui/tile';
 import { SettledCurrencyValue } from '@/components/fire-simulations/SettledValue';
 
 interface RedditoPassivoTileProps {
   reading: Narrative;
   income: PassiveIncome;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
   className?: string;
 }
 
@@ -42,14 +44,14 @@ function Row({ label, caption, value, valueClass }: { label: string; caption?: s
 
 const oneDecimal = (value: number) => value.toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-export function RedditoPassivoTile({ reading, income, className }: RedditoPassivoTileProps) {
+export function RedditoPassivoTile({ reading, income, collapse, asideWhenClosed, className }: RedditoPassivoTileProps) {
   const split = [
     income.liquidYears > 0 ? `${oneDecimal(income.liquidYears)} liquidi` : null,
     income.illiquidYears > 0 ? `${oneDecimal(income.illiquidYears)} illiquidi` : null,
   ].filter((part): part is string => part !== null);
 
   return (
-    <Tile eyebrow="Reddito passivo" aside={`oggi, al ${formatRate(income.swr)}`} reading={reading} ariaLabel="Reddito passivo sostenibile" className={className}>
+    <Tile eyebrow="Reddito passivo" aside={`oggi, al ${formatRate(income.swr)}`} asideWhenClosed={asideWhenClosed} reading={reading} ariaLabel="Reddito passivo sostenibile" className={className} collapse={collapse}>
       <div className="mt-3 flex items-baseline gap-2">
         <SettledCurrencyValue value={income.annual} compact className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground" />
         <span className="text-[11px] text-muted-foreground">all&apos;anno</span>

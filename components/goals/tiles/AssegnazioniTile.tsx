@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * ASSEGNAZIONI — «quale strumento serve quale obiettivo?»: the quotas grouped by goal, each group
+ * ASSEGNAZIONI — «quale strumento serve quale traguardo?»: the quotas grouped by goal, each group
  * headed by the goal's dot, name, total and its «Aggiungi», and — beside them — the free shares,
  * closed by the «Non assegnato» residual so the tile visibly adds up to the portfolio (The
  * Narrative Honesty Rule). From `desktop:` two tables at the tile's cadence (sub-eyebrow
@@ -9,16 +9,18 @@
  * targets.
  *
  * A quota is removed on one click: re-adding it is one dialog away, and the row names what it
- * removes. In demo the controls are disabled and the footer says so.
+ * removes. In demo the controls are disabled and the footer says so. A quota typed in units
+ * (2026-10-17) prints its units first and its derived percent after («12 quote · 40%»).
  */
 
 import { Plus, X } from 'lucide-react';
 import type { Narrative } from '@/lib/utils/narrative';
-import type { AssignmentsView, GoalAssignmentGroup } from '@/lib/utils/goalsSummary';
+import type { AssignmentRow, AssignmentsView, GoalAssignmentGroup } from '@/lib/utils/goalsSummary';
+import { formatQuotaUnits } from '@/lib/utils/goalsNarrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
 import { cn } from '@/lib/utils';
-import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_SUB_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
 
 interface AssegnazioniTileProps {
@@ -29,11 +31,16 @@ interface AssegnazioniTileProps {
   onRemove: (goalId: string, assetId: string) => void;
   footer: { narrative: Narrative; tone: 'neutral' | 'warning' };
   isDemo: boolean;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
   className?: string;
 }
 
 const money = (value: number) => cachedFormatCurrencyEUR(value, true);
 const share = (value: number) => formatPercentage(Math.round(value * 10) / 10, Number.isInteger(Math.round(value * 10) / 10) ? 0 : 1);
+/** «40%» for a percent quota; «12 quote · 40%» for a units one — the units primary, the percent derived (lib/utils/assetSlice.ts). */
+const quota = (row: AssignmentRow) => (row.units !== null ? `${formatQuotaUnits(row.units, row.unitLabel)} · ${share(row.percentage)}` : share(row.percentage));
 
 const ADD_CLASS =
   'inline-flex h-9 items-center gap-1 rounded-md border border-border px-2.5 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 desktop:h-6 desktop:border-0 desktop:px-1.5 desktop:text-muted-foreground desktop:hover:text-foreground';
@@ -65,11 +72,11 @@ function GroupHead({ group, onAdd, disabled }: { group: GoalAssignmentGroup; onA
   );
 }
 
-export function AssegnazioniTile({ reading, aside, view, onAdd, onRemove, footer, isDemo, className }: AssegnazioniTileProps) {
+export function AssegnazioniTile({ reading, aside, view, onAdd, onRemove, footer, isDemo, collapse, asideWhenClosed, className }: AssegnazioniTileProps) {
   const removeLabel = (asset: string, goal: string) => `Rimuovi ${asset} da ${goal}`;
 
   return (
-    <Tile eyebrow="Assegnazioni" aside={aside} reading={reading} ariaLabel="Assegnazioni" className={className}>
+    <Tile eyebrow="Assegnazioni" aside={aside} asideWhenClosed={asideWhenClosed} reading={reading} ariaLabel="Assegnazioni" className={className} collapse={collapse}>
       {/* Desktop: two tables side by side — the quotas by goal, the free shares. */}
       <div className="mt-3.5 hidden grid-cols-2 gap-x-8 gap-y-3 desktop:grid">
         <table className="w-full text-[13px]">
@@ -100,7 +107,7 @@ export function AssegnazioniTile({ reading, aside, view, onAdd, onRemove, footer
               </tr>
               {group.rows.length === 0 ? (
                 <tr className="border-t border-border">
-                  <td colSpan={4} className="py-2 text-[12px] italic text-muted-foreground">Nessuna quota assegnata a questo obiettivo.</td>
+                  <td colSpan={4} className="py-2 text-[12px] italic text-muted-foreground">Nessuna quota assegnata a questo traguardo.</td>
                 </tr>
               ) : (
                 group.rows.map((row) => (
@@ -108,7 +115,7 @@ export function AssegnazioniTile({ reading, aside, view, onAdd, onRemove, footer
                     <th scope="row" className="py-2 text-left font-normal">
                       <InstrumentName name={row.name} ticker={row.ticker} />
                     </th>
-                    <td className="py-2 text-right font-mono tabular-nums text-foreground">{share(row.percentage)}</td>
+                    <td className="py-2 text-right font-mono tabular-nums text-foreground">{quota(row)}</td>
                     <td className="py-2 text-right font-mono tabular-nums text-foreground">{money(row.value)}</td>
                     <td className="py-1 text-right">
                       <button type="button" onClick={() => onRemove(group.goalId, row.assetId)} disabled={isDemo} className={REMOVE_CLASS} aria-label={removeLabel(row.name, group.name)}>
@@ -157,7 +164,7 @@ export function AssegnazioniTile({ reading, aside, view, onAdd, onRemove, footer
               <GroupHead group={group} onAdd={() => onAdd(group.goalId)} disabled={isDemo} />
             </div>
             {group.rows.length === 0 ? (
-              <p className="pb-3 text-[12px] italic text-muted-foreground">Nessuna quota assegnata a questo obiettivo.</p>
+              <p className="pb-3 text-[12px] italic text-muted-foreground">Nessuna quota assegnata a questo traguardo.</p>
             ) : (
               <ul className="flex flex-col divide-y divide-border">
                 {group.rows.map((row) => (
@@ -165,7 +172,7 @@ export function AssegnazioniTile({ reading, aside, view, onAdd, onRemove, footer
                     <InstrumentName name={row.name} ticker={row.ticker} />
                     <span className="ml-auto flex shrink-0 flex-col items-end font-mono text-[13px] tabular-nums leading-[1.3] text-foreground">
                       <span>{money(row.value)}</span>
-                      <span className="text-[11px] text-muted-foreground">{share(row.percentage)}</span>
+                      <span className="text-[11px] text-muted-foreground">{quota(row)}</span>
                     </span>
                     <button type="button" onClick={() => onRemove(group.goalId, row.assetId)} disabled={isDemo} className={REMOVE_CLASS} aria-label={removeLabel(row.name, group.name)}>
                       <X className="h-3.5 w-3.5" aria-hidden="true" />

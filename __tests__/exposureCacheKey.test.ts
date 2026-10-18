@@ -52,6 +52,12 @@ describe('buildExposureCacheKey', () => {
     expect(buildExposureCacheKey([a, b])).toBe(buildExposureCacheKey([b, a]));
   });
 
+  it('changes when the «coperto in EUR» flag changes (AL20: the Valute view reads it)', () => {
+    const plain = [makeAsset({ ticker: 'MFEH' })];
+    const hedged = [makeAsset({ ticker: 'MFEH', currencyHedge: 'EUR' })];
+    expect(buildExposureCacheKey(plain)).not.toBe(buildExposureCacheKey(hedged));
+  });
+
   it('is NOT sensitive to a price tick (only ticker + quantity + role, no rounded total value)', () => {
     const before = [makeAsset({ ticker: 'VWCE', currentPrice: 100 })];
     const after = [makeAsset({ ticker: 'VWCE', currentPrice: 100.01 })];

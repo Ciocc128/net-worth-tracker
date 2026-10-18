@@ -3,7 +3,9 @@ import type { DashboardOverviewTopAsset } from '@/types/dashboardOverview';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
 import { getMetricValueColor } from '@/lib/utils/metricColors';
+import { describeNetOfDebtCaption } from '@/lib/utils/patrimonioNarrative';
 import { cn } from '@/lib/utils';
+import type { TileCollapse } from '@/components/ui/tile';
 import { OverviewTile } from './OverviewTile';
 
 const MAX_ROWS = 5;
@@ -11,6 +13,10 @@ const MAX_ROWS = 5;
 interface AssetPrincipaliTileProps {
   topAssets: DashboardOverviewTopAsset[];
   assetCount: number;
+  /** The row below `desktop:` (`useMobileSections().collapse(id)`); `undefined` at 1440. */
+  collapse?: TileCollapse;
+  /** What the closed row says beside its eyebrow (`describeOverviewAsides`). */
+  asideWhenClosed?: string;
   className?: string;
 }
 
@@ -19,7 +25,7 @@ interface AssetPrincipaliTileProps {
  * `returnPercent` is null for positions without a cost basis (cash, imports): rendered as "–",
  * never as 0, which would claim a measured flat return.
  */
-export function AssetPrincipaliTile({ topAssets, assetCount, className }: AssetPrincipaliTileProps) {
+export function AssetPrincipaliTile({ topAssets, assetCount, collapse, asideWhenClosed, className }: AssetPrincipaliTileProps) {
   const rows = topAssets.slice(0, MAX_ROWS);
 
   return (
@@ -30,6 +36,8 @@ export function AssetPrincipaliTile({ topAssets, assetCount, className }: AssetP
           {rows.length} di {assetCount} · valore · peso · rendimento
         </span>
       }
+      asideWhenClosed={asideWhenClosed}
+      collapse={collapse}
       className={className}
     >
       {rows.length === 0 ? (
@@ -38,7 +46,13 @@ export function AssetPrincipaliTile({ topAssets, assetCount, className }: AssetP
         <div className="mt-2 flex flex-col divide-y divide-border">
           {rows.map((asset) => (
             <div key={asset.id} className="flex items-center gap-3 py-[9px]">
-              <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{asset.name}</span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-[13px] text-foreground">{asset.name}</span>
+                {/* A property net of its mortgage says so (owner, 2026-10-17): the figure beside it is the equity, not the house. */}
+                {asset.debtNetted ? (
+                  <span className="truncate font-mono text-[11px] tabular-nums text-muted-foreground">{describeNetOfDebtCaption(asset.debtNetted)}</span>
+                ) : null}
+              </span>
               <span className="w-[84px] shrink-0 text-right font-mono text-[13px] tabular-nums text-foreground">
                 {cachedFormatCurrencyEUR(asset.totalValue, true)}
               </span>

@@ -6,7 +6,8 @@
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
-- **Impostazioni**: `app/dashboard/settings/page.tsx` (`COLOR_THEME_SWATCHES`, `THEME_MODES`, `DeclarationRow`, `CategoryRow`, `SyncDividendsButton`, `targetFieldId`), `components/settings/{ExpenseImportSection,AccountSharingSection,MonteCarloMarketTile}.tsx`, pure `lib/utils/{settingsNarrative,spendingRoles,equityBondsAutoTargets,allocationTargetValidation}.ts`, `lib/services/assetAllocationService.ts` (`getSettings`/`setSettings`, the FIVE places); browser `e2e/settings{,.mobile,.roles}.spec.ts`
+- **Impostazioni**: `app/dashboard/settings/page.tsx` (the orchestrator, under 500 lines since 2026-10-08: the draft's `useReducer`, the observed read, the one «Salva», the bar, the tab), the seven views `components/settings/tabs/{Generale,Allocazione,Spese,Dividendi,Condivisione,Aspetto,Simulazioni}Tab.tsx` (+ `shared.tsx`: `SettingsTabPanel`, `DeclarationRow`, `runGuarded`, `INTERACTIVE_CONTROL_CLASS`; `CategoryRow` lives in `SpeseTab`, `SyncDividendsButton` in `DividendiTab`, the theme swatches in `AspettoTab`), `components/settings/allocation/{AllocationClassEditor,SubTargetEditor}.tsx`, `components/settings/{ExpenseImportSection,AccountSharingSection}.tsx`, pure `lib/utils/settingsDraft.ts` (the reducer, `sliceSettings`, `composeSettingsDocument`, `isSliceDirty`, `revealTargetProblem`, `targetFieldId`, `SETTINGS_CLASS_ORDER`) and `lib/utils/{settingsNarrative,spendingRoles,equityBondsAutoTargets,allocationTargetValidation}.ts`, `lib/services/assetAllocationService.ts` (`getSettings`/`setSettings`, the FIVE places); browser `e2e/settings{,.mobile,.roles,.draft}.spec.ts`
+- **Suites to run after a change here — Impostazioni** (moved from `AGENTS.md` § Commands on 2026-09-30): **Bozza** `settingsDraft` (the identity `compose ∘ slice` and the S1 block that pins the fork's fields, on the fixtures of `__tests__/fixtures/storedSettings.ts`) · **Letture** `settingsNarrative` · **Round-trip** `settingsRoundTrip` · **Formula** `equityBondsAutoTargets` · **Sblocco** `pensionUnlock` · and the compiler map `reactCompilerCoverage`
 
 ## Impostazioni — tessere senza verdetto (`app/dashboard/settings/page.tsx`, `lib/utils/settingsNarrative.ts`)
 
@@ -32,20 +33,53 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   Modalità pill through next-themes, both outside `handleSave` — say so in the tile's footer, or the page promises a
   save that never happens. The Modalità reading is `null` before hydration (`useSyncExternalStore`, the ThemePicker
   guard): the mode genuinely does not exist server-side, and guessing it is a hydration mismatch.
-- **One «Salva», so the SAVE STATE is per tab** (critique of 2026-09-22). Each tab «Salva» writes has its own dirty
-  snapshot (`allocazione`, `generale`, `spese`, `dividendi`, `simulazioni`); a tab holding edits carries a dot (`TabDef.unsaved` in
-  `PageTabBar`, also in its accessible name) and a bar sticky to the bottom of `<main>` names them
-  (`describeUnsavedChanges`) with «Annulla modifiche» beside «Salva». «Annulla» RE-READS the saved settings
-  (`loadTargets({ quiet: true })`) instead of keeping a second copy, so a co-owner's save comes back too. A reload or a
-  closed tab asks first (`beforeunload`); an in-app link does not — the App Router has no guard, the bar is the
-  reminder. «Ripristina default» is the FACTORY targets, a different act; the header chip «Anteprima attiva» is gone.
+- **ONE draft, seven views** (2026-10-08). The page holds every field «Salva» writes in a single
+  `useReducer(settingsDraftReducer)` (`lib/utils/settingsDraft.ts`) and each tab is a module-level CONTROLLED view of
+  its slice (`components/settings/tabs/*Tab.tsx`): `slice` in, `onChange(patch)` out, NO form state of its own — Radix
+  unmounts the content of an inactive panel, so a view holding its fields would lose them at the first tab change and
+  a «Salva» from another tab would never see them (`e2e/settings.draft.spec.ts`, seen red with a `useState` planted
+  inside the panel). What may stay local is ephemeral UI: a recipient being typed, a send or a sync in flight, the
+  category dialogs (they live with the list, in `SpeseTab`). A slice holds the fields of the TAB THAT EDITS THEM;
+  Condivisione and Aspetto have none (they write where they act). **Simulazioni (the fork's seventh view, tenth realignment T3)** has its own slice: the Monte Carlo market draft with its origin, the IRPEF brackets and the correlation corrections of R5. `composeSettingsDocument(slices, current, context)` writes `monteCarloMarket` only when the tab holds an edit or the stored market is a v1 to convert (`marketOrigin === 'migrated'`), `coastFireTaxBrackets` only when they were edited, and CARRIES THROUGH from the document read just before `withdrawalRate`, `plannedAnnualExpenses`, `fireEmergencyFund`, `fireCashToInvestPct`, `fireDatedFlows` and `idealAllocation` — their editors are FIRE › Il mio piano and Allocazione › Accumulo, and `userAge` is read for the Auto-calcolo formula but NEVER written from here (D-T5). `__tests__/settingsRoundTrip.test.ts` composes a clean «Salva» and runs the real `setSettings` over the stored document: the assumptions, the dated flows and the Allocazione ideale must survive it. `sliceSettings(document, fallbackTargets)` seeds
+  the slices (the old `loadTargets`, defaults included), `composeSettingsDocument(slices, current)` rebuilds the
+  document or names the first broken target rule WITH its place, `isSliceDirty(tab, draft, saved)` is the dot:
+  `__tests__/settingsDraft.test.ts` pins `compose ∘ slice ≡ document` on a fixture carrying EVERY written field
+  (`FULL_PAGE_SETTINGS`) and on the round-trip fixture — a field one view forgets is a default with a green toast, the
+  bug of 2026-09-25, and the identity is where it shows. The reducer settles the auto-calculated Azioni/Obbligazioni
+  pair on every allocation action AND on reset (the formula, `calculateFormulaEquityPercentage`, is pure in
+  `equityBondsAutoTargets.ts`); a class's rows are patched BY COPY — after a read `saved === slices`, and a row mutated
+  in place would move the baseline with it.
+- **The page's read is OBSERVED, not fetched** (2026-10-08, the owner's decision of 2026-09-29): `useSettings(ownerId)`
+  seeds the draft DURING render on the `(ownerId, dataUpdatedAt)` subject — on a warm visit the persisted cache hands
+  the document at once and there is no skeleton; the fresh read lands behind, «Aggiornato alle…» in the header
+  meanwhile (`useFreshness` over the settings, categories and accounts queries), and RE-SEEDS the draft only while no
+  tab is dirty: a co-owner's save never overwrites what the reader is typing (it lands at the next «Salva» or
+  «Annulla», which re-read anyway). The skeleton is the first visit of an account (`data === undefined`, not failed);
+  a failed FIRST read is the `ErrorNotice` with «Riprova» (`refetch`), never a form of defaults.
+- **One «Salva», so the SAVE STATE is per tab** (critique of 2026-09-22). A tab holding edits carries a dot
+  (`TabDef.unsaved` in `PageTabBar`, also in its accessible name) and a bar sticky to the bottom of `<main>` names
+  them (`describeUnsavedChanges`) with «Annulla modifiche» beside «Salva». «Annulla» RE-READS the saved document
+  (`fetchQuery(settingsQueryOptions)` with `staleTime: 0`, then `reset`) instead of keeping a second copy, so a
+  co-owner's save comes back too; a failed re-read keeps the draft and says so in a toast. A reload or a closed tab
+  asks first (`beforeunload`); an in-app link does not — the App Router has no guard, the bar is the reminder.
+  «Ripristina default» is the FACTORY targets (`allocazione/replaceTargets`), a different act; the header chip
+  «Anteprima attiva» is gone. The `?tab=` is canonicalised on mount ONLY when absent or invalid (as Cashflow does):
+  an unconditional `router.replace` re-rendered every `useSearchParams` consumer of the shell.
 - **The target rules live in `lib/utils/allocationTargetValidation.ts`, and they say WHERE they failed.**
   `findTargetProblem` returns the first broken rule (total, then each class top to bottom, subcategories before
   their assets) with its class/row indices; `describeTargetProblem` is its sentence, in the Target per classe
-  reading live and in the toast «Salva» raises; `revealTargetProblem` switches to Allocazione, opens the group and
-  focuses the field (`targetFieldId`). A group that does not add up prints its sum ON THE CLASS ROW, closed or open.
-  Unnamed subcategory rows are dropped before validating (`dropUnnamedSubTargets`) — the tree validated is the tree
-  written. `validateSpecificAssets` (English messages, straight into a toast) was deleted from the service.
+  reading live and in the toast «Salva» raises. **The focus crosses the tabs THROUGH THE DRAFT** (2026-10-08):
+  `revealTargetProblem` (pure, `settingsDraft.ts`) returns the slice with the class's group opened (and the
+  subcategory's asset list, for an asset rule — `expanded` flags on the rows, stripped from the dirty check and the
+  document) and the id of the field (`targetFieldId`); the page dispatches it, sets `pendingFocus` and activates
+  Allocazione; the view focuses the field an animation frame after the commit that mounted it and dispatches
+  `focusConsumed`. No `useImperativeHandle` across an unmounted panel; seen red with the group left closed
+  (`settings.spec.ts` › «porta il fuoco sul campo»). A collapsed group or asset list is NOT in the DOM
+  (`CollapsibleContent` without `forceMount`, `AllocationClassEditor`/`SubTargetEditor`): a keystroke elsewhere renders
+  no hidden editor. A group that does not add up prints its sum ON THE CLASS ROW, closed or open. Unnamed
+  subcategory rows are dropped before validating (`cleanAllocazioneSlice` → `dropUnnamedSubTargets`) — the tree
+  validated is the tree written. `validateSpecificAssets` (English messages, straight into a toast) was deleted from
+  the service.
 - **Età and risk-free rate live in the Auto-calcolo tile** (Allocazione, since 2026-09-22), beside the switch they
   unlock; the risk-free rate also feeds Sharpe/Sortino and the tile says so, and Calcolo dei rendimenti points back
   to it. Their dirty snapshot is therefore the allocation one.
@@ -65,9 +99,11 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   other specs plant spending categories of their own. With the switch
   on, each `CategoryRow` badge wears its role's colour (`categoryRoleColor`: income `--positive` — in the fork `--flow-in`, a type marker (fork-scelte-ui.md
   § 1) —, a transfer its saved hue), and the category dialog shows the role picker. The flag's dirty snapshot is Spese's.
-- **A category write invalidates what Analisi reads, where the write happens** (2026-09-27): the page keeps its own
-  category list (`loadExpenseCategories`), but Analisi reads `queryKeys.expenses.categories` under the global
-  5-minute staleTime, so a role set here reached its Flusso minutes later. `invalidateCategoryCaches`
+- **A category write invalidates what Analisi reads, where the write happens** (2026-09-27): the page used to keep
+  its own category list (`loadExpenseCategories`, a private read until 2026-09-29 — now the page reads
+  `useExpenseCategories` like Analisi and `loadExpenseCategories` IS the invalidation of that key), while Analisi
+  reads `queryKeys.expenses.categories` under the global 5-minute staleTime, so a role set here reached its Flusso
+  minutes later. `invalidateCategoryCaches`
   (`components/expenses/CategoryManagementDialog.tsx`) invalidates `expenses.categories` after the dialog's create or
   update — the dialog is also what `ExpenseDialog`, `CategoryMoveDialog` and `CategoryDeleteConfirmDialog` mount — and
   `expenses.all` too when the rows were rewritten: a rename or a type change (the cascades inside `updateCategory`), a
@@ -84,13 +120,18 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 ## Settings — the FIVE places
 - A new setting must be added to all five or it silently disappears: the type (`types/assets.ts`), the read mapping in
   `assetAllocationService.getSettings`, **BOTH** write chains in `setSettings` (the `targets` branch uses `setDoc` with
-  no merge), and the state/load/save/dirty-snapshot wiring — usually `settings/page.tsx`, but a FIRE-only toggle wires
-  from `FireCalculatorTab.tsx` instead: the 5th place is "wherever the field's own save button lives". Guarded by
-  `settingsRoundTrip`, whose `STORED_SETTINGS` fixture must carry the new field, or the round-trip stays green while the
-  read mapping is still broken. Worked example (2026-09-07): `performanceExcludesCash` («Liquidità fuori dalla base») —
-  type, `getSettings`, both `setSettings` branches, the page's state/load/two snapshots/save/Switch, the reading's
-  `excludesCash` clause in `describePerformanceBase`, the fixture; its consumer is `resolvePerformanceBaseOptions`
-  (Rendimenti + PDF), which reads it with the same `?? false` default as the two toggles beside it.
+  no merge), and the draft wiring — since 2026-10-08 the slice of the tab that edits it in `lib/utils/settingsDraft.ts`
+  (the field in the slice type, in `sliceSettings`, in `composeSettingsDocument` and, through the slice, in
+  `isSliceDirty`) plus the control in that tab's view (`components/settings/tabs/<Tab>.tsx`, `onChange({ field })`) —
+  but a FIRE-only toggle wires from `FireCalculatorTab.tsx` instead: the 5th place is "wherever the field's own save
+  button lives". Guarded by `settingsRoundTrip`, whose `STORED_SETTINGS` fixture must carry the new field, or the
+  round-trip stays green while the read mapping is still broken, AND by `settingsDraft` (`compose ∘ slice ≡ document`
+  on `FULL_PAGE_SETTINGS`, `__tests__/fixtures/storedSettings.ts`, which must carry it at a non-default value — and the
+  `WRITTEN_KEYS` checklist of that test names it). Worked example (2026-09-07): `performanceExcludesCash` («Liquidità
+  fuori dalla base») — type, `getSettings`, both `setSettings` branches, the generale slice (`sliceSettings` default
+  `?? false`, `composeSettingsDocument`), the Switch in `GeneraleTab`, the reading's `excludesCash` clause in
+  `describePerformanceBase`, the two fixtures; its consumer is `resolvePerformanceBaseOptions` (Rendimenti + PDF), which
+  reads it with the same `?? false` default as the two toggles beside it.
 - **Second worked example, a whole nested object rather than a flag** (2026-09-18): `idealAllocation`
   (`IdealAllocationSettings`, doc/weight-optimizer-ate.md §7) — type on `AssetAllocationTarget`'s sibling
   `AssetAllocationSettings`, `getSettings`'s `idealAllocation: data.idealAllocation`, the `targets` branch's
@@ -113,7 +154,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 - **Third worked example, a nested object saved ONLY when its tab is dirty** (2026-10-03, Monte Carlo T1): `monteCarloMarket`
   (`MonteCarloMarketSettings`, doc/montecarlo/README.md § 4.2) — type, `getSettings`, both `setSettings` branches
-  (`'monteCarloMarket' in settings`: `delete docData.…` / `deleteField()`), the page's `marketDraft` + origin + baseline
+  (`'monteCarloMarket' in settings`: `delete docData.…` / `deleteField()`), the Simulazioni slice's `market` draft + origin + baseline
   (`marketSnapshotKey`, the seventh tab «Simulazioni», `?tab=simulazioni`), `MonteCarloMarketTile`, `describeMonteCarloMarket`,
   the dashboard-overview mapper (SIXTH place), the `STORED_SETTINGS` fixture. `handleSave` adds the key ONLY when the tab holds
   edits (`marketDirty`), so a Save in another tab never turns the defaults — or a legacy `monteCarloScenarios` — into a saved
@@ -153,19 +194,26 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   emails read**: `getSettingsAdmin` in `lib/server/monthlyEmailService.ts` is a third independent re-listing, narrow by
   default (it used to carry only the email fields). `familyMembers` was missing from BOTH server mappers until
   2026-08-31 and there is no type error for it — an absent field is simply `undefined` server-side.
+  `pensionReturnStartMonth` joined it on 2026-10-14 (the email names the month's pension contributions only from
+  there, doc/guide/email-pdf.md).
 - **Store a boolean explicitly, never derive it** from other fields. All feature toggles live in
   `AssetAllocationSettings`, never in `UserPreferences`, and dirty-state snapshot keys contain **only persisted
   fields**, captured *after* the Firestore state is applied.
-- **One Save button validates the whole page** — `handleSave` returns early when allocation targets do not total 100, and
-  must `invalidateQueries(['settings', ownerId])`, which `AssetDialog` reads. **A tab must not grow a second Save**: the
+- **One Save button validates the whole page** — `handleSave` returns early when `composeSettingsDocument` names a broken
+  target rule (before any read: a refused save costs no round trip), and must `invalidateQueries(queryKeys.settings.all(ownerId))`,
+  the ONE settings key every reader shares (2026-09-29). The page's own reads go through the keys too: the form is seeded
+  from `useSettings` (observed, 2026-10-08), «Annulla» re-reads with `queryClient.fetchQuery(settingsQueryOptions)` at
+  `staleTime: 0` and so does the pre-read of «Salva» (the CURRENT document, for the two FIRE fields the write carries
+  through), the cash accounts come from `useAssets` and the categories from `useExpenseCategories`. **A tab must not grow a second Save**: the
   Dividendi one was deleted on 2026-08-29 because `handleSave` already persisted its two fields, so the tab's own button
   was a second write path for the same data (it also re-read the doc first, and could therefore clobber a concurrent edit).
-- **A field's dirty-snapshot must follow the TAB THAT EDITS IT, not the tab that consumes it**: `userAge`/`riskFreeRate`
-  moved to `generalSnapshotKey` when the Profilo tile moved to Preferenze, and BACK to the allocation snapshot on
-  2026-09-22 when they moved into the Auto-calcolo tile; the default debit/credit accounts sit in `speseSnapshotKey`
-  because Spese edits them. Get this wrong and the dot lands on the wrong tab, or on none, over an edited field.
+- **A field's slice must follow the TAB THAT EDITS IT, not the tab that consumes it**: `userAge`/`riskFreeRate`
+  moved to the generale snapshot when the Profilo tile moved to Preferenze, and BACK to the allocation one on
+  2026-09-22 when they moved into the Auto-calcolo tile (today `AllocazioneSlice`); the default debit/credit accounts sit
+  in `SpeseSlice` because Spese edits them. Get this wrong and the dot lands on the wrong tab, or on none, over an
+  edited field.
 - `cashflowHistoryStartYear` is shared (Cashflow / Storico / Assistant / overview) — never rename it page-specifically.
-- **«Commissioni sui trasferimenti»** (Spese, 2026-09-25): `transferFeeCategoryId` / `transferFeeSubCategoryId`, both
+- **«Commissioni bancarie»** (Spese, 2026-09-25 as «Commissioni sui trasferimenti»; the fee of ANY row since 2026-10-10, doc/guide/cashflow.md — the keys keep their name): `transferFeeCategoryId` / `transferFeeSubCategoryId`, both
   user-clearable (`'x' in settings` in both `setSettings` branches), in the `spese` snapshot, read ONLY by the expense
   form (no server mapper). The Select lists the spending categories grouped by type — the fee row takes the category's
   type. `e2e/cashflow.transfer-fee.spec.ts` is the one spec that WRITES this page's settings: it picks the category,
@@ -173,6 +221,10 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   holds, and on the base seed it drops the allocation sub-targets (the seed's shape is not the page's), so restoring the
   two fee fields alone left `e2e/allocation.spec.ts` with no class row to open (seen red in the full run, 2026-09-25).
 
+## Composizione mobile
+
+No composition, by design: a configuration page has no verdict and no question to answer first (DESIGN.md → The Declaration-Tile Rule), and every tile is a form the reader came to edit — a closed row would hide the control they came for. Below `desktop:` each tab keeps its grid in one column, two from `tablet:`; no strip, no closed row, no `mobile-sections:` key. `mobile:census` measures it as `target: false` (`perf/mobile-budget.json`), its screens a ceiling and not a goal.
+
 ## Per-page blind spots
 
-- **Impostazioni**: `e2e/settings{,.mobile}.spec.ts` since 2026-09-22 — none of their tests WRITES (they edit and «Annulla», or press «Salva» on a tree the validation refuses, and compare the settings document's `updateTime`); the dialogs opened from here take the 2026-08-31 modal vocabulary; «Parametri del piano» and «Assistente» are READ-ONLY and list only the fields already saved — the assistant's mirror loses on read, so a never-synced preference makes the tile say where the truth lives instead of printing a default; the colour theme and the light/dark mode save themselves, outside the page's Salva, and mark no tab; the Costi tile shows the rate and the checking subcategory only with the duty on, and since 2026-10-04 the FIRE simulations read it too (stamp duty in every rate, doc/guide/fire.md); the category count ignores types outside the four listed (transfers); the Allocazione panel's CONTENT unmounts on another tab (Radix keeps only the panel `div`), which is why an Auto-calcolo field is not in the DOM while Preferenze is open; the page never says WHOSE settings «Salva» writes when a co-owner is viewing another account (the readings no longer say «Hai …», but the header does not name the account); the tab pill (38×32) and the switches (36×20) stay below 44px on touch — both are shared primitives (CLAUDE.md → Known Issues).
+- **Impostazioni**: `e2e/settings{,.mobile}.spec.ts` since 2026-09-22 — none of their tests WRITES (they edit and «Annulla», or press «Salva» on a tree the validation refuses, and compare the settings document's `updateTime`); `settings.roles.spec.ts` and `settings.draft.spec.ts` (2026-10-08) DO write, and restore the whole document in `afterAll`; the dialogs opened from here take the 2026-08-31 modal vocabulary; «Parametri del piano» and «Assistente» are READ-ONLY and list only the fields already saved — the assistant's mirror loses on read, so a never-synced preference makes the tile say where the truth lives instead of printing a default; the colour theme and the light/dark mode save themselves, outside the page's Salva, and mark no tab; the Costi tile shows the rate and the checking subcategory only with the duty on; the category count ignores types outside the four listed (transfers); the Allocazione panel's CONTENT unmounts on another tab (Radix keeps only the panel `div`), which is why an Auto-calcolo field is not in the DOM while Preferenze is open; the page never says WHOSE settings «Salva» writes when a co-owner is viewing another account (the readings no longer say «Hai …», but the header does not name the account); the tab pill measured 38×32 on touch until 2026-10-10, when `PageTabBar` grew to 44×44 (doc/guide/shell.md § Navigation; the switches got their 44×44 target on 2026-10-08). **Since 2026-10-08 a reload paints the form from the persisted document at once** (the skeleton was the page's until then, ~244 ms on the mirror, and its cells `[5], [7], [12×8]` did not match the tab's tiles): the header's line dates the settings document too while the fresh read is in flight, and that read RE-SEEDS the draft only while no tab is dirty — so an edit typed before the fresh document lands is kept, and a co-owner's change made meanwhile shows at the next «Salva» or «Annulla», not before. The skeleton remains for an account never read on this device. A view's own component stays mounted while its tab is inactive (only the panel's children unmount), so a `useState` at a view's ROOT would survive a tab change — which is why the rule says a view holds no FORM state at all, not «no state that would be lost»: `e2e/settings.draft.spec.ts` plants its falsification inside the panel. The dev-only snapshot tools (`NEXT_PUBLIC_ENABLE_TEST_SNAPSHOTS`) sit at the end of Preferenze as a full-width grid cell, inside the tab's panel.

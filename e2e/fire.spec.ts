@@ -12,6 +12,12 @@
  * The arithmetic (accumulation engine, percentiles, coherence with the deterministic
  * projection) lives in __tests__/monteCarloService.test.ts, the words in
  * __tests__/fireNarrative.test.ts — not here.
+ *
+ * The 1440 test of today's page (no closed row, no strip, no scope line, the Evento first) was seen
+ * red on 2026-10-16, one at a time: `useCompactLayout` forced true (closed rows, the strip and «Il
+ * perché» at 1440); the scope line passed at every width (two «fino al 2048» in the verdict's
+ * region: the lock sentence and the scope together) — the falsification the mobile spec's header
+ * claimed until then, which runs at 390 where `compact` is already true and cannot see it.
  */
 
 import { test, expect, type Page } from '@playwright/test';
@@ -172,6 +178,20 @@ test('the pension-lock switch in «Il mio piano» previews, saves with the plan 
   await expect(lockSwitch).toBeVisible();
   const initial = (await lockSwitch.getAttribute('aria-checked')) === 'true';
 
+  // The painted switch is 36×20 and its TARGET is 44×44 (the pseudo-element of `components/ui/switch.tsx`,
+  // 2026-10-08): a tap 8px above or below the paint still lands on the switch. `boundingBox` cannot see a
+  // pseudo-element, so the probe is hit-testing. Seen red with the `before:` classes removed.
+  const paint = await lockSwitch.boundingBox();
+  if (!paint) throw new Error('the switch has no box');
+  const hits = await page.evaluate(
+    ({ x, y, h }) => {
+      const at = (py: number) => document.elementFromPoint(x, py)?.closest('[role="switch"]') !== null;
+      return { above: at(y - 8), below: at(y + h + 8) };
+    },
+    { x: paint.x + paint.width / 2, y: paint.y, h: paint.height },
+  );
+  expect(hits).toEqual({ above: true, below: true });
+
   // Flip: it is a PREVIEW (the trigger carries the unsaved dot), saved by «Salva il piano» with every other plan field.
   await lockSwitch.click();
   await expect(lockSwitch).toHaveAttribute('aria-checked', String(!initial));
@@ -189,4 +209,31 @@ test('the pension-lock switch in «Il mio piano» previews, saves with the plan 
   await page.getByRole('switch', { name: 'Considera il fondo pensione come capitale bloccato fino allo sblocco' }).click();
   await page.getByRole('button', { name: 'Salva il piano' }).click();
   await expect(page.getByText('Piano FIRE salvato')).toBeVisible({ timeout: 10_000 });
+});
+
+test('at 1440 the tabs are the tabs of today: no closed row, no strip, no scope line; «Da allora» is a sentence; the Evento is the left cell of What If', async ({ page }) => {
+  await gotoFire(page);
+  await expect(page.locator('main [id$="-trigger"]')).toHaveCount(0);
+  await expect(page.getByRole('list', { name: 'Le cifre del verdetto' })).toBeHidden();
+  const verdict = page.getByRole('region', { name: 'Verdetto sul FIRE' });
+  // The scope line exists below `desktop:` only (The Binding-Clause Rule): at 1440 the paragraph states the lock.
+  await expect(verdict.getByText(/^Modello ponte: fondo pensione escluso/)).toHaveCount(0);
+  await expect(verdict.getByRole('button', { name: /^Il perché/ })).toHaveCount(0);
+  // Since 2026-10-15 the passive income is a sentence of its own, at 1440 too (the cut needs a full stop) —
+  // on a plan that lands on a year; a reached target has no «Da allora».
+  const headline = await verdict.getByRole('heading', { level: 2 }).textContent();
+  if (/^FIRE nel/.test(headline ?? '')) {
+    await expect(verdict).toContainText(/anni?\. Da allora /);
+    await expect(verdict).not.toContainText(', e da allora');
+  }
+
+  // What If: the Evento is the first tile of the DOM and the left cell of the first row (The Input Tile Rule).
+  await page.getByRole('tab', { name: 'What If' }).click();
+  await expect(page.getByRole('region', { name: 'Verdetto sul What If' })).toBeVisible({ timeout: 30_000 });
+  const evento = (await page.getByRole('region', { name: 'Evento simulato' }).boundingBox())!;
+  const primaDopo = (await page.getByRole('region', { name: "Prima e dopo l'evento" }).boundingBox())!;
+  expect(evento.x).toBeLessThan(primaDopo.x);
+  expect(Math.abs(evento.y - primaDopo.y)).toBeLessThan(2);
+  const panel = page.getByRole('tabpanel', { name: 'What If' });
+  expect((await panel.locator('section.rounded-2xl').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label'))))[0]).toBe('Evento simulato');
 });

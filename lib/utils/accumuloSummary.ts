@@ -10,9 +10,11 @@ import type { AccumulationPlan, Installment } from '@/types/accumulationPlan';
 import type { PageVerdictModel } from './narrative';
 import type { LineUiState } from './accumulationPlanMatching';
 import type { PacVerdictInput } from './allocazioneNarrative';
-import { describeAccumuloVerdict, monthLabelLong, type ClosedPlanReadingInput } from './accumulationNarrative';
+import { ACCUMULO_SECTION_IDS, describeAccumuloVerdict, monthLabelLong, type AccumuloVerdictInput, type ClosedPlanReadingInput } from './accumulationNarrative';
 import {
   buildDraftPreview,
+  selectClassStripRows,
+  type ClassTrajectoryPoint,
   computeTotalPurchases,
   computeUsableLiquidity,
   resolvePositionStates,
@@ -25,6 +27,9 @@ import {
 import { toModelWeights } from './modelPortfolio';
 import type { ModelPortfolioWeight } from '@/types/modelPortfolio';
 import { ASSET_CLASS_LABELS, type RebalanceBand } from './allocationUtils';
+import type { StripFigure } from './verdictStrip';
+import { VERDICT_REST_SECTION } from './mobileSections';
+import type { SectionSpec } from '@/lib/hooks/useMobileSections';
 
 /** Every installment fully closed, `late` lines included — the plan has nothing left to do. */
 export function isPlanDone(plan: AccumulationPlan, currentIndex: number): boolean {
@@ -75,18 +80,21 @@ export interface AccumuloVerdictContext {
   reentry: string;
 }
 
-/** RV3 — the five states of the tab's verdict. */
-export function buildAccumuloVerdict(context: AccumuloVerdictContext): PageVerdictModel {
+/**
+ * RV3 — the inputs of the tab's verdict. Split from the words (since 2026-10-18) so the phone's strip
+ * reads the SAME figures the verdict prints (`selectAccumuloStrip`) and never recomputes them.
+ */
+export function resolveAccumuloVerdictInput(context: AccumuloVerdictContext): AccumuloVerdictInput {
   const { plan, currentIndex } = context;
-  if (!plan) return describeAccumuloVerdict({ state: 'none', sourceCashEur: context.sourceCashEur, hasModel: context.hasModel });
+  if (!plan) return { state: 'none', sourceCashEur: context.sourceCashEur, hasModel: context.hasModel };
 
   if (plan.status === 'draft') {
-    return describeAccumuloVerdict({
+    return {
       state: 'draft',
       months: plan.months,
       monthlyEur: plan.months > 0 ? context.draftTotalEur / plan.months : 0,
       startMonth: plan.startMonth,
-    });
+    };
   }
 
   const executedAmount = (line: { status: string; executedAmountEur?: number; plannedAmountEur: number }) =>
@@ -94,17 +102,17 @@ export function buildAccumuloVerdict(context: AccumuloVerdictContext): PageVerdi
   const investedEur = plan.installments.reduce((sum, i) => sum + i.lines.reduce((s, line) => s + executedAmount(line), 0), 0);
   const planTotalEur = plan.installments.reduce((sum, i) => sum + i.lines.reduce((s, line) => s + line.plannedAmountEur, 0), 0);
 
-  if (isPlanDone(plan, currentIndex)) return describeAccumuloVerdict({ state: 'done', investedEur, totalEur: planTotalEur });
+  if (isPlanDone(plan, currentIndex)) return { state: 'done', investedEur, totalEur: planTotalEur };
 
   const installment = findOpenInstallment(plan, currentIndex);
-  if (!installment) return describeAccumuloVerdict({ state: 'none', sourceCashEur: context.sourceCashEur, hasModel: context.hasModel });
+  if (!installment) return { state: 'none', sourceCashEur: context.sourceCashEur, hasModel: context.hasModel };
 
   const lines = installment.lines.filter((line) => line.plannedQuantity > 0 || line.status !== 'planned');
   const toConfirmCount = lines.filter((line) => context.lineStates[`${installment.index}:${line.positionId}`] === 'toConfirm').length;
   const lateCount = plan.installments
     .filter((i) => i.index < currentIndex)
     .reduce((sum, i) => sum + i.lines.filter((line) => line.status === 'planned').length, 0);
-  return describeAccumuloVerdict({
+  return {
     state: 'active',
     monthKey: installment.month,
     installmentTotalEur: lines.reduce((sum, line) => sum + (line.status === 'executed' ? (line.executedAmountEur ?? line.plannedAmountEur) : line.plannedAmountEur), 0),
@@ -118,7 +126,93 @@ export function buildAccumuloVerdict(context: AccumuloVerdictContext): PageVerdi
     investedEur,
     planTotalEur,
     reentry: context.reentry,
-  });
+  };
+}
+
+/** RV3 — the five states of the tab's verdict. */
+export function buildAccumuloVerdict(context: AccumuloVerdictContext): PageVerdictModel {
+  return describeAccumuloVerdict(resolveAccumuloVerdictInput(context));
+}
+
+// ─── The phone composition (2026-10-18) ───────────────────────────────────────
+
+// The ids are defined next to the words that name them (`ACCUMULO_CLOSED_ASIDES`), so the narrative does not
+// import this module (it imports the narrative).
+export { ACCUMULO_SECTION_IDS };
+
+export interface ResolveAccumuloSectionsInput {
+  /** Classi del piano is on the page: an active plan, not finished, with a trajectory to show. */
+  hasClasses: boolean;
+  /** Piani conclusi is on the page: at least one plan closed or interrupted. */
+  hasClosedPlans: boolean;
+  /** The model portfolio's read failed: the row opens by itself (`failed`). */
+  modelFailed: boolean;
+}
+
+/**
+ * The rows below `desktop:`, in the DOM's order (D-CU15): Portafoglio modello, Classi del piano, Criteri
+ * del modello, Piani conclusi — the subset on the page. Portafoglio modello and Criteri are always there
+ * (an empty model is a row with its own words).
+ */
+export function resolveAccumuloSections(input: ResolveAccumuloSectionsInput): readonly SectionSpec[] {
+  return [
+    { id: ACCUMULO_SECTION_IDS.modello, eyebrow: 'Portafoglio modello', failed: input.modelFailed },
+    ...(input.hasClasses ? [{ id: ACCUMULO_SECTION_IDS.classi, eyebrow: 'Classi del piano' }] : []),
+    { id: ACCUMULO_SECTION_IDS.criteri, eyebrow: 'Criteri del modello' },
+    ...(input.hasClosedPlans ? [{ id: ACCUMULO_SECTION_IDS.conclusi, eyebrow: 'Piani conclusi' }] : []),
+  ];
+}
+
+export interface AccumuloStripInput {
+  /** `resolveAccumuloVerdictInput(...)`: the strip reads the figures the verdict prints. */
+  verdictInput: AccumuloVerdictInput;
+  /** `projectClassTrajectory(...)`, empty without one. */
+  trajectory: ClassTrajectoryPoint[];
+  /** The plan's open month, clamped like the chart's cursor. */
+  currentIndex: number;
+}
+
+/**
+ * The cells of a phone's first screen (D-CU16), only with an active plan on its open month — a draft, a
+ * finished plan and the empty state have a headline with one figure and no strip:
+ *   - «Rata di {mese}» — the headline's amount, opening Questo mese (THE tile);
+ *   - «Investito» — the first sentence's «investiti finora», opening Classi del piano; without a
+ *     trajectory it has nowhere to open (Questo mese is the first cell's), so it is not drawn;
+ *   - «{Classe} sopra|sotto» — the class farthest out of its band at the cursor's month, in points
+ *     (`null` «tutte in soglia» with every class inside), opening the verdict's «Il perché», which
+ *     says when each class is back in band; the chart's cursor starts on the same month.
+ * Nothing is lifted: Questo mese prints none of the three as a block of its own.
+ */
+export function selectAccumuloStrip({ verdictInput, trajectory, currentIndex }: AccumuloStripInput): StripFigure[] {
+  if (verdictInput.state !== 'active') return [];
+  const rata: StripFigure = {
+    label: `Rata di ${monthLabelLong(verdictInput.monthKey, false)}`,
+    value: verdictInput.installmentTotalEur,
+    format: 'currency',
+    opens: ACCUMULO_SECTION_IDS.mese,
+  };
+  if (trajectory.length === 0) return [rata];
+
+  const outOfBand = selectClassStripRows(trajectory, currentIndex).filter((row) => row.outOfBandNow);
+  const farthest = outOfBand.reduce<(typeof outOfBand)[number] | null>(
+    (best, row) => (best === null || Math.abs(row.currentDriftPp) > Math.abs(best.currentDriftPp) ? row : best),
+    null,
+  );
+  return [
+    rata,
+    { label: 'Investito', value: verdictInput.investedEur, format: 'currency', opens: ACCUMULO_SECTION_IDS.classi },
+    farthest
+      ? {
+          label: `${ASSET_CLASS_LABELS[farthest.assetClass] ?? farthest.assetClass} ${farthest.currentDriftPp > 0 ? 'sopra' : 'sotto'}`,
+          value: Math.abs(farthest.currentDriftPp),
+          format: 'pp',
+          tone: 'neutral',
+          // Two cells never open the same section (`validateStrip`): «Investito» has the chart's row,
+          // and this one the verdict's «Il perché», where the sentence says when the class is back in band.
+          opens: VERDICT_REST_SECTION,
+        }
+      : { label: 'Scarto maggiore', value: null, format: 'pp', tone: 'neutral', opens: VERDICT_REST_SECTION, reason: 'tutte in soglia' },
+  ];
 }
 
 // ─── RV4: the empty state's preview on the reader's own numbers ──────────────
@@ -281,6 +375,20 @@ export function summarizeClosedPlan(plan: AccumulationPlan, targets: AssetAlloca
     plannedEur,
     finalDrift,
   };
+}
+
+/** D-AL2: a plan stopped this recently can be reactivated (AL12). */
+export const PLAN_REACTIVATION_DAYS = 30;
+
+/**
+ * AL12: «Riattiva» is offered on a plan the owner INTERRUPTED (`cancelled`, never a `completed` one) less
+ * than 30 days ago, and only while no other plan is open (D12: one `draft` or `active` per account).
+ */
+export function canReactivatePlan(plan: AccumulationPlan, plans: AccumulationPlan[], now: Date): boolean {
+  if (plan.status !== 'cancelled' || !plan.closedAt) return false;
+  if (plans.some((other) => other.status === 'draft' || other.status === 'active')) return false;
+  const ageDays = (now.getTime() - plan.closedAt.getTime()) / 86_400_000;
+  return ageDays >= 0 && ageDays < PLAN_REACTIVATION_DAYS;
 }
 
 /** The finished plans, newest closure first. */

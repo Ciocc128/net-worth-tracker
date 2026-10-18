@@ -18,6 +18,7 @@
 import type { MonthKey } from '@/types/accumulationPlan';
 import type { LineUiState } from './accumulationPlanMatching';
 import type { Narrative, PageVerdictModel } from './narrative';
+import type { RowAnswerMap } from '@/components/ui/row-answers';
 import type { ClassTrajectoryPoint } from './accumulationPlanUtils';
 import { ASSET_CLASS_LABELS, bandForTarget, type RebalanceBand } from './allocationUtils';
 import { cachedFormatCurrencyEUR, formatDate, formatNumberIt, formatPercentageIt } from './formatters';
@@ -98,7 +99,8 @@ export type DraftIssueCode =
   | 'no_positions'
   | 'disposal_full_on_position'
   | 'disposal_quantity'
-  | 'nothing_to_revise';
+  | 'nothing_to_revise'
+  | 'sale_month_range';
 
 /** What `validateDraftAgainstAssets` knows about a finding — enough to phrase it, not the final `DraftIssue`. */
 export type DraftIssueContext =
@@ -114,7 +116,8 @@ export type DraftIssueContext =
   | { code: 'no_positions' }
   | { code: 'disposal_full_on_position'; label: string }
   | { code: 'disposal_quantity'; label: string }
-  | { code: 'nothing_to_revise' };
+  | { code: 'nothing_to_revise' }
+  | { code: 'sale_month_range' };
 
 /** One Italian sentence per §6 code. */
 export function describeDraftIssue(context: DraftIssueContext): string {
@@ -145,6 +148,8 @@ export function describeDraftIssue(context: DraftIssueContext): string {
       return `Le quote da vendere di «${context.label}» devono essere un numero intero maggiore di zero.`;
     case 'nothing_to_revise':
       return 'Non c\'è nessuna rata da rivedere: tutte hanno già righe eseguite o saltate.';
+    case 'sale_month_range':
+      return 'Una vendita può andare solo a una rata che la revisione riscrive: scegli un mese dalla prima rata rivista in poi.';
     default:
       return 'Il piano non è valido.';
   }
@@ -172,6 +177,13 @@ export const ACCUMULO_ACTION_STOP = 'Interrompi';
 export const ACCUMULO_ACTION_STOP_VERB = 'interrompere il piano';
 export const ACCUMULO_ACTION_CLOSE = 'Chiudi piano';
 export const ACCUMULO_ACTION_CLOSE_VERB = 'chiudere il piano';
+/** AL12 (D-AL2): Piani conclusi, on a plan interrupted under 30 days ago while no other is open. */
+export const ACCUMULO_ACTION_REACTIVATE = 'Riattiva';
+export const ACCUMULO_ACTION_REACTIVATE_VERB = 'riattivare il piano';
+export const ACCUMULO_REACTIVATE_REFUSED =
+  'Questo piano non si può riattivare: è stato interrotto da più di 30 giorni, è già concluso o c\u2019è un altro piano aperto.';
+/** Column header of the closed-plans table for the reactivate action (visually empty). */
+export const ACCUMULO_REACTIVATE_COLUMN = 'Azioni';
 export const ACCUMULO_ACTION_SAVE = 'Salva';
 export const ACCUMULO_ACTION_CANCEL = 'Annulla';
 
@@ -259,6 +271,33 @@ export function describeAccumulationDraft(input: AccumulationDraftReading): Narr
   ];
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// AL13 — ONE «rata»: the month's installment, and the average that names its first month
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface InstallmentAverageInput {
+  /** Σ of every installment's planned lines ÷ the number of installments. */
+  averageEur: number;
+  /** Σ of the FIRST installment's planned lines. */
+  firstEur: number;
+  firstMonth: MonthKey;
+}
+
+/**
+ * «in media 4455 € al mese; la prima, ottobre, 4207 €» — the average and the first month said together, so
+ * the editor never shows two different figures under the one word «rata». When they coincide to the euro
+ * the second half is dropped.
+ */
+export function describeInstallmentAverage(input: InstallmentAverageInput): string {
+  const average = cachedFormatCurrencyEUR(input.averageEur, true);
+  const first = cachedFormatCurrencyEUR(input.firstEur, true);
+  if (average === first) return `${average} al mese`;
+  return `in media ${average} al mese; la prima, ${monthLabelLong(input.firstMonth, false)}, ${first}`;
+}
+
+/** Step 1 has no weights yet, so no installment: only the liquidity split evenly over the months (L ÷ N). */
+export const ACCUMULO_STEP1_L_MONTHLY_NOTE = 'La rata di ogni mese dipende dai pesi che scegli al passo successivo.';
+
 export interface AccumulationActiveReading {
   monthKey: MonthKey;
   /** Σ of the current installment's lines (planned + executed amounts). */
@@ -275,7 +314,7 @@ export interface AccumulationActiveReading {
 /** An `active` plan's current month: what moves, how much of it already has, and the drift. */
 export function describeAccumulationActive(input: AccumulationActiveReading): Narrative {
   const segments: Narrative = [
-    { text: `${capitalize(monthLabelLong(input.monthKey, false))}: ` },
+    { text: `Rata di ${monthLabelLong(input.monthKey, false)}: ` },
     { text: cachedFormatCurrencyEUR(input.installmentTotalEur), mono: true },
     { text: ' in ' },
     { text: `${input.lineCount}`, mono: true },
@@ -504,7 +543,8 @@ export function describeAccumuloDialogEyebrow(step: 1 | 2 | 3, revise = false): 
 /** «Rivedi il piano» step 1 asks for the months LEFT, not the length (RP4, RP8). */
 export const ACCUMULO_STEP1_REMAINING_MONTHS = 'Mesi restanti';
 export const ACCUMULO_ACTION_SAVE_REVISION = 'Salva la revisione';
-export const ACCUMULO_STEP1_REVISE_NOTE = 'Le rate già eseguite, saltate o collegate restano com’erano: la revisione riscrive dalla prima rata intatta.';
+export const ACCUMULO_STEP1_REVISE_NOTE =
+  'Le rate già eseguite, saltate o collegate restano com’erano: la revisione riscrive dalla prima rata intatta, con i conti, i gruppi e le vendite non ancora eseguite che scegli qui.';
 
 /** The dialog's reading under each step's title (it no longer repeats the title). */
 export const ACCUMULO_STEP_READINGS: Record<1 | 2, string> = {
@@ -512,11 +552,18 @@ export const ACCUMULO_STEP_READINGS: Record<1 | 2, string> = {
   2: 'Scegli dove deve arrivare ogni strumento a fine piano: il pannello mostra dove porta.',
 };
 
-/** Step 3's reading, the plan in one line: «5 rate da circa 5905 € · copre il 98% del piano · leva a fine piano 1,27×». */
-export function describeStep3Summary(input: { months: number; averageEur: number; coveragePct: number | null; leverageRatio: number }): Narrative {
+/** Step 3's reading, the plan in one line: «5 rate: in media 5905 € al mese; la prima, ottobre, 5800 € · copre il 98% del piano · leva a fine piano 1,27×». */
+export function describeStep3Summary(input: {
+  months: number;
+  averageEur: number;
+  firstEur: number;
+  firstMonth: MonthKey;
+  coveragePct: number | null;
+  leverageRatio: number;
+}): Narrative {
   const parts: Narrative = [
-    { text: `${input.months} ${input.months === 1 ? 'rata' : 'rate'} da circa ` },
-    { text: cachedFormatCurrencyEUR(input.averageEur, true), mono: true },
+    { text: `${input.months} ${input.months === 1 ? 'rata' : 'rate'}: ` },
+    { text: describeInstallmentAverage({ averageEur: input.averageEur, firstEur: input.firstEur, firstMonth: input.firstMonth }), mono: true },
   ];
   if (input.coveragePct !== null) parts.push({ text: ` · copre il ${formatPercentageIt(input.coveragePct, 0)} del piano` });
   if (input.leverageRatio > 1.01) parts.push({ text: ` · leva a fine piano ${formatNumberIt(input.leverageRatio, 2)}×` });
@@ -553,7 +600,7 @@ export const ACCUMULO_STEP1_L_AVAILABLE = 'Liquidità da spendere';
 export function describeStep1InflowsLabel(months: number): string {
   return `+ Entrate nei ${months} mesi`;
 }
-export const ACCUMULO_STEP1_L_MONTHLY = 'Rata mensile';
+export const ACCUMULO_STEP1_L_MONTHLY = 'Liquidità per mese';
 
 // Step 2 — Target
 export const ACCUMULO_STEP2_COL_INSTRUMENT = 'Strumento';
@@ -575,7 +622,7 @@ export const ACCUMULO_STEP2_FROM_HINT: Record<'plan' | 'model' | 'today' | 'opti
   plan: 'I pesi salvati nel piano, com’erano quando l’hai aperto.',
   model: 'I pesi del portafoglio modello.',
   today: 'Target = Oggi: i nuovi soldi mantengono le proporzioni di adesso tra gli strumenti del piano.',
-  optimizer: 'I pesi che l’ottimizzatore propone dagli obiettivi.',
+  optimizer: 'I pesi che l’ottimizzatore propone dai criteri del modello.',
 };
 export const ACCUMULO_STEP2_FROM_TODAY = 'Pesi di oggi';
 export const ACCUMULO_STEP2_REDISTRIBUTE = 'Distribuisci il resto';
@@ -591,6 +638,26 @@ export function describeStep2Shares(quantity: number): string {
 export const ACCUMULO_ACTION_UNGROUP = 'Separa';
 export const ACCUMULO_STEP2_BUY_ASSET_PROMPT = 'Strumento d’acquisto';
 export const ACCUMULO_ACTION_NEW_ASSET = '+ Nuovo asset';
+
+/** AL9 «Sostituisci»: the instrument that buys changes, the old one stays in the group. */
+export const ACCUMULO_ACTION_REPLACE = 'Sostituisci';
+export const ACCUMULO_ACTION_REPLACE_CANCEL = 'Annulla';
+export const ACCUMULO_STEP2_REPLACE_PROMPT = 'Compra al suo posto';
+export const ACCUMULO_STEP2_REPLACE_PLACEHOLDER = 'Scegli lo strumento';
+export const ACCUMULO_STEP2_REPLACE_HINT =
+  'Il nuovo strumento riceve gli acquisti con lo stesso peso; quello di prima resta nel gruppo con le sue quote e non ne riceve più. «Separa» rimette le cose come prima.';
+
+/** AL10 «Aggiungi uno strumento»: also the ones with no shares yet, the mai comprati first. */
+export const ACCUMULO_STEP2_ADD_ASSET_LABEL = 'Aggiungi uno strumento';
+export const ACCUMULO_STEP2_ADD_ASSET_PLACEHOLDER = 'Strumenti fuori dal piano';
+export function describeAddableAsset(input: { name: string; ticker: string; held: boolean; neverBought: boolean }): string {
+  const tag = input.neverBought ? ' · mai comprato' : input.held ? '' : ' · senza quote';
+  return `${input.name}${input.ticker && input.ticker !== input.name ? ` (${input.ticker})` : ''}${tag}`;
+}
+
+/** AL11: a saved sale not yet executed can move to another month of the revised calendar. */
+export const ACCUMULO_STEP2_SALE_MONTH = 'Vendi a';
+export const ACCUMULO_STEP2_SALE_NOT_EXECUTED = 'salvata, non eseguita';
 export const ACCUMULO_STEP2_TOTAL_LABEL = 'Totale';
 export const ACCUMULO_STEP2_FOOTNOTE = 'Peso di mercato, non esposizione: la leva si vede al passo 3.';
 export const ACCUMULO_STEP2_NO_TRADABLE_ASSETS = 'Nessuno strumento negoziabile in portafoglio: aggiungine uno per iniziare.';
@@ -610,6 +677,18 @@ export function describeWeightsTotal(sum: number): string {
 export const ACCUMULO_STEP3_COL_MONTH = 'Mese';
 export const ACCUMULO_STEP3_COL_TOTAL = 'Totale €';
 export const ACCUMULO_STEP3_SECTION_WEIGHTS = 'Pesi a fine piano';
+/** AL14: step 3 writes the plan's weights into the model portfolio in the same action. */
+export const ACCUMULO_STEP3_UPDATE_MODEL = 'Aggiorna anche il portafoglio modello';
+export const ACCUMULO_ACTION_CLOSE_EDITOR = 'Chiudi';
+/** AL14: the plan is written, the model's write failed — the error row says both. */
+export function describeModelWriteAfterPlan(reason: string): string {
+  return `Il piano è salvato, ma il portafoglio modello non si è aggiornato: ${reason}`;
+}
+/** AL15: the plan and the model no longer say the same (the row in Questo mese). */
+export function describePlanModelDivergence(count: number): string {
+  return `Il piano differisce dal portafoglio modello su ${count} strument${count === 1 ? 'o' : 'i'}.`;
+}
+export const ACCUMULO_ACTION_REVIEW_FROM_MODEL = 'Rivedi dal modello';
 export const ACCUMULO_STEP3_SECTION_EXPOSURE = 'Esposizione implicita';
 export const ACCUMULO_STEP3_SECTION_CLASSES = 'Classi mese per mese';
 export const ACCUMULO_ELLIPSIS = '…';
@@ -870,6 +949,17 @@ export type AccumuloVerdictInput =
 
 const mono = (text: string) => ({ text, mono: true });
 
+/** «Il perché · il rientro nella banda»: what stands behind the first sentence below `desktop:`. */
+export const ACCUMULO_REST_LABEL = 'il rientro nella banda';
+
+/** The lead of the verdict's sentence: up to its first full stop, when a second sentence follows (`splitVerdict`). */
+function cutAtFirstSentence(sentence: Narrative, restLabel: string | null): Pick<PageVerdictModel, 'leadLength' | 'restLabel'> {
+  if (restLabel === null) return {};
+  const leadLength = sentence.findIndex((segment) => segment.text.endsWith('.')) + 1;
+  if (leadLength <= 0 || leadLength >= sentence.length) return {};
+  return { leadLength, restLabel };
+}
+
 /** The Accumulo tab's verdict: one headline, one sentence, a tone (RV3). */
 export function describeAccumuloVerdict(input: AccumuloVerdictInput): PageVerdictModel {
   if (input.state === 'none') {
@@ -908,7 +998,7 @@ export function describeAccumuloVerdict(input: AccumuloVerdictInput): PageVerdic
     if (input.executedCount > 0) parts.push(`${input.executedCount} ${input.executedCount === 1 ? 'registrato' : 'registrati'}`);
     if (input.toConfirmCount > 0) parts.push(`${input.toConfirmCount} da confermare`);
   }
-  let headline = `${capitalize(monthLabelLong(input.monthKey, false))}: ${cachedFormatCurrencyEUR(input.installmentTotalEur, true)} in ${input.lineCount} ${input.lineCount === 1 ? 'acquisto' : 'acquisti'}`;
+  let headline = `Rata di ${monthLabelLong(input.monthKey, false)}: ${cachedFormatCurrencyEUR(input.installmentTotalEur, true)} in ${input.lineCount} ${input.lineCount === 1 ? 'acquisto' : 'acquisti'}`;
   if (parts.length > 0) headline += `, ${parts.length === 2 ? `${parts[0]} e ${parts[1]}` : parts[0]}`;
   if (input.lateCount > 0) headline += `, ${input.lateCount} in ritardo`;
   headline += '.';
@@ -918,10 +1008,14 @@ export function describeAccumuloVerdict(input: AccumuloVerdictInput): PageVerdic
     mono(cachedFormatCurrencyEUR(input.investedEur, true)),
     { text: ' su ' },
     mono(cachedFormatCurrencyEUR(input.planTotalEur, true)),
-    { text: input.reentry ? `. ${input.reentry}` : '.' },
+    { text: '.' },
+    // The band re-entry is a sentence of its own: below `desktop:` it goes behind «Il perché» (The
+    // Binding-Clause Rule). The first sentence restates ONE strip cell, «Investito», so it is not a
+    // lead of length 0.
+    ...(input.reentry ? ([{ text: ` ${input.reentry}` }] as Narrative) : []),
   ];
   const tone = input.lateCount > 0 ? 'warning' : input.installmentClosed ? 'positive' : 'neutral';
-  return { headline, tone, sentence };
+  return { headline, tone, sentence, ...cutAtFirstSentence(sentence, input.reentry ? ACCUMULO_REST_LABEL : null) };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1060,3 +1154,66 @@ export function describeSuggestedInflow(monthlyEur: number, referenceYear: numbe
   return `Il tuo risparmio medio è di ${Math.round(monthlyEur)} € al mese (${source}).`;
 }
 export const ACCUMULO_USE_SUGGESTED_INFLOW = 'Usa';
+
+// ─────────────────────────────────────────────────────────────────────────
+// La composizione sul telefono (2026-10-18; doc/contributi-upstream/composizione-mobile.md § 3)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * The ids of the tab's cells below `desktop:` (`useMobileSections`, The Closed-Row Rule). `mese` is THE
+ * tile — Questo mese, or the empty state — and never closes (The First-Screen Rule): it is among the ids
+ * only as the target of the strip's first cell. Re-exported by `accumuloSummary.ts`.
+ */
+export const ACCUMULO_SECTION_IDS = {
+  mese: 'acc-mese',
+  modello: 'acc-modello',
+  classi: 'acc-classi',
+  criteri: 'acc-criteri',
+  conclusi: 'acc-conclusi',
+} as const;
+
+/** What a CLOSED row says beside its eyebrow: words, never a figure (The Closed-Row Rule). */
+export const ACCUMULO_CLOSED_ASIDES = {
+  [ACCUMULO_SECTION_IDS.modello]: 'pesi per strumento',
+  [ACCUMULO_SECTION_IDS.classi]: 'scostamento mese per mese',
+  [ACCUMULO_SECTION_IDS.criteri]: 'cosa chiedi al modello',
+  [ACCUMULO_SECTION_IDS.conclusi]: 'piani chiusi e interrotti',
+} as const;
+
+/** The Portafoglio modello row with no saved model says so beside its eyebrow instead of the usual words. */
+export const ACCUMULO_MODEL_MISSING_ASIDE = 'nessun modello salvato';
+
+export interface AccumuloClosedAnswersInput {
+  /** `comparePlanToModel(...).count` with an active plan and a saved model; `null` otherwise. */
+  modelDifferenceCount: number | null;
+  /** `selectClassStripRows(...)` at the cursor's month, `[]` without a trajectory. */
+  classRows: { outOfBandNow: boolean; reentryMonth?: MonthKey | 'baseline' }[];
+  /** The plan's first month: where a `baseline` re-entry reads. */
+  planStartMonth: MonthKey | null;
+  /** The number of criteria the saved objectives ask the model, `0` when off. */
+  criteriaCount: number;
+  /** The most recently closed plan's last month, `null` without a closed plan. */
+  lastClosedMonth: MonthKey | null;
+}
+
+/**
+ * What each closed row answers in the landscape index (the rows' `RowAnswers`): one short phrase with at
+ * most ONE figure that the strip, THE tile and the verdict's first sentence do not print; `null` where the
+ * row keeps its words. Months and counts read from the figures the tiles already hold.
+ */
+export function describeAccumuloClosedAnswers(input: AccumuloClosedAnswersInput): RowAnswerMap {
+  const outNow = input.classRows.filter((row) => row.outOfBandNow);
+  const everyReenters = outNow.length > 0 && outNow.every((row) => !!row.reentryMonth);
+  const lastReentry = everyReenters
+    ? outNow.map((row) => (row.reentryMonth === 'baseline' ? input.planStartMonth : (row.reentryMonth as MonthKey))).filter((month): month is MonthKey => !!month).sort().pop()
+    : undefined;
+  return {
+    [ACCUMULO_SECTION_IDS.modello]:
+      input.modelDifferenceCount === null
+        ? null
+        : [{ text: input.modelDifferenceCount === 0 ? 'allineato al piano' : `differisce su ${input.modelDifferenceCount} ${input.modelDifferenceCount === 1 ? 'strumento' : 'strumenti'}` }],
+    [ACCUMULO_SECTION_IDS.classi]: lastReentry ? [{ text: `rientro a ${monthLabelLong(lastReentry, false)}` }] : null,
+    [ACCUMULO_SECTION_IDS.criteri]: input.criteriaCount > 0 ? [{ text: `${input.criteriaCount} ${input.criteriaCount === 1 ? 'criterio' : 'criteri'}` }] : null,
+    [ACCUMULO_SECTION_IDS.conclusi]: input.lastClosedMonth ? [{ text: `ultimo a ${monthLabelLong(input.lastClosedMonth, false)}` }] : null,
+  };
+}

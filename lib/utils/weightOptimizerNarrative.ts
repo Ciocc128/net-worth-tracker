@@ -8,10 +8,10 @@
  * comment) and fixes the factor label to match this file's own convention: "Momentum nell'azionario",
  * not "Momentum (Azioni)".
  */
-import type { AssetClass } from '@/types/assets';
+import { isLoanAsset, type Asset, type AssetClass } from '@/types/assets';
 import type { GeoArea } from '@/lib/constants/geoAreas';
 import type { ConflictReport, ObjectiveReport, OptimizerMode, OptimizerSaleReport, OptimizerWarning, SecondLevelGap } from './weightOptimizer';
-import { ASSET_CLASS_LABELS } from './allocationUtils';
+import { ASSET_CLASS_LABELS, resolveAllocationRoleWithin } from './allocationUtils';
 import { GEO_AREA_LABELS } from '@/lib/constants/geoAreas';
 import { cachedFormatCurrencyEUR, formatCurrency, formatNumberIt, formatPercentageIt } from './formatters';
 import { formatSignedCurrency } from './accumulationNarrative';
@@ -91,7 +91,7 @@ export function describeObjectiveRow(objective: ObjectiveReport): string {
 // Conflicts
 // ---------------------------------------------------------------------------
 
-/** «Senza l'obiettivo «Leva»: Stati Uniti nell'azionario da 66,1% a 62,0%.» — `fromGapPp`/`toGapPp`
+/** «Senza il criterio «Leva»: Stati Uniti nell'azionario da 66,1% a 62,0%.» — `fromGapPp`/`toGapPp`
  *  are gaps, not raw values, so the sentence rebuilds the achieved figure from each objective's
  *  own `targetValue` (looked up by id in the same `objectives` list the report carries). */
 export function describeConflict(conflict: ConflictReport, objectives: ObjectiveReport[]): string {
@@ -111,7 +111,7 @@ export function describeConflict(conflict: ConflictReport, objectives: Objective
     })
     .filter((text): text is string => text !== null);
 
-  return `Senza l'obiettivo «${removedLabel}»: ${parts.join('; ')}.`;
+  return `Senza il criterio «${removedLabel}»: ${parts.join('; ')}.`;
 }
 
 /** The tile's reading of a conflict, as in the render: «Leva e Stati Uniti nell'azionario tirano in
@@ -122,7 +122,7 @@ export function describeConflictReading(conflict: ConflictReport, objectives: Ob
   const labels = conflict.improvements
     .map((improvement) => objectives.find((o) => o.id === improvement.objectiveId)?.label)
     .filter((label): label is string => !!label);
-  const detail = describeConflict(conflict, objectives).replace(/^Senza l'obiettivo «[^»]*»: /, '').replace(/ da /g, ' passerebbe da ');
+  const detail = describeConflict(conflict, objectives).replace(/^Senza il criterio «[^»]*»: /, '').replace(/ da /g, ' passerebbe da ');
   const pull = labels.length === 0 ? removedLabel : `${removedLabel} e ${labels.join(', ')}`;
   return `${pull} tirano in direzioni opposte: senza «${removedLabel}», ${detail}`;
 }
@@ -136,13 +136,13 @@ export function describeConflictReading(conflict: ConflictReport, objectives: Ob
 export function describeOptimizerWarning(warning: OptimizerWarning, labelOf: (key: string) => string): string {
   switch (warning.code) {
     case 'geo_uncovered':
-      return `«${labelOf(warning.key)}»: nessun dato di geografia, escluso dall'obiettivo geografico.`;
+      return `«${labelOf(warning.key)}»: nessun dato di geografia, escluso dal criterio geografico.`;
     case 'geo_estimated':
       return `«${labelOf(warning.key)}»: circa ${formatPercentageIt(warning.estimatedPct, 0)} della sua geografia è stimata, non da un factsheet.`;
     case 'reference_estimated':
       return `Circa ${formatPercentageIt(warning.estimatedPct, 0)} della geografia di riferimento è stimata.`;
     case 'factor_unmapped':
-      return `«${warning.subCategory}» (${ASSET_CLASS_LABELS[warning.assetClass] ?? warning.assetClass}) non ha un peso tra i sotto-obiettivi: pesa zero nel calcolo.`;
+      return `«${warning.subCategory}» (${ASSET_CLASS_LABELS[warning.assetClass] ?? warning.assetClass}) non ha un peso tra i sotto-criteri: pesa zero nel calcolo.`;
     case 'proxy_mismatch':
       return `«${labelOf(warning.key)}»: i membri del gruppo hanno un'esposizione diversa dallo strumento che compra; il calcolo usa solo quella dello strumento che compra.`;
     case 'bound_conflict':
@@ -210,7 +210,7 @@ export function describeOptimizerMode(mode: OptimizerMode): string {
     case 'targeted':
       return 'Con vendite mirate vende solo ciò che conviene di più, finché le tasse restano sotto il tetto; gli strumenti spuntati non si vendono.';
     case 'ideal':
-      return 'Ideale ignora quanto possiedi oggi: propone i pesi più vicini agli obiettivi, anche sotto il posseduto.';
+      return 'Ideale ignora quanto possiedi oggi: propone i pesi più vicini ai criteri del modello, anche sotto il posseduto.';
   }
 }
 
@@ -229,13 +229,13 @@ export const OPTIMIZER_STEP2_MANUAL = 'Manuale';
 export const OPTIMIZER_STEP2_OPTIMIZED = 'Ottimizzato';
 /** The objectives live in Allocazione › Accumulo since A1 (doc/pac-ottimizzatore § RV6); the query opens their modal. */
 export const OPTIMIZER_OBJECTIVES_HREF = '/dashboard/allocation?tab=accumulo&obiettivi=1';
-export const OPTIMIZER_ACTION_MODIFY_IN_SETTINGS = 'Modifica gli obiettivi';
+export const OPTIMIZER_ACTION_MODIFY_IN_SETTINGS = 'Modifica i criteri';
 export const OPTIMIZER_ACTION_CALCULATE = 'Calcola';
 export const OPTIMIZER_ACTION_APPLY = 'Usa questi pesi';
 export const OPTIMIZER_COL_INSTRUMENT = 'Strumento';
 export const OPTIMIZER_COL_CURRENT = 'Peso oggi';
 export const OPTIMIZER_COL_PROPOSED = 'Proposto';
-export const OPTIMIZER_OBJECTIVES_TITLE = 'Obiettivi attivi';
+export const OPTIMIZER_OBJECTIVES_TITLE = 'Criteri attivi';
 export const OPTIMIZER_REPORT_TITLE = 'Rapporto';
 export const OPTIMIZER_CONFLICTS_TITLE = 'Conflitti';
 export const OPTIMIZER_WARNINGS_TITLE = 'Avvisi';
@@ -282,8 +282,8 @@ export function describeOptimizerSnapshot(
 
 export const IDEAL_COMPOSITION_TILE_EYEBROW = 'Composizione ideale';
 export const IDEAL_COMPOSITION_TILE_OFF_READING =
-  "Imposta gli obiettivi dell'allocazione ideale per vedere com'è fatto il tuo portafoglio ideale, strumento per strumento.";
-export const IDEAL_COMPOSITION_TITLE = 'Composizione ideale';
+  "Imposta i criteri del modello per vedere com'è fatto il tuo portafoglio ideale, strumento per strumento.";
+export const IDEAL_COMPOSITION_TITLE = 'Ricalcola il portafoglio modello';
 export const IDEAL_COMPOSITION_AMOUNT_LABEL = 'Importo da investire (€)';
 export const IDEAL_COMPOSITION_REACHABLE_DISABLED_REASON =
   'Inserisci un importo da investire per vedere cosa è raggiungibile senza vendere.';
@@ -340,24 +340,29 @@ export function formatOptimizerWeightDiffEur(currentPct: number, proposedPct: nu
 }
 
 // ---------------------------------------------------------------------------
-// Obiettivi dell'allocazione ideale, in Allocazione › Accumulo (doc/pac-ottimizzatore § RV6)
+// Criteri del modello (the allocation's objectives, AL19), in Allocazione › Accumulo (doc/pac-ottimizzatore § RV6)
 // ---------------------------------------------------------------------------
 
-export const OBJECTIVES_TILE_EYEBROW = 'Obiettivi';
+export const OBJECTIVES_TILE_EYEBROW = 'Criteri del modello';
 export const OBJECTIVES_TILE_ASIDE = 'target · raggiunto dal modello';
 export const OBJECTIVES_TILE_PLAN_ASIDE = 'target · raggiunto dal piano';
 export const OBJECTIVES_TILE_PLAN_NOTE = 'A fine piano, ai prezzi di oggi: le barre sono quanto raggiunge il PAC aperto.';
-export const OBJECTIVES_DIALOG_TITLE = "Obiettivi dell'allocazione ideale";
-export const OBJECTIVES_ACTION_EDIT = 'Modifica obiettivi';
+export const OBJECTIVES_DIALOG_TITLE = 'Criteri del modello';
+export const OBJECTIVES_ACTION_EDIT = 'Modifica i criteri';
 export const OBJECTIVES_ACTION_TRY = 'Prova';
-export const OBJECTIVES_ACTION_SAVE = 'Salva gli obiettivi';
+export const OBJECTIVES_ACTION_SAVE = 'Salva i criteri';
 export const OBJECTIVES_ACTION_CANCEL = 'Annulla';
-export const OBJECTIVES_DIALOG_READING = 'Cambia gli obiettivi e premi «Prova»: il calcolo gira sulla bozza e non salva nulla. «Salva gli obiettivi» li rende quelli dell’account.';
-export const OBJECTIVES_OFF_READING = 'Gli obiettivi sono spenti: la composizione ideale e il passo Target del PAC restano manuali finché non li accendi.';
-export const OBJECTIVES_SAVED_TOAST = 'Obiettivi salvati';
-export const OBJECTIVES_TRY_EMPTY = 'Nessuno strumento acquistabile su cui provare gli obiettivi.';
+export const OBJECTIVES_DIALOG_READING = 'Cambia i criteri e premi «Prova»: il calcolo gira sulla bozza e non salva nulla. «Salva i criteri» li rende quelli dell’account.';
+export const OBJECTIVES_OFF_READING = 'I criteri sono spenti: la composizione ideale e il passo Target del PAC restano manuali finché non li accendi.';
+export const OBJECTIVES_SAVED_TOAST = 'Criteri salvati';
+export const OBJECTIVES_TRY_EMPTY = 'Nessuno strumento acquistabile su cui provare i criteri.';
+export const OBJECTIVES_CLASS_TARGETS_EYEBROW = 'Target di classe';
+export const OBJECTIVES_CLASS_TARGETS_READING = 'Il criterio «Classi» porta i pesi verso questi target. Si scrivono in un posto solo: Impostazioni › Allocazione.';
+export const OBJECTIVES_CLASS_TARGETS_EMPTY = 'Nessun target di classe: il criterio «Classi» non ha nulla da inseguire finché non ne scrivi uno.';
+export const OBJECTIVES_CLASS_TARGETS_LINK = 'Modifica in Impostazioni';
+export const OBJECTIVES_CLASS_TARGETS_HREF = '/dashboard/settings?tab=allocazione';
 export const OBJECTIVES_LINK_FROM_SETTINGS = 'Modifica in Allocazione › Accumulo';
-export const OBJECTIVES_SETTINGS_EYEBROW = 'Allocazione ideale';
+export const OBJECTIVES_SETTINGS_EYEBROW = 'Criteri del modello';
 
 // ---------------------------------------------------------------------------
 // The model portfolio (doc/pac-ottimizzatore § RM1–RM4, RO3) — `PortafoglioModelloTile` and its dialogs
@@ -372,13 +377,18 @@ export const MODEL_ACTION_RECALCULATE = 'Ricalcola';
 export const MODEL_ACTION_EDIT = 'Modifica a mano';
 export const MODEL_ACTION_ADD_CANDIDATE = 'Aggiungi strumento da valutare';
 export const MODEL_ADD_CANDIDATE_NEEDS_MODEL = 'Salva prima un portafoglio modello: lo strumento da valutare ci entra a peso 0.';
-export const MODEL_RECALCULATE_NEEDS_OBJECTIVES = 'Accendi gli obiettivi per far calcolare i pesi all’ottimizzatore.';
+export const MODEL_RECALCULATE_NEEDS_OBJECTIVES = 'Accendi i criteri per far calcolare i pesi all’ottimizzatore.';
 export const MODEL_COL_INSTRUMENT = 'Strumento';
 export const MODEL_COL_TODAY = 'Oggi';
 export const MODEL_COL_MODEL = 'Modello';
 export const MODEL_COL_DIFF = 'Differenza';
 export const MODEL_CANDIDATE_TAG = 'da valutare';
 export const MODEL_OUTSIDE_LABEL = 'Fuori dal modello';
+/** AL16: a group's other members, under the buyer in the tile and in «Modifica a mano». */
+export const MODEL_GROUP_NO_BUY = 'non riceve acquisti';
+export function describeModelGroupMembers(otherLabels: string[]): string {
+  return `Gruppo con ${otherLabels.join(', ')}: compra solo il primo.`;
+}
 export const MODEL_TARGETED_HINT =
   'Per avvicinarti al modello vendendo poco, «Ricalcola» ha la modalità «Con vendite mirate», con un tetto di tasse.';
 
@@ -400,6 +410,18 @@ export function describeModelOrigin(origin: 'manual' | 'optimizer', updatedAt: D
   return origin === 'optimizer' ? `${proposed}.` : `${proposed}, poi cambiato a mano.`;
 }
 
+/** R11-S2 (D-R11-2): the two bases differ only when a debt sits inside the allocation. */
+export const MODEL_DEBT_BASE_NOTE = 'I pesi di oggi non contano i debiti: Bilanciamento li sottrae alla classe che finanziano.';
+
+/**
+ * The line under the model's table, only when it is true: a loan with a debt that Bilanciamento nets (a personal loan, or a
+ * mortgage on a property INSIDE the allocation). A mortgage on an excluded home changes no figure on either side, so it says nothing.
+ */
+export function describeModelDebtNote(assets: readonly Asset[], valueOf: (asset: Asset) => number): string | null {
+  const nets = assets.some((asset) => isLoanAsset(asset) && valueOf(asset) < 0 && resolveAllocationRoleWithin(asset, assets) !== 'excluded');
+  return nets ? MODEL_DEBT_BASE_NOTE : null;
+}
+
 /** The tile's aside: «pesi di mercato · base 182.000 €». */
 export function describeModelTileAside(baseEur: number): string {
   return `pesi di mercato · base ${cachedFormatCurrencyEUR(baseEur, true)}`;
@@ -418,6 +440,8 @@ export function describeModelSalesHint(overweightLabels: string[]): string {
 
 export const MODEL_SAVE_ACTION = 'Salva come portafoglio modello';
 export const MODEL_SAVED_TOAST = 'Portafoglio modello salvato';
+/** AL14: with an active plan and no model, the tile offers the plan's weights as the model. */
+export const MODEL_ACTION_USE_PLAN = 'Usa i pesi del piano';
 export const MODEL_SAVE_REPLACES_NOTE = 'Sostituisce il portafoglio modello attuale.';
 
 export const MODEL_EDIT_TITLE = 'Modifica il portafoglio modello';
@@ -429,5 +453,5 @@ export const MODEL_EDIT_ACTION_CANCEL = 'Annulla';
 export const MODEL_EDIT_ACTION_REMOVE = 'Togli';
 export const MODEL_EDIT_SUM_LABEL = 'Somma';
 
-/** The conflict sentence the Obiettivi tile shows under the bars (first conflict of the saved snapshot). */
+/** The conflict sentence the Criteri del modello tile shows under the bars (first conflict of the saved snapshot). */
 export const OBJECTIVES_TILE_CALCULATED_ON = 'Calcolati sull’ultimo portafoglio modello salvato.';

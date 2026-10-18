@@ -40,6 +40,10 @@ import { monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
 const defaultScenarios = () => getDefaultMonteCarloMarket().scenarios;
 /** Weights: the named classes, every other at 0. */
 const weightsOf = (named: Partial<Record<'equity' | 'bonds' | 'gold' | 'commodity' | 'cash' | 'trendFollowing' | 'carry', number>>) => monteCarloClassRecord((cls) => named[cls] ?? 0);
+import { MONTE_CARLO_SECTION_IDS, rateDecimals, selectMonteCarloStrip, SUSTAINABLE_STRIP_PROBABILITY } from '@/lib/utils/monteCarloSummary';
+import { SUSTAINABLE_VERDICT_PROBABILITY } from '@/lib/utils/sustainableWithdrawal';
+import { formatStripFigure, validateStrip } from '@/lib/utils/verdictStrip';
+import { VERDICT_REST_SECTION } from '@/lib/utils/mobileSections';
 
 const CTX = { startCalendarYear: 2026, currentAge: 46 };
 
@@ -410,5 +414,43 @@ describe('T5 — euro di oggi (RD6) e partenza dal FIRE', () => {
     const inputs = (startYear?: number): MonteCarloRunInputs => ({ params: makeParams({ startYear }), scenarios: defaultScenarios(), inflows: [] });
     expect(haveRunInputsChanged(inputs(5), inputs(5))).toBe(false);
     expect(haveRunInputsChanged(inputs(5), inputs(undefined))).toBe(true);
+  });
+});
+
+// ─── The phone's strip (2026-10-15) ───────────────────────────────────────────
+// Seen red one at a time: a median at zero printed «0 €» (the guard removed); the bear cell on the
+// base row; `decimals` fixed to 1 («95,0%» against the verdict's «95%»).
+
+describe('SUSTAINABLE_STRIP_PROBABILITY', () => {
+  it('is the verdict\'s level (restated here to keep this module SDK-free)', () => {
+    expect(SUSTAINABLE_STRIP_PROBABILITY).toBe(SUSTAINABLE_VERDICT_PROBABILITY);
+  });
+});
+
+describe('selectMonteCarloStrip', () => {
+  const KNOWN = [...Object.values(MONTE_CARLO_SECTION_IDS), VERDICT_REST_SECTION];
+  const results = makeResults();
+  const params = makeParams();
+  const run = summarizeMonteCarloRun(results, params, CTX);
+  const comparison = summarizeScenarios({ bear: results, base: results, bull: results }, params, CTX);
+  const text = (figure: ReturnType<typeof selectMonteCarloStrip>[number]) => formatStripFigure(figure)!.text.replace(/[\u00a0\u202f]/g, ' ');
+
+  it('opens the Distribuzione with the median and Scenari with the bear probability', () => {
+    const strip = selectMonteCarloStrip({ run, comparison });
+    expect(strip.map((figure) => figure.label)).toEqual(['Mediana', 'Orso']);
+    expect(strip.map((figure) => figure.opens)).toEqual([MONTE_CARLO_SECTION_IDS.probabilita, MONTE_CARLO_SECTION_IDS.scenari]);
+    expect(validateStrip(strip, KNOWN)).toEqual([]);
+    expect(strip[1].decimals).toBe(rateDecimals(comparison.rows[0].successRate));
+    expect(selectMonteCarloStrip({ run, comparison: null })).toHaveLength(1);
+  });
+
+  it('says the money runs out instead of «0 €», and prints a whole rate without decimals', () => {
+    const [median] = selectMonteCarloStrip({ run: { ...run, medianFinal: 0 }, comparison });
+    expect(median.value).toBeNull();
+    expect(median.reason).toBe('i soldi finiscono');
+    expect(rateDecimals(95.04)).toBe(0);
+    expect(rateDecimals(84.21)).toBe(1);
+    const [, bear] = selectMonteCarloStrip({ run, comparison: { ...comparison, rows: comparison.rows.map((row) => (row.key === 'bear' ? { ...row, successRate: 95.04 } : row)) } });
+    expect(text(bear)).toBe('95%');
   });
 });

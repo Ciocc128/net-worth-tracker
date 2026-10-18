@@ -16,7 +16,8 @@
  *
  * REGRESSION GUARD, tutti visti rossi rompendo una cosa alla volta (roving focus tolto da
  * `AsideToggle` e da `RankedRows`; `tabIndex` esplicito tolto; `aria-label` rimesso sulla riga; il
- * sotto-occhiello tolto; la discesa tolta dal `PlanView`).
+ * sotto-occhiello tolto; la discesa tolta dal `PlanView`). Il 2026-10-16: `useCompactLayout` forzato a
+ * vero (le righe chiuse e la striscia a 1440) per il test della pagina di oggi.
  *
  * Account base (`test@example.com`): target 60/30/10 su azioni, obbligazioni e criptovalute, due
  * sotto-target su equity (World 80 / Single Stock 20, aggiunti al seed il 2026-09-21 perché senza
@@ -189,73 +190,36 @@ test('la pagina non scorre di lato, misurato sugli elementi e non sul contenitor
   expect(overflow.offenders).toEqual([]);
 });
 
-/** Every tile of the grid, grouped by its column (x), each column sorted top to bottom. */
-async function stacks(page: Page) {
-  return page.evaluate(() => {
-    const grid = document.querySelector('section[aria-label="Piano"]')!.closest('.grid')!;
-    const byX = new Map<number, { name: string; top: number; bottom: number; width: number }[]>();
-    for (const section of Array.from(grid.querySelectorAll('section'))) {
-      // Only the tiles, not the sections nested inside one.
-      if (section.parentElement?.closest('section')) continue;
-      const rect = section.getBoundingClientRect();
-      if (rect.height === 0) continue;
-      const x = Math.round(rect.x);
-      const list = byX.get(x) ?? [];
-      list.push({ name: section.getAttribute('aria-label') ?? '?', top: rect.top, bottom: rect.bottom, width: rect.width });
-      byX.set(x, list);
-    }
-    return Array.from(byX.values()).map((list) => list.sort((a, b) => a.top - b.top));
-  });
-}
-
-test('due pile indipendenti: fra due tessere della stessa colonna 12px, in ogni modo del Piano (fork, 2026-09-25)', async ({ page }) => {
+test('a 1440 la pagina è quella di oggi: nessuna riga chiusa, nessuna striscia, il verdetto in due frasi', async ({ page }) => {
   await openAllocazione(page);
-  await expect(page.locator('section[aria-label="Esposizione del portafoglio"]')).toBeVisible({ timeout: 30_000 });
-  const piano = page.locator('section[aria-label="Piano"]');
-
-  // Il Piano cambia altezza col modo (sul conto del proprietario da 381 a 1159px): con righe a tutta
-  // larghezza sotto due colonne, ogni cambio apriva un vuoto sotto la colonna più corta.
-  for (const mode of ['Ribilancia', 'Versa'] as const) {
-    const toggle = piano.getByRole('button', { name: mode, exact: true });
-    await toggle.click();
-    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
-
-    const columns = await stacks(page);
-    expect(columns, 'due pile, nessuna tessera a tutta larghezza').toHaveLength(2);
-    for (const column of columns) {
-      for (let i = 1; i < column.length; i += 1) {
-        const gap = column[i].top - column[i - 1].bottom;
-        expect(Math.abs(gap - 12), `${column[i - 1].name} → ${column[i].name} in ${mode}`).toBeLessThanOrEqual(1);
-      }
-    }
-    const names = columns.map((column) => column.map((tile) => tile.name));
-    // Dal 2026-10-07 Accumulo e il portafoglio modello (ex Composizione ideale) stanno nella scheda «Accumulo» (A1).
-    expect(names[0].slice(0, 2)).toEqual(["Bilanciamento dell'allocazione", 'Allocazione per classe']);
-    expect(names[1].slice(0, 2)).toEqual(['Piano', 'Esposizione del portafoglio']);
-  }
+  // Nessun `-trigger`: Parametri e Dettaglio hanno il loro `aria-expanded`, le tessere no.
+  await expect(page.locator('main [id$="-trigger"]')).toHaveCount(0);
+  await expect(page.getByRole('list', { name: 'Le cifre del verdetto' })).toBeHidden();
+  await expect(page.getByRole('heading', { level: 2, name: 'Il resto della pagina' })).toBeHidden();
+  // Dal 2026-10-15 la deriva è una frase e i prossimi soldi la seguono con un punto, anche a 1440
+  // (il taglio del telefono vuole un punto fermo, 2026-09-27): «…meno. Con 1000 € in più compreresti…».
+  const verdict = page.getByRole('region', { name: "Verdetto sull'allocazione" });
+  await expect(verdict).toContainText(/\. Con 1000[\s ]*€ in più compreresti/);
+  await expect(verdict).not.toContainText(/; con 1000/);
+  // Il valore del KPI «Fuori posizione» è intero a 1440: nulla è sollevato.
+  const bilanciamento = page.getByRole('region', { name: "Bilanciamento dell'allocazione" });
+  await expect(bilanciamento.getByText('Fuori posizione', { exact: true }).locator('xpath=following-sibling::p[1]')).toBeVisible();
 });
 
-/**
- * Su `tablet:` (768–1439px) le pile sono `contents` e le tessere tornano all'ordine `order-*`: Per
- * classe ed Esposizione sono le sole a mezza larghezza, e con altre tessere in mezzo ciascuna restava
- * sola con mezza riga vuota accanto (fork, 2026-09-27, visto sul giro su iPad). Dal 2026-10-07 le due
- * tessere del fork non sono più in questa scheda e le due stanno una dopo l'altra (`order-3`, `order-4`).
- */
-for (const width of [1024, 820]) {
-  test(`su iPad Per classe ed Esposizione stanno sulla stessa riga (${width}px)`, async ({ page }) => {
-    await page.setViewportSize({ width, height: width >= 1024 ? 768 : 1180 });
-    await openAllocazione(page);
-    const perClasse = page.locator('section[aria-label="Allocazione per classe"]');
-    const esposizione = page.locator('section[aria-label="Esposizione del portafoglio"]');
-    await expect(esposizione).toBeVisible({ timeout: 30_000 });
-
-    const left = await perClasse.boundingBox();
-    const right = await esposizione.boundingBox();
-    expect(left && right).toBeTruthy();
-    expect(Math.abs(right!.y - left!.y), 'stessa riga').toBeLessThanOrEqual(1);
-    expect(right!.x, 'Esposizione a destra di Per classe').toBeGreaterThan(left!.x + left!.width);
-  });
-}
+test('a 1440 Accumulo è quello di oggi: nessuna riga chiusa, nessuna striscia, due colonne, il verdetto intero', async ({ page }) => {
+  await openAccumulo(page);
+  // Il fixture base non ha un piano: lo stato vuoto ha il suo verdetto, senza taglio («Il perché») né celle.
+  await expect(page.locator('main [id$="-trigger"]')).toHaveCount(0);
+  await expect(page.getByRole('list', { name: 'Le cifre del verdetto' })).toBeHidden();
+  await expect(page.getByRole('heading', { level: 2, name: 'Il resto della pagina' })).toBeHidden();
+  await expect(page.getByRole('button', { name: /^Il perché/ })).toHaveCount(0);
+  // Le due pile di prima: il modello a sinistra sotto lo stato vuoto, i criteri a destra, alla stessa quota.
+  const [modello, criteri] = await Promise.all(
+    ['Portafoglio modello', 'Criteri del modello'].map((name) => page.locator(`section[aria-label="${name}"]`).boundingBox()),
+  );
+  expect(criteri!.x, 'i criteri nella colonna destra').toBeGreaterThan(modello!.x + modello!.width - 1);
+  expect(Math.abs(criteri!.y - modello!.y), 'i due alla stessa quota').toBeLessThanOrEqual(1);
+});
 
 /**
  * «Composizione ideale» › «Con vendite mirate» (fork, 2026-09-27, doc/weight-optimizer-targeted-ate.md
@@ -300,7 +264,7 @@ test.describe('Composizione ideale › Con vendite mirate', () => {
     await openAccumulo(page);
     const tile = page.locator('section[aria-label="Portafoglio modello"]');
     await tile.getByRole('button', { name: 'Ricalcola' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Composizione ideale' });
+    const dialog = page.getByRole('dialog', { name: 'Ricalcola il portafoglio modello' });
     await expect(dialog).toBeVisible();
 
     await dialog.getByRole('radio', { name: 'Con vendite mirate' }).click();

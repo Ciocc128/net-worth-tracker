@@ -29,7 +29,7 @@ import { CHART_COLORS } from '@/lib/constants/colors';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
-import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_SUB_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { CompositionBar, type CompositionBarSegment } from '@/components/ui/composition-bar';
 import { CompositionList, type CompositionListItem } from '@/components/ui/composition-list';
 
@@ -39,6 +39,9 @@ interface PrevidenzaTileProps {
   /** «Fondo Cometa · 42.000 € · non negoziabile» — built by the page. */
   aside: string;
   lookThrough: PensionLookThrough;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
   className?: string;
 }
 
@@ -102,7 +105,7 @@ function MixColumn({ heading, slices, chartColors }: MixColumnProps) {
   );
 }
 
-export function PrevidenzaTile({ reading, aside, lookThrough, className }: PrevidenzaTileProps) {
+export function PrevidenzaTile({ reading, aside, lookThrough, collapse, asideWhenClosed, className }: PrevidenzaTileProps) {
   // Resolved once per tile and passed down (the hook reads CSS variables after paint).
   const chartColors = useChartColors();
 
@@ -110,7 +113,7 @@ export function PrevidenzaTile({ reading, aside, lookThrough, className }: Previ
   const combinedHeading = lookThrough.hasExcluded ? 'Tutto il patrimonio, esclusi compresi' : 'Tutto il patrimonio';
 
   return (
-    <Tile eyebrow="Previdenza" aside={aside} reading={reading} className={className} ariaLabel="Previdenza complementare">
+    <Tile eyebrow="Previdenza" aside={aside} asideWhenClosed={asideWhenClosed} reading={reading} className={className} ariaLabel="Previdenza complementare" collapse={collapse}>
       {/* Side by side only when the TILE is wide (a container query, fork 2026-09-25): on the fork's
           Allocazione the tile sits in a 662px stack at 1440, where two columns left each class name
           ~66px (`CompositionList`'s `desktop:w-[22%]`) and «Obbligazioni» broke mid-word. */}

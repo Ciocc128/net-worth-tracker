@@ -10,6 +10,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { expectSplitTabLandsInPlace } from './lazyTabLanding';
 
 /** The house floor for a touch target (PRODUCT.md → Accessibility & Inclusion). */
 const TOUCH_FLOOR = 44;
@@ -28,7 +29,9 @@ test.describe('Cashflow › Divisione (phone)', () => {
     const picker = page.getByRole('combobox', { name: /Periodo selezionato/ });
     const box = await picker.boundingBox();
     expect(box).not.toBeNull();
-    expect(box!.height).toBeGreaterThanOrEqual(TOUCH_FLOOR);
+    // Rounded: `h-11` laid out inside the verdict's axis slot measured 43,99998 once (2026-10-12),
+    // a subpixel of the layout, not a shorter control.
+    expect(Math.round(box!.height)).toBeGreaterThanOrEqual(TOUCH_FLOOR);
   });
 
   test('the month arrows inside the picker are thumb-sized too', async ({ page }) => {
@@ -63,9 +66,14 @@ test.describe('Cashflow › Divisione (phone)', () => {
 
   test('the people stack, one above the other, full width', async ({ page }) => {
     const ghiandaia = await page.getByRole('region', { name: 'Quanto resta a Ghiandaia' }).boundingBox();
-    const tarsio = await page.getByRole('region', { name: 'Quanto resta a Tarsio' }).boundingBox();
+    const nibbio = await page.getByRole('region', { name: 'Quanto resta a Nibbio' }).boundingBox();
 
-    expect(tarsio!.y).toBeGreaterThan(ghiandaia!.y + ghiandaia!.height - 2);
-    expect(Math.abs(ghiandaia!.width - tarsio!.width)).toBeLessThan(2);
+    expect(nibbio!.y).toBeGreaterThan(ghiandaia!.y + ghiandaia!.height - 2);
+    expect(Math.abs(ghiandaia!.width - nibbio!.width)).toBeLessThan(2);
   });
+});
+
+test('the tab lands on the placeholder the page drew for its chunk: the picker row is already there', async ({ page }) => {
+  test.setTimeout(120_000);
+  await expectSplitTabLandsInPlace(page);
 });

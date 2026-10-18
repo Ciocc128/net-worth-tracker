@@ -1,12 +1,13 @@
 # Stati: caricamento, vuoto, zero, errore
 
-> **When to open this guide** — anyone touching `lib/utils/statesNarrative.ts` (`AbsenceKind`, `resolveSurfaceState`, `describeReadFailure`, `describeLastSuccessfulRead`), `components/ui/{skeleton,empty-state,error-notice,tile-grid-skeleton}.tsx`, `components/ui/sonner.tsx` (the severity of a toast), or wiring a loading · empty · zero · failed branch on any surface. `AGENTS.md` keeps the stub with the essentials; here is the full rule. File: § *Files* below.
+> **When to open this guide** — anyone touching `lib/utils/statesNarrative.ts` (`AbsenceKind`, `resolveSurfaceState`, `describeReadFailure`, `describeLastSuccessfulRead`, `describeFreshness`), `lib/utils/freshness.ts` + `lib/hooks/useFreshness.ts` (the «old but present» reading), `components/ui/{skeleton,empty-state,error-notice,tile-grid-skeleton}.tsx`, `components/ui/sonner.tsx` (the severity of a toast), or wiring a loading · empty · zero · failed branch on any surface. `AGENTS.md` keeps the stub with the essentials; here is the full rule. File: § *Files* below.
 
 ## Files
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 - **Stati**: `lib/utils/statesNarrative.ts` (`resolveSurfaceState` = the one wait/failure decision), `components/ui/{skeleton,empty-state,error-notice}.tsx`, `components/ui/sonner.tsx` — doc/guide/stati.md
+- **The fourth reading** (2026-09-29): `lib/utils/freshness.ts` (`resolveFreshness`), `lib/hooks/useFreshness.ts`, `describeFreshness` in `statesNarrative.ts`, the `freshness` prop of `components/layout/PageHeader.tsx`; the persisted cache behind it in `lib/constants/persistCache.ts` (doc/guide/cache-persistita.md); `e2e/freshness.spec.ts`
 
 ## Stati: caricamento, vuoto, zero, errore
 
@@ -31,9 +32,22 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   at least one of them is wide, so the sentence survives.
 - **A service must not swallow its own failure into zeros.** `getAnnualCashflowData` did (a `catch` returning
   `annualSavings: 0`), which meant the FIRE calculator answered a dropped connection with «servono spese registrate
-  nel Cashflow» — a sentence about the reader's data, told about data nobody read. It rejects now; both its callers
-  hold an `ErrorNotice` branch that only a rejection can reach. When wiring a new surface, check the service too: an
+  nel Cashflow» — a sentence about the reader's data, told about data nobody read. It rejected from then on; since
+  2026-09-29 the figure is `computeAnnualCashflowData` over the expenses key (the FIRE page's recent window since
+  2026-09-30, doc/guide/fire.md), and the failure is that key's
+  `isError`, which the three FIRE tabs route to their `ErrorNotice`. When wiring a new surface, check the service too: an
   `isError` branch above a service that never rejects is decoration.
+- **The auth wait is a skeleton too, and it is in the HTML** (2026-09-28). `ProtectedRoute` renders its
+  `fallback` — the dashboard layout passes `<PageContainer><TileGridSkeleton label="Verifica dell'accesso" /></PageContainer>`
+  — while `useAuth().loading` and through the redirect to `/login`; on the server `loading` is always true, so
+  that skeleton is what every prerendered dashboard route carries. The spinner it replaced (`border-gray-300
+  border-t-blue-600`, the last hardcoded chrome) is gone. `TileGridSkeleton` takes a `label` so a screen reader hears
+  WHICH wait it is: the auth wait says «Verifica dell'accesso», a page's own skeleton stays «Caricamento» — and the
+  benchmark's auth marker reads that label (`scripts/perfBenchmark.mjs`, `isAuthPending`). The cold-load sequence is
+  generic skeleton (SSR, the default cells at 1920) → page skeleton (mount, its own cells, the same primitive and
+  width) → data; the page header's WORDS are the page's and arrive with it, but its silhouette is in the fallback
+  (`PageHeaderSkeleton`, `components/layout/PageHeader.tsx`: the same boxes at the same heights, no `h1`), because
+  without it the grid moved down 56px at 1440 and 65px at 390 when the page mounted (measured 2026-09-28).
 - **`Skeleton` (`components/ui/skeleton.tsx`) is the only muted placeholder.** `motion-safe:animate-pulse` — Tailwind's
   bare `animate-pulse` has no reduced-motion guard, and it was hand-written in eight files at six different heights —
   and `aria-hidden`, so the wait is announced once by `TileGridSkeleton`'s `role="status"`. `animate-spin` is
@@ -52,11 +66,75 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   product's own Italian (the assistant hooks' `payload?.error ?? '<italiano>'`), the throw is marked with
   `userFacingError` so the translation keeps it; everything unmarked takes the generic sentence. The assistant's SSE
   route no longer forwards the Anthropic SDK's English message to the client either — that string is a log line.
+- **Below `desktop:` an `ErrorNotice` IS the tile's closed row, and it is silent** (2026-10-10, `components/ui/error-notice.tsx`):
+  with `collapse` (from `useMobileSections().collapse(id)`, the section marked `failed: true`) it takes the row's
+  structure — `section[id]` → `h3` → trigger with `aria-controls` — the red eyebrow («Benchmark · lettura fallita») with
+  its `AlertTriangle` as the trigger, open on every visit until the reader closes it, message, reassurance and «Riprova»
+  in the panel; `live={!sections.compact}` drops its `role="alert"` there, because the page's ONE live node for failed
+  reads is `PageRest`'s `describeFailedSections` («Una sezione non è stata letta: Benchmark.» / «2 sezioni non sono state
+  lette: Benchmark, Contributi.» / `null`). At 1440 nothing changes: `collapse` is `undefined`, `live` true. Hall of Fame
+  has one payload and renders neither a row nor an announcement for a failure; the first row in error is Dividendi's
+  Rendimento (since 2026-10-12), then Rendimenti's Benchmark and Plusvalenze realizzate (since 2026-10-14: every one
+  of the six model series failed, or the ledger's meta failed with no document to show — `ErrorNotice` in the cell at
+  every width, a failed row below `desktop:`; doc/guide/rendimenti.md § Composizione mobile), then Allocazione's
+  Esposizione and the four rows of Previdenza (since 2026-10-15: the Esposizione's profiles failed on their first
+  read — a failed «Aggiorna» over profiles already read keeps the tile with its own notice; doc/guide/allocazione.md and
+  doc/guide/previdenza.md § Composizione mobile). The five FIRE tabs keep a failed read as the WHOLE tab's notice: no row
+  there carries `failed`. **A failed read of a WHOLE tab is
+  the verdict's `pending` notice** (`PageVerdict.pending`, `{ kind: 'failed', notice }`, since 2026-10-12: Tracciamento,
+  Divisione and — from the spec's retirement — Centri di Costo, whose empty summary's verdict «Nessun centro di costo.»
+  stood above the notice until then): the `section` stays, the axis keeps its slot and its focus, the notice takes the
+  sentence's place; `VerdictSkeleton`'s gap (its pieces `VerdictSkeletonHeadline` and `VerdictSkeletonLines`, which `PageVerdict.pending` reuses) went from 2,5 to 2 that day so the wait matches the verdict it stands for,
+  on every page's `TileGridSkeleton`. `compact` (the cell width, drops the reassurance) is NOT
+  `sections.compact` (the composition's width): write the latter in full at the call site.
 - **Where the 20 surfaces are**: `app/dashboard/{page,assets,history,performance,allocation,hall-of-fame,settings}`,
   the five Cashflow tabs (the `loadFailed` prop is threaded from `app/dashboard/{cashflow,analisi}/page.tsx`, because
   the tabs do not own their queries), Dividendi, the five FIRE tabs, Previdenza and Centri di Costo. Adding a
   twenty-first means: read the query's `isError`, branch with `resolveSurfaceState`, and write the `consequence`.
 
+## The fourth reading: old but present (2026-09-29)
+
+- **A figure can be on screen and not be current.** Since 2026-09-29 the query cache is persisted to IndexedDB and
+  restored before the first fetch (doc/guide/cache-persistita.md), so a reload paints the last known figures at once and
+  refetches behind them. That is a fourth state beside the three absences, and it has its own sentence: «Aggiornato
+  alle 18:42, sto rileggendo…» — `describeFreshness` (`statesNarrative.ts`): the hour alone on the same Italian
+  calendar day, «ieri» the day before, «il 27 settembre» further back; Italy's clock through `Intl` with a `timeZone`,
+  whatever the machine's zone, and no Firebase import (`dateHelpers` carries `Timestamp` as a value). `null` when
+  nothing on screen is old — the clause disappears, never a placeholder.
+- **Every load rereads what it restored.** The restore marks the restored queries invalidated (`onSuccess` of the
+  provider, `refetchType: 'none'`): every hook that mounts on them, and every `fetchQuery`, refetches whatever their
+  age — stale-while-revalidate, not stale-instead-of-fresh. Without it a reload within `staleTime` painted the
+  restored figures and read NOTHING for five minutes (the full suite found it on 2026-09-29: an Admin write between
+  two `goto` stayed invisible), and an F5 asked to refresh would have refreshed nothing — the one behaviour the
+  in-memory cache never had.
+- **The decision is `resolveFreshness`** (`lib/utils/freshness.ts`): a query is «old» when it is REFETCHING a figure
+  it already has (`isFetching` and not `isLoading`) AND that figure was either read BEFORE this page load
+  (`dataUpdatedAt < performance.timeOrigin`: it came out of the persisted cache, another load's reading of the world,
+  however young) or is older than the query's own `staleTime` — the global five minutes
+  (`lib/query/queryDefaults.ts`), the overview's minute. So a reload thirty seconds after the first visit says
+  «Aggiornato alle…» (true: the figures are from another load), while an invalidation after a save rereads a
+  two-minute-old list in silence, exactly as the app always did. The page's OLDEST such figure is the one dated; the
+  overview's payload dates its own content (`freshness.updatedAt`), and the older of the two wins.
+- **The line lives in the page HEADER, not under the verdict** (owner, 2026-09-29): on `desktop:` after the
+  description in the same fixed-height row («Cashflow · Traccia e analizza… · Aggiornato alle 18:42, sto
+  rileggendo…»), below it in the description's line, which the sentence takes while it lasts and the description gets
+  back — so nothing under it moves when the sentence goes (a reserved 16px slot under every verdict, or a 16px jump
+  when it emptied, were the alternatives). ONE stable `role="status" aria-live="polite" aria-atomic` node per width,
+  marked `data-freshness`, that changes text and EMPTIES — never a node that appears and disappears
+  (doc/guide/dialog.md). A page passes its `useQuery` results to `useFreshness` and the reading to `PageHeader`
+  (`freshness`); a tab that owns the header takes it as a prop (Analisi); a page whose queries live in its component
+  reads the same hooks itself (Previdenza, FIRE: the same cache entries, no second read).
+- **The skeleton is for a FIRST read only.** During the restore every query is `pending` and not fetching —
+  `isLoading` false, `data` undefined — and a page mounted then would print «nothing recorded» about a set it is
+  about to receive: `ProtectedRoute` keeps the auth fallback («Verifica dell'accesso») until `useIsRestoring()` is
+  false as well, so no page ever sees that frame. With a restored figure the page skips its own skeleton and opens
+  on the header's sentence; `e2e/freshness.spec.ts` pins the three facts on Cashflow (no page skeleton on the reload,
+  the node HAD the sentence, the node is empty once the fresh read landed).
+- **One surface carries no sentence by construction**: Impostazioni's settings document is read with
+  `staleTime: 0` — there the header dates only the categories and the accounts lists. Rendimenti carries it: it reads
+  the shared hooks and its two payloads are persisted, so its reload shows the sentence over restored figures
+  (doc/guide/rendimenti.md § every collection read once).
+
 ## Per-page blind spots
 
-- **Il ramo `isError` copre 20 superfici, non ogni query**: cablate quelle da cui dipende il verdetto o l'inventario, non le secondarie (prezzi, benchmark, FX) — una di quelle che fallisce degrada ancora in silenzio. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)
+- **Il ramo `isError` copre 20 superfici, non ogni query**: cablate quelle da cui dipende il verdetto o l'inventario, non le secondarie (prezzi, FX) — una di quelle che fallisce degrada ancora in silenzio; i sei benchmark di Rendimenti lo fanno solo quando falliscono TUTTI (dal 2026-10-14: una serie sola mancante resta un «—» nella riga del modello). (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

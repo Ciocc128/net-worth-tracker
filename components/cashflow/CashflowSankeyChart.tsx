@@ -8,8 +8,8 @@
  * `onNodeClick` with the node's DESCRIPTOR — the index says what a node is, the handler never
  * infers it from the id's shape.
  *
- * Colours reach it as hex (react-spring cannot interpolate oklch — AGENTS.md → Recharts): the type
- * view's are hardcoded, the 50/30/20 view's are theme tokens resolved by useCssColorTokens.
+ * Colours reach it as hex (react-spring cannot interpolate oklch — doc/guide/grafici.md § Recharts): the type
+ * view's are hardcoded, the 50/30/20 view's roles are theme tokens resolved by useCssColorTokens.
  *
  * Drawn from 640px only: below it the Flusso is a share bar and rows (FlowShareMobile), so there is
  * no reduced phone variant. Fork: two desktop variants, the classic one and the THIN one the Flusso
@@ -23,7 +23,7 @@ import { useMemo } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useTheme } from 'next-themes';
 import { ResponsiveSankey, type CustomSankeyLayerProps } from '@nivo/sankey';
-import { LABEL_TEXT_COLORS, type SankeyLink, type SankeyNode, type SankeyNodeDescriptor, type SankeyView } from '@/lib/utils/cashflowSankey';
+import { LABEL_TEXT_COLORS, resolveThinSankeyHeight, type SankeyLink, type SankeyNode, type SankeyNodeDescriptor, type SankeyView } from '@/lib/utils/cashflowSankey';
 import { formatCurrencyForSankey, formatPercentage } from '@/lib/services/chartService';
 import { chartReveal, fadeVariants } from '@/lib/utils/motionVariants';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
@@ -84,33 +84,6 @@ function thinLabelsLayer(totalAmount: number) {
   };
 }
 
-/** The thin chart's floor, and the pitch of one two-line label in its widest column. */
-const THIN_MIN_HEIGHT = 520;
-const THIN_ROW_PX = 44;
-
-/** Nodes in the most crowded column, by each node's depth from the sources (d3-sankey's `start` alignment). */
-function widestColumn(view: SankeyView): number {
-  const incoming = new Map<string, string[]>();
-  for (const link of view.links) incoming.set(link.target, [...(incoming.get(link.target) ?? []), link.source]);
-  const depth = new Map<string, number>();
-  const depthOf = (id: string, seen = new Set<string>()): number => {
-    const known = depth.get(id);
-    if (known !== undefined) return known;
-    if (seen.has(id)) return 0;
-    seen.add(id);
-    const parents = incoming.get(id) ?? [];
-    const d = parents.length === 0 ? 0 : 1 + Math.max(...parents.map((p) => depthOf(p, seen)));
-    depth.set(id, d);
-    return d;
-  };
-  const perColumn = new Map<number, number>();
-  for (const node of view.nodes) {
-    const d = depthOf(node.id);
-    perColumn.set(d, (perColumn.get(d) ?? 0) + 1);
-  }
-  return Math.max(1, ...perColumn.values());
-}
-
 export function CashflowSankeyChart({ view, viewKey, height, drilled, ariaLabel, onNodeClick, nodeSort = 'auto', variant = 'classic' }: CashflowSankeyChartProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
@@ -137,7 +110,7 @@ export function CashflowSankeyChart({ view, viewKey, height, drilled, ariaLabel,
     return Math.max(sum((link) => link.target === budgetId), sum((link) => link.source === budgetId));
   }, [view, totalAmount]);
   const thinLabels = useMemo(() => thinLabelsLayer(labelBase), [labelBase]);
-  const plotHeight = thin ? Math.max(THIN_MIN_HEIGHT, height, widestColumn(view) * THIN_ROW_PX + 48) : height;
+  const plotHeight = thin ? resolveThinSankeyHeight(view, height) : height;
 
   // The spacing is the floor under an 11px label: with 10px two tiny nodes' labels touched.
   const chartConfig = thin

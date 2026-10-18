@@ -1,6 +1,6 @@
 # Email periodiche e PDF export
 
-> **Quando aprire questa guida** — chi tocca `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailHtml,emailPeriodComparison}.ts`, `lib/utils/{emailNarrative,pdfNarrative}.ts`, `lib/utils/pdfGenerator.tsx`, `lib/services/pdfDataService.ts`, `components/pdf/*`, `lib/constants/printTokens.ts`, il cron `app/api/cron/monthly-snapshot/route.ts`. Entrambe rendono fuori dal DOM: si verificano renderizzandole, e nessuna verifica è nella suite. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: § *Files*, sotto.
+> **Quando aprire questa guida** — chi tocca `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailHtml,emailPeriodComparison,emailAiComment}.ts`, `lib/utils/{emailNarrative,pdfNarrative}.ts`, `lib/utils/pdfGenerator.tsx`, `lib/services/pdfDataService.ts`, `components/pdf/*`, `lib/constants/printTokens.ts`, il cron `app/api/cron/monthly-snapshot/route.ts`. Entrambe rendono fuori dal DOM: si verificano renderizzandole, e nessuna verifica è nella suite. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: § *Files*, sotto.
 
 ## Files
 
@@ -37,6 +37,13 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **The FIRE section's figure is «Spese ÷ SWR», never «numero FIRE»** (doc/fire-ipotesi/README.md § 19, D-N3): it is
   `calculateFIREMetrics` on the whole FIRE net worth, without dated flows, pensions, withdrawal tax or the locked fund, so
   the reading closes with «Non è il numero FIRE del Calcolatore…». `÷` is in WinAnsi (0xF7): no `pdfSafeText` mapping.
+- **The engine is loaded at the press, not with the page** (2026-09-30): `lib/utils/pdfGenerator.tsx` — and
+  with it `@react-pdf/renderer`, pdfkit, `components/pdf/*` and `pdfDataService` — is reached only by the `import()` in
+  `loadPDFGenerator` (`components/pdf/PDFExportDialog.tsx`): ONE promise for the session, started by «Esporta PDF»,
+  awaited by «Genera PDF», forgotten on failure so the next press retries. Nothing else may import `pdfGenerator` or
+  `components/pdf/*` statically, or 513 KB gz go back into Storico's first paint — `e2e/bundle.lazy.spec.ts` goes red.
+  `printTokens.ts` stays where it is (the emails read it on the server; it is small). Seen on the mirror: the modal in
+  ~110 ms, a 13-page report downloaded 3,5 s after the press.
 - **Sub-tiles are a `--muted` fill with no border**: on white paper a 1px rule at 0.92 lightness is invisible, and a
   4%-ink fill survives a photocopy.
 - **A section's reading must not mix two windows.** `HistoryData` carries `netWorthEvolution` (the filtered series the
@@ -321,5 +328,10 @@ PDF half seen from inside the section, this is the recipe for both surfaces.
   decoy fact («indice fenicottero… +3,7%») as «Bloomberg Euro momentum», fusing it with the name of other facts. Still a
   macro figure, never the portfolio's, but the rule «with its subject» did not hold; nothing checks it in production —
   F6's second round adds «every macro fact cited exists in the page».
-
+- **The YEARLY PDF of the current year measures one month less than Rendimenti's «YTD»** (seen 2026-10-04, driving the
+  export on the mirror; not changed): the dialog hands the report the year's snapshots only (`filterSnapshotsByTime`), so
+  January's snapshot is the starting valuation and the window is February → today, where the page reaches back to
+  December and measures from January. TWR, ROI and the two yields are annualised over 9 months against the page's 10; the
+  dividends received are the same. The TOTAL export has the page's whole-history window, and its twelve yield fields were
+  equal to the page's, field by field.
 - **Fuori dal DOM restano tre punti ciechi**: le email non rispecchiano i cinque temi nominati (scelta — si leggono su una scheda bianca); «un hex sta solo in `printTokens`» è documentato ma **non applicato da un linter**; e `@react-pdf/renderer` scarta in SILENZIO ogni carattere fuori da WinAnsi (`pdfSafeText` copre U+2212; frecce, simboli ed emoji no). Le tre superfici si verificano solo renderizzandole, e **nessuna di quelle verifiche è nella suite**. doc/guide/email-pdf.md. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

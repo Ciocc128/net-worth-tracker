@@ -31,8 +31,9 @@ import {
   type MonteCarloAnchors,
   type MonteCarloHedgeableClass,
 } from '@/lib/constants/monteCarloMarketDefaults';
-import { buildMarketNumbers, countEditedCorrelations, type MonteCarloMarketOverrides } from '@/lib/utils/monteCarloMarket';
-import { describeHedgeReading } from '@/lib/utils/settingsNarrative';
+import { buildMarketNumbers, countEditedCorrelations, type MonteCarloMarketDraft, type MonteCarloMarketOverrides } from '@/lib/utils/monteCarloMarket';
+import { describeHedgeProposal, describeHedgeReading } from '@/lib/utils/settingsNarrative';
+import { proposedHedgeClasses } from '@/lib/utils/monteCarloHedgeShare';
 import { toLogNormal } from '@/lib/utils/monteCarloDraw';
 import { portfolioScenarioBand, realReturn, type FireWeightsOrigin } from '@/lib/utils/fireAssumptions';
 import { formatPercentageIt } from '@/lib/utils/formatters';
@@ -44,15 +45,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 
-/** The draft the page edits: what the user typed (undefined field = the default in force) and the Oro sub-category (undefined = never chosen, the default rule applies). */
-export interface MonteCarloMarketDraft {
-  overrides: MonteCarloMarketOverrides;
-  goldSubCategory: string | null | undefined;
-  /** The 21 correlations (upper triangle), as typed; full precision after a correction. */
-  correlations: number[];
-  /** Percent added to the Liquidità return to price the leverage's debt (R4). */
-  leverageSpread: number;
-}
+export type { MonteCarloMarketDraft };
 
 interface MonteCarloMarketTileProps {
   reading: Narrative;
@@ -60,6 +53,8 @@ interface MonteCarloMarketTileProps {
   onDraftChange: (draft: MonteCarloMarketDraft) => void;
   /** The commodity sub-categories the user can name as Oro. */
   commoditySubCategories: string[];
+  /** AL20: share of each hedgeable class held in instruments flagged «Coperto in EUR»; the tile proposes the switch, never sets it. */
+  hedgedShares?: Partial<Record<MonteCarloHedgeableClass, number>>;
   /** The sub-category in force: the draft's, or the one the default rule finds. */
   effectiveGoldSubCategory: string | null;
   /** The weights the FIRE page simulates (targets of Allocazione, else the portfolio held): the tile shows what they return on the typed numbers. */
@@ -148,6 +143,7 @@ export function MonteCarloMarketTile({
   commoditySubCategories,
   effectiveGoldSubCategory,
   portfolio,
+  hedgedShares,
   anchors = MONTE_CARLO_FROZEN_ANCHORS,
   disabled,
   className,
@@ -155,6 +151,8 @@ export function MonteCarloMarketTile({
   const numbers = buildMarketNumbers(draft.overrides, anchors);
   const hedged = normalizeHedge(draft.overrides.hedged);
   const writtenAny = Object.keys(draft.overrides.classes).length > 0 || draft.overrides.inflationRate !== undefined || Object.values(hedged).some(Boolean);
+
+  const proposals = hedgedShares ? proposedHedgeClasses(hedgedShares, hedged) : [];
 
   const setOverrides = (overrides: MonteCarloMarketOverrides) => onDraftChange({ ...draft, overrides });
   const setField = (cls: MonteCarloClass, field: keyof MonteCarloClassOverride, value: number) =>
@@ -367,6 +365,25 @@ export function MonteCarloMarketTile({
             </div>
           ))}
         </div>
+        {proposals.length > 0 ? (
+          <ul className="mt-1 space-y-1" data-testid="mc-market-hedge-proposals">
+            {proposals.map((cls) => (
+              <li key={cls} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-[1.4] text-muted-foreground">
+                <span>{describeHedgeProposal(cls, hedgedShares![cls]!)}</span>
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 items-center px-1 font-medium text-foreground underline underline-offset-2 disabled:opacity-50"
+                  onClick={() => setHedge(cls, true)}
+                  disabled={disabled}
+                  aria-label={`Imposta coperto: ${MONTE_CARLO_CLASS_LABELS[cls]}`}
+                  data-testid={`mc-market-hedge-propose-${cls}`}
+                >
+                  Imposta coperto
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">

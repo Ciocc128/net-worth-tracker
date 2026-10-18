@@ -84,3 +84,10 @@ skills-lock.json
 
 # Note di sessione: vivono in locale, mai in un commit (WORKFLOW.md § 3)
 SESSION_NOTES.md
+# Speed benchmark: every run and the medians of the last `npm run perf:bench` (machine-specific times)
+/perf/last-run.json
+# …and of the last `npm run perf:census` (React renders and browser counters per key)
+/perf/last-census.json
+
+# First-screen census: the JSON and screenshots of the last `npm run mobile:census` (figures of the account measured)
+/.mobile-census/

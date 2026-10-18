@@ -21,26 +21,43 @@
  *   Desktop (12 col): Evoluzione(8, 2 rows) | Raddoppi(4, 2 rows)
  *                     Composizione(8)       | Driver(4)
  *                     Valore per strumento(12)
- *   Mobile (1 col):   Evoluzione → Raddoppi → Composizione → Driver → Valore per strumento
+ *   Below desktop:    ONE sequence, the DOM above (The First-Screen Rule; since 2026-10-14 —
+ *                     the `order-*` are gone, the two column wrappers are `contents`): title → the
+ *                     first sentence → the last twelve months and the featured year's savings as a
+ *                     strip → «Il perché» → Evoluzione, open, its chips lifted and its curve at 120px
+ *                     → «Il resto della pagina» → Composizione, Raddoppi, Driver, Valore per strumento
+ *                     as closed rows (`useMobileSections`; doc/guide/storico.md § Composizione mobile).
  *
- * DATA: the snapshots, assets, targets, expenses and settings load once in parallel; every
+ * DATA: snapshots, assets, settings, expenses, the ledger and the pension contributions come
+ * from React Query keys (2026-09-29: one read per session, no `Promise.all`) — five of them the
+ * ones every page shares, and the expenses WHOLE (`useExpenses`), by declared need: the Driver
+ * splits the growth of every year recorded, so this page has no window to read. It shares that
+ * list with Analisi and Centri di Costo; since 2026-09-30 Cashflow's other tabs and FIRE read a
+ * window of their own instead (lib/utils/expenseWindows.ts); every
  * figure a tile shows is derived from them in a pure, tested util (storicoSummary.ts, the
  * chartService preparers, snapshotAssetBreakdown.ts, historyComposition.ts) — never in a
  * component. A snapshot is a frozen photograph: nothing here recomputes a stored value.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Download, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import { getAllAssets, calculateTotalEstimatedTaxes } from '@/lib/services/assetService';
-import { getUserSnapshots, updateSnapshotNote } from '@/lib/services/snapshotService';
-import { getTargets, getDefaultTargets, getSettings } from '@/lib/services/assetAllocationService';
-import { getAllExpenses } from '@/lib/services/expenseService';
-import { getAssetTransactions } from '@/lib/services/assetTransactionService';
-import { getPensionContributions } from '@/lib/services/pensionContributionService';
+import { queryKeys } from '@/lib/query/queryKeys';
+import { useSnapshots } from '@/lib/hooks/useSnapshots';
+import { useAssets } from '@/lib/hooks/useAssets';
+import { useSettings } from '@/lib/hooks/useSettings';
+import { useFreshness } from '@/lib/hooks/useFreshness';
+import { useExpenses } from '@/lib/hooks/useExpenses';
+import { useAssetTransactions } from '@/lib/hooks/useAssetTransactions';
+import { usePensionContributions } from '@/lib/hooks/usePensionContributions';
+import { calculateTotalEstimatedTaxes } from '@/lib/services/assetService';
+import { updateSnapshotNote } from '@/lib/services/snapshotService';
+import { getDefaultTargets } from '@/lib/services/assetAllocationService';
+import { composeReadState } from '@/lib/utils/readState';
 import {
   prepareNetWorthHistoryData,
   prepareAssetClassHistoryData,
@@ -48,7 +65,7 @@ import {
   prepareDoublingTimeData,
   prepareMonthlyLaborMetricsData,
 } from '@/lib/services/chartService';
-import type { Asset, MonthlySnapshot, AssetAllocationTarget, DoublingMode, AssetAllocationSettings } from '@/types/assets';
+import type { Asset, MonthlySnapshot, DoublingMode } from '@/types/assets';
 import type { Expense } from '@/types/expenses';
 import type { AssetTransaction } from '@/types/assetTransactions';
 import type { PensionContribution } from '@/types/pension';
@@ -61,8 +78,11 @@ import {
   projectNextDoubling,
   resolveFeaturedDriverYear,
   selectDriverYears,
+  selectStoricoStrip,
   selectTrailingMonths,
   sortSnapshots,
+  STORICO_EVOLUZIONE_ID,
+  STORICO_SECTION_IDS,
   summarizeAllTimeHigh,
   summarizeGrowth,
   summarizeGrowthPace,
@@ -72,14 +92,19 @@ import {
   type LaborMetrics,
 } from '@/lib/utils/storicoSummary';
 import {
+  buildDriverLedger,
   buildStoricoVerdict,
+  describeRunningWindowShort,
+  STORICO_CLOSED_ASIDES,
   describeDoublings,
   describeDrivers,
   describeEvolution,
   describeEvolutionAside,
   describeMonthBreakdown,
+  describeStoricoClosedAnswers,
   describeStoricoHeader,
 } from '@/lib/utils/storicoNarrative';
+import { resolveCompositionSeries } from '@/lib/utils/historyComposition';
 import { buildMonthAssetBreakdown, buildSelectedAssetTrend, getAvailableSnapshotMonths, summarizeSelection } from '@/lib/utils/snapshotAssetBreakdown';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { resolveScrubView } from '@/lib/utils/storicoScrub';
@@ -97,7 +122,27 @@ import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { ExportPDFButton } from '@/components/dashboard/ExportPDFButton';
 import { CreateManualSnapshotModal } from '@/components/CreateManualSnapshotModal';
 import { SnapshotSearchDialog } from '@/components/history/SnapshotSearchDialog';
-import { EvoluzioneTile } from '@/components/history/tiles/EvoluzioneTile';
+import { EvoluzioneTile, isEvoluzioneLiftedBlock, type EvoluzioneLiftedBlock } from '@/components/history/tiles/EvoluzioneTile';
+import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
+import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
+import {
+  COMPACT_GRID_CLASS,
+  COMPACT_GRID_WRAPPER_CLASS,
+  INDEX_CLASS,
+  INDEX_GROUP_CLASS,
+  LEAD_CELL_CLASS,
+  REST_CELL_CLASS,
+  STAGE_CLASS,
+  STAGE_WRAPPER_CLASS,
+  VERDICT_CELL_CLASS,
+} from '@/lib/utils/tabletComposition';
+import { VERDICT_REST_SECTION } from '@/lib/utils/mobileSections';
+import { splitVerdict } from '@/lib/utils/narrative';
+import { liftedBlocks } from '@/lib/utils/verdictStrip';
+import { TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
+import { VerdictStrip } from '@/components/ui/verdict-strip';
+import { PageRest } from '@/components/ui/page-rest';
+import { RowAnswers } from '@/components/ui/row-answers';
 import { RaddoppiTile } from '@/components/history/tiles/RaddoppiTile';
 import { ComposizioneTile } from '@/components/history/tiles/ComposizioneTile';
 import { DriverTile } from '@/components/history/tiles/DriverTile';
@@ -117,22 +162,76 @@ const SKELETON_CELLS: TileSkeletonCell[] = [
 const DRIVER_TRAILING_MONTHS = 12;
 /** The cashflow floor when the settings carry none. */
 const DEFAULT_CASHFLOW_START_YEAR = 2025;
+const EMPTY_SNAPSHOTS: MonthlySnapshot[] = [];
+const EMPTY_ASSETS: Asset[] = [];
+const EMPTY_EXPENSES: Expense[] = [];
+const EMPTY_TRANSACTIONS: AssetTransaction[] = [];
+const EMPTY_CONTRIBUTIONS: PensionContribution[] = [];
+
+/**
+ * Every row of the phone composition, in the DOM's order (The Closed-Row Rule;
+ * 2026-10-14): every tile but Evoluzione, which is THE tile and never closes (The First-Screen Rule). The
+ * page composes its six reads into ONE state (`composeReadState`), so no row is ever `failed`.
+ */
+const STORICO_SECTIONS: readonly SectionSpec[] = [
+  { id: STORICO_SECTION_IDS.composizione, eyebrow: 'Composizione' },
+  { id: STORICO_SECTION_IDS.raddoppi, eyebrow: 'Raddoppi' },
+  { id: STORICO_SECTION_IDS.driver, eyebrow: 'Driver della crescita' },
+  { id: STORICO_SECTION_IDS.valore, eyebrow: 'Valore per strumento' },
+];
+/** The four rows are always on the page: their DOM order is the tablet's (lib/utils/tabletComposition.ts). */
+const STORICO_ORDER = STORICO_SECTIONS.map((section) => section.id);
+
+/** What the «Ultimi 12 mesi» cell announces it opens: neither the verdict's rest nor THE tile is a row of the controller. */
+const STRIP_EYEBROW_REST = 'il perché';
+const STRIP_EYEBROW_EVOLUZIONE = "l'andamento";
 
 export default function HistoryPage() {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
-  const [snapshots, setSnapshots] = useState<MonthlySnapshot[]>([]);
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [targets, setTargets] = useState<AssetAllocationTarget | null>(null);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const queryClient = useQueryClient();
+
+  // ─── The reads: six keys (2026-09-29), the expenses the whole collection (see the header) ─────
+  // The page gates on EVERY query it reads (doc/guide/stati.md): `loading` while any is still
+  // reading, `failed` when any read did not happen — a failed read is not an empty set.
+  const snapshotsQuery = useSnapshots(ownerId);
+  const assetsQuery = useAssets(ownerId);
+  const settingsQuery = useSettings(ownerId);
+  const expensesQuery = useExpenses(ownerId);
   // The ledger and the pension contributions: the Driver measures the market from them.
-  const [transactions, setTransactions] = useState<AssetTransaction[]>([]);
-  const [pensionContributions, setPensionContributions] = useState<PensionContribution[]>([]);
-  const [portfolioSettings, setPortfolioSettings] = useState<AssetAllocationSettings | null>(null);
-  const [loading, setLoading] = useState(true);
-  /** A failed load is not an empty set: it gets an alert, never a verdict about zeros. */
-  const [loadFailed, setLoadFailed] = useState(false);
+  const transactionsQuery = useAssetTransactions(ownerId);
+  const contributionsQuery = usePensionContributions(ownerId);
+  // The header's «Aggiornato alle…» while figures restored from the persisted cache are being
+  // reread: the same six keys the read state composes.
+  const freshness = useFreshness([snapshotsQuery, assetsQuery, settingsQuery, expensesQuery, transactionsQuery, contributionsQuery]);
+  const { loading, loadFailed } = useMemo(
+    () => composeReadState([snapshotsQuery, assetsQuery, settingsQuery, expensesQuery, transactionsQuery, contributionsQuery]),
+    [snapshotsQuery, assetsQuery, settingsQuery, expensesQuery, transactionsQuery, contributionsQuery],
+  );
+  const snapshots = snapshotsQuery.data ?? EMPTY_SNAPSHOTS;
+  const assets = assetsQuery.data ?? EMPTY_ASSETS;
+  const portfolioSettings = settingsQuery.data ?? null;
+  const expenses = expensesQuery.data ?? EMPTY_EXPENSES;
+  const transactions = transactionsQuery.data ?? EMPTY_TRANSACTIONS;
+  const pensionContributions = contributionsQuery.data ?? EMPTY_CONTRIBUTIONS;
+  // What `getTargets` used to read in a second round trip: the same document's `targets`.
+  const targets = portfolioSettings?.targets ?? null;
+
+  /** «Riprova» and a new manual snapshot: invalidate the keys, never a bare refetch (AGENTS.md § Caching). */
+  const reloadData = () => {
+    if (!ownerId) return;
+    for (const key of [
+      queryKeys.snapshots.all(ownerId),
+      queryKeys.assets.all(ownerId),
+      queryKeys.settings.all(ownerId),
+      queryKeys.expenses.all(ownerId),
+      queryKeys.assetTransactions.all(ownerId),
+      queryKeys.pensionContributions.all(ownerId),
+    ]) {
+      queryClient.invalidateQueries({ queryKey: key });
+    }
+  };
   const [doublingMode, setDoublingMode] = useState<DoublingMode>('geometric');
   const [showManualSnapshotModal, setShowManualSnapshotModal] = useState(false);
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
@@ -141,47 +240,6 @@ export default function HistoryPage() {
   const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
   /** The month under the pointer on Evoluzione (the scrub); null = today. */
   const [scrubPeriod, setScrubPeriod] = useState<PeriodMonth | null>(null);
-
-  /** Snapshots, assets, targets, expenses, settings, the ledger and the pension contributions, in parallel. */
-  const loadData = async () => {
-    if (!user || !ownerId) return;
-    try {
-      setLoading(true);
-      setLoadFailed(false);
-      const [snapshotsData, assetsData, targetsData, expensesData, settingsData, transactionsData, contributionsData] = await Promise.all([
-        getUserSnapshots(ownerId),
-        getAllAssets(ownerId),
-        getTargets(ownerId),
-        getAllExpenses(ownerId),
-        getSettings(ownerId),
-        getAssetTransactions(ownerId),
-        getPensionContributions(ownerId),
-      ]);
-      setSnapshots(snapshotsData);
-      setAssets(assetsData);
-      setTargets(targetsData || getDefaultTargets());
-      setExpenses(expensesData);
-      setPortfolioSettings(settingsData);
-      setTransactions(transactionsData);
-      setPensionContributions(contributionsData);
-    } catch (error) {
-      // The `ErrorNotice` below is the failure's one voice: a toast beside it said the same thing twice.
-      setLoadFailed(true);
-      console.error('Error loading history data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!user || !ownerId) return;
-    // Deferred so the effect body itself sets no state (react-hooks/set-state-in-effect).
-    const timer = setTimeout(() => {
-      loadData();
-    }, 0);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, ownerId]);
 
   /** CSV of the whole history: date, total, liquid, illiquid. */
   const handleExportCSV = () => {
@@ -204,11 +262,13 @@ export default function HistoryPage() {
     toast.success('Storico esportato con successo');
   };
 
-  /** A note is saved first, then patched into the local snapshot — no refetch. Never in demo: the snapshots are shared. */
+  /** A note is saved first, then patched into the cached snapshot — no refetch. Never in demo: the snapshots are shared. */
   const handleSaveNote = async (year: number, month: number, note: string) => {
     if (!user || !ownerId || isDemo) return;
     await updateSnapshotNote(ownerId, year, month, note);
-    setSnapshots((previous) => previous.map((s) => (s.year === year && s.month === month ? { ...s, note: note.trim() || undefined } : s)));
+    queryClient.setQueryData<MonthlySnapshot[]>(queryKeys.snapshots.all(ownerId), (previous) =>
+      previous?.map((s) => (s.year === year && s.month === month ? { ...s, note: note.trim() || undefined } : s)),
+    );
   };
 
   // ─── The numbers (pure layer) ───────────────────────────────────────────────
@@ -314,6 +374,20 @@ export default function HistoryPage() {
   const selection = useMemo(() => (breakdown ? summarizeSelection(breakdown, selectedAssetIds) : null), [breakdown, selectedAssetIds]);
   const selectionTrend = useMemo(() => buildSelectedAssetTrend(ordered, selectedAssetIds), [ordered, selectedAssetIds]);
 
+  // What each closed row answers in the landscape index (2026-10-16): figures the page already has;
+  // Composizione on the asset-class cut, the scope its closed row names («per classe»). Memoized: a
+  // new map on every render would re-render every row.
+  const rowAnswers = useMemo(
+    () =>
+      describeStoricoClosedAnswers({
+        composition: resolveCompositionSeries('assetClass', { assetClassHistory, liquidityHistory: netWorthHistory }),
+        doublings: { summary: doublingSummary, mode: doublingMode },
+        featuredDriverYear,
+        breakdown,
+      }),
+    [assetClassHistory, netWorthHistory, doublingSummary, doublingMode, featuredDriverYear, breakdown],
+  );
+
   const toggleAsset = (assetId: string) => {
     setSelectedAssetIds((previous) => {
       const next = new Set(previous);
@@ -332,6 +406,48 @@ export default function HistoryPage() {
       ids.forEach((id) => (allSelected ? next.delete(id) : next.add(id)));
       return next;
     });
+  };
+
+  // ─── The phone composition (2026-10-14) ──────────────────────────────────────
+  // Before the early returns: hooks run on every render.
+  const sections = useMobileSections({ route: 'history', sections: STORICO_SECTIONS });
+  // At 768 the same rows on two columns; on a tablet in landscape the index beside the verdict and
+  // THE tile (lib/utils/tabletComposition.ts).
+  const stageRef = useTabletStage();
+  const tablet = useTabletComposition({ sections, order: STORICO_ORDER });
+  const restCollapse = sections.collapse(VERDICT_REST_SECTION);
+  // The strip: the last twelve months (Evoluzione's third chip, its euro lifted) and ONE cell of the
+  // Driver — the featured year's savings as its ledger prints them (2026-10-10; doc/guide/storico.md
+  // § Composizione mobile). With fewer than two snapshots there is nothing to measure: no strip.
+  const strip =
+    growth && growth.snapshotCount >= 2
+      ? selectStoricoStrip({
+          pace,
+          featured: featuredDriverYear,
+          ledger: featuredDriverYear ? buildDriverLedger(featuredDriverYear.row) : [],
+          window: featuredDriverYear?.isRunning ? describeRunningWindowShort(featuredDriverYear.row) : null,
+        })
+      : [];
+  // THE tile hides the chips the first sentence restates (growth, percentage and CAGR) and the euro
+  // of the twelve months the strip prints; its percentage stays (The Lifted-Figure Rule).
+  const evoluzioneLifted: EvoluzioneLiftedBlock[] = [...liftedBlocks(strip, STORICO_EVOLUZIONE_ID).filter(isEvoluzioneLiftedBlock), 'growth', 'cagr'];
+  const stripEyebrows = { ...sections.eyebrows, [VERDICT_REST_SECTION]: STRIP_EYEBROW_REST, [STORICO_EVOLUZIONE_ID]: STRIP_EYEBROW_EVOLUZIONE };
+  const hasRest = splitVerdict(verdict).rest.length > 0;
+  /**
+   * «Ultimi 12 mesi» opens «Il perché», which names the pace — or, with less than a year of
+   * history, THE tile's curve; the Driver's cell its row.
+   */
+  const handleStripOpen = (section: string) => {
+    if (section === VERDICT_REST_SECTION) {
+      if (restCollapse && hasRest) restCollapse.onOpenChange(true);
+      return;
+    }
+    if (section === STORICO_EVOLUZIONE_ID) {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      document.getElementById(STORICO_EVOLUZIONE_ID)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+      return;
+    }
+    sections.reveal(section);
   };
 
   // ─── Header ─────────────────────────────────────────────────────────────────
@@ -363,6 +479,7 @@ export default function HistoryPage() {
       label="Analisi"
       title="Storico"
       description={describeStoricoHeader(growth)}
+      freshness={freshness}
       actions={
         <>
           <div className="hidden items-center gap-2 desktop:flex">{headerActions(false)}</div>
@@ -377,7 +494,7 @@ export default function HistoryPage() {
 
   const dialogs = (
     <>
-      <CreateManualSnapshotModal open={showManualSnapshotModal} onOpenChange={setShowManualSnapshotModal} userId={ownerId || ''} onSuccess={loadData} />
+      <CreateManualSnapshotModal open={showManualSnapshotModal} onOpenChange={setShowManualSnapshotModal} userId={ownerId || ''} onSuccess={reloadData} />
       <SnapshotSearchDialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen} snapshots={snapshots} onSave={handleSaveNote} />
     </>
   );
@@ -400,7 +517,7 @@ export default function HistoryPage() {
         {header}
         <ErrorNotice
           className="max-w-[920px]"
-          onRetry={() => void loadData()}
+          onRetry={reloadData}
           notice={describeReadFailure({
             consequence: 'Lo storico non è stato letto: senza le rilevazioni mensili non c’è una crescita da misurare.',
             untouched: 'Le rilevazioni registrate non sono state toccate.',
@@ -429,20 +546,37 @@ export default function HistoryPage() {
     <PageContainer>
       {header}
 
-      <div className="pt-1">
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto sullo storico" />
+      {/* The stage: the verdict over the grid; on a tablet in landscape the answer on the left
+          (verdict and THE tile) and the index on the right (lib/utils/tabletComposition.ts). */}
+      <RowAnswers value={rowAnswers}>
+      <div className={STAGE_WRAPPER_CLASS}>
+      <div ref={stageRef} className={STAGE_CLASS}>
+      <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
+        <PageVerdict
+          verdict={verdict}
+          ariaLabel="Verdetto sullo storico"
+          strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={stripEyebrows} />}
+          restCollapse={restCollapse}
+        />
       </div>
 
-      {/* Tablet (768-1439): Evoluzione full, Raddoppi beside Driver, then Composizione and Valore full — the
-          two 4-column tiles are the only ones narrow enough to share a row there.
-          Desktop: two COLUMNS, not two rows. Raddoppi keeps its natural height and the Driver takes the rest
-          of the right column (its ledger and bars want it); on the left the Evoluzione chart is the element
-          that stretches. Below desktop the two wrappers are `contents`, so the four tiles are direct items of
-          the grid and their `order` still applies. */}
-      <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
-        <div className="contents desktop:col-span-8 desktop:flex desktop:min-w-0 desktop:flex-col desktop:gap-3">
-          <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:flex-1')}>
+      {/* Below desktop the DOM order is the order (the `order-*` went on 2026-10-14): Evoluzione,
+          then Composizione, Raddoppi, Driver and Valore as rows — at 768 Raddoppi beside the Driver, the two
+          4-column tiles. Desktop: two COLUMNS, not two rows. Raddoppi keeps its natural height and the Driver
+          takes the rest of the right column (its ledger and bars want it); on the left the Evoluzione chart is
+          the element that stretches. Below desktop the two wrappers are `contents`, so the tiles and «Il resto
+          della pagina» are direct items of the grid. */}
+      <div className={COMPACT_GRID_WRAPPER_CLASS}>
+      {/* At 1440 the left column is placed on the grid, not wrapped (since 2026-10-16, so that «Il resto»
+          and the rows fit ONE index on a tablet in landscape): Evoluzione on row 1, Composizione under it
+          on row 2, the right column across both; the `1fr` first row takes the right column's extra
+          height, so the Evoluzione chart stretches as the old `flex-1` made it. */}
+      <div className={cn(COMPACT_GRID_CLASS, 'desktop:grid-rows-[1fr_auto]')}>
+          <div data-stage="lead" className={cn(TILE_CELL_CLASS, LEAD_CELL_CLASS, 'desktop:col-span-8 desktop:row-start-1')}>
             <EvoluzioneTile
+              id={STORICO_EVOLUZIONE_ID}
+              className="scroll-mt-24"
+              liftedFigures={evoluzioneLifted}
               aside={describeEvolutionAside(growth)}
               reading={describeEvolution({ ath, moves })}
               growth={growth}
@@ -455,14 +589,23 @@ export default function HistoryPage() {
               onScrub={setScrubPeriod}
             />
           </div>
-          <div className={cn(TILE_CELL_CLASS, 'order-3 tablet:order-4 tablet:col-span-2 desktop:order-none')}>
-            <ComposizioneTile assetClassHistory={assetClassHistory} liquidityHistory={netWorthHistory} hasPensionFunds={pensionAssets.length > 0} scrub={scrub?.period ?? null} />
+          <div className={INDEX_CLASS}>
+          <PageRest sections={sections} className={REST_CELL_CLASS} />
+          <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(STORICO_SECTION_IDS.composizione), 'desktop:col-span-8 desktop:col-start-1 desktop:row-start-2')}>
+            <ComposizioneTile
+              assetClassHistory={assetClassHistory}
+              liquidityHistory={netWorthHistory}
+              hasPensionFunds={pensionAssets.length > 0}
+              scrub={scrub?.period ?? null}
+              collapse={sections.collapse(STORICO_SECTION_IDS.composizione)}
+              asideWhenClosed={STORICO_CLOSED_ASIDES.composizione}
+            />
           </div>
-        </div>
 
-        <div className="contents desktop:col-span-4 desktop:flex desktop:min-w-0 desktop:flex-col desktop:gap-3">
-          <div className={cn(TILE_CELL_CLASS, 'order-2 desktop:order-none')}>
+        <div className={cn('contents desktop:col-span-4 desktop:col-start-9 desktop:row-span-2 desktop:row-start-1 desktop:flex desktop:min-w-0 desktop:flex-col desktop:gap-3', INDEX_GROUP_CLASS)}>
+          <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(STORICO_SECTION_IDS.raddoppi))}>
             <RaddoppiTile
+              collapse={sections.collapse(STORICO_SECTION_IDS.raddoppi)}
               reading={describeDoublings({ summary: doublingSummary, mode: doublingMode, projection })}
               summary={doublingSummary}
               mode={doublingMode}
@@ -472,8 +615,9 @@ export default function HistoryPage() {
               latestValue={growth.latest.value}
             />
           </div>
-          <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:order-3 desktop:order-none desktop:flex-1')}>
+          <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(STORICO_SECTION_IDS.driver), 'desktop:flex-1')}>
             <DriverTile
+              collapse={sections.collapse(STORICO_SECTION_IDS.driver)}
               reading={describeDrivers(featuredDriverYear)}
               years={driverYears}
               featured={featuredDriverYear}
@@ -487,8 +631,10 @@ export default function HistoryPage() {
           </div>
         </div>
 
-        <div className={cn(TILE_CELL_CLASS, 'order-5 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
+        <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(STORICO_SECTION_IDS.valore), 'desktop:col-span-12')}>
           <ValoreStrumentoTile
+            collapse={sections.collapse(STORICO_SECTION_IDS.valore)}
+            asideWhenClosed={STORICO_CLOSED_ASIDES.valore}
             reading={describeMonthBreakdown(breakdown)}
             months={breakdownMonths}
             activeMonthKey={readMonthKey}
@@ -502,7 +648,12 @@ export default function HistoryPage() {
             trend={selectionTrend}
           />
         </div>
+          </div>
       </div>
+      </div>
+      </div>
+      </div>
+      </RowAnswers>
 
       <StoricoDettaglio
         currentYear={currentYear}

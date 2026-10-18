@@ -9,8 +9,7 @@
  * the second action, «Apri il portafoglio modello», jumps to the model portfolio's tile.
  */
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getAnnualCashflowData } from '@/lib/services/fireService';
+import { useAnnualCashflow } from '@/lib/hooks/useAnnualCashflow';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { ModelPortfolio } from '@/types/modelPortfolio';
 import type { RebalanceBand } from '@/lib/utils/allocationUtils';
@@ -54,19 +53,16 @@ interface AccumuloVuotoTileProps {
   model: ModelPortfolio | null;
   today: Date;
   onAssetsChanged: () => void;
+  /** Where «Apri il portafoglio modello» goes when the model is a closed row (below `desktop:`); absent = scroll to the anchor. */
+  onGoToComposition?: () => void;
 }
 
-export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLeverageRatio, idealAllocation, model, today, onAssetsChanged }: AccumuloVuotoTileProps) {
+export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLeverageRatio, idealAllocation, model, today, onAssetsChanged, onGoToComposition }: AccumuloVuotoTileProps) {
   const isDemo = useDemoMode();
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // RV4 / RP7: the entry the editor would suggest, so the preview matches what «Crea piano» proposes.
-  const cashflowQuery = useQuery({
-    queryKey: ['annualCashflowData', ownerId],
-    queryFn: () => getAnnualCashflowData(ownerId),
-    enabled: !!ownerId,
-    staleTime: 300000,
-  });
+  const cashflowQuery = useAnnualCashflow(ownerId);
   const suggestedInflow = suggestMonthlyInflow(cashflowQuery.data?.annualSavings ?? 0);
 
   const preview = useMemo(
@@ -78,6 +74,8 @@ export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLev
   );
 
   const goToComposition = () => {
+    // Below `desktop:` the model portfolio is a row that may be closed: the tab opens it and scrolls itself.
+    if (onGoToComposition) return onGoToComposition();
     document.getElementById(COMPOSITION_ANCHOR_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 

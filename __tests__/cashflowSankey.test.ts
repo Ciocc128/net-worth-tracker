@@ -1009,3 +1009,21 @@ describe('buildSpendingRolesFlowData — income and Budget in the palette’s ow
     expect(colours).toEqual({ Stipendio: '#aa0001', Cedole: '#aa0001', Budget: '#aa0002' });
   });
 });
+
+describe('resolveThinSankeyHeight', () => {
+  const view = (nodes: number): import('@/lib/utils/cashflowSankey').SankeyView => ({
+    nodes: Array.from({ length: nodes }, (_, i) => ({ id: `n${i}`, nodeColor: '#000', label: `n${i}` })),
+    links: Array.from({ length: nodes }, (_, i) => ({ source: 'root', target: `n${i}`, value: 1 })),
+    index: new Map(),
+  } as never);
+
+  it('should never go below the thin floor, so the placeholder holds the plot\'s box', async () => {
+    const { resolveThinSankeyHeight } = await import('@/lib/utils/cashflowSankey');
+    expect(resolveThinSankeyHeight(view(2), 300)).toBe(520);
+  });
+
+  it('should grow with the widest column past the floor', async () => {
+    const { resolveThinSankeyHeight } = await import('@/lib/utils/cashflowSankey');
+    expect(resolveThinSankeyHeight(view(20), 300)).toBe(20 * 44 + 48);
+  });
+});

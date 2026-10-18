@@ -240,8 +240,17 @@ ha peso corrente 0 e l'ottimizzatore gli dà un peso solo se un obiettivo lo chi
   PAC, il modale degli Obiettivi e il tile Obiettivi (che lo legge dallo snapshot del modello, con la prima frase dei
   conflitti). I conflitti restano frasi.
 
+- **I gruppi nel modello (AL16, D-AL3)**: una riga può essere un gruppo di strumenti equivalenti — `memberAssetIds` (il buyer incluso, `assetId` resta lo strumento che compra; assente = lo strumento da solo). `validateModelWeights` rifiuta uno strumento in due righe e controlla i membri come il buyer; `toModelWeights` toglie il membro che non può starci (e lo dice). Lo strumento a sé (`IdealCompositionDialog`, `ObiettiviDialog`) passa i gruppi a `buildStandaloneCandidates(…, groups)`: un gruppo è UN candidato con la chiave del buyer (profilo del buyer, avviso `proxy_mismatch` invariato), gli altri restano strumenti singoli; il risultato salvato riporta i membri. Il valore di oggi di un gruppo è la somma dei membri, `candidate` solo se nessun membro ha quote, e un membro non è mai «fuori dal modello». Il tile disegna il gruppo come il passo Target (testa = chi compra, gli altri rientrati con «non riceve acquisti»); «Modifica a mano» conserva i membri. Un modello senza gruppi si legge e si salva come prima.
+
+- **«Criteri del modello» e i target di classe (AL18, AL19, D-AL5, D-AL7)**: gli obiettivi dell'ottimizzatore si chiamano **«Criteri del modello»** (tile, «Modifica i criteri», titolo del modale, «Salva i criteri», «Criteri attivi» nei rapporti, «Senza il criterio «Leva»», Impostazioni › Allocazione); i campi salvati (`idealAllocation`) e `?obiettivi=1` non cambiano. Il modale mostra in cima i **target di classe** di Impostazioni in sola lettura — classe, %, e la leva che ne segue («Somma 110%: leva 1,10×.») — con «Modifica in Impostazioni» (`describeClassTargets`): si scrivono in un posto solo.
+
 ## Limiti noti
 
+- **I «pesi di oggi» non contano i debiti, Bilanciamento sì** (R11, D-R11-2, 2026-10-18): un prestito personale o un mutuo su un immobile
+  DENTRO l'allocazione è sottratto alla classe che finanzia in Bilanciamento e nel PAC (`resolveAllocationRoleWithin`, `compareAllocations`);
+  l'ottimizzatore e il portafoglio modello partono dagli strumenti investibili, perché un peso non è negativo e un debito non si compra
+  (`resolveAllocationRole` dà `excluded` a un `loan`). Il tile Portafoglio modello lo dice in una riga (`describeModelDebtNote`), solo
+  quando un debito c'è davvero; con un mutuo su una casa esclusa nessuna delle due basi cambia. Pinned by `__tests__/loanBases.test.ts`.
 - **I gruppi proxy assumono la stessa esposizione per euro del buy asset per tutti i membri** (§5.1
   della ATE): se un membro differisce di oltre 0,05 in qualunque classe o area dal buy asset, il
   candidato porta l'avviso `proxy_mismatch` e il calcolo procede comunque con i soli valori del buy

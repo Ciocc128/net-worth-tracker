@@ -9,7 +9,9 @@
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
-- **Dividendi**: `components/dividends/DividendTrackingTab.tsx` + `tiles/*` + `DividendiDettaglio.tsx`, pure `lib/utils/{dividendAnalytics,dividendiNarrative,dividendEligibility}.ts` (`resolveDividendFloor` = the ONE floor under a scraped dividend), `lib/hooks/useDividendStats.ts` → `app/api/dividends/stats/route.ts`; registry and coupons `components/dividends/{DividendTable,DividendCalendar,DividendDialog,DividendDetailsDialog,DividendRecordDetailsDialog,InflationRateDialog,ProvisionalCouponBanner}.tsx`, `lib/utils/couponUtils.ts` (`resolveCoupon` for both mechanisms, `resolveInflationIndexation`, `hasCouponPayments`, the coefficient lookups), `lib/services/couponScheduling.ts`, `types/dividend.ts`
+- **Dividendi**: `components/dividends/DividendTrackingTab.tsx` + `tiles/*` + `DividendiDettaglio.tsx`, pure `lib/utils/{dividendAnalytics,dividendiNarrative,dividendEligibility}.ts` (`resolveDividendFloor` = the ONE floor under a scraped dividend), `lib/hooks/useDividendStats.ts` (`useDividendRegistry` for the page's list, `useDividendStats` for the tab's measures: ONE request) → `app/api/dividends/stats/route.ts`; registry and coupons `components/dividends/{DividendTable,DividendCalendar,DividendDialog,DividendDetailsDialog,DividendRecordDetailsDialog,InflationRateDialog,ProvisionalCouponBanner}.tsx`, `lib/utils/couponUtils.ts` (`resolveCoupon` for both mechanisms, `resolveInflationIndexation`, `hasCouponPayments`, the coefficient lookups), `lib/services/couponScheduling.ts`, `types/dividend.ts`
+- **Suites to run after a change here — Dividendi / cron** (moved from `AGENTS.md` § Commands on 2026-09-30): `dividendUseCase`, `dividendProcessor`, `dividendAccount`, `dividendIncomeService`, `floatNoise` · **Email** `monthlyEmailService`
+- **Suites to run after a change here — Cashflow › Dividendi** (moved from `AGENTS.md` § Commands on 2026-09-30): `dividendAnalytics`, `dividendiNarrative` (with `describeDividendiClosedAnswers`, the landscape index), `tabletComposition` (+ `patrimonioNarrative` for the articles) · **The stats route** `dividendStatsRoute` (its answer pinned on a fixture, 2026-10-05)
 
 ## Cashflow › Dividendi (`components/dividends/DividendTrackingTab.tsx`, `components/dividends/tiles/*`)
 - **RECEIVED AND ANNOUNCED ARE NEVER ONE FIGURE.** A dividend whose `paymentDate` is in the future is
@@ -117,13 +119,29 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   «10 dicembre 2026 — 1 pagamento in attesa».
 - **Nothing recorded is one tile, not five zeros**: with `dividends.length === 0` the grid is a single
   «Pagamenti» tile with the `EmptyState` sentence and the two actions (add, scrape); the axis is not
-  rendered. A failed `useDividendStats` read is said in place of the Dettaglio (`ErrorNotice compact`)
-  and inside Rendimento with the «Lettura fallita» eyebrow, never an empty space.
+  rendered. Measures the server could not compute (`stats: null` beside a list it did read, which
+  `useDividendStats` hands out as `isError`) are said in place of the Dettaglio (`ErrorNotice compact`)
+  and inside Rendimento with the «Lettura fallita» eyebrow, never an empty space; a request that
+  failed whole is the tab's own failure (§ Dividends and Coupons, the ONE request).
 - **The type labels are the readings' words**: «Acconto» and «Saldo» (`dividendTypeLabels`), the one
   map the select, the table and the two detail dialogs read — the article map `LARGEST_TYPE_PREFIX`
   and `dividendTypeNoun` («la cedola», «il dividendo») live in `dividendiNarrative.ts`.
 
 ## Dividends and Coupons
+- **A bond may pay ONE coupon, with the redemption** (`CouponFrequency 'maturity'`, 2026-10-10 — the BTP Valore
+  «Insieme» of the 19–23 October dual-tranche issue, MEF comunicato of 2026-09-25: five years, no intermediate coupon,
+  «rendimenti equivalenti» to the quarterly step-up Valore). The owner's reading of that equivalence is COMPOUND:
+  the coupon is `nominal × ((1 + rate)^years − 1)` (`calculateMaturityCouponPerShare`), years = whole months from issue
+  to maturity over 12 (`bondTermYears`); simple interest would understate it — the MEF publishes the rates on 16/10, the
+  form's preview («Cedola unica a scadenza (3,50% capitalizzato per 5,00 anni)») is what the owner checks against the
+  scheda. `getPeriodsPerYear('maturity')` is 0 and every caller that divides by it asks `isSingleCouponAtMaturity`
+  first: `getNextCouponDate` answers the maturity date (or null once past), `getFollowingCouponDate` null,
+  `resolveCoupon` carries `termYears`, `buildCouponNote` says «Cedola unica a scadenza — tasso annuo 3,5% capitalizzato
+  per 5 anni = 18,77% del nominale»; the step-up schedule leaves the form (one coupon has one rate), the inflation
+  mechanisms are not combined with it (none exists on the market). The Patrimonio row's «prossima cedola» is the
+  maturity; YOC and the current yield read nothing until it is paid (a blind spot, below). Pinned by
+  `__tests__/couponUtils.test.ts` and `e2e/assets.bond.spec.ts` (the coupon materialised on the maturity date, the
+  compound figure, the note).
 - **A payment credits a cash account — per instrument, then a default** (2026-09-20, `lib/utils/dividendAccount.ts`).
   `Asset.dividendCashAssetId` (the asset form, only for `paysDividends` types: stock/etf/bond — two brokers, two
   accounts) wins over the setting `dividendCashAssetId` (Impostazioni › Dividendi); neither → the income row moves
@@ -135,7 +153,15 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   row (no `balancePending`: applied), so Tracciamento's edits and deletes give the account back through
   `lib/utils/cashSettlement.ts`; `updateExpenseFromDividend` moves the DIFFERENCE and `deleteExpenseForDividend` gives
   back what was applied. The amount is cents (`dividendIncomeAmount`); an account that is not the user's own cash
-  account, or is in another currency than the row, is skipped and the row written without a link.
+  account, or is in another currency than the row, is skipped and the row written without a link. The BALANCE the
+  credit lands on is rounded to the cent too (2026-10-07, doc/guide/cashflow.md § Expense Sign Convention).
+- **A coupon per unit is stored as the decimal it is, not its binary neighbour** (2026-10-07,
+  `lib/utils/floatNoise.ts`): `(1,3 / 100 / 2) × 1000` is 6.500000000000001 in binary, and the owner's BTP Valore showed
+  it in «Importo lordo per unità». It cannot be cents — a BTP€i per 1 € of nominal has five or six meaningful decimals —
+  so `stripFloatNoise` keeps twelve significant digits: in `calculateCouponPerShare`, in `resolveCoupon`'s indexed
+  coupon (× coefficient, + FOI inflation) and in the final premium (`couponScheduling`). Records saved before keep their
+  value; `DividendDialog` shows the clean one and saves it back on the next edit. The totals (gross, tax, net) keep
+  their exact values as before; the cents are applied where money moves. `__tests__/floatNoise.test.ts`.
 - **A route reads settings and categories with the ADMIN SDK** (`resolveDividendIncomeCategory`, 2026-09-20): the
   dividend PUT route used the client readers (`getSettings`, `getCategoryById`), which the rules refuse with no
   signed-in client, and its `catch` swallowed the refusal — an edited dividend NEVER reached its income row. Found by
@@ -147,7 +173,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **The coupon cron is self-healing, not exact-day**: Phases 2-3 query a 370-day lookback and Phase 3 walks
   `getFollowingCouponDate` forward, so a missed run cannot stop the chain.
 - **Adding a `DividendType` is a six-file fan-out** and nothing enforces it: `types/dividend.ts`, `DividendTable`,
-  `DividendDetailsDialog`, `DividendTrackingTab`, `DividendDialog`, plus `dividendService.ts`'s `byType` initializer.
+  `DividendDetailsDialog`, `DividendTrackingTab`, `DividendDialog`, plus the `byType` initializer of
+  `summarizeDividendStats` in `dividendAnalytics.ts` (in `dividendService.ts` until 2026-10-05).
 - **A coupon's tax rate is the asset's own `taxRate`** (12,5% government, 26% corporate), never a constant.
 - **YOC and Current Yield share one pure function**, `computeDividendYieldMetrics`, prospective and per-share:
   `annualizedDPS = Σ(grossEur/div.quantity)` annualized, YOC = `DPS ÷ averageCost`, Current Yield = `DPS ÷ price`, only
@@ -156,15 +183,13 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   dividends before `holdingStartDate` are dropped, with `deriveHoldingStartDates` for legacy rebuys). **DPS growth is
   deliberately NOT scoped** — it is a security-level payout history.
 - **A scraped dividend has ONE floor** (`lib/utils/dividendEligibility.ts`, 2026-09-13): the holding start from the
-  ledger when there is one, else the asset's creation date — shared by `/api/dividends/scrape` and cron Phase 1. A
-  floor is never silent: the route returns `filtered`, `floorDate` and `floorSource`, and «Scarica dividendi storici»
-  toasts `describeFilteredDividends` — how many were dropped and, when a floor was the creation date, the recovery
-  (record the purchase in the Registro operazioni with its real date and scrape again). Until then the button said
-  «Nessun nuovo dividendo trovato» for every stock added to the app after its dividends, which read as «none exist».
-- **The floor's two sources, by field name** (moved here from the `AGENTS.md` stub on 2026-09-20): a scraped dividend
-  has ONE floor (`lib/utils/dividendEligibility.ts`: `holdingStartDate` from the ledger, else `createdAt`), shared by
-  `/api/dividends/scrape` and cron Phase 1 — and never silent: the route returns `filtered`/`floorDate`/`floorSource`
-  and the tab toasts `describeFilteredDividends` with the recovery (2026-09-13).
+  ledger when there is one (`holdingStartDate`), else the asset's creation date (`createdAt`) — shared by
+  `/api/dividends/scrape` and cron Phase 1. A floor is never silent: the route returns `filtered`, `floorDate` and
+  `floorSource`, and «Scarica dividendi storici» toasts `describeFilteredDividends` — how many were dropped and, when a
+  floor was the creation date, the recovery (record the purchase in the Registro operazioni with its real date and
+  scrape again). Until then the button said «Nessun nuovo dividendo trovato» for every stock added to the app after
+  its dividends, which read as «none exist». (The two sources by field name came from the `AGENTS.md` stub on
+  2026-09-20 as a second bullet; merged into this one on 2026-09-30.)
 - **Received metrics filter on `paymentDate`, not `exDate`**; use `setHours(23,59,59,999)` for the upper bound, or a
   `…T00:00:00Z` dividend reads as future.
 - **Two inflation mechanisms, ONE field** (`BondDetails.inflationIndexation`, read only through
@@ -191,6 +216,38 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `portfolioCurrentYieldGross/Net`): `computeDividendYieldMetrics` has always produced them and the
   route used to drop them, which forced every consumer wanting a net figure to re-derive it from an
   average tax rate. `averageYield` stays only as the deprecated alias of the gross current yield.
+- **`/api/dividends/stats` reads every collection ONCE** (2026-10-05): the dividends, the assets, the snapshots and
+  the trade ledger in one parallel round, then the period, all-time and upcoming figures are derived from
+  that ONE dividend list by the pure `summarizeDividendStats(list, { startDate?, endDate?, assetId?, now })` and
+  `selectUpcomingDividends(list, now)` in `lib/utils/dividendAnalytics.ts` — it was seven serial reads, the dividends
+  four times (a range, the whole collection, a `paymentDate >= now` query, the whole collection again).
+  `calculateDividendStats` and `getUpcomingDividends` are gone from `dividendService.ts`. The pure functions keep the
+  old queries' semantics to the bit: the NATIVE amounts (not the `*Eur` fields the tab reads), the end of «today» as
+  `endOfServerDay(now)` (23:59:59.999 of the process day — UTC on Vercel), upcoming as a payment INSTANT ≥ `now`,
+  nearest first with ties by id (Firestore's order), and the list's newest-first order so every float sum adds in the
+  same order. `now` is read ONCE per request and passed to every figure, the TTM window included. Pinned by
+  `__tests__/dividendStatsRoute.test.ts`: an in-memory Admin Firestore serves a fixture of the mirror's shape and the
+  route must answer the JSON the OLD route answered on it (`dividendStatsRoute.answer.json`, four query shapes,
+  captured before the change) with one read per collection («dividends: 4» seen red on the old route). `Server-Timing:
+  auth, db, compute, total` on the response. On the mirror (2026-10-05, production build): 25/22 → 12/11 ms of median
+  wall time, `db` ~8–10 ms; the answers identical before and after.
+- **The tab opens on ONE request, and the list survives a failed measure** (2026-10-05): the answer of
+  `/api/dividends/stats` carries `dividends` beside `stats` — the owner's WHOLE registry, whatever the bounds or the
+  instrument asked. Until then the page asked `/api/dividends` for the list: a second request and a second read of
+  the collection at every opening (that route stays: Impostazioni's expense sync reads it).
+  `lib/hooks/useDividendStats.ts` reads the answer with two hooks on one key (`dividendStatsQueryKey`):
+  `useDividendRegistry`, the page's list, enabled by the mounted tab, and `useDividendStats`, the tab's measures.
+  `staleTime: 0` — every opening rereads behind the cached answer: dividends are also written where nothing
+  invalidates the key (the coupon scheduler on Patrimonio, the daily cron), and while the list lived in the page's
+  state it was read at every mount. The page's `handleRefresh` invalidates the key after every write of the tab, so
+  the list stays drawn while it is reread (it went back to a skeleton) and the measures follow the write (they
+  waited out the global five minutes). The route AWAITS the dividends first, with all four reads already in flight,
+  and keeps the registry outside its `try`: a failed read of the assets, the snapshots or the ledger, or a failed
+  computation, answers 200 with `stats: null` and the list — as two requests a failed measure never took the list
+  with it — while a failed read of the dividends is 500. Pinned by `__tests__/dividendStatsRoute.test.ts` (the
+  registry equal to `/api/dividends`'s own answer on the fixture, four query shapes; `stats: null` with the ledger
+  unreadable; both seen red) and by `e2e/cashflow.dividendi.spec.ts` (one GET under `/api/dividends` at the opening;
+  seen red on the page that made two).
 - **The date bounds of that route only ever narrowed `periodStats`.** `yieldOnCostAssets`,
   `totalReturnAssets` and `dividendGrowthData` are TTM/all-time whatever is passed — do not add a
   range expecting them to move (§ Cashflow › Dividendi).
@@ -200,10 +257,40 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **Persist a bondDetails-only change with `updateAssetBondDetails`, never `updateAsset`** (which `deleteField()`s an
   absent `averageCost`/`taxRate`), passing the COMPLETE object — `updateDoc` replaces the whole map.
 
+## Composizione mobile
+
+Composed on 2026-10-12 (PR #454; its spec, retired the same day, is in `git log -- doc/mobile/`; the primitives in doc/guide/hall-of-fame.md § Composizione mobile): below `desktop:` one sequence, the desktop DOM — the `order-1/4/2/3/5/6` of the phone went that day, so Affidabilità now precedes Rendimento there too (the DOM order is the reading order: DESIGN.md → The First-Screen Rule). The rules are DESIGN.md's (§ 5 → Small-Screen Composition: The First-Screen, Lifted-Figure, Closed-Row and Binding-Clause Rules); here is what this page does with them.
+
+- **THE tile**: Incasso netto (`dvd-incasso`), open at every width (THE tile stays outside the sections controller: DESIGN.md → The First-Screen Rule), received and announced in their own material at its top.
+- **The strip**: none (2026-10-10): received and announced are never one figure — two cells or none, and the two already open THE tile on the period's window (The Received-vs-Announced Rule); the Rendimento does not follow the axis and is never in a strip. The verdict is one sentence, whole (`buildDividendiVerdict` sets no `leadLength`).
+- **The axis** (DESIGN.md → Page Verdict): the period `SegmentedPill` and the «+» (44×44) in `PageVerdict.axis`, the desktop pill beside the verdict; `DividendsTabSkeleton` draws the same slot. The scrape stays in the Pagamenti toolbar on a phone.
+- **Lifted blocks**: none — with no strip no cell repeats a figure, so no tile of the tab takes `liftedFigures` and Incasso netto prints all of its own.
+- **The rows and their aside, in DOM order** (`DIVIDEND_SECTIONS`, module-level; ids `DIVIDEND_SECTION_IDS`, the words in `lib/utils/dividendiNarrative.ts`): `dvd-affidabilita` (`describeReliabilityClosedAside`: «9 mesi · in portafoglio» — a window and a population), `dvd-rendimento` («ultimi 12 mesi»: a window, not an amount), `dvd-pagatori` («in portafoglio»), `dvd-per-anno` (`describeYearsAside`: «5 anni» / «1 anno» / «nessun incasso»), `dvd-pagamenti` (`describePaymentsCount`: «15 voci», «4 di 15 voci»); then the Dettaglio as it is. Pagamenti is in `defaultOpen` while a provisional BTP Italia/BTP€i coupon asks for its rate there (`PAGAMENTI_OPEN_BY_DEFAULT`, `ProvisionalCouponBanner`).
+- **`binding` clauses and the `scope`**: none — the verdict is whole, so there is no cut and no «Il perché» for a clause to bind (`splitVerdict` returns the sentence whole without a `leadLength`), and the tab passes `PageVerdict` no `scope`.
+- **Absences**: loading is `DividendsTabSkeleton`, the same element the page draws while the tab's chunk is on its way; a failed read of the dividends or the assets (`loadFailed`) is one `ErrorNotice` in place of the whole tab, before the loading branch; the stats read fails as Rendimento's row (below). **Nothing recorded**: no axis, no rows, no `PageRest` and nothing written to the memory (`NO_SECTIONS`): Pagamenti alone with its two actions, as on desktop.
+- **A failed stats read is Rendimento's row** (`statsError` of `useDividendStats`, true also when the answer carries the list and `stats: null`): `DIVIDEND_SECTIONS_STATS_FAILED` marks the row `failed` — open on every visit, its eyebrow red once closed — and below `desktop:` its panel is `<ErrorNotice collapse live={false}>` («Rendimento · lettura fallita») in place of `RendimentoTile`; the Dettaglio's notice is `live={!sections.compact}`, so the tab's ONE live node is `PageRest`'s sentence. At 1440 the tile's own `isError` branch and the Dettaglio's `role="alert"` stay. `dividendsError || assetsError` is the TAB's failure, as before.
+- **The memory**: `mobile-sections:cashflow:dividends` (route `cashflow`, tab `dividends`: the tab is mounted once visited and kept with `forceMount`, each Cashflow tab with its own key), per device and browser, not per account; absent or unreadable → the tab's defaults, every row closed — Pagamenti open while a provisional coupon is there. The verdict's rest is the id `dvd-perche`, never drawn: the verdict is whole. `active` remounts `PageRest`.
+- **768 and the landscape stage** (since 2026-10-16; `lib/utils/tabletComposition.ts`, `useTabletComposition` + `useTabletStage`; DESIGN.md → The First-Screen and Closed-Row Rules, AGENTS.md § Tailwind Breakpoints and Responsive Layout — the tablet's spec, retired on 2026-10-16, is in `git log -- doc/mobile/`): with payments, at 768 two columns — Incasso netto on both, «Il resto» on a row of its own, the five rows two by two (Pagamenti, the fifth, alone on the whole row), an open row whole. **On a tablet in landscape** (a content box ≥ 880px below 1440: 936 at 1024×768 beside the icon rail) the tab is a STAGE: on the left the whole verdict (the axis under its title; no strip, no «Il perché») and Incasso netto under it, 16px apart, sticky while the page scrolls when the left stack fits the screen, the tile reaching the fold; on the right the 360px INDEX, ONE card with «Il resto» and the five rows flat under hairlines, each opening in place — a provisional coupon's Pagamenti open by default and a failed Rendimento (a red row) included. With nothing recorded the grid of before (one tile).
+- **The closed rows answer in the index** (DESIGN.md → The Closed-Row Rule, landscape only, since 2026-10-16; `describeDividendiClosedAnswers({ reliability, yieldSummary, ranking, yearly })` in `dividendiNarrative.ts`, through `RowAnswers`; a `null` keeps the row's aside, a failed row never shows one, and below landscape every row keeps it):
+  - Affidabilità: «copertura {%}» (integer, the months that paid over the window); null with no payer.
+  - Rendimento: «YOC netto {%}» (two decimals; the gross YOC is the verdict's); null while the stats load, without a cost basis or on a failed read.
+  - Chi paga di più: the largest payer still held «{ticker or name} {€ compact}»; «solo {ticker}» with one held payer (its net would be the verdict's total again); null with no payer.
+  - Per anno: «in media {€ compact}» over at least two closed years; «primo anno» with only the running one; null with one closed year (the aside «2 anni» stays) or none.
+  - Pagamenti: null — it keeps its count and follows the filters.
+- **The specs**: `e2e/mobile-composition.cashflow.mobile.spec.ts` (a coupon planted through the emulator's REST API on the base account, which has none: the rows' order and no `order-*`; the stats read failed by REWRITING `/api/dividends/stats` with `stats: null` — `route.fetch()` + `route.fulfill`, never an abort, which is the tab's failure), `e2e/cashflow.dividendi.mobile.spec.ts` (opens Pagamenti first), `e2e/bundle.lazy.mobile.spec.ts` (the chunk lands on the fallback, axis included); `__tests__/dividendiNarrative.test.ts` (`describeDividendiClosedAnswers`); `npm run mobile:budget` holds the surface `cashflow-dividendi` of `perf/mobile-budget.json`.
+
 ## Per-page blind spots
+
+- **No strip on a phone** (2026-10-12): under the title there is the period pill and the «+», then the verdict's one sentence — received and announced are never one figure, and the two already open THE tile; a reader looking for the three cells the other tabs show finds none here, by design. Not proven in a browser: Pagamenti open by default while a provisional coupon asks for its rate, and the «nothing recorded» state on a phone (no axis, no rows, no memory) — the fixtures' coupons are past and not provisional.
+- **Rendimento's failure is spoken once, by the page** (2026-10-12): on a phone the row's notice and the Dettaglio's are silent (`live={false}`), `PageRest`'s one sentence says «1 sezione non è stata letta: Rendimento.»; a reader who closed the row sees the red eyebrow and nothing else until the next visit, when it opens again.
+- **`e2e/cashflow.dividendi.spec.ts` › «the form refuses…» is red after `cashflow.accounts` + `cashflow.budget`** (2026-09-30:
+  3/3 on a clean `develop` worktree, 2/3 on the branch of PR #418, green alone): after the refusal the dialog stays open
+  with its form reset — `reset` re-runs, cause not traced yet. Two of four full runs that day had it red; green in
+  the evening's full run of the same day (162/162). (moved from `CLAUDE.md` → Known Issues on 2026-10-07)
 
 - **A coupon recovered the day after a missed cron is NOT credited to its account** — by the owner's rule (only a
   payment dated today or later credits, so arrears never count twice). The income row is there, without an account:
   adjust the balance by hand or link the row from Tracciamento.
+- **A single coupon at maturity** (2026-10-10): YOC and the current yield of a BTP Valore Insieme read 0 until the coupon is paid — the registry holds one future payment and the yields measure what was received; the coupon's note states the capitalisation the OWNER chose (compound), not a figure the MEF published — the scheda of 16/10 is the check; a step-up schedule saved on a bond later switched to «Unica a scadenza» is dropped by the form (`showStepUp` off), by design.
 - **Dividendi**: the payments table dropped *Tax/Netto/Costo per azione*; the calendar day opens the day dialog instead of filtering; under «Mese» no month arrows, under «Anno» they stop at January/December; the list toolbar is rendered twice (desktop and phone, one hidden). The yield never follows the period (TTM on the current holding); the DPS running-year column is a partial sum; no `averageCost` → the tile becomes an explanation. Since 2026-09-14: Chi paga di più ranks only the HELD payers while its aside's total is the whole period's (the «venduti» row closes the gap); the verdict's «da 3 strumenti» counts sold payers too, on purpose; an edit form opens with the picker focused and its list open (Radix focuses the first field); a phone has no delete for a payment; the Dividendi axis options are `radio`, not `tab`, in a spec.
 - **YOC/Current Yield** exclude sold assets and are scoped to the current holding via `holdingStartDate`; a sell+rebuy inside one month counts the prior holding's dividends against the new cost basis (an overstated YOC, never a regression). (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

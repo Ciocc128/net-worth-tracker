@@ -13,11 +13,31 @@ import type { DatedFlowsInput } from '@/lib/utils/datedFlows';
 // - cash -> cash
 // - realestate -> realestate
 // - pensionFund -> equity (fallback only; the real mix lives in `composition`) - see TYPE_TO_CLASS
+// - loan -> the class of what it finances: realestate when `financedAssetId` names a property,
+//           cash otherwise (a personal loan is negative liquidity, like a credit card) - see TYPE_TO_CLASS
 //
 // WARNING: adding a type here requires updating TYPE_TO_CLASS in components/assets/AssetDialog.tsx
-// (exhaustive `Record<AssetType, AssetClass>` — tsc catches this one) and deciding whether the type
+// (exhaustive `Record<AssetType, AssetClass>` — tsc catches this one), MANUALLY_VALUED_TYPES in
+// lib/utils/assetPricing.ts when its value is typed by hand, and deciding whether the type
 // belongs in LEDGER_ASSET_TYPES (types/assetTransactions.ts — tsc does NOT catch that one).
-export type AssetType = 'stock' | 'etf' | 'bond' | 'crypto' | 'commodity' | 'cash' | 'realestate' | 'pensionFund';
+export type AssetType = 'stock' | 'etf' | 'bond' | 'crypto' | 'commodity' | 'cash' | 'realestate' | 'pensionFund' | 'loan';
+
+/**
+ * A `loan` is a LIABILITY stored as an asset (owner, 2026-10-10): a mortgage or a personal loan
+ * whose `quantity` is the outstanding principal (positive, as the bank states it) at
+ * `currentPrice` 1, and whose value is MINUS that principal (`calculateAssetValue`). It sits in
+ * the assets collection so every total — net worth, the class sums, the snapshots, Storico, FIRE —
+ * subtracts it with no second reader: a property stays at its gross value and its mortgage is a
+ * row of its own beside it, so the «Immobili» class still sums to the equity it summed to when the
+ * debt was a field of the property. A `debt` cashflow row linked to it (`Expense.debtAssetId`)
+ * lowers the principal on its own date (lib/utils/mortgageRepayment.ts).
+ */
+export const LOAN_ASSET_TYPE: AssetType = 'loan';
+
+/** Whether an asset is a loan — the ONE predicate, so no reader spells the type name itself. */
+export function isLoanAsset(asset: Pick<Asset, 'type'>): boolean {
+  return asset.type === LOAN_ASSET_TYPE;
+}
 // trendFollowing (managed futures) and carry are exposure-only classes reached via a leveraged/
 // composite `etf`'s `composition` legs — no
 // AssetType maps to them directly in TYPE_TO_CLASS.
@@ -25,8 +45,10 @@ export type AssetClass = 'equity' | 'bonds' | 'crypto' | 'realestate' | 'cash' |
                         | 'trendFollowing' | 'carry';
 
 // Coupon payment frequency for bonds.
-// Determines how many times per year the coupon is paid.
-export type CouponFrequency = 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+// Determines how many times per year the coupon is paid. `maturity` is ONE coupon, paid with the
+// redemption (the BTP Valore «Insieme» of October 2026): the annual rate capitalises over the
+// bond's whole life and is cashed once — see `calculateCouponPerShare` in lib/utils/couponUtils.ts.
+export type CouponFrequency = 'monthly' | 'quarterly' | 'semiannual' | 'annual' | 'maturity';
 
 // One tier of a step-up coupon schedule.
 // yearFrom/yearTo are 1-based years from issueDate (inclusive).
@@ -141,6 +163,16 @@ export interface AssetComposition {
   subCategory?: string; // Specific sub-category for this component of the composite asset
 }
 
+/**
+ * One row of «Intestatari» on an asset: a household member and their part, in UNITS (quote, or
+ * euro where the value lives in `quantity` at price 1) or in PERCENT of the asset — the form's
+ * % | quote switch, the owner's choice of 2026-10-17 (a joint account stays 50/50 while its
+ * balance moves; a unit count stays put while the price moves). See `Asset.ownerShares`.
+ */
+export type AssetOwnerShare =
+  | { memberId: string; units: number } // > 0
+  | { memberId: string; percent: number }; // 0-100
+
 // Core asset model representing a single financial holding.
 // Supports stocks, ETFs, bonds, crypto, real estate, cash, commodities.
 // Includes automatic price updates via Yahoo Finance (unless autoUpdatePrice=false).
@@ -179,12 +211,44 @@ export interface Asset {
   isLiquid?: boolean; // Default: true - indicates whether the asset is liquid or illiquid
   autoUpdatePrice?: boolean; // Default: true - indicates whether price should be automatically updated via Yahoo Finance
   composition?: AssetComposition[]; // For composite assets (e.g., pension funds with mixed allocation: 60% equity, 40% bonds)
-  outstandingDebt?: number; // Outstanding mortgage/loan for real estate. Net value calculation: value - outstandingDebt
-  // The mortgage's TAN in percent (3.2 = 3,2%): splits each linked instalment into interest and the
-  // principal that lowers `outstandingDebt` (lib/utils/mortgageRepayment.ts). Absent = a 0% loan.
+  // LEGACY (until 2026-10-10): the mortgage as a field of the property, netted off its value by
+  // `calculateAssetValue`. Since then a debt is a `loan` asset of its own (see LOAN_ASSET_TYPE) and
+  // `migratePropertyDebtsToLoans` (lib/services/loanMigration.ts) moves every property's debt into
+  // one on the owner's first visit to Patrimonio. Read-only: the form never writes it any more,
+  // the netting stays for a document the migration has not reached (the demo account).
+  outstandingDebt?: number;
+  // On a `loan`: its TAN in percent (3.2 = 3,2%), which splits each linked instalment into interest
+  // and the principal that lowers `quantity` (lib/utils/mortgageRepayment.ts). Absent = a 0% loan.
   debtInterestRate?: number;
+  // On a `loan`: the property it finances (a `realestate` asset of the same owner). Decides the
+  // loan's class (realestate, else cash), its FIRE exclusion (it follows an excluded primary
+  // residence — `filterFireEligibleAssets`) and Patrimonio's «Mutuo» tile eyebrow. Absent = a
+  // personal loan.
+  financedAssetId?: string;
   isPrimaryResidence?: boolean; // Indicates if this real estate is the primary residence (excluded from FIRE calculations based on user setting)
   allocationRole?: AllocationRole; // How the Allocazione page treats this asset. See AllocationRole. Absent → legacy excludeFromAllocation, else 'tradable'.
+  // «Intestatario» (owner, 2026-10-17): the household member this asset belongs to — the id of a
+  // FamilyMember of the settings, the same people Previdenza and Divisione name. ABSENT MEANS «IN
+  // COMUNE», like `Expense.personalMemberId`: every asset ever written is already shared, so there
+  // is no migration and a household marks only the exception. Two assets never read it: a pension
+  // fund's owner IS `pensionFundDetails.familyMemberId` (one field, not two), and a loan that
+  // finances a property follows that property's owner — `resolveAssetOwnerSlices`
+  // (lib/utils/assetOwnership.ts) is the ONE resolution. Not denormalized to a name: the members
+  // live in the settings every page already loads, so renaming a person costs no bulk update; an
+  // id whose member was deleted reads «Senza intestatario», never folded into anyone's figures.
+  // Since the quotas (same day, `ownerShares` below) this field names WHO TAKES THE REST — every
+  // unit `ownerShares` does not name, the ones a trade adds included (the form's «Nessuna quota
+  // in comune»); absent, the rest is in comune. A document with this field and no `ownerShares`
+  // is the whole asset to one member, exactly what it meant before: no migration.
+  ownerMemberId?: string;
+  // The quotas by person (owner, 2026-10-17; lib/utils/assetSlice.ts): the rows typed in the
+  // form, each a member and a number of UNITS — quote of an instrument, euro of an account, a
+  // property or a loan (whose value lives in `quantity` at price 1) — or a PERCENT of the asset
+  // (the form's switch, % by default where the value is money, quote on a quoted instrument).
+  // Units do not move with the price, and a quantity that falls below their sum is declared
+  // («quote da riassegnare»), never rescaled in silence; a percent follows the asset whole.
+  // Absent or empty: the whole asset goes to `ownerMemberId`, else in comune.
+  ownerShares?: AssetOwnerShare[];
   /** @deprecated Superseded by `allocationRole`. Read-only legacy fallback: true → 'excluded'. Never write it. */
   excludeFromAllocation?: boolean;
   // For a leveraged/composite ETF: 2 = 2x, 3 = 3x, 1 or absent = no leverage. Shown in AssetDialog
@@ -193,6 +257,9 @@ export interface Asset {
   // (lib/utils/assetExposureUtils.ts); `quantity`/`averageCost`/`pricePerUnit` stay per-quota and
   // independent of it.
   leverageRatio?: number;
+  // AL20 (D-AL6): 'EUR' = the instrument's dollar (or other) exposure is hedged into euro. Absent = not hedged.
+  // Read by Esposizione › Valute (it wins over the curated row) and offered to the Simulazioni's hedge switches.
+  currencyHedge?: 'EUR';
   isin?: string; // ISIN code for dividend scraping (optional)
   // The cash account this instrument's dividends and coupons credit (lib/utils/dividendAccount.ts).
   // Absent → the default in Impostazioni › Dividendi; neither → the income row moves no account.
@@ -221,6 +288,7 @@ export interface AssetFormData {
   averageCost?: number;
   taxRate?: number; // Tax rate percentage for unrealized gains (e.g., 26 for 26%)
   totalExpenseRatio?: number; // Total Expense Ratio (TER) as a percentage (e.g., 0.20 for 0.20%)
+  currencyHedge?: 'EUR'; // AL20: hedged into euro (absent = not hedged)
   stampDutyExempt?: boolean; // If true, asset is excluded from stamp duty (imposta di bollo) calculation
   includeInHistoryTables?: boolean; // If true, asset appears in Anno Corrente and Storico price/value tables regardless of cost basis tracking
   currentPrice: number;
@@ -228,10 +296,13 @@ export interface AssetFormData {
   isLiquid?: boolean;
   autoUpdatePrice?: boolean;
   composition?: AssetComposition[];
-  outstandingDebt?: number;
-  debtInterestRate?: number; // TAN % of the mortgage (see Asset)
+  outstandingDebt?: number; // LEGACY, never set by the form: sent `undefined` so a save clears a migrated field (see Asset)
+  debtInterestRate?: number; // TAN % of a loan (see Asset)
+  financedAssetId?: string; // The property a loan finances (see Asset)
   isPrimaryResidence?: boolean;
   allocationRole?: AllocationRole; // How the Allocazione page treats this asset. See AllocationRole.
+  ownerMemberId?: string; // «Intestatario»: the member who takes the rest; absent = in comune (see Asset)
+  ownerShares?: AssetOwnerShare[]; // The quotas by person, in units or percent (see Asset); absent = none typed
   leverageRatio?: number; // For a leveraged/composite ETF: 2 = 2x, 3 = 3x, 1 or absent = no leverage.
   isin?: string; // ISIN code for dividend scraping (optional)
   // The cash account this instrument's dividends and coupons credit (lib/utils/dividendAccount.ts).

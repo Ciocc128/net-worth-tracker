@@ -8,7 +8,12 @@
  *   Desktop (12 col): Tappe(12)
  *                     Ventaglio(8) | Scenari(4)
  *                     Parametri(12)
- *   Mobile (1 col):   Tappe → Ventaglio → Scenari → Parametri (the DOM order; T6, § 13)
+ *   Phone (1 col):    verdict (cut at the first sentence, strip: the median, the threshold's
+ *                     probability) → Tappe open → «Il resto della pagina» → Ventaglio (its fan at
+ *                     120px), Scenari, Parametri as closed rows (`useMobileSections` with
+ *                     `tab: 'proiezione'`, The Closed-Row Rule; the DOM order, T6 § 13). Without a run
+ *                     Parametri is the one tile. Nothing is added or reordered: a phone shows less,
+ *                     never something else (doc/guide/fire-proiezione.md § Composizione mobile).
  *
  * ONE run = the three scenarios on the same seed (`runAccumulationSimulation` without paths, one
  * sorted snapshot per year). The run is automatic once the seeded plan is ready and explicit
@@ -24,13 +29,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useFireSettings } from '@/lib/hooks/useFirePlan';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAssets } from '@/lib/hooks/useAssets';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
-import { getAnnualCashflowData } from '@/lib/services/fireService';
+import { calculateAssetValue } from '@/lib/services/assetService';
+import { useAnnualCashflow } from '@/lib/hooks/useAnnualCashflow';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { portfolioCost } from '@/lib/utils/fireCosts';
 import { runAccumulationSimulation } from '@/lib/services/monteCarloService';
@@ -52,7 +56,9 @@ import {
   DEFAULT_PROJECTION_HORIZON,
   haveProjectionInputsChanged,
   PROJECTION_MAX_YEARS,
+  PROJECTION_SECTION_IDS,
   resolveRunYears,
+  selectProjectionStrip,
   summarizeProjection,
   type ProjectionRunData,
   type ProjectionRunInputs,
@@ -61,6 +67,8 @@ import {
 import {
   buildProjectionVerdict,
   describeFireThresholdPlaceholder,
+  describeProjectionClosedAnswers,
+  describeProjectionParametriClosedAside,
   describeTappeFooter,
   describeProjectionFooter,
   describeProjectionParametri,
@@ -70,6 +78,7 @@ import {
   describeTappe,
   describeVentaglio,
   describeVentaglioFooter,
+  PROJECTION_CLOSED_ASIDES,
   PROJECTION_PARAMETRI_ASIDE,
   PROJECTION_SCENARI_ASIDE,
   PROJECTION_THRESHOLD_HINT_EMPTY,
@@ -84,13 +93,30 @@ import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
-import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
+import { FireAssumptionsRow, FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { useMarketAnchors } from '@/lib/hooks/useMarketAnchors';
 import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
 import { buildFlowSchedule, type DatedFlowsInput } from '@/lib/utils/datedFlows';
 import { describeSimulationFlowsRow } from '@/lib/utils/datedFlowsNarrative';
-import { TILE_CELL_CLASS } from '@/components/ui/tile';
+import { TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
+import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
+import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
+import {
+  COMPACT_GRID_CLASS,
+  COMPACT_GRID_WRAPPER_CLASS,
+  INDEX_CLASS,
+  PLAIN_GRID_CLASS,
+  leadCellClass,
+  REST_CELL_CLASS,
+  STAGE_CLASS,
+  STAGE_WRAPPER_CLASS,
+  VERDICT_CELL_CLASS,
+} from '@/lib/utils/tabletComposition';
+import { VERDICT_REST_SECTION } from '@/lib/utils/mobileSections';
+import { VerdictStrip } from '@/components/ui/verdict-strip';
+import { PageRest } from '@/components/ui/page-rest';
+import { RowAnswers } from '@/components/ui/row-answers';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
@@ -109,6 +135,16 @@ const SKELETON_CELLS: TileSkeletonCell[] = [
   { span: 12, lines: 10 },
 ];
 
+/** The rows below `desktop:`, in the DOM's order: every tile but Tappe, THE tile (D-CU12), which never closes. No row carries `failed`. */
+const PROJECTION_SECTIONS: readonly SectionSpec[] = [
+  { id: PROJECTION_SECTION_IDS.ventaglio, eyebrow: 'Ventaglio' },
+  { id: PROJECTION_SECTION_IDS.scenari, eyebrow: 'Scenari a confronto' },
+  { id: PROJECTION_SECTION_IDS.parametri, eyebrow: 'Parametri' },
+];
+/** Without a run Parametri is the one tile and not a row: the controller sees no row at all. */
+const NO_SECTIONS: readonly SectionSpec[] = [];
+const PROJECTION_ORDER = PROJECTION_SECTIONS.map((section) => section.id);
+
 /** A run keeps the inputs it was made with, and the data its figures read. */
 interface ProjectionRunState {
   data: ProjectionRunData;
@@ -125,26 +161,62 @@ function parseFloatField(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/** The three scenarios' accumulation runs, at module level: the React Compiler cannot lower a conditional inside a component's own try block. */
+function computeProjectionRun(inputs: ProjectionRunInputs): ProjectionRunState {
+    const years = inputs.years;
+    const snapshotYears = Array.from({ length: years }, (_, index) => index + 1);
+    // The lumps of the running year are part of the starting capital (RF6), whatever the scenario's inflation.
+    const startingLump = inputs.datedFlows ? buildFlowSchedule(inputs.datedFlows.resolved, { inflationRate: 0, planExpensesFromCashflow: inputs.datedFlows.planExpensesFromCashflow }).lump(0) : 0;
+    const startValue = inputs.initialPortfolio + inputs.inflows.filter((inflow) => inflow.year <= 0).reduce((sum, inflow) => sum + inflow.amount, 0) + startingLump;
+    const data: ProjectionRunData = {
+      scenarios: {} as ProjectionRunData['scenarios'],
+      inflation: { bear: 0, base: 0, bull: 0 },
+      startValue,
+      simulations: inputs.simulations,
+      years,
+    };
+    for (const key of SCENARIO_KEYS) {
+      const scenario = inputs.scenarios[key];
+      // RV7: a fresh generator on the SAME seed per scenario, so Bear, Base and Bull meet the same shocks.
+      const result = runAccumulationSimulation({
+        initialPortfolio: inputs.initialPortfolio,
+        annualSavings: inputs.annualSavings,
+        savingsInflationRate: scenario.inflationRate,
+        savingsYears: inputs.savingsYears,
+        annualExpenses: 0,
+        withdrawalRate: 0,
+        expenseInflationRate: scenario.inflationRate,
+        years,
+        weights: inputs.weights,
+        market: scenario,
+        correlations: inputs.correlations,
+        leverageSpread: inputs.leverageSpread,
+        annualCostRate: inputs.costRate,
+        numberOfSimulations: inputs.simulations,
+        capitalInflows: inputs.inflows.length > 0 ? inputs.inflows : undefined,
+        flows: inputs.datedFlows,
+        collectPaths: false,
+        snapshotYears,
+        random: createSeededRandom(MONTE_CARLO_SEED),
+        ...(key === 'base' && inputs.uncertainty
+          ? { uncertainty: inputs.uncertainty, parameterRandom: createSeededRandom(MONTE_CARLO_PARAMETER_SEED) }
+          : {}),
+      });
+      data.scenarios[key] = { snapshots: result.snapshots ?? {}, leverageZeroedCount: result.leverageZeroedCount ?? 0 };
+      data.inflation[key] = scenario.inflationRate;
+    }
+  return { data, inputs };
+}
+
 export function ProjectionTab() {
-  const { user } = useAuth();
   const { ownerId } = useActiveAccount();
 
   // ─── Queries (shared keys with the other FIRE tabs) ──────────────────────────
-  const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useQuery({
-    queryKey: ['assets', ownerId],
-    queryFn: () => getAllAssets(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useAssets(ownerId);
   // The saved settings with the plan's draft over them (RP3): «Il mio piano» is previewed here.
   const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useFireSettings();
   // The Cashflow, for the yearly saving (the Calcolatore's `annualSavings`): the SAME key `useFireAssumptions` reads.
-  const { data: cashflowData, isLoading: isLoadingCashflow } = useQuery({
-    queryKey: ['annualCashflowData', ownerId],
-    queryFn: () => getAnnualCashflowData(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  const { data: cashflowData, isLoading: isLoadingCashflow } = useAnnualCashflow(ownerId);
 
   // ─── The pension lock (governs the whole FIRE page) ──────────────────────────
   // With the lock on, the locked funds leave the starting capital and re-enter as capital inflows at
@@ -296,55 +368,13 @@ export function ProjectionTab() {
     // The run is CPU-bound and blocks the main thread: the delay lets the browser paint the running state first.
     window.setTimeout(() => {
       try {
-        const years = inputs.years;
-        const snapshotYears = Array.from({ length: years }, (_, index) => index + 1);
-        // The lumps of the running year are part of the starting capital (RF6), whatever the scenario's inflation.
-        const startingLump = inputs.datedFlows ? buildFlowSchedule(inputs.datedFlows.resolved, { inflationRate: 0, planExpensesFromCashflow: inputs.datedFlows.planExpensesFromCashflow }).lump(0) : 0;
-        const startValue = inputs.initialPortfolio + inputs.inflows.filter((inflow) => inflow.year <= 0).reduce((sum, inflow) => sum + inflow.amount, 0) + startingLump;
-        const data: ProjectionRunData = {
-          scenarios: {} as ProjectionRunData['scenarios'],
-          inflation: { bear: 0, base: 0, bull: 0 },
-          startValue,
-          simulations: inputs.simulations,
-          years,
-        };
-        for (const key of SCENARIO_KEYS) {
-          const scenario = inputs.scenarios[key];
-          // RV7: a fresh generator on the SAME seed per scenario, so Bear, Base and Bull meet the same shocks.
-          const result = runAccumulationSimulation({
-            initialPortfolio: inputs.initialPortfolio,
-            annualSavings: inputs.annualSavings,
-            savingsInflationRate: scenario.inflationRate,
-            savingsYears: inputs.savingsYears,
-            annualExpenses: 0,
-            withdrawalRate: 0,
-            expenseInflationRate: scenario.inflationRate,
-            years,
-            weights: inputs.weights,
-            market: scenario,
-            correlations: inputs.correlations,
-            leverageSpread: inputs.leverageSpread,
-            annualCostRate: inputs.costRate,
-            numberOfSimulations: inputs.simulations,
-            capitalInflows: inputs.inflows.length > 0 ? inputs.inflows : undefined,
-            flows: inputs.datedFlows,
-            collectPaths: false,
-            snapshotYears,
-            random: createSeededRandom(MONTE_CARLO_SEED),
-            ...(key === 'base' && inputs.uncertainty
-              ? { uncertainty: inputs.uncertainty, parameterRandom: createSeededRandom(MONTE_CARLO_PARAMETER_SEED) }
-              : {}),
-          });
-          data.scenarios[key] = { snapshots: result.snapshots ?? {}, leverageZeroedCount: result.leverageZeroedCount ?? 0 };
-          data.inflation[key] = scenario.inflationRate;
-        }
-        setLastRun({ data, inputs });
+        setLastRun(computeProjectionRun(inputs));
       } catch (error) {
         console.error('Error running the projection:', error);
         toast.error('Errore durante la simulazione');
-      } finally {
-        setIsRunning(false);
       }
+      // After the try/catch, not in a `finally`: the React Compiler cannot lower try/finally.
+      setIsRunning(false);
     }, 60);
   }, []);
 
@@ -401,6 +431,20 @@ export function ProjectionTab() {
     [typed],
   );
 
+  // ─── The phone composition (2026-10-18) ──────────────────────────────────────
+  // The rows exist only with a run shown (Parametri alone is open); the strip is the SHOWN run's
+  // until «Prova» (The Stale-Run Rule: a stale form moves the Parametri aside, not the cells). The
+  // median opens the Ventaglio that draws it, the probability Scenari, which carries it per scenario.
+  const run = summary !== null && lastRun !== null;
+  const sections = useMobileSections({ route: 'fire-simulations', tab: 'proiezione', sections: run ? PROJECTION_SECTIONS : NO_SECTIONS });
+  // At 768 the rows pair up (Ventaglio beside Scenari, Parametri on the whole row), in landscape the
+  // index sits beside the verdict and Tappe (lib/utils/tabletComposition.ts). Without a run no stage.
+  const stageRef = useTabletStage();
+  const tablet = useTabletComposition({ sections, order: run ? PROJECTION_ORDER : [] });
+  const { reveal: handleStripOpen } = sections;
+  const strip = summary ? selectProjectionStrip(summary) : [];
+  const rowAnswers = describeProjectionClosedAnswers({ summary, startValue: lastRun?.data.startValue ?? null });
+
   // ─── Loading: until the seeded plan has run once ─────────────────────────────
   const awaitingFirstRun = runnable && canRun && !lastRun;
   // A failed read comes BEFORE the wait: a plan built on a base that was never read is a number with nothing behind it.
@@ -429,32 +473,101 @@ export function ProjectionTab() {
   const plotLine = threshold?.kind === 'fixed' ? { value: threshold.value, label: 'soglia' } : undefined;
 
   // ─── Render ──────────────────────────────────────────────────────────────────
+  const parametri = (
+    <ParametriTile
+      collapse={run ? sections.collapse(PROJECTION_SECTION_IDS.parametri) : undefined}
+      asideWhenClosed={describeProjectionParametriClosedAside(stale)}
+      reading={describeProjectionParametri(typedPlan)}
+      aside={PROJECTION_PARAMETRI_ASIDE}
+      form={form}
+      onFormChange={onFormChange}
+      allocationSum={allocationSum}
+      weightsOrigin={weightsOrigin}
+      leverage={leverage}
+      hasTargets={targetSeed !== null}
+      onUseTargets={targetSeed ? () => applySeed(targetSeed, 'targets') : undefined}
+      onImportHoldings={holdingsSeed ? () => applySeed(holdingsSeed, 'holdings') : undefined}
+      totalNetWorth={totalNetWorth}
+      liquidNetWorth={liquidNetWorth}
+      savingsHint={describeSavingsSource(savingsSource)}
+      thresholdHint={thresholdIsFireNumber ? PROJECTION_THRESHOLD_HINT_FIRE : typedThreshold !== null ? PROJECTION_THRESHOLD_HINT_FIXED : PROJECTION_THRESHOLD_HINT_EMPTY}
+      thresholdIsFire={thresholdIsFireNumber}
+      fireThresholdPlaceholder={fireSeries ? describeFireThresholdPlaceholder(fireSeries[0]) : null}
+      onUseFireThreshold={useFireThreshold}
+      marketDeclaration={describeMarketDeclaration(market, leverage)}
+      capital={capital}
+      flowsNote={describeSimulationFlowsRow({ count: resolvedFlows.length, excluded: excludedFlows, fireAnchored: resolvedFlows.filter((flow) => flow.anchor === 'fire').length, view: 'projection' })}
+      onRun={handleRun}
+      canRun={canRun}
+      isRunning={isRunning}
+      footer={
+        lastRun
+          ? describeProjectionFooter({ stale, simulations: lastRun.inputs.simulations })
+          : [{ text: canRun ? 'Premi Prova per lanciare i tre scenari.' : 'Completa il piano: capitale maggiore di zero e allocazione tra 100% e 300%.' }]
+      }
+      stale={stale}
+    />
+  );
+
+  // Without a run Parametri is the one tile: the grid of before, no stage, no rows.
+  if (!run || !summary || !base || !lastRun) {
+    return (
+      <div className="space-y-4">
+        <div className="pt-1">
+          <FireAssumptionsRow assumptions={assumptionsWithFlows} />
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sulla proiezione" scope={sections.compact ? <FireVerdictScope lockText={null} assumptions={assumptionsWithFlows} /> : undefined} />
+        </div>
+        <div className={PLAIN_GRID_CLASS}>
+          <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>{parametri}</div>
+        </div>
+        <ProjectionDettaglio />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <div className="pt-1">
-        <FireAssumptionsRow assumptions={assumptionsWithFlows} />
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto sulla proiezione" />
-      </div>
+      {/* The stage: the verdict over the grid; on a tablet in landscape the answer on the left
+          (verdict and Tappe) and the index on the right (lib/utils/tabletComposition.ts). */}
+      <div className={STAGE_WRAPPER_CLASS}>
+      <div ref={stageRef} className={STAGE_CLASS}>
+        <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
+          <FireAssumptionsRow assumptions={assumptionsWithFlows} />
+          <PageVerdict
+            verdict={verdict}
+            ariaLabel="Verdetto sulla proiezione"
+            strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={sections.eyebrows} />}
+            scope={sections.compact ? <FireVerdictScope lockText={null} assumptions={assumptionsWithFlows} /> : undefined}
+            restCollapse={sections.collapse(VERDICT_REST_SECTION)}
+          />
+        </div>
 
-      {/* Tablet (768-1439): every tile full width, in the phone's order. */}
-      <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
-        {summary && base && lastRun && (
-          <>
-            <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
-              <TappeTile
-                reading={describeTappe(summary.scenarios[tappeScenario].milestones)}
-                rows={summary.scenarios[tappeScenario].milestones}
-                scenario={tappeScenario}
-                onScenarioChange={setTappeScenario}
-                horizon={summary.horizon}
-                hasThreshold={summary.threshold !== null}
-                showRowThreshold={thresholdKind === 'fire'}
-                footer={describeTappeFooter(thresholdKind, threshold?.kind === 'fixed' ? threshold.value : null)}
-              />
-            </div>
+        {/* ONE sequence, no `order-*` (The First-Screen Rule). Tablet: Tappe on two columns, the closed
+            rows two by two at 768 (an open row on the whole grid row); in landscape the rows in the
+            index beside the verdict and Tappe. */}
+        <div className={COMPACT_GRID_WRAPPER_CLASS}>
+        <div className={COMPACT_GRID_CLASS}>
+          <div id={PROJECTION_SECTION_IDS.tappe} data-stage="lead" className={cn('scroll-mt-24', TILE_CELL_CLASS, leadCellClass(true), 'desktop:col-span-12')}>
+            <TappeTile
+              reading={describeTappe(summary.scenarios[tappeScenario].milestones)}
+              rows={summary.scenarios[tappeScenario].milestones}
+              scenario={tappeScenario}
+              onScenarioChange={setTappeScenario}
+              horizon={summary.horizon}
+              hasThreshold={summary.threshold !== null}
+              showRowThreshold={thresholdKind === 'fire'}
+              footer={describeTappeFooter(thresholdKind, threshold?.kind === 'fixed' ? threshold.value : null)}
+            />
+          </div>
 
-            <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-8')}>
+          <RowAnswers value={rowAnswers}>
+          <div className={INDEX_CLASS}>
+            <PageRest sections={sections} className={REST_CELL_CLASS} />
+
+            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PROJECTION_SECTION_IDS.ventaglio), 'desktop:col-span-8')}>
               <VentaglioTile
+                collapse={sections.collapse(PROJECTION_SECTION_IDS.ventaglio)}
+                asideWhenClosed={PROJECTION_CLOSED_ASIDES[PROJECTION_SECTION_IDS.ventaglio]}
                 reading={describeVentaglio(summary, lastRun.data.startValue)}
                 aside={VENTAGLIO_ASIDE}
                 p10={base.atHorizon.p10}
@@ -479,8 +592,10 @@ export function ProjectionTab() {
               />
             </div>
 
-            <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-4')}>
+            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PROJECTION_SECTION_IDS.scenari), 'desktop:col-span-4')}>
               <ScenariTile
+                collapse={sections.collapse(PROJECTION_SECTION_IDS.scenari)}
+                asideWhenClosed={PROJECTION_CLOSED_ASIDES[PROJECTION_SECTION_IDS.scenari]}
                 reading={describeProjectionScenari(summary)}
                 aside={PROJECTION_SCENARI_ASIDE}
                 rows={SCENARIO_KEYS.map((key) => {
@@ -490,42 +605,13 @@ export function ProjectionTab() {
                 footer={projectionScenariFooter(thresholdKind)}
               />
             </div>
-          </>
-        )}
 
-        <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
-          <ParametriTile
-            reading={describeProjectionParametri(typedPlan)}
-            aside={PROJECTION_PARAMETRI_ASIDE}
-            form={form}
-            onFormChange={onFormChange}
-            allocationSum={allocationSum}
-            weightsOrigin={weightsOrigin}
-            leverage={leverage}
-            hasTargets={targetSeed !== null}
-            onUseTargets={targetSeed ? () => applySeed(targetSeed, 'targets') : undefined}
-            onImportHoldings={holdingsSeed ? () => applySeed(holdingsSeed, 'holdings') : undefined}
-            totalNetWorth={totalNetWorth}
-            liquidNetWorth={liquidNetWorth}
-            savingsHint={describeSavingsSource(savingsSource)}
-            thresholdHint={thresholdIsFireNumber ? PROJECTION_THRESHOLD_HINT_FIRE : typedThreshold !== null ? PROJECTION_THRESHOLD_HINT_FIXED : PROJECTION_THRESHOLD_HINT_EMPTY}
-            thresholdIsFire={thresholdIsFireNumber}
-            fireThresholdPlaceholder={fireSeries ? describeFireThresholdPlaceholder(fireSeries[0]) : null}
-            onUseFireThreshold={useFireThreshold}
-            marketDeclaration={describeMarketDeclaration(market, leverage)}
-            capital={capital}
-            flowsNote={describeSimulationFlowsRow({ count: resolvedFlows.length, excluded: excludedFlows, fireAnchored: resolvedFlows.filter((flow) => flow.anchor === 'fire').length, view: 'projection' })}
-            onRun={handleRun}
-            canRun={canRun}
-            isRunning={isRunning}
-            footer={
-              lastRun
-                ? describeProjectionFooter({ stale, simulations: lastRun.inputs.simulations })
-                : [{ text: canRun ? 'Premi Prova per lanciare i tre scenari.' : 'Completa il piano: capitale maggiore di zero e allocazione tra 100% e 300%.' }]
-            }
-            stale={stale}
-          />
+            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PROJECTION_SECTION_IDS.parametri), 'desktop:col-span-12')}>{parametri}</div>
+          </div>
+          </RowAnswers>
         </div>
+        </div>
+      </div>
       </div>
 
       <ProjectionDettaglio />

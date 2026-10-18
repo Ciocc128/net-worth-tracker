@@ -7,16 +7,18 @@
  * 0 shares) can be taken out of the model here, which never deletes the asset (RM3). Saves with
  * `origin: 'manual'`; the optimizer snapshot stays — it documents the starting point, as in the PAC.
  */
+import { runGuarded } from '@/lib/utils/runGuarded';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import type { Asset } from '@/types/assets';
 import type { ModelPortfolio, ModelPortfolioWeight } from '@/types/modelPortfolio';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { useSaveModelPortfolio } from '@/lib/hooks/useModelPortfolio';
-import { clearHeldCandidates, MODEL_WEIGHT_SUM_TOLERANCE, seedModelFromToday } from '@/lib/utils/modelPortfolio';
+import { clearHeldCandidates, groupMembers, MODEL_WEIGHT_SUM_TOLERANCE, seedModelFromToday } from '@/lib/utils/modelPortfolio';
 import { describeWriteError } from '@/lib/utils/dialogNarrative';
 import { formatPercentageIt } from '@/lib/utils/formatters';
 import {
+  describeModelGroupMembers,
   MODEL_CANDIDATE_TAG,
   MODEL_COL_INSTRUMENT,
   MODEL_COL_MODEL,
@@ -51,9 +53,10 @@ function parseWeight(text: string): number {
 
 export function ModelEditDialog({ open, onClose, ownerId, model, allAssets, labelOf }: ModelEditDialogProps) {
   const saveModel = useSaveModelPortfolio(ownerId);
-  const [rows, setRows] = useState<Array<{ assetId: string; text: string; candidate: boolean }>>(() =>
+  const [rows, setRows] = useState<Array<{ assetId: string; memberAssetIds?: string[]; text: string; candidate: boolean }>>(() =>
     (model?.weights ?? seedModelFromToday(allAssets, calculateAssetValue)).map((weight) => ({
       assetId: weight.assetId,
+      ...(weight.memberAssetIds ? { memberAssetIds: weight.memberAssetIds } : {}),
       text: String(weight.targetPercentage).replace('.', ','),
       candidate: !!weight.candidate,
     })),
@@ -77,23 +80,27 @@ export function ModelEditDialog({ open, onClose, ownerId, model, allAssets, labe
     const assetsById = new Map(allAssets.map((asset) => [asset.id, asset]));
     const weights: ModelPortfolioWeight[] = rows.map((row) => ({
       assetId: row.assetId,
+      ...(row.memberAssetIds ? { memberAssetIds: row.memberAssetIds } : {}),
       targetPercentage: parseWeight(row.text),
       ...(row.candidate ? { candidate: true } : {}),
     }));
-    try {
-      await saveModel.mutateAsync({
-        input: {
-          weights: clearHeldCandidates(weights, assetsById, (asset) => asset.quantity),
-          origin: 'manual',
-          optimizerSnapshot: model?.optimizerSnapshot,
-        },
-        allAssets,
-      });
-      toast.success(MODEL_SAVED_TOAST);
-      onClose();
-    } catch (error) {
-      toast.error(describeWriteError(error));
-    }
+    await runGuarded(
+      async () => {
+        await saveModel.mutateAsync({
+          input: {
+            weights: clearHeldCandidates(weights, assetsById, (asset) => asset.quantity),
+            origin: 'manual',
+            optimizerSnapshot: model?.optimizerSnapshot,
+          },
+          allAssets,
+        });
+        toast.success(MODEL_SAVED_TOAST);
+        onClose();
+      },
+      (error) => {
+        toast.error(describeWriteError(error));
+      },
+    );
   };
 
   return (
@@ -132,12 +139,20 @@ export function ModelEditDialog({ open, onClose, ownerId, model, allAssets, labe
         </thead>
         <tbody>
           {rows.map((row, index) => {
-            const asset = allAssets.find((a) => a.id === row.assetId);
-            const held = asset ? calculateAssetValue(asset) > 0 : false;
+            const members = groupMembers(row);
+            const held = members.some((id) => {
+              const member = allAssets.find((a) => a.id === id);
+              return member ? calculateAssetValue(member) > 0 : false;
+            });
             return (
               <tr key={row.assetId} className="border-b border-border last:border-0">
                 <th scope="row" className="py-1.5 pr-2 text-left font-normal text-foreground">
                   {labelOf(row.assetId)}
+                  {members.length > 1 && (
+                    <span className="block text-[11px] text-muted-foreground">
+                      {describeModelGroupMembers(members.filter((id) => id !== row.assetId).map(labelOf))}
+                    </span>
+                  )}
                   {row.candidate && !held && <span className="ml-1.5 text-[11px] text-muted-foreground">{MODEL_CANDIDATE_TAG}</span>}
                 </th>
                 <td className="py-1 pr-0 text-right">

@@ -154,6 +154,40 @@ describe('settleDueBalances — a mortgage instalment on its day', () => {
     expect(collections.assets.get('bnl')!.quantity).toBe(5000 - 1012);
   });
 
+  it('should store the balance to the cent, without the binary noise of the sum (2026-10-07)', async () => {
+    expect(4033.37 - 0.07).not.toBe(4033.3); // the raw sum is noisy
+    collections.assets.set('bnl', { userId: UID, quantity: 4033.37 });
+    collections.expenses.set('coffee', { userId: UID, type: 'variable', amount: -0.07, date: new Date(2026, 9, 10, 12), linkedCashAssetId: 'bnl', balancePending: true });
+
+    await settleDueBalances(UID, NOW);
+
+    expect(collections.assets.get('bnl')!.quantity).toBe(4033.3);
+  });
+
+  it('should repay a LOAN asset through its quantity, the field a loan keeps its principal in (2026-10-10)', async () => {
+    collections.assets.set('mutuo', { userId: UID, type: 'loan', quantity: 200_000, debtInterestRate: 3.6 });
+    instalment('due', new Date(2026, 9, 10, 12), { debtAssetId: 'mutuo' });
+
+    await settleDueBalances(UID, NOW);
+
+    expect(collections.assets.get('mutuo')!.quantity).toBe(199_588);
+    expect(collections.assets.get('mutuo')).not.toHaveProperty('outstandingDebt');
+    expect(collections.expenses.get('due')).toMatchObject({ debtPrincipalRepaid: 412, debtInterestPaid: 600 });
+    // The legacy property is untouched: the row named the loan.
+    expect(collections.assets.get('casa')!.outstandingDebt).toBe(200_000);
+  });
+
+  it('should settle a payoff as all principal and leave the loan at zero', async () => {
+    collections.assets.set('mutuo', { userId: UID, type: 'loan', quantity: 10_000, debtInterestRate: 3.6 });
+    instalment('payoff', new Date(2026, 9, 10, 12), { debtAssetId: 'mutuo', amount: -10_000, isDebtPayoff: true });
+
+    await settleDueBalances(UID, NOW);
+
+    expect(collections.assets.get('mutuo')!.quantity).toBe(0);
+    expect(collections.assets.get('bnl')!.quantity).toBe(5000 - 10_000);
+    expect(collections.expenses.get('payoff')).toMatchObject({ debtPrincipalRepaid: 10_000, debtInterestPaid: 0 });
+  });
+
   it('should settle a plain linked row exactly as before, with no debt stamp', async () => {
     collections.expenses.set('groceries', { userId: UID, type: 'variable', amount: -80, date: new Date(2026, 9, 10, 12), linkedCashAssetId: 'bnl', balancePending: true });
 

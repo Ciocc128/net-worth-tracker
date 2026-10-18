@@ -17,8 +17,49 @@ import { formatQuota, quotaAtTarget } from '@/lib/utils/fireDepletion';
 import type { FIREMetrics } from '@/lib/services/fireService';
 import type { AccumulationSimulationResult } from '@/lib/services/monteCarloService';
 import type { PensionLockState } from '@/lib/utils/pensionUnlock';
+import type { StripFigure } from '@/lib/utils/verdictStrip';
 import type { FIREProjectionResult } from '@/types/assets';
 import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_NOUNS, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
+
+// ─── The phone composition (2026-10-15) ───────────────────────────────────────
+
+/**
+ * The ids of the tab's rows below `desktop:` (`useMobileSections` with `tab: 'fire'`, The
+ * Closed-Row Rule): every tile but Traguardo, THE tile, which never closes
+ * (The First-Screen Rule). The DOM ids are not narrative, so they live here.
+ */
+export const FIRE_SECTION_IDS = {
+  base: 'fire-base',
+  reddito: 'fire-reddito',
+  scenari: 'fire-scenari',
+  /** The fork's two tiles, rows after Scenari since 2026-10-18 (D-CU10): Età obiettivo and Sensibilità. */
+  eta: 'fire-eta',
+  sensibilita: 'fire-sensibilita',
+} as const;
+
+export interface FireStripInput {
+  target: FireTarget;
+  passiveIncome: PassiveIncome;
+}
+
+/**
+ * The two figures of the Calcolatore's first screen: the gap to the number — the verdict's
+ * first figure, «Ti mancano 191.500 €» — opening the Base di calcolo, and what the net worth
+ * yields a month at the SWR — the Reddito passivo reading's figure — opening that row. Nothing is
+ * lifted: both readings stay whole (The Lifted-Figure Rule). A reached target has no gap: the cell says so.
+ */
+export function selectFireStrip({ target, passiveIncome }: FireStripInput): StripFigure[] {
+  return [
+    {
+      label: 'Ti mancano',
+      value: target.reached ? null : target.gap,
+      format: 'currency',
+      opens: FIRE_SECTION_IDS.base,
+      ...(target.reached ? { reason: 'già FIRE' } : {}),
+    },
+    { label: 'Rendita oggi', value: passiveIncome.monthly, format: 'currency', opens: FIRE_SECTION_IDS.reddito },
+  ];
+}
 
 // ─── Target ───────────────────────────────────────────────────────────────────
 
@@ -255,8 +296,8 @@ function hasUnlockOverride(fund: PensionLockState['funds'][number]['fund']): boo
 
 /**
  * The lock as the page states it. `state` is null when the toggle is off. The unlock year is
- * the latest inflow year (the bridge aggregates multi-fund unlocks on the latest one, AGENTS →
- * FIRE); the source tells whether that date comes from the RITA rule, a per-fund override, or
+ * the latest inflow year (the bridge aggregates multi-fund unlocks on the latest one, doc/guide/fire.md §
+ * FIRE, What If and Goals); the source tells whether that date comes from the RITA rule, a per-fund override, or
  * both, so the caption can say which.
  */
 export function summarizeLock(

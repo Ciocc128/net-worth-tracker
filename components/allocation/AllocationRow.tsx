@@ -63,7 +63,10 @@ interface AllocationRowProps {
   untargeted?: boolean;
   /** Class with neither value nor target (→ the note alone, no chip, no columns, no tick). */
   dormant?: boolean;
-  /** Where a dormant class's money actually is, when any: «esclusa dall'allocazione · 60.000 €». */
+  /**
+   * Where a dormant class's money actually is, when any: «esclusa dall'allocazione · 60.000 €»;
+   * on a class with a verdict, the line under its figures (a class below zero: why).
+   */
   note?: string;
   /** From `useRovingFocus().itemProps(i)`: makes the whole list ONE Tab stop. */
   rovingProps?: { tabIndex: number; onFocus: () => void; 'data-roving-item': string };
@@ -195,6 +198,12 @@ export function AllocationRow({
           className="mt-1"
           color={classCssVar ? `var(--allocation-row-bar, var(${classCssVar}))` : undefined}
           currentPercentage={data.currentPercentage} targetPercentage={data.targetPercentage} />
+      )}
+
+      {/* A row with a verdict can still carry a note: the class below zero says that its debts
+          outweigh its assets («−3.000 €: i prestiti superano i conti», 2026-10-17). */}
+      {!withoutVerdict && note && (
+        <p className="mt-1 font-mono text-[11px] tabular-nums text-muted-foreground">{note}</p>
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 /**
- * FIRE › Obiettivi's words: the verdict that answers «sono in rotta?» before any number, and the
+ * FIRE › Traguardi's words: the verdict that answers «sono in rotta?» before any number, and the
  * reading line under each tile of that tab.
  *
  * Same design as the other `*Narrative.ts` modules: every function is pure and returns a
@@ -18,7 +18,8 @@
  * `cachedFormatCurrencyEUR` (no-break space before €) — AGENTS.md → Italian Localization.
  */
 
-import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
+import { cachedFormatCurrencyEUR, isPrintedZero } from '@/lib/utils/formatters';
+import type { RowAnswerMap } from '@/components/ui/row-answers';
 import { formatPercentage } from '@/lib/services/chartService';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { MONTE_CARLO_EXCLUDED_LABELS } from '@/lib/constants/monteCarloClasses';
@@ -26,7 +27,7 @@ import { articleForPercent, atThePercent, monthWithPrepositionA, ofThePercent } 
 import type { Narrative, NarrativeSegment, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
 import type { GoalContributionSlice } from '@/lib/utils/goalTrajectory';
 import type { GoalMethod } from '@/lib/utils/goalUncertainty';
-import type { AssignmentsView, DerivedAllocationView, GoalDate, GoalLine, GoalsOverview, TrajectoryView } from '@/lib/utils/goalsSummary';
+import { GOALS_SECTION_IDS, type AssignmentsView, type DerivedAllocationView, type GoalDate, type GoalLine, type GoalsOverview, type TrajectoryView } from '@/lib/utils/goalsSummary';
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -111,13 +112,13 @@ function resolveHeadline(overview: GoalsOverview): { headline: string; tone: Ver
   const { total, reached, dated, offTrack } = overview.counts;
 
   if (dated === 0) {
-    if (reached === total) return { headline: total === 1 ? "Hai raggiunto l'obiettivo." : 'Hai raggiunto ogni obiettivo.', tone: 'positive' };
-    return { headline: 'Nessun obiettivo in corso ha una scadenza.', tone: 'neutral' };
+    if (reached === total) return { headline: total === 1 ? "Hai raggiunto il traguardo." : 'Hai raggiunto ogni traguardo.', tone: 'positive' };
+    return { headline: 'Nessun traguardo in corso ha una scadenza.', tone: 'neutral' };
   }
-  if (offTrack === 0) return { headline: dated === 1 ? 'Sei in rotta.' : 'Sei in rotta su ogni obiettivo.', tone: 'positive' };
-  if (offTrack === dated) return { headline: dated === 1 ? "L'obiettivo è in ritardo." : 'Ogni obiettivo datato è in ritardo.', tone: 'negative' };
+  if (offTrack === 0) return { headline: dated === 1 ? 'Sei in rotta.' : 'Sei in rotta su ogni traguardo.', tone: 'positive' };
+  if (offTrack === dated) return { headline: dated === 1 ? "Il traguardo è in ritardo." : 'Ogni traguardo datato è in ritardo.', tone: 'negative' };
   return {
-    headline: offTrack === 1 ? `Un obiettivo su ${numberWord(dated)} è in ritardo.` : `${capitalize(numberWord(offTrack))} obiettivi su ${numberWord(dated)} sono in ritardo.`,
+    headline: offTrack === 1 ? `Un traguardo su ${numberWord(dated)} è in ritardo.` : `${capitalize(numberWord(offTrack))} traguardi su ${numberWord(dated)} sono in ritardo.`,
     tone: 'warning',
   };
 }
@@ -169,16 +170,16 @@ function sharedClause(names: string[], singular: string, pluralForm: string): Na
 export function buildGoalsVerdict({ enabled, overview }: GoalsVerdictInput): PageVerdictModel {
   if (!enabled || !overview) {
     return {
-      headline: 'Gli obiettivi non sono attivi.',
+      headline: 'I traguardi non sono attivi.',
       tone: 'neutral',
-      sentence: [prose('Attiva il Goal-Based Investing nelle Impostazioni per assegnare quote del portafoglio a un obiettivo e sapere se sei in rotta.')],
+      sentence: [prose('Attiva il Goal-Based Investing nelle Impostazioni per assegnare quote del portafoglio a un traguardo e sapere se sei in rotta.')],
     };
   }
   if (overview.counts.total === 0) {
     return {
-      headline: 'Nessun obiettivo ancora.',
+      headline: 'Nessun traguardo ancora.',
       tone: 'neutral',
-      sentence: [prose('Crea il primo obiettivo e assegnagli una quota del portafoglio per sapere se sei in rotta.')],
+      sentence: [prose('Crea il primo traguardo e assegnagli una quota del portafoglio per sapere se sei in rotta.')],
     };
   }
 
@@ -188,8 +189,8 @@ export function buildGoalsVerdict({ enabled, overview }: GoalsVerdictInput): Pag
 
   const opening: Narrative =
     inProgress > 0
-      ? [count(inProgress), prose(` ${plural(inProgress, 'obiettivo', 'obiettivi')} in corso`), ...(reached > 0 ? [prose(' e '), count(reached), prose(` ${plural(reached, 'raggiunto', 'raggiunti')}`)] : []), prose(': ')]
-      : [count(reached), prose(` ${plural(reached, 'obiettivo raggiunto', 'obiettivi raggiunti')}: `)];
+      ? [count(inProgress), prose(` ${plural(inProgress, 'traguardo', 'traguardi')} in corso`), ...(reached > 0 ? [prose(' e '), count(reached), prose(` ${plural(reached, 'raggiunto', 'raggiunti')}`)] : []), prose(': ')]
+      : [count(reached), prose(` ${plural(reached, 'traguardo raggiunto', 'traguardi raggiunti')}: `)];
 
   const groups: Narrative[] = [];
   const late = byVerdict('offTrack');
@@ -215,12 +216,12 @@ export function buildGoalsVerdict({ enabled, overview }: GoalsVerdictInput): Pag
   return { headline, tone, sentence };
 }
 
-// ─── Obiettivi ────────────────────────────────────────────────────────────────
+// ─── Traguardi ────────────────────────────────────────────────────────────────
 
-/** «4 obiettivi, 111.400 € assegnati (il 48,9% del patrimonio): 2 in rotta, 1 in ritardo, 1 raggiunto.» */
+/** «4 traguardi, 111.400 € assegnati (il 48,9% del patrimonio): 2 in rotta, 1 in ritardo, 1 raggiunto.» */
 export function describeObiettivi(overview: GoalsOverview): Narrative {
   const { counts } = overview;
-  const out: Narrative = [count(counts.total), prose(` ${plural(counts.total, 'obiettivo', 'obiettivi')}, `)];
+  const out: Narrative = [count(counts.total), prose(` ${plural(counts.total, 'traguardo', 'traguardi')}, `)];
 
   if (overview.allocatedTotal > 0) {
     out.push(amount(overview.allocatedTotal), prose(' assegnati'));
@@ -292,7 +293,7 @@ export function describeGoalStatus(goal: GoalLine): Narrative | null {
     case 'noDeadline':
       return [prose(goal.projectedDate ? `al ritmo attuale arriva ${atDate(goal.projectedDate)}` : 'al ritmo attuale non ha una data')];
     case 'noTarget':
-      return [prose('senza un importo obiettivo')];
+      return [prose('senza un importo del traguardo')];
     case 'reached':
       return null;
   }
@@ -322,7 +323,7 @@ function paceOpening(t: TrajectoryView, comma: boolean): Narrative {
 /** The reading line of the Traiettoria tile, one shape per verdict. */
 export function describeTraiettoria(t: TrajectoryView): Narrative {
   if (t.verdict === 'noTarget' || t.targetAmount === null) {
-    return [prose(`${t.name} non ha un importo obiettivo: senza un target non c'è una traiettoria da misurare.`)];
+    return [prose(`${t.name} non ha un importo del traguardo: senza un target non c'è una traiettoria da misurare.`)];
   }
   if (t.verdict === 'reached') return [prose(`${t.name} ha raggiunto i `), amount(t.targetAmount), prose(' del target.')];
 
@@ -351,11 +352,19 @@ export function describeTraiettoria(t: TrajectoryView): Narrative {
   return out;
 }
 
+/**
+ * A dated goal still before its deadline, with a projected value there: the hero's «Valore
+ * previsto» case, and the only one the closed row answers (2026-10-16) — one predicate for both.
+ */
+function projectsAtDeadline(t: TrajectoryView): boolean {
+  return (t.verdict === 'onTrack' || t.verdict === 'offTrack') && t.deadline !== null && t.monthsToDeadline !== 0 && t.projectedAtDeadline !== null;
+}
+
 /** The tile's one figure: what the goal is worth at the deadline, else when it arrives, else what it holds. */
 export function resolveTraiettoriaHero(t: TrajectoryView): { label: string; value: string } | null {
   if (t.verdict === 'noTarget' || t.targetAmount === null) return null;
-  if ((t.verdict === 'onTrack' || t.verdict === 'offTrack') && t.deadline && t.monthsToDeadline !== 0 && t.projectedAtDeadline !== null) {
-    return { label: `Valore previsto ${atDate(t.deadline)}`, value: formatAmount(t.projectedAtDeadline) };
+  if (projectsAtDeadline(t)) {
+    return { label: `Valore previsto ${atDate(t.deadline!)}`, value: formatAmount(t.projectedAtDeadline!) };
   }
   if (t.verdict === 'noDeadline' && t.projectedDate) return { label: 'Arrivo al ritmo attuale', value: formatGoalDate(t.projectedDate) };
   return { label: 'Valore assegnato', value: formatAmount(t.currentValue) };
@@ -380,7 +389,7 @@ export function buildTraiettoriaChips(t: TrajectoryView): TraiettoriaChip[] {
 export function describeTraiettoriaFooter(t: TrajectoryView): Narrative {
   const out: Narrative = [];
   if (t.returnOrigin === 'allocation') {
-    out.push(prose("Rendimento nominale dall'allocazione dell'obiettivo ("));
+    out.push(prose("Rendimento nominale dall'allocazione del traguardo ("));
     t.allocation.forEach((share, index) => {
       if (index > 0) out.push(prose(', '));
       out.push(pct(share.pct), prose(` ${share.label.toLowerCase()}`));
@@ -392,7 +401,7 @@ export function describeTraiettoriaFooter(t: TrajectoryView): Narrative {
     }
     out.push(prose(': una stima, non un consiglio.'));
   } else {
-    out.push(prose(`Rendimento nominale ${ofThePercent(t.annualReturn, pctDecimals(t.annualReturn))}`), pct(t.annualReturn), prose(" l'anno, quello dello scenario Base del portafoglio target, perché l'obiettivo non ha un'allocazione consigliata utilizzabile: una stima, non un consiglio."));
+    out.push(prose(`Rendimento nominale ${ofThePercent(t.annualReturn, pctDecimals(t.annualReturn))}`), pct(t.annualReturn), prose(" l'anno, quello dello scenario Base del portafoglio target, perché il traguardo non ha un'allocazione consigliata utilizzabile: una stima, non un consiglio."));
   }
   out.push(prose(t.deadline ? ' Tratteggiata orizzontale: il target; verticale: la scadenza.' : ' Tratteggiata orizzontale: il target.'));
   const band = t.uncertainty?.kind === 'dated' && t.uncertainty.detail != null;
@@ -409,6 +418,11 @@ const wholePct = (probability: number): string => formatPercentage(Math.round(pr
 export function describeGoalProbability(goal: GoalLine): string | null {
   return goal.probability === null ? null : wholePct(goal.probability);
 }
+
+/** What each closed row says beside its eyebrow — words, never a figure (The Closed-Row Rule); Traiettoria's is the goal's name, Assegnazioni's its own aside. */
+export const GOALS_CLOSED_ASIDES = {
+  [GOALS_SECTION_IDS.allocazione]: 'gap × priorità',
+} as const;
 
 /** «10.000 simulazioni mensili sullo scenario Base: rendimento 5,5% composto, volatilità 10% l'anno, al netto dei costi.» */
 export function describeIncertezzaMetodo(method: GoalMethod): Narrative {
@@ -465,7 +479,7 @@ export const ALLOCAZIONE_DERIVATA_FOOTER: Narrative = [
 ];
 
 /**
- * «Gli obiettivi da colmare chiedono il 65% in obbligazioni, il 26,2% in azioni e l'8,8% in
+ * «I traguardi da colmare chiedono il 65% in obbligazioni, il 26,2% in azioni e l'8,8% in
  * liquidità; le quote assegnate sono al 64,6%, 6,2% e 29,2%.» — the derived target largest
  * first, the assigned shares in the same order, and a class only the quotas hold named as such.
  */
@@ -473,14 +487,14 @@ export function describeAllocazioneDerivata(view: DerivedAllocationView): Narrat
   const asked = view.rows.filter((r) => r.derivedPct > 0).sort((a, b) => b.derivedPct - a.derivedPct);
   const unasked = view.rows.filter((r) => r.derivedPct <= 0 && r.assignedPct > 0);
 
-  const out: Narrative = [prose('Gli obiettivi da colmare chiedono ')];
+  const out: Narrative = [prose('I traguardi da colmare chiedono ')];
   out.push(...joinList(asked.map((r) => [prose(articleForPercent(r.derivedPct, pctDecimals(r.derivedPct))), pct(r.derivedPct), prose(` in ${r.label.toLowerCase()}`)])));
   out.push(prose(`; le quote assegnate sono ${atThePercent(asked[0]?.assignedPct ?? 0, pctDecimals(asked[0]?.assignedPct ?? 0))}`));
   out.push(...joinList(asked.map((r) => [pct(r.assignedPct)])));
   if (unasked.length > 0) {
     out.push(prose(', più '));
     out.push(...joinList(unasked.map((r) => [prose(articleForPercent(r.assignedPct, pctDecimals(r.assignedPct))), pct(r.assignedPct), prose(` in ${r.label.toLowerCase()}`)])));
-    out.push(prose(' che nessun obiettivo chiede'));
+    out.push(prose(' che nessun traguardo chiede'));
   }
   out.push(prose('.'));
   return out;
@@ -509,16 +523,93 @@ export function describeAssegnazioniAside(view: AssignmentsView): string {
   return `${view.totalInstrumentCount} ${plural(view.totalInstrumentCount, 'strumento', 'strumenti')} · ${view.quotaCount} ${plural(view.quotaCount, 'quota', 'quote')}`;
 }
 
-/** The footer explains what a quota is — or, in the warning tone, names an instrument past 100%. */
+/** «12 quote» / «5.000 €» — a units quota as the tile prints it beside its derived percent. */
+export function formatQuotaUnits(units: number, unitLabel: string): string {
+  const figure = Number.isInteger(units) ? String(units) : units.toLocaleString('it-IT', { maximumFractionDigits: 4 });
+  return `${figure} ${unitLabel}`;
+}
+
+/**
+ * The footer explains what a quota is — or, in the warning tone, names an instrument assigned
+ * past the whole of it: in units when a units quota is in the mix («120 quote assegnate su 100:
+ * quote da riassegnare», a sale that shrank the asset leaves the quota as typed — never
+ * rescaled, lib/utils/assetSlice.ts), in percent otherwise.
+ */
 export function describeAssegnazioniFooter(view: AssignmentsView): { narrative: Narrative; tone: 'neutral' | 'warning' } {
   if (view.overAssigned.length === 1) {
     const [over] = view.overAssigned;
+    if (over.inUnits) {
+      return { tone: 'warning', narrative: [prose(`${over.name} ha `), figure(formatQuotaUnits(Math.round(over.inUnits.assigned * 10000) / 10000, over.inUnits.unitLabel)), prose(' assegnate su '), figure(formatQuotaUnits(over.inUnits.quantity, over.inUnits.unitLabel)), prose(': quote da riassegnare.')] };
+    }
     return { tone: 'warning', narrative: [prose(`${over.name} è assegnato ${atThePercent(over.percentage, 0)}`), pct(over.percentage), prose(': riduci una quota, il limite è il '), pct(100), prose('.')] };
   }
   if (view.overAssigned.length > 1) {
-    return { tone: 'warning', narrative: [prose(`${joinNames(view.overAssigned.map((o) => o.name))} sono assegnati oltre il `), pct(100), prose(': riduci una quota.')] };
+    const inUnits = view.overAssigned.some((o) => o.inUnits !== null);
+    return { tone: 'warning', narrative: inUnits ? [prose(`${joinNames(view.overAssigned.map((o) => o.name))} hanno quote da riassegnare: le quote assegnate superano quelle possedute.`)] : [prose(`${joinNames(view.overAssigned.map((o) => o.name))} sono assegnati oltre il `), pct(100), prose(': riduci una quota.')] };
   }
-  return { tone: 'neutral', narrative: [prose('Una quota è la percentuale del valore di uno strumento; lo stesso strumento può servire più obiettivi fino al '), pct(100), prose('.')] };
+  return { tone: 'neutral', narrative: [prose('Una quota è una parte di uno strumento, in percentuale o in quote (euro per un conto o un immobile); lo stesso strumento può servire più traguardi fino al '), pct(100), prose('.')] };
+}
+
+// ─── The closed rows' answers (the landscape index) ───────────────────────────
+
+/** The index's width for an answer, in visible characters: past it the words would be cut. */
+const ANSWER_MAX_CHARS = 22;
+
+/**
+ * «previsto 64.763 €» — the hero's value at the deadline. The answer takes the place of the aside
+ * that names the goal, so with more than one goal it names the goal instead of «previsto» («Casa
+ * 64.763 €»), and only when name and figure fit: a cut name beside a figure says nobody's goal.
+ * Null without a target, reached, past the deadline, or undated (that hero is the arrival date,
+ * which the goal's row in THE tile already prints).
+ */
+function traiettoriaAnswer(t: TrajectoryView | null, goalCount: number): Narrative | null {
+  if (!t || !projectsAtDeadline(t)) return null;
+  const hero = resolveTraiettoriaHero(t);
+  if (!hero) return null;
+  if (goalCount <= 1) return [prose('previsto'), figure(hero.value)];
+  const name = t.name.trim();
+  if ([...`${name} ${hero.value}`].length > ANSWER_MAX_CHARS) return null;
+  return [prose(name), figure(hero.value)];
+}
+
+/** «Obbligazioni 65%» — the class the goals to fill ask for most, as the tile prints its share. */
+function allocazioneAnswer(view: DerivedAllocationView | null): Narrative | null {
+  if (!view) return null;
+  const top = view.rows.filter((r) => r.derivedPct > 0).sort((a, b) => b.derivedPct - a.derivedPct)[0];
+  if (!top) return null;
+  return [prose(top.label), pct(top.derivedPct)];
+}
+
+/**
+ * «liberi 286.005 €» — what no goal holds yet, in euro: the free SHARE is the complement of the 5,3%
+ * THE tile prints. An instrument past 100% wins, as the tile's warning footer does; nothing free
+ * reads «tutto assegnato».
+ */
+function assegnazioniAnswer(view: AssignmentsView): Narrative {
+  if (view.overAssigned.length > 0) return [prose('quote oltre il'), pct(100)];
+  if (isPrintedZero(formatAmount(view.freeTotal))) return [prose('tutto assegnato')];
+  return [prose('liberi'), amount(view.freeTotal)];
+}
+
+export interface GoalsClosedAnswersInput {
+  /** The trajectory of the selected goal, null when none is drawn. */
+  trajectory: TrajectoryView | null;
+  goalCount: number;
+  derivedAllocation: DerivedAllocationView | null;
+  assignments: AssignmentsView;
+}
+
+/**
+ * What Obiettivi's closed rows answer in the landscape index (components/ui/row-answers.tsx;
+ * 2026-10-16): figures neither the verdict nor THE tile (the goals, their assigned total and share,
+ * each goal's pace and arrival) print. The tab has no strip.
+ */
+export function describeGoalsClosedAnswers({ trajectory, goalCount, derivedAllocation, assignments }: GoalsClosedAnswersInput): RowAnswerMap {
+  return {
+    [GOALS_SECTION_IDS.traiettoria]: traiettoriaAnswer(trajectory, goalCount),
+    [GOALS_SECTION_IDS.allocazione]: allocazioneAnswer(derivedAllocation),
+    [GOALS_SECTION_IDS.assegnazioni]: assegnazioniAnswer(assignments),
+  };
 }
 
 // ─── Dettaglio ────────────────────────────────────────────────────────────────
@@ -527,8 +618,8 @@ export const DETTAGLIO_DESCRIPTION = 'Dove indirizzare il prossimo versamento, e
 
 /** «Con 1000 € in più, 732 € vanno a Casa, 192 € a Studi figli e 76 € ad Auto.» */
 export function describeVersamento(slices: GoalContributionSlice[], contribution: number): Narrative {
-  if (contribution <= 0) return [prose('Inserisci un importo per vedere come ripartirlo tra gli obiettivi sotto target.')];
-  if (slices.length === 0) return [prose('Nessun obiettivo con un importo ancora da colmare: i '), amount(contribution), prose(' non hanno una destinazione.')];
+  if (contribution <= 0) return [prose('Inserisci un importo per vedere come ripartirlo tra i traguardi sotto target.')];
+  if (slices.length === 0) return [prose('Nessun traguardo con un importo ancora da colmare: i '), amount(contribution), prose(' non hanno una destinazione.')];
   const out: Narrative = [prose('Con '), amount(contribution), prose(' in più, ')];
   out.push(...joinList(slices.map((slice, index) => [amount(slice.add), prose(`${index === 0 ? ' vanno' : ''} ${toName(slice.goalName)}`)])));
   out.push(prose('.'));
@@ -538,12 +629,12 @@ export function describeVersamento(slices: GoalContributionSlice[], contribution
 export const EXPLAINER: { title: string; body: string }[] = [
   {
     title: 'Il verdetto',
-    body: 'Per ogni obiettivo con un importo e una scadenza il valore assegnato oggi cresce al rendimento atteso, più il versamento mensile, fino alla scadenza: se il valore così proiettato copre il target (con l\'1% di tolleranza) l\'obiettivo è in rotta, altrimenti è in ritardo e la pagina dice quanto servirebbe al mese. Un obiettivo senza scadenza non può essere in ritardo: ha solo una data di arrivo, o nessuna.',
+    body: 'Per ogni traguardo con un importo e una scadenza il valore assegnato oggi cresce al rendimento atteso, più il versamento mensile, fino alla scadenza: se il valore così proiettato copre il target (con l\'1% di tolleranza) il traguardo è in rotta, altrimenti è in ritardo e la pagina dice quanto servirebbe al mese. Un traguardo senza scadenza non può essere in ritardo: ha solo una data di arrivo, o nessuna.',
   },
   {
     title: 'Il rendimento atteso',
     // L3 (doc/fire-ipotesi § 8): the same hypotheses as every FIRE tab — this body described the fixed per-class rates of before until 2026-10-05.
-    body: 'È il rendimento composto dello scenario Base di Impostazioni › Simulazioni, al netto di TER e bollo: sull\'allocazione consigliata dell\'obiettivo (cripto e immobili esclusi, il resto riportato a 100) o, senza un\'allocazione utilizzabile, sul portafoglio target, lo stesso delle altre schede FIRE. Si capitalizza al tasso mensile equivalente. È una stima indicativa, non un consiglio finanziario.',
+    body: 'È il rendimento composto dello scenario Base di Impostazioni › Simulazioni, al netto di TER e bollo: sull\'allocazione consigliata del traguardo (cripto e immobili esclusi, il resto riportato a 100) o, senza un\'allocazione utilizzabile, sul portafoglio target, lo stesso delle altre schede FIRE. Si capitalizza al tasso mensile equivalente. È una stima indicativa, non un consiglio finanziario.',
   },
   {
     title: 'La probabilità',
@@ -551,6 +642,6 @@ export const EXPLAINER: { title: string; body: string }[] = [
   },
   {
     title: 'Le quote e l\'allocazione derivata',
-    body: 'Una quota è la percentuale del valore di uno strumento assegnata a un obiettivo; lo stesso strumento può servire più obiettivi fino al 100%. Con l\'allocazione da obiettivi attiva, il target della pagina Allocazione è la media delle allocazioni consigliate pesata su quanto manca a ciascun obiettivo per la sua priorità (Alta 3× · Media 2× · Bassa 1×); gli obiettivi raggiunti non pesano.',
+    body: 'Una quota è la percentuale del valore di uno strumento assegnata a un traguardo; lo stesso strumento può servire più traguardi fino al 100%. Con l\'allocazione da traguardi attiva, il target della pagina Allocazione è la media delle allocazioni consigliate pesata su quanto manca a ciascun traguardo per la sua priorità (Alta 3× · Media 2× · Bassa 1×); i traguardi raggiunti non pesano.',
   },
 ];

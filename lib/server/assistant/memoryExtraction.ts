@@ -364,11 +364,16 @@ async function callMemoryExtractionTool(
   try {
     const response = await anthropicClient.messages.create({
       model: EXTRACTION_MODEL,
-      max_tokens: 1024,
+      // The tool input alone: a forced tool call on Haiku 5.5 skips thinking (no `thinking`
+      // block, so nothing else draws on the ceiling). Doubled from the 1024 sized on Haiku 4.5
+      // (2026-10-12): Haiku 5.5's tokenizer counts the same text ~30% longer, and a cut
+      // mid-input fails the zod parse below and drops every candidate in silence. Unused
+      // tokens are not billed.
+      max_tokens: 2048,
       // Static across every call — cache_control lets back-to-back extractions (one per
-      // completed assistant turn, across users) share the cached prefix. Below the Haiku
-      // 4.5 minimum cacheable prefix (4096 tokens) today, so this is a safe no-op rather
-      // than a guaranteed hit — harmless to leave on, and correct if the prompt grows.
+      // completed assistant turn, across users) share the cached prefix. Below Haiku's
+      // minimum cacheable prefix today, so this is a safe no-op rather than a guaranteed
+      // hit — harmless to leave on, and correct if the prompt grows.
       system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
       tools: [MEMORY_TOOL],
       // Forced: the model has no way to answer in prose, so there is no prose to parse.

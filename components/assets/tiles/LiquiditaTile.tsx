@@ -5,16 +5,21 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { describeCashAccounts } from '@/lib/utils/patrimonioNarrative';
 import type { CashAccountsSummary } from '@/lib/utils/patrimonioSummary';
 import { cn } from '@/lib/utils';
-import { Tile, TILE_FOOTER_ACTION_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_FOOTER_ACTION_CLASS, TILE_SUB_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
 
 interface LiquiditaTileProps {
   summary: CashAccountsSummary;
   /** The account rows' assets, by id — a row opens the account's detail dialog. */
   accountsById: Map<string, Asset>;
-  onSelect: (asset: Asset) => void;
-  onAdd: () => void;
+  /** `opener` is the control pressed: the page hands the focus back to it when the dialog closes. */
+  onSelect: (asset: Asset, opener: HTMLElement) => void;
+  onAdd: (opener: HTMLElement) => void;
   /** Mutations are gated in demo mode, like everywhere else. */
   isDemo: boolean;
+  /** The row below `desktop:` (`useMobileSections().collapse(id)`); `undefined` at 1440. */
+  collapse?: TileCollapse;
+  /** What the closed row says beside its eyebrow, in words (The Closed-Row Rule). */
+  asideWhenClosed?: string;
   className?: string;
 }
 
@@ -24,7 +29,7 @@ interface LiquiditaTileProps {
  * row's share is of the money HELD, and an account in the red — a credit card — reads «debito».
  * Each row is a button: the account's detail dialog (edit, delete) opens from here.
  */
-export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, className }: LiquiditaTileProps) {
+export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, collapse, asideWhenClosed, className }: LiquiditaTileProps) {
   // Thirteen accounts stretched the tile (and the chart beside it) to twice its row: the list
   // holds five and a half rows, largest first, and scrolls inside the tile — the cut row is the
   // cue that there is more.
@@ -33,6 +38,8 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
   return (
     <Tile
       eyebrow="Liquidità"
+      collapse={collapse}
+      asideWhenClosed={asideWhenClosed}
       aside={accounts.length > 0 ? `${accounts.length} ${accounts.length === 1 ? 'conto' : 'conti'}` : undefined}
       reading={describeCashAccounts(summary.shareOfTotal, summary.largest, accounts.length)}
       className={className}
@@ -55,8 +62,8 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
                 <button
                   key={account.id}
                   type="button"
-                  onClick={() => asset && onSelect(asset)}
-                  className="flex items-center gap-3 py-[9px] text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={(event) => asset && onSelect(asset, event.currentTarget)}
+                  className="-mx-2 flex items-center gap-3 rounded-md px-2 py-[9px] text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label={`${account.name}, ${cachedFormatCurrencyEUR(account.balance)}${account.shareOfCash === null ? ', debito' : ''}`}
                 >
                   <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{account.name}</span>
@@ -76,7 +83,7 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
         {accounts.length > 0 && 'Un conto si apre sul suo dettaglio · '}
         <button
           type="button"
-          onClick={onAdd}
+          onClick={(event) => onAdd(event.currentTarget)}
           disabled={isDemo}
           title={isDemo ? 'Non disponibile in modalità demo' : undefined}
           className={cn(TILE_FOOTER_ACTION_CLASS, 'disabled:opacity-50')}

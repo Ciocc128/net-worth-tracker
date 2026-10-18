@@ -18,7 +18,7 @@ import { NO_HONEST } from '@/lib/utils/fireSummary';
 import type { FireLedgerStepKey } from '@/lib/utils/fireBaseLedger';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
-import { Tile } from '@/components/ui/tile';
+import { Tile, type TileCollapse } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
 
 interface BaseDiCalcoloTileProps {
@@ -30,6 +30,9 @@ interface BaseDiCalcoloTileProps {
   footer: Narrative;
   /** The calendar year, for «già in corso» on a pension that has started. */
   currentYear: number;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
   className?: string;
 }
 
@@ -55,7 +58,7 @@ function signedEuro(value: number | null): string | null {
   return value < 0 ? `−${text}` : `+${text}`;
 }
 
-export function BaseDiCalcoloTile({ reading, aside, base, lockCaption, footer, currentYear, className }: BaseDiCalcoloTileProps) {
+export function BaseDiCalcoloTile({ reading, aside, base, lockCaption, footer, currentYear, collapse, asideWhenClosed, className }: BaseDiCalcoloTileProps) {
   const honest = base.honest ?? NO_HONEST;
   const ledger = base.ledger ?? null;
   const step = (key: FireLedgerStepKey): number | null => ledger?.steps.find((candidate) => candidate.key === key)?.amount ?? null;
@@ -65,7 +68,7 @@ export function BaseDiCalcoloTile({ reading, aside, base, lockCaption, footer, c
   const taxCaption = honest.taxConsidered ? `${formatRate(honest.taxRate)} sulla plusvalenza, ${formatRate(Math.round(honest.gainSharePct))} del portafoglio` : taxRow.caption;
 
   return (
-    <Tile eyebrow="Base di calcolo" aside={aside ?? undefined} reading={reading} ariaLabel="Base di calcolo del FIRE" className={cn('@container', className)}>
+    <Tile eyebrow="Base di calcolo" aside={aside ?? undefined} asideWhenClosed={asideWhenClosed} reading={reading} ariaLabel="Base di calcolo del FIRE" className={cn('@container', className)} collapse={collapse}>
       <p className="mt-2.5 text-[11px] leading-[1.4] text-muted-foreground">Capitale e spesa: vedi Ipotesi usate.</p>
       <div className="mt-1 flex flex-col divide-y divide-border">
         <Row label="Spesa ÷ SWR" caption={`${cachedFormatCurrencyEUR(base.annualExpenses, true)} l'anno ÷ ${formatRate(base.swr)}`} value={ledger ? cachedFormatCurrencyEUR(ledger.base, true) : null} />

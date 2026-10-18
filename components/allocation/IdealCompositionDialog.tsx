@@ -31,8 +31,8 @@ import {
   type OptimizerResult,
   type OptimizerSaleInput,
 } from '@/lib/utils/weightOptimizer';
-import { weightsToSeedPositions, seedDisposalsFromSale, unitPriceEur } from '@/lib/utils/accumulationPlanUtils';
-import { proposalToModelWeights, describeModelExclusions, MODEL_NO_TRADABLE_INSTRUMENTS } from '@/lib/utils/modelPortfolio';
+import { planMemberAssetIds, weightsToSeedPositions, seedDisposalsFromSale, unitPriceEur } from '@/lib/utils/accumulationPlanUtils';
+import { groupMembers, modelGroups, proposalToModelWeights, describeModelExclusions, MODEL_NO_TRADABLE_INSTRUMENTS } from '@/lib/utils/modelPortfolio';
 import { useSaveModelPortfolio } from '@/lib/hooks/useModelPortfolio';
 import { describeWriteError } from '@/lib/utils/dialogNarrative';
 import { toast } from 'sonner';
@@ -172,10 +172,13 @@ export function IdealCompositionDialog({
 
   const { referenceCountries, referenceAreas, referenceEstimatedShare } = useOptimizerGeographyReference(idealAllocation);
 
-  const evaluateAssetIds = useMemo(() => new Set((model?.weights ?? []).map((w) => w.assetId)), [model]);
+  // AL10: an open plan's instruments, even at 0 shares, are candidates beside the model's.
+  const plansQuery = useAccumulationPlans(ownerId);
+  const openPlan = selectOpenPlan(plansQuery.data);
+  const evaluateAssetIds = useMemo(() => new Set([...(model?.weights ?? []).flatMap((w) => groupMembers(w)), ...planMemberAssetIds(openPlan)]), [model, openPlan]);
   const standalone = useMemo(
-    () => buildStandaloneCandidates(allAssets, baseEur, calculateAssetValue, evaluateAssetIds),
-    [allAssets, baseEur, evaluateAssetIds]
+    () => buildStandaloneCandidates(allAssets, baseEur, calculateAssetValue, evaluateAssetIds, modelGroups(model?.weights ?? [])),
+    [allAssets, baseEur, evaluateAssetIds, model]
   );
   const candidateAssetIds = useMemo(() => standalone.positions.map((p) => p.buyAssetId), [standalone.positions]);
   const profilesQuery = useInstrumentProfiles(calcRequested ? ownerId : undefined, candidateAssetIds);
@@ -214,8 +217,6 @@ export function IdealCompositionDialog({
     sale,
   ]);
 
-  const plansQuery = useAccumulationPlans(ownerId);
-  const openPlan = selectOpenPlan(plansQuery.data);
 
   const readingInput = buildIdealAllocationInput(idealAllocation, targetLeverageRatio);
 
@@ -229,9 +230,22 @@ export function IdealCompositionDialog({
   // RM2 on the proposed weights: what the model / «Crea un PAC» can keep, rescaled to 100, and what it leaves out.
   const modelFit =
     result && result.status === 'ok'
-      ? proposalToModelWeights(result.weights.map((w) => ({ assetId: w.key, pct: w.proposedPct })), assetsById, (a) => a.quantity)
+      ? proposalToModelWeights(
+          result.weights.map((w) => {
+            // AL16: a group keeps its members; the key of a group candidate is its buyer.
+            const members = standalone.positions.find((p) => p.key === w.key)?.memberAssetIds ?? [w.key];
+            return { assetId: w.key, pct: w.proposedPct, ...(members.length > 1 ? { memberAssetIds: members } : {}) };
+          }),
+          assetsById,
+          (a) => a.quantity,
+        )
       : null;
-  const keptWeights = (modelFit?.weights ?? []).map((w) => ({ key: w.assetId, label: labelOf(w.assetId), proposedPct: w.pct }));
+  const keptWeights = (modelFit?.weights ?? []).map((w) => ({
+    key: w.assetId,
+    label: labelOf(w.assetId),
+    proposedPct: w.pct,
+    ...(w.memberAssetIds ? { memberAssetIds: w.memberAssetIds } : {}),
+  }));
   const exclusionNote = modelFit ? describeModelExclusions(modelFit.excluded, labelOf) : '';
 
   const buildSnapshot = (computed: OptimizerResult): OptimizerSnapshot => ({

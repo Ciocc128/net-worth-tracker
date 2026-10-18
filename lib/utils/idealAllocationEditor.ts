@@ -8,6 +8,7 @@
 import type { Asset, AssetAllocationTarget, AssetClass } from '@/types/assets';
 import { ASSET_CLASS_LABELS, resolveAllocationRole } from '@/lib/utils/allocationUtils';
 import { findSecondLevelGaps, type SecondLevelGap } from '@/lib/utils/weightOptimizer';
+import { formatNumberIt, formatPercentageIt } from '@/lib/utils/formatters';
 
 export interface ObjectivesClassOption {
   assetClass: AssetClass;
@@ -67,4 +68,43 @@ export function findIdealAllocationProblem(value: {
     }
   }
   return null;
+}
+
+export interface ClassTargetRow {
+  assetClass: AssetClass;
+  label: string;
+  /** «20,0%», or «importo fisso» for a cash target held as an amount. */
+  valueText: string;
+}
+
+export interface ClassTargetsView {
+  rows: ClassTargetRow[];
+  /** «Somma 110%: leva 1,10×.» or «Somma 100%: nessuna leva.» — null with no target. */
+  leverageText: string | null;
+}
+
+/**
+ * The class targets of Impostazioni › Allocazione read as the objectives' «Classi» base (AL18, D-AL5):
+ * one row per class with a target above zero (or a fixed cash amount), in the order of
+ * `ASSET_CLASS_SEQUENCE`'s consumers (the targets' own key order), and the leverage they imply — the
+ * sum of the percentages, which the caller reads with `deriveTargetLeverageRatio` (not imported here: it drags Firebase in). Read-only: the write stays in
+ * Impostazioni.
+ */
+export function describeClassTargets(targets: AssetAllocationTarget | null, targetLeverageRatio: number): ClassTargetsView {
+  if (!targets) return { rows: [], leverageText: null };
+  const rows: ClassTargetRow[] = [];
+  for (const [key, data] of Object.entries(targets)) {
+    const assetClass = key as AssetClass;
+    const label = ASSET_CLASS_LABELS[assetClass] ?? key;
+    if (assetClass === 'cash' && data.useFixedAmount) {
+      rows.push({ assetClass, label, valueText: 'importo fisso' });
+    } else if ((data.targetPercentage ?? 0) > 0) {
+      rows.push({ assetClass, label, valueText: formatPercentageIt(data.targetPercentage, 1) });
+    }
+  }
+  if (rows.length === 0) return { rows, leverageText: null };
+  const ratio = targetLeverageRatio;
+  const sumText = formatPercentageIt(ratio * 100, 0);
+  const leverageText = ratio > 1.0005 ? `Somma ${sumText}: leva ${formatNumberIt(ratio, 2)}×.` : `Somma ${sumText}: nessuna leva.`;
+  return { rows, leverageText };
 }

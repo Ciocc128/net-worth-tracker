@@ -7,18 +7,17 @@
  * the «Mutuo» tile reads, so the tabs share React Query's cache.
  */
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAssets } from '@/lib/hooks/useAssets';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { getAllAssets } from '@/lib/services/assetService';
 import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { calculateAssetValue } from '@/lib/services/assetService';
-import { getGoalData } from '@/lib/services/goalService';
+import { assignmentFractionOf } from '@/lib/utils/goalMath';
+import { useGoalData } from '@/lib/hooks/useGoalData';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { useMortgageInstalments } from '@/lib/hooks/useMortgageInstalments';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { assetInsideShare, resolveDatedFlows, resolveGoalFlows, type ExcludedFlow, type MortgageFlowSource, type ResolvedFlow } from '@/lib/utils/datedFlows';
-import { mortgageFlowSchedule, summarizeMortgage } from '@/lib/utils/mortgageSummary';
+import { debtAssetIdsOf, resolvePropertyMortgages } from '@/lib/utils/fireMortgages';
 import type { DatedFlow } from '@/types/assets';
 
 /** A property with linked instalments, offered by «Collega un mutuo». */
@@ -47,42 +46,29 @@ export interface UseFireDatedFlowsOptions {
 }
 
 export function useFireDatedFlows({ lockedAssetIds }: UseFireDatedFlowsOptions = {}): UseFireDatedFlowsResult {
-  const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   // The saved settings with the plan's draft over them (RP3): the flows listed in «Il mio piano» are previewed here.
   const settingsQuery = useFireSettings();
-  const assetsQuery = useQuery({
-    queryKey: ['assets', ownerId],
-    queryFn: () => getAllAssets(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  const assetsQuery = useAssets(ownerId);
   const assets = assetsQuery.data;
   const goalsEnabled = !!settingsQuery.data?.goalBasedInvestingEnabled;
-  const goalQuery = useQuery({
-    queryKey: ['goalData', ownerId],
-    queryFn: () => getGoalData(ownerId!),
-    enabled: !!user && !!ownerId && goalsEnabled,
-    staleTime: 300000,
-  });
+  const goalQuery = useGoalData(ownerId, { enabled: goalsEnabled });
   const { assumptions, isLoading: assumptionsLoading } = useFireAssumptions(lockedAssetIds);
   const legShare = assumptions?.legShare;
-  const propertyIds = useMemo(() => (assets ?? []).filter((asset) => asset.type === 'realestate' && asset.assetClass === 'realestate').map((asset) => asset.id), [assets]);
-  const instalmentsQuery = useMortgageInstalments(ownerId, propertyIds);
+  // The debts' ids are Patrimonio's own list (loans, and a property not yet migrated), so the query key is shared.
+  const debtIds = useMemo(() => debtAssetIdsOf(assets ?? []), [assets]);
+  const instalmentsQuery = useMortgageInstalments(ownerId, debtIds);
   const instalments = instalmentsQuery.data;
 
+  // The saved flow names the PROPERTY; its instalments hang from the loan that finances it since the debts became loans.
   const mortgages = useMemo<MortgageOption[]>(() => {
     if (!assets || !instalments) return [];
-    const now = new Date();
-    return assets
-      .filter((asset) => propertyIds.includes(asset.id))
-      .map((property) => ({ property, rows: instalments.filter((row) => row.debtAssetId === property.id) }))
-      .filter(({ rows }) => rows.length > 0)
-      .map(({ property, rows }) => {
-        const summary = summarizeMortgage(property, rows, now);
-        return { propertyId: property.id, propertyName: property.name, source: { propertyName: property.name, schedule: mortgageFlowSchedule(summary) } };
-      });
-  }, [assets, instalments, propertyIds]);
+    return resolvePropertyMortgages(assets, instalments, new Date()).map((mortgage) => ({
+      propertyId: mortgage.propertyId,
+      propertyName: mortgage.propertyName,
+      source: { propertyName: mortgage.propertyName, schedule: mortgage.schedule },
+    }));
+  }, [assets, instalments]);
 
   const savedFlows = settingsQuery.data?.fireDatedFlows;
   const userAge = settingsQuery.data?.userAge;
@@ -98,6 +84,7 @@ export function useFireDatedFlows({ lockedAssetIds }: UseFireDatedFlowsOptions =
     const byId = new Map(assets.map((asset) => [asset.id, asset]));
     return resolveGoalFlows(goalData.goals, goalData.assignments, {
       currentYear: getItalyYear(),
+      assetFraction: assignmentFractionOf(byId),
       assetValue: (assetId) => {
         const asset = byId.get(assetId);
         return asset ? calculateAssetValue(asset) : null;

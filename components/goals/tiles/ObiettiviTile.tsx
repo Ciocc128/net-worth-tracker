@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * OBIETTIVI — «a che punto è ogni obiettivo?»: every goal as a row in urgency order, the first
+ * OBIETTIVI — «a che punto è ogni traguardo?»: every goal as a row in urgency order, the first
  * one large (36px progress) and the others compact (18px), each with its 3px track in the goal's
  * own colour, a caption with the figures and a verdict chip with the words after it. A row is a
  * button: pressing it selects the goal the Traiettoria tile draws (`aria-current`).
@@ -31,7 +31,7 @@ export interface ObiettiviRow {
 
 interface ObiettiviTileProps {
   reading: Narrative | null;
-  /** The «Nuovo obiettivo» control, rendered by the tab (it owns the dialog). */
+  /** The «Nuovo traguardo» control, rendered by the tab (it owns the dialog). */
   aside?: ReactNode;
   rows: ObiettiviRow[];
   selectedId: string | null;
@@ -100,11 +100,11 @@ function GoalRow({ row, featured, selected, onSelect }: { row: ObiettiviRow; fea
 
 export function ObiettiviTile({ reading, aside, rows, selectedId, onSelect, footer, emptyCopy, className }: ObiettiviTileProps) {
   return (
-    <Tile eyebrow="Obiettivi" aside={aside} reading={reading} ariaLabel="Obiettivi" className={className}>
+    <Tile eyebrow="Traguardi" aside={aside} reading={reading} ariaLabel="Traguardi" className={className}>
       {rows.length === 0 ? (
         <p className="mt-3 text-[13px] text-muted-foreground">{emptyCopy}</p>
       ) : (
-        <ul className="mt-4 flex flex-col divide-y divide-border" aria-label="Obiettivi in ordine di urgenza">
+        <ul className="mt-4 flex flex-col divide-y divide-border" aria-label="Traguardi in ordine di urgenza">
           {rows.map((row, index) => (
             <GoalRow key={row.line.id} row={row} featured={index === 0} selected={row.line.id === selectedId} onSelect={() => onSelect(row.line.id)} />
           ))}

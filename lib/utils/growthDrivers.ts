@@ -23,10 +23,16 @@
  *   - `taxes` is the ESTIMATE on the period's sales from the ledger (`summarizePeriodSales`:
  *     realized gain × the instrument's `taxRate`), a magnitude ≥ 0; an unknown rate counts 0 and
  *     the tax stays inside whichever figure absorbs the rest;
- *   - `debtRepaid` is the fall of the debt on real estate between the two snapshots (gross − net
- *     value, both from `byAsset`): the cashflow books the whole instalment as spending, but its
- *     principal stays in the net worth. Its own item, so `netSavings` stays equal to the Cashflow
- *     page's net (owner's decision, 2026-09-19); negative when the typed debt went UP;
+ *   - `debtRepaid` is the fall of the debt between the two snapshots: the loans' outstanding
+ *     principal (`byAsset.totalValue` of a `loan` row is MINUS it, types/assets.ts) summed as a
+ *     TOTAL — a loan opened in the month is debt that went up, a loan deleted after its payoff
+ *     is debt that went to zero — plus, for a property that still carries a legacy debt and for
+ *     the snapshots written before 2026-10-10, gross − net value of the property on both sides.
+ *     The two parts cross the migration month without a jump: the property's legacy debt falls
+ *     to 0 and the new loan's rises by the same figure. The cashflow books the whole instalment
+ *     as spending, but its principal stays in the net worth. Its own item, so `netSavings` stays
+ *     equal to the Cashflow page's net (owner's decision, 2026-09-19); negative when the debt
+ *     went UP;
  *   - `pensionContributions` is what Previdenza records as paid into the funds in the window
  *     (TFR, employer, voluntary: none of them is a cashflow row, the salary is booked net), by the
  *     month the fund's VALUE moved (`valueEffectMonth`), from `startMonth` on like the fund's
@@ -46,13 +52,13 @@
  */
 
 import { fromZonedTime } from 'date-fns-tz';
-import type { Asset, MonthlySnapshot } from '@/types/assets';
+import { isLoanAsset, type Asset, type MonthlySnapshot } from '@/types/assets';
 import type { Expense } from '@/types/expenses';
 import type { AssetTransaction } from '@/types/assetTransactions';
 import type { PensionContribution } from '@/types/pension';
 import { getItalyDateIso, getItalyMonth, getItalyYear, ITALY_TIMEZONE } from '@/lib/utils/dateHelpers';
 import { attributeSelectedChange } from '@/lib/utils/snapshotAssetBreakdown';
-import { pensionPaidInBetween, tradeAwarePriceEffect, tradedMoney, type PositionValue } from '@/lib/utils/marketEffect';
+import { debtRepaymentsBetween, isLoanRowOf, pensionPaidInAcross, pensionPaidInBetween, tradeAwarePriceEffect, tradedMoney, type PositionValue } from '@/lib/utils/marketEffect';
 import { summarizePeriodSales } from '@/lib/utils/periodSales';
 
 export interface GrowthDrivers {
@@ -153,6 +159,10 @@ export function createGrowthDriverMeter(context: GrowthDriverContext) {
 
   const realEstateIds = new Set(context.assets.filter((a) => a.type === 'realestate').map((a) => a.id));
   const pensionFundIds = new Set(context.assets.filter((a) => a.type === 'pensionFund').map((a) => a.id));
+  // A loan's value is minus its principal; one deleted since (repaid in full, then removed) is
+  // still read by its negative `totalValue` in the snapshots, which is why the set is not enough.
+  const loans = context.assets.filter(isLoanAsset);
+  const isLoanRow = isLoanRowOf(new Set(loans.map((a) => a.id)), realEstateIds);
   // A property is measured GROSS of its debt: the snapshot's `price` is the property value.
   const grossRows = (rows: SnapshotRow[]) => rows.map((row) => (realEstateIds.has(row.assetId) ? { ...row, totalValue: row.quantity * row.price } : row));
 
@@ -162,15 +172,12 @@ export function createGrowthDriverMeter(context: GrowthDriverContext) {
     return false;
   }
 
-  /** Σ over real estate of the debt at `previous` minus the debt at `current` (debt = gross − net). */
+  /**
+   * The debt at `previous` minus the debt at `current`, summed over every debt — the rule the
+   * Panoramica lists by name (`debtRepaymentsBetween`, lib/utils/marketEffect.ts).
+   */
   function debtRepaidBetween(previous: MonthlySnapshot, current: MonthlySnapshot): number {
-    const debtOf = (rows: SnapshotRow[]) => new Map(rows.filter((row) => realEstateIds.has(row.assetId)).map((row) => [row.assetId, row.quantity * row.price - row.totalValue]));
-    const before = debtOf(previous.byAsset);
-    const after = debtOf(current.byAsset);
-    let repaid = 0;
-    // A property present on one side only was bought or sold: its debt moved with it, not repaid.
-    for (const [assetId, debt] of before) if (after.has(assetId)) repaid += debt - after.get(assetId)!;
-    return repaid;
+    return debtRepaymentsBetween(previous.byAsset, current.byAsset, loans, realEstateIds).reduce((sum, debt) => sum + debt.repaid, 0);
   }
 
   /**
@@ -197,8 +204,12 @@ export function createGrowthDriverMeter(context: GrowthDriverContext) {
 
     const moves = new Map<string, AssetMove>();
     for (const assetId of new Set([...previousById.keys(), ...currentById.keys()])) {
-      const before = held(previousById.get(assetId));
-      const after = held(currentById.get(assetId));
+      const previousRow = previousById.get(assetId);
+      const currentRow = currentById.get(assetId);
+      // A loan has no market: its principal moves by repayment (`debtRepaid`), never by a price.
+      if ((previousRow && isLoanRow(previousRow)) || (currentRow && isLoanRow(currentRow))) continue;
+      const before = held(previousRow);
+      const after = held(currentRow);
       const valueChange = (currentNet.get(assetId) ?? 0) - (previousNet.get(assetId) ?? 0);
       if (pensionFundIds.has(assetId)) {
         // Before the contributions are complete the fund's growth is not attributable: `other`.
@@ -256,11 +267,7 @@ export function createGrowthDriverMeter(context: GrowthDriverContext) {
     const currentKey = monthKeyOfIndex(toIndex);
     // Named only once the contributions are complete (the Panoramica's rule): before `startMonth`
     // the fund's growth is not attributable, and naming half of it would push the other half negative.
-    const { startMonth } = context.pension;
-    let pensionContributions = 0;
-    if (startMonth !== null && startMonth <= previousKey) {
-      for (const assetId of pensionFundIds) pensionContributions += pensionPaidInBetween(context.pension.contributions, assetId, previousKey, currentKey);
-    }
+    const pensionContributions = pensionPaidInAcross(context.pension.contributions, pensionFundIds, context.pension.startMonth, previousKey, currentKey);
     const market = isMarketMeasured ? measuredMarket(previous, current, trades) : netWorthGrowth - netSavings + taxes - pensionContributions;
     const debtRepaid = isMarketMeasured ? debtRepaidBetween(previous, current) : 0;
     const other = netWorthGrowth - netSavings - market + taxes - debtRepaid - pensionContributions;

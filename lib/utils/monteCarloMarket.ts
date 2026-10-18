@@ -56,6 +56,16 @@ export interface MonteCarloMarketOverrides {
   hedged?: Partial<Record<MonteCarloHedgeableClass, boolean>>;
 }
 
+/** The draft the page edits: what the user typed (undefined field = the default in force) and the Oro sub-category (undefined = never chosen, the default rule applies). */
+export interface MonteCarloMarketDraft {
+  overrides: MonteCarloMarketOverrides;
+  goldSubCategory: string | null | undefined;
+  /** The 21 correlations (upper triangle), as typed; full precision after a correction. */
+  correlations: number[];
+  /** Percent added to the Liquidità return to price the leverage's debt (R4). */
+  leverageSpread: number;
+}
+
 /** A class as the engines and the tile read it, REAL percent (RQ0). */
 export interface ResolvedMonteCarloClass {
   /** Real CAGR of the Base. */

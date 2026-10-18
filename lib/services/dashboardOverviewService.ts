@@ -2,7 +2,9 @@ import 'server-only';
 
 import { fromZonedTime } from 'date-fns-tz';
 import { Timestamp } from 'firebase-admin/firestore';
+import { after } from 'next/server';
 import { adminDb } from '@/lib/firebase/admin';
+import type { ServerTimingRecorder } from '@/lib/server/serverTiming';
 import { Asset, AssetAllocationSettings, MonthlySnapshot } from '@/types/assets';
 import { Expense, EXPENSE_TYPE_LABELS } from '@/types/expenses';
 import { splitSpendingAtDate, summarizeScheduled } from '@/lib/utils/tracciamentoSummary';
@@ -18,10 +20,12 @@ import {
 import {
   computeAllTimeHigh,
   computeMarketEffect,
+  computeMonthFlows,
   computeTopInstrumentMovers,
   computeTopMovers,
   rankCostDrivers,
   rankGoalProgress,
+  rankTopAssets,
   type PensionMarketInput,
 } from '@/lib/utils/dashboardOverviewUtils';
 import { resolvePensionReturnStart } from '@/lib/utils/pensionReturn';
@@ -47,9 +51,9 @@ import {
   prepareAssetDistributionData,
 } from '@/lib/services/chartService';
 import { calculateMonthlyChange, calculateYearlyChange } from '@/lib/services/snapshotService';
-import { getItalyMonthYear, ITALY_TIMEZONE, toDate } from '@/lib/utils/dateHelpers';
-import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
+import { getItalyDateIso, getItalyMonthYear, ITALY_TIMEZONE, toDate } from '@/lib/utils/dateHelpers';
 import { costBasisPerUnitEur } from '@/lib/utils/costBasisEur';
+import { summarizeOwnership } from '@/lib/utils/assetOwnership';
 import {
   DASHBOARD_OVERVIEW_SOURCE_VERSION,
   DASHBOARD_OVERVIEW_SUMMARY_COLLECTION,
@@ -322,6 +326,8 @@ function tradesAfterSnapshot(transactions: AssetTransaction[], snapshot: Monthly
 }
 
 function buildLiveOverviewPayload(
+  // The request time, the one the readers chose their months by: the builder never reads its own clock.
+  now: Date,
   assets: Asset[],
   snapshots: MonthlySnapshot[],
   settings: AssetAllocationSettings | null,
@@ -330,7 +336,7 @@ function buildLiveOverviewPayload(
   pensionContributions: PensionContribution[],
   transactions: AssetTransaction[] = []
 ): Omit<DashboardOverviewPayload, 'freshness'> {
-  const { month: currentMonth, year: currentYear } = getItalyMonthYear();
+  const { month: currentMonth, year: currentYear } = getItalyMonthYear(now);
   const currentMonthSnapshot = snapshots.find(
     (snapshot) => snapshot.year === currentYear && snapshot.month === currentMonth
   ) ?? null;
@@ -395,38 +401,19 @@ function buildLiveOverviewPayload(
   const topMovers = computeTopMovers(assets, previousSnapshot, totalValue, pensionMarketInput, monthTrades);
   const marketEffect = computeMarketEffect(assets, previousSnapshot, pensionMarketInput, monthTrades);
   const topInstrumentMovers = computeTopInstrumentMovers(assets, previousSnapshot, totalValue, pensionMarketInput, monthTrades);
+  const monthFlows = computeMonthFlows(assets, previousSnapshot, pensionMarketInput);
   const goalProgressList =
     settings?.goalBasedInvestingEnabled && goalData
       ? rankGoalProgress(goalData.goals, goalData.assignments, assets)
       : [];
   const goalProgress = goalProgressList[0] ?? null;
   const costDrivers = rankCostDrivers(assets);
+  // The net worth by «Intestatario»: null when no held asset names a person (the tile is absent).
+  const ownershipSummary = summarizeOwnership(assets, settings?.familyMembers ?? [], calculateAssetValue);
+  const ownership = ownershipSummary.hasOwners ? ownershipSummary : null;
 
-  // Top assets for the portfolio list card — active assets sorted by value desc, capped at 15.
-  const topAssets: DashboardOverviewTopAsset[] = assets
-    .filter(a => a.quantity > 0)
-    .map(a => {
-      const value = calculateAssetValue(a);
-      // Use null instead of undefined — Firestore rejects undefined values. Compared in EUR on both
-      // sides (costBasisPerUnitEur), never the native-currency averageCost against the EUR value.
-      let returnPercent: number | null = null;
-      const basisPerUnit = costBasisPerUnitEur(a);
-      if (basisPerUnit && basisPerUnit > 0) {
-        const costBasis = a.quantity * basisPerUnit;
-        returnPercent = costBasis > 0 ? ((value - costBasis) / costBasis) * 100 : null;
-      }
-      return {
-        id: a.id,
-        name: getAssetDisplayTicker(a),
-        assetType: a.type,
-        assetClass: a.assetClass,
-        totalValue: value,
-        portfolioPercent: totalValue > 0 ? (value / totalValue) * 100 : 0,
-        returnPercent,
-      };
-    })
-    .sort((a, b) => b.totalValue - a.totalValue)
-    .slice(0, 15);
+  // Top assets for the portfolio list card — a property NET of its mortgage (rankTopAssets, 2026-10-17).
+  const topAssets: DashboardOverviewTopAsset[] = rankTopAssets(assets, totalValue);
 
   return {
     metrics: {
@@ -478,6 +465,7 @@ function buildLiveOverviewPayload(
       currentMonthSnapshotExists: !!currentMonthSnapshot,
     },
     topAssets,
+    ownership,
     // EVERY historical snapshot + the current live value for the hero sparkline, so «All»
     // is all (a 40-point cap used to start the line at the 41st-last month and call it All).
     // Each point is tiny ({month, year, totalNetWorth}): a decade of months is ~5 KB.
@@ -497,6 +485,7 @@ function buildLiveOverviewPayload(
     },
     topMovers,
     marketEffect,
+    monthFlows,
     topInstrumentMovers,
     goalProgress,
     goalProgressList,
@@ -504,8 +493,16 @@ function buildLiveOverviewPayload(
   };
 }
 
-function isSummaryStale(summary: StoredDashboardOverviewSummary): boolean {
-  if (!summary.payload) {
+/**
+ * Whether the stored summary must be recomputed at `now`: no payload, another source version, an
+ * invalidation since it was computed, computed on an earlier Italian day, or older than the TTL.
+ *
+ * The day test is the one no invalidation can replace: the payload reads «today» (which month is
+ * current and previous, the month-end projection, what is still scheduled), and nothing writes
+ * when midnight passes — a summary computed at 23:50 is yesterday's at 00:10.
+ */
+function isSummaryStale(summary: StoredDashboardOverviewSummary, now: Date): boolean {
+  if (!summary.payload || !summary.computedAt) {
     return true;
   }
 
@@ -517,8 +514,12 @@ function isSummaryStale(summary: StoredDashboardOverviewSummary): boolean {
     return true;
   }
 
-  const updatedAt = normalizeDate(summary.updatedAt);
-  return (Date.now() - updatedAt.getTime()) > DASHBOARD_OVERVIEW_SUMMARY_TTL_MS;
+  const computedAt = normalizeDate(summary.computedAt);
+  if (getItalyDateIso(computedAt) !== getItalyDateIso(now)) {
+    return true;
+  }
+
+  return (now.getTime() - computedAt.getTime()) > DASHBOARD_OVERVIEW_SUMMARY_TTL_MS;
 }
 
 function toResponsePayload(
@@ -542,21 +543,117 @@ function toResponsePayload(
   };
 }
 
-async function recomputeDashboardOverview(userId: string): Promise<DashboardOverviewPayload> {
-  const { month: currentMonth, year: currentYear } = getItalyMonthYear();
+/** Every input of the recompute, read in ONE round (see `readOverviewInputs`). */
+interface OverviewInputs {
+  assets: Asset[];
+  snapshots: MonthlySnapshot[];
+  settings: AssetAllocationSettings | null;
+  goalData: GoalBasedInvestingData | null;
+  pensionRead: PromiseSettledResult<PensionContribution[]>;
+  ledgerRead: PromiseSettledResult<AssetTransaction[]>;
+  expensesRead: PromiseSettledResult<[current: Expense[], previous: Expense[]]>;
+}
+
+/**
+ * Reads every input of the recompute in ONE round trip, never in series: with the functions and
+ * Firestore an ocean apart each stage costs ~100 ms, and none of these reads depends on another.
+ *
+ * Assets, snapshots, settings and goals are required — any of them failing rejects the route, as it
+ * always has. The pension contributions, the trade ledger and the two months of expenses are settled
+ * instead, and the caller decides what each failure costs. The contributions are read speculatively,
+ * before knowing whether a fund is held: we pay one empty query for an account without a fund so as
+ * not to pay a round trip for an account with one.
+ */
+async function readOverviewInputs(userId: string, now: Date): Promise<OverviewInputs> {
+  const { month: currentMonth, year: currentYear } = getItalyMonthYear(now);
   const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1;
   const previousYear = currentMonth === 1 ? currentYear - 1 : currentYear;
 
-  const [assets, snapshots, settings, goalData] = await Promise.all([
-    getAssetsForUser(userId),
-    getSnapshotsForUser(userId),
-    getSettingsForUser(userId),
-    getGoalDataAdmin(userId),
+  const [[assets, snapshots, settings, goalData], [pensionRead, ledgerRead, expensesRead]] = await Promise.all([
+    Promise.all([
+      getAssetsForUser(userId),
+      getSnapshotsForUser(userId),
+      getSettingsForUser(userId),
+      getGoalDataAdmin(userId),
+    ]),
+    Promise.allSettled([
+      getPensionContributionsAdmin(userId),
+      getAssetTransactionsAdmin(userId),
+      Promise.all([
+        getExpensesForMonth(userId, currentYear, currentMonth),
+        getExpensesForMonth(userId, previousYear, previousMonth),
+      ]),
+    ]),
   ]);
-  // Only a holder of a pension fund pays for this read; the digest needs it to tell a fund's
-  // return from its contributions.
+
+  return { assets, snapshots, settings, goalData, pensionRead, ledgerRead, expensesRead };
+}
+
+/**
+ * The contributions the digest needs to tell a pension fund's return from what was paid into it —
+ * none for an account without a fund. A failed read REJECTS for a holder, as before the reads ran in
+ * one round: without the contributions every euro paid in would read as market return, a wrong figure
+ * rather than a missing clause (owner's call, 2026-10-03).
+ */
+function resolvePensionContributions(
+  assets: Asset[],
+  pensionRead: PromiseSettledResult<PensionContribution[]>
+): PensionContribution[] {
   const holdsPensionFund = assets.some((a) => a.type === 'pensionFund' && a.quantity > 0);
-  const pensionContributions = holdsPensionFund ? await getPensionContributionsAdmin(userId) : [];
+  if (!holdsPensionFund) return [];
+  if (pensionRead.status === 'rejected') throw pensionRead.reason;
+  return pensionRead.value;
+}
+
+/** gRPC codes of a precondition the summary write lost: something wrote the document after our read. */
+const LOST_WRITE_RACE_CODES = new Set([6 /* ALREADY_EXISTS */, 9 /* FAILED_PRECONDITION */]);
+
+/**
+ * Persists the recomputed summary AFTER the response is sent (`after()` keeps the function alive until
+ * the write settles), so the write is no longer part of the wait.
+ *
+ * Only if nothing touched the document since the read that found it stale: an invalidation landing
+ * while we were reading would otherwise be overwritten by `invalidatedAt: null`, and with a summary
+ * fresh for the whole day that would hide the mutation for hours instead of the 5 minutes the old TTL
+ * allowed. `lastUpdateTime` (an existing document) and `create` (a missing one) make Firestore refuse
+ * the write in that case; the next read then recomputes.
+ */
+function persistSummaryAfterResponse(
+  userId: string,
+  summaryDoc: StoredDashboardOverviewSummary,
+  readUpdateTime: FirebaseFirestore.Timestamp | null
+): void {
+  after(async () => {
+    const summaryRef = adminDb.collection(DASHBOARD_OVERVIEW_SUMMARY_COLLECTION).doc(userId);
+    try {
+      if (readUpdateTime) {
+        await summaryRef.update({ ...summaryDoc }, { lastUpdateTime: readUpdateTime });
+      } else {
+        await summaryRef.create(summaryDoc);
+      }
+    } catch (error) {
+      const code = (error as { code?: unknown } | null)?.code;
+      if (typeof code === 'number' && LOST_WRITE_RACE_CODES.has(code)) {
+        console.info('[dashboardOverviewService] Summary changed during the recompute, not persisted:', userId);
+        return;
+      }
+      console.warn('[dashboardOverviewService] Failed to persist materialized summary:', error);
+    }
+  });
+}
+
+async function recomputeDashboardOverview(
+  userId: string,
+  now: Date,
+  readUpdateTime: FirebaseFirestore.Timestamp | null,
+  timing?: ServerTimingRecorder
+): Promise<DashboardOverviewPayload> {
+  const { month: currentMonth, year: currentYear } = getItalyMonthYear(now);
+  const { assets, snapshots, settings, goalData, pensionRead, ledgerRead, expensesRead } =
+    await readOverviewInputs(userId, now);
+  timing?.mark('db');
+
+  const pensionContributions = resolvePensionContributions(assets, pensionRead);
 
   // The ledger: the month's sells, so the verdict can name the tax that left with them, and the
   // trades the market digest reads its new quotes from. A failed read costs the sales clause and
@@ -564,36 +661,33 @@ async function recomputeDashboardOverview(userId: string): Promise<DashboardOver
   let monthSales: DashboardOverviewPayload['monthSales'] = null;
   let transactions: AssetTransaction[] = [];
   try {
-    transactions = await getAssetTransactionsAdmin(userId);
+    if (ledgerRead.status === 'rejected') throw ledgerRead.reason;
+    transactions = ledgerRead.value;
     monthSales = summarizePeriodSales(assets, transactions, getMonthDateRangeInItaly(currentYear, currentMonth));
   } catch (error) {
     console.warn('[dashboardOverviewService] Failed to read the trade ledger, no sales clause:', error);
   }
 
   let expenseStats: DashboardOverviewExpenseStats | null = null;
-
   try {
-    const [currentMonthExpenses, previousMonthExpenses] = await Promise.all([
-      getExpensesForMonth(userId, currentYear, currentMonth),
-      getExpensesForMonth(userId, previousYear, previousMonth),
-    ]);
-
-    expenseStats = buildExpenseStats(currentMonthExpenses, previousMonthExpenses, new Date());
+    if (expensesRead.status === 'rejected') throw expensesRead.reason;
+    const [currentMonthExpenses, previousMonthExpenses] = expensesRead.value;
+    expenseStats = buildExpenseStats(currentMonthExpenses, previousMonthExpenses, now);
   } catch (error) {
     console.warn('[dashboardOverviewService] Failed to compute expense stats, falling back to null:', error);
   }
 
   const payloadWithoutFreshness = {
-    ...buildLiveOverviewPayload(assets, snapshots, settings, expenseStats, goalData, pensionContributions, transactions),
+    ...buildLiveOverviewPayload(now, assets, snapshots, settings, expenseStats, goalData, pensionContributions, transactions),
     monthSales,
   };
-  const now = new Date();
+  timing?.mark('compute');
 
-  const summaryDoc: StoredDashboardOverviewSummary = {
+  persistSummaryAfterResponse(userId, {
     userId,
     payload: payloadWithoutFreshness,
-    updatedAt: new Date(),
-    computedAt: new Date(),
+    updatedAt: now,
+    computedAt: now,
     sourceVersion: DASHBOARD_OVERVIEW_SOURCE_VERSION,
     invalidatedAt: null,
     lastInvalidationReason: null,
@@ -601,13 +695,7 @@ async function recomputeDashboardOverview(userId: string): Promise<DashboardOver
       assetCount: payloadWithoutFreshness.flags.assetCount,
       snapshotCount: snapshots.length,
     },
-  };
-
-  try {
-    await adminDb.collection(DASHBOARD_OVERVIEW_SUMMARY_COLLECTION).doc(userId).set(summaryDoc);
-  } catch (error) {
-    console.warn('[dashboardOverviewService] Failed to persist materialized summary:', error);
-  }
+  }, readUpdateTime);
 
   return toResponsePayload(payloadWithoutFreshness, {
     source: 'live_recompute',
@@ -617,21 +705,33 @@ async function recomputeDashboardOverview(userId: string): Promise<DashboardOver
   });
 }
 
-export async function getDashboardOverview(userId: string): Promise<DashboardOverviewPayload> {
+/**
+ * The Panoramica's payload: the materialized summary when it is fresh at `now` (one read), otherwise
+ * a recompute whose summary is written after the response. `timing`, when given, is marked `db` after
+ * each round of reads and `compute` after the payload is built — the route turns it into Server-Timing.
+ */
+export async function getDashboardOverview(
+  userId: string,
+  options: { now?: Date; timing?: ServerTimingRecorder } = {}
+): Promise<DashboardOverviewPayload> {
+  const { now = new Date(), timing } = options;
   const summaryDoc = await adminDb.collection(DASHBOARD_OVERVIEW_SUMMARY_COLLECTION).doc(userId).get();
+  timing?.mark('db');
 
   if (summaryDoc.exists) {
     const summary = summaryDoc.data() as StoredDashboardOverviewSummary;
 
-    if (summary && !isSummaryStale(summary)) {
-      return toResponsePayload(summary.payload, {
+    if (summary && !isSummaryStale(summary, now)) {
+      const payload = toResponsePayload(summary.payload, {
         source: 'materialized_summary',
         updatedAt: normalizeDate(summary.updatedAt),
         computedAt: normalizeDate(summary.computedAt),
         stale: false,
       });
+      timing?.mark('compute');
+      return payload;
     }
   }
 
-  return recomputeDashboardOverview(userId);
+  return recomputeDashboardOverview(userId, now, summaryDoc.exists ? summaryDoc.updateTime ?? null : null, timing);
 }

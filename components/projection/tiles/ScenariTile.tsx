@@ -11,7 +11,7 @@ import type { Narrative } from '@/lib/utils/narrative';
 import type { ScenarioKey } from '@/lib/utils/monteCarloSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
-import { Tile } from '@/components/ui/tile';
+import { Tile, type TileCollapse } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
 
 export interface ProjectionScenarioRow {
@@ -29,12 +29,15 @@ interface ScenariTileProps {
   aside: string;
   rows: ProjectionScenarioRow[];
   footer: Narrative;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
   className?: string;
 }
 
-export function ScenariTile({ reading, aside, rows, footer, className }: ScenariTileProps) {
+export function ScenariTile({ reading, aside, rows, footer, collapse, asideWhenClosed, className }: ScenariTileProps) {
   return (
-    <Tile eyebrow="Scenari a confronto" aside={aside} reading={reading} ariaLabel="Scenari a confronto" className={className}>
+    <Tile eyebrow="Scenari a confronto" aside={aside} asideWhenClosed={asideWhenClosed} reading={reading} ariaLabel="Scenari a confronto" className={className} collapse={collapse}>
       <ul className="mt-3.5 flex flex-col divide-y divide-border" aria-label="Mediana per scenario">
         {rows.map((row) => {
           const color = SCENARIO_COLOR[row.key];

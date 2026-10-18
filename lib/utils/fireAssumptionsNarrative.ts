@@ -176,10 +176,10 @@ export function withFlowsDetail(assumptions: FireAssumptions, resolved: readonly
   };
 }
 
-/** RC3, Flussi: «Flussi 4» / «Flussi: nessuno»; the Obiettivi read none of them, and say so. Null until a tab has set the count. */
+/** RC3, Flussi: «Flussi 4» / «Flussi: nessuno»; the Traguardi read none of them, and say so. Null until a tab has set the count. */
 export function describeFlowsChip(assumptions: FireAssumptions, view: 'goals' | 'default' = 'default'): FireChip | null {
   const link: FireChipLink = { text: 'Il mio piano', planField: 'flussi' };
-  if (view === 'goals') return { id: 'flows', label: "Flussi: solo nell'Effetto sul FIRE", lines: ['Gli obiettivi non leggono i flussi datati: li usa solo l\'effetto sul FIRE.'], links: [link] };
+  if (view === 'goals') return { id: 'flows', label: "Flussi: solo nell'Effetto sul FIRE", lines: ['I traguardi non leggono i flussi datati: li usa solo l\'effetto sul FIRE.'], links: [link] };
   if (assumptions.datedFlowsCount === undefined) return null;
   const count = assumptions.datedFlowsCount;
   const detail = assumptions.datedFlowsDetail;
@@ -191,4 +191,17 @@ export function describeFlowsChip(assumptions: FireAssumptions, view: 'goals' | 
 /** The chips in the order of RC1; a chip with nothing to say (no costs computed yet, no expenses) is left out, never a «—» (RC5). */
 export function describeFireChips(assumptions: FireAssumptions, view: 'goals' | 'default' = 'default'): FireChip[] {
   return [describeReturnsChip(assumptions), describeCostsChip(assumptions), describeExpensesChip(assumptions), describeFlowsChip(assumptions, view)].filter((chip): chip is FireChip => chip !== null);
+}
+
+/**
+ * D-CU14: «Ipotesi: Base 4,1% reale, costi 0,30%» — the scope line under the strip below `desktop:`, where the two rows of
+ * «Ipotesi usate» do not draw. The same figures and words as the chips (`describeReturnsChip`, `describeCostsChip`): the real
+ * Base return changes the meaning of every figure of the verdict (The Binding-Clause Rule), the costs qualify it. The Traguardi
+ * (`goals`) read no costs here, so the line stops at the return; a costs chip with nothing to say is left out.
+ */
+export function describeFireScopeLine(assumptions: FireAssumptions, view: 'goals' | 'default' = 'default'): string {
+  const parts = [`Base ${pct(assumptions.scenarios.base.realReturnRate)} reale`];
+  const costs = view === 'goals' ? null : describeCostsChip(assumptions);
+  if (costs) parts.push(costs.label.charAt(0).toLowerCase() + costs.label.slice(1));
+  return `Ipotesi: ${parts.join(', ')}`;
 }

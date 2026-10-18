@@ -11,7 +11,16 @@
  *   Desktop (12 col): Traguardo(5, 2 rows) | Base di calcolo(7: rows beside the lock)
  *                                           | Reddito passivo(7)
  *                     Scenari(12: the three curves | the three rows)
- *   Mobile (1 col):   Traguardo → Scenari → Reddito passivo → Base di calcolo
+ *                     then, outside the stage, Età obiettivo(12) and Sensibilità(12) (fork)
+ *   Below desktop:    ONE sequence, the DOM above (DESIGN.md → The First-Screen Rule,
+ *                     since 2026-10-15): the verdict's title → the first sentence («…ci arrivi nel
+ *                     2032, a 44 anni.») → the strip of two figures («Ti mancano», «Rendita oggi»)
+ *                     → the lock as the scope line («Modello ponte: fondo pensione escluso fino
+ *                     al 2050», The Binding-Clause Rule) → «Il perché» (what the plan lives on from then, the
+ *                     lock sentence) → Traguardo open, its plot at 120px → «Il resto della pagina»
+ *                     → Base di calcolo, Reddito passivo, Scenari as closed rows (`useMobileSections`
+ *                     with `tab: 'fire'`, doc/guide/fire.md § Composizione mobile) → Parametri →
+ *                     Dettaglio. No `order-*`: the phone reads the DOM.
  *
  * A tile shares a row only with tiles of its own height (AGENTS.md → Hierarchy). Base di calcolo
  * took two rows until 2026-09-22 and ended 190px above its own footer (measured); putting it at
@@ -32,8 +41,13 @@
  * is that tile's scope, not an axis.
  *
  * Data flow (unchanged from the previous IA — presentation over the same pure functions):
- * 1. settings + assets + annualCashflowData queries (independent, staleTime 5min);
- * 2. fireData query (depends on assets + the SAVED rate — gated by `enabled`);
+ * 1. settings, assets, snapshots and the expenses of last year and this one from the shared hooks
+ *    (one round trip, four reads in parallel): what the verdict and the four tiles stand on;
+ * 2. the cashflow figures and the FIRE history derived in memory (`computeAnnualCashflowData`,
+ *    `buildFIREData`) — a lock flip recomputes them in the same render. The history alone needs
+ *    the spending behind every snapshot: it reads those older rows once the snapshots have said
+ *    how far back they go, and the «Dettaglio» waits for them — the grid does not
+ *    (`fireWindows`, lib/utils/expenseWindows.ts, 2026-09-30);
  * 3. the metrics, the deterministic projection and the fan inputs derived client-side via
  *    useMemo, so preview edits (SWR, RITA controls, scenario params) are instant.
  *
@@ -46,10 +60,12 @@
  */
 
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useAuth } from '@/contexts/AuthContext';
+import { useExpensesInRange } from '@/lib/hooks/useExpenses';
+import { fireWindows } from '@/lib/utils/expenseWindows';
+import { useSnapshots } from '@/lib/hooks/useSnapshots';
+import { useAssets } from '@/lib/hooks/useAssets';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
+import { calculateAssetValue } from '@/lib/services/assetService';
 import { resolveGainShare } from '@/lib/utils/withdrawalTax';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { DEFAULT_INPS_RETIREMENT_AGE, resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
@@ -59,9 +75,9 @@ import {
   calculateFIREProjection,
   calculateFIRESensitivityMatrix,
   rescaleMonthlyAllowance,
-  getAnnualCashflowData,
+  computeAnnualCashflowData,
   getDefaultScenarios,
-  getFIREData,
+  buildFIREData,
   normalizeCoastFirePensions,
   normalizeCoastFireTaxBrackets,
   prepareRunwaySummaryLabel,
@@ -81,8 +97,10 @@ import { DEFAULT_FIRE_TARGET_AGE } from '@/lib/utils/firePlan';
 import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { resolveLeverCap, solveSavingsForTail, summarizeFireYearDistribution, summarizeRetirementSurvival } from '@/lib/utils/fireDistribution';
 import {
+  FIRE_SECTION_IDS,
   formatAllocationLabel,
   resolveFanVerdict,
+  selectFireStrip,
   summarizeLock,
   summarizePassiveIncome,
   summarizeScenarios,
@@ -90,17 +108,34 @@ import {
   summarizeTimeline,
   type FireTargetHonest,
 } from '@/lib/utils/fireSummary';
+import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
+import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
+import {
+  COMPACT_GRID_CLASS,
+  COMPACT_GRID_WRAPPER_CLASS,
+  INDEX_CLASS,
+  LEAD_CELL_CLASS,
+  REST_CELL_CLASS,
+  STAGE_CLASS,
+  STAGE_WRAPPER_CLASS,
+  VERDICT_CELL_CLASS,
+} from '@/lib/utils/tabletComposition';
+import { VERDICT_REST_SECTION } from '@/lib/utils/mobileSections';
 import Link from 'next/link';
 import {
   buildFireVerdict,
   describeBase,
   describeBaseAside,
+  describeFireClosedAnswers,
   describeBaseFooter,
   describeDettaglio,
   describeEmptyTiles,
   describeFireDistributionMethod,
+  describeFireLockScope,
   describeFireYearDistribution,
   describeLock,
+  FIRE_CLOSED_ASIDES,
+  FIRE_ROW_NOT_COMPUTABLE,
   describePassiveIncome,
   describeRetirementSurvival,
   describeRunway,
@@ -125,10 +160,13 @@ import type { FlowsEffect } from '@/lib/utils/datedFlowsNarrative';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
-import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
+import { FireAssumptionsRow, FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { resolvePlanExpenses, type FireAssumptions } from '@/lib/utils/fireAssumptions';
-import { Tile, TILE_CELL_CLASS } from '@/components/ui/tile';
+import { VerdictStrip } from '@/components/ui/verdict-strip';
+import { PageRest } from '@/components/ui/page-rest';
+import { Tile, TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
+import { RowAnswers } from '@/components/ui/row-answers';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
@@ -178,16 +216,34 @@ const SKELETON_CELLS: TileSkeletonCell[] = [
   { span: 12, lines: 6 },
 ];
 
-/** The five cells of the grid: one class per tile, shared by the data and the empty branches. */
-const GRID_CLASS = 'grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12';
-const TRAGUARDO_CELL = cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5 desktop:row-span-2');
-const BASE_CELL = cn(TILE_CELL_CLASS, 'order-6 tablet:order-4 tablet:col-span-2 desktop:order-none desktop:col-span-7');
-const REDDITO_CELL = cn(TILE_CELL_CLASS, 'order-5 tablet:order-3 tablet:col-span-2 desktop:order-none desktop:col-span-7');
-const SCENARI_CELL = cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-12');
-// E1: the third row. A phone reads it after the scenarios; a tablet keeps Reddito beside Scenari and puts it last.
-const ETA_CELL = cn(TILE_CELL_CLASS, 'order-3 tablet:order-5 tablet:col-span-2 desktop:order-none desktop:col-span-12');
-// FEAT FIRE 2026-10-05: the Sensibilità arrived from the What If, under Età obiettivo (same family: «cosa cambio io?»).
-const SENSIBILITA_CELL = cn(TILE_CELL_CLASS, 'order-4 tablet:order-6 tablet:col-span-2 desktop:order-none desktop:col-span-12');
+/**
+ * The cells of the grid: one class per tile, shared by the data and the empty branches. ONE
+ * sequence, no `order-*` (The First-Screen Rule): Traguardo, then Base, Reddito, Scenari, Età obiettivo
+ * and Sensibilità (the fork's, rows since 2026-10-18, D-CU10) at every width; on a tablet a row cell adds
+ * the place `useTabletComposition` gives it at 768 (in landscape the rows sit in the index beside the
+ * verdict and THE tile, lib/utils/tabletComposition.ts). At 1440 the last two stay full-width tiles.
+ */
+const TRAGUARDO_CELL = cn(TILE_CELL_CLASS, LEAD_CELL_CLASS, 'desktop:col-span-5 desktop:row-span-2');
+const BASE_CELL = cn(TILE_ROW_CELL_CLASS, 'desktop:col-span-7');
+const REDDITO_CELL = cn(TILE_ROW_CELL_CLASS, 'desktop:col-span-7');
+const SCENARI_CELL = cn(TILE_ROW_CELL_CLASS, 'desktop:col-span-12');
+const ETA_CELL = cn(TILE_ROW_CELL_CLASS, 'desktop:col-span-12');
+const SENSIBILITA_CELL = cn(TILE_ROW_CELL_CLASS, 'desktop:col-span-12');
+
+/**
+ * The rows below `desktop:`, in the DOM's order (The Closed-Row Rule): every tile but Traguardo,
+ * THE tile, which never closes. Module-level, so the controller sees one stable list;
+ * no row carries `failed` — a failed read is the whole tab's notice, as at 1440.
+ */
+const FIRE_SECTIONS: readonly SectionSpec[] = [
+  { id: FIRE_SECTION_IDS.base, eyebrow: 'Base di calcolo' },
+  { id: FIRE_SECTION_IDS.reddito, eyebrow: 'Reddito passivo' },
+  { id: FIRE_SECTION_IDS.scenari, eyebrow: 'Scenari' },
+  { id: FIRE_SECTION_IDS.eta, eyebrow: 'Età obiettivo' },
+  { id: FIRE_SECTION_IDS.sensibilita, eyebrow: 'Sensibilità' },
+];
+/** The five rows are on both branches of the tab: their DOM order is the tablet's. */
+const FIRE_ORDER = FIRE_SECTIONS.map((section) => section.id);
 
 /** The one action of the empty state: a link the size of a touch target, in the tile's own ink. */
 const EMPTY_ACTION_CLASS =
@@ -203,7 +259,6 @@ function calculateDisplayedRunwayDelta(latestValue: number | null | undefined, c
 }
 
 export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } = {}) {
-  const { user } = useAuth();
   const { ownerId } = useActiveAccount();
 
   const [view, setView] = useState<ProjectionView>('ventaglio');
@@ -215,23 +270,34 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   // reads the same plan the other five tabs do. `saved` is the stored document, for the one query that must not refetch while typing.
   const { data: settings, saved: savedSettings, isLoading: isLoadingSettings, isError: settingsError } = useFireSettings();
 
-  const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useQuery({
-    queryKey: ['assets', ownerId],
-    queryFn: () => getAllAssets(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  // Assets from the key every page shares (2026-09-29).
+  const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useAssets(ownerId);
 
-  const { data: cashflowData, isLoading: isLoadingCashflow, isError: cashflowError } = useQuery({
-    queryKey: ['annualCashflowData', ownerId],
-    queryFn: () => getAnnualCashflowData(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  // The cashflow figures — the last full year, else the running year annualised — computed in
+  // memory from the page's RECENT expenses window (January of last year → this December: the key
+  // Coast FIRE and What If read too), in parallel with the assets, the settings and the snapshots.
+  // The history behind the «Dettaglio» also needs the rows before that window, back to eleven
+  // months before the first snapshot: a second, OLDER window that can only be asked for once the
+  // snapshots are in, and that the grid does not wait for (2026-09-30; until then the tab read
+  // the account's whole expense list for it).
+  const readAt = useMemo(() => new Date(), []);
+  const { data: snapshots, isLoading: isLoadingSnapshots } = useSnapshots(ownerId);
+  const expenseWindows = useMemo(() => fireWindows(readAt, snapshots?.[0] ?? null), [readAt, snapshots]);
+  const { data: recentExpenses, isLoading: isLoadingCashflow, isError: recentExpensesError } = useExpensesInRange(ownerId, expenseWindows.recent);
+  const { data: olderExpenses, isLoading: isLoadingOlderExpenses, isError: olderExpensesError } = useExpensesInRange(ownerId, expenseWindows.older);
+  const cashflowError = recentExpensesError || olderExpensesError;
+  const cashflowData = useMemo(() => (recentExpenses ? computeAnnualCashflowData(recentExpenses, readAt) : undefined), [recentExpenses, readAt]);
+  // The history's rows: the two windows joined — disjoint and contiguous by construction, so no
+  // row is there twice and none is missing. Undefined until every list it needs is in.
+  const historyExpenses = useMemo(() => {
+    if (!snapshots || !recentExpenses) return undefined;
+    if (expenseWindows.older === null) return recentExpenses;
+    return olderExpenses ? [...olderExpenses, ...recentExpenses] : undefined;
+  }, [snapshots, recentExpenses, olderExpenses, expenseWindows.older]);
   const annualSavings = cashflowData?.annualSavings ?? 0;
 
   const previewWithdrawalRate = settings?.withdrawalRate ?? 4.0;
-  // The saved rate keys the history query: typing in the plan must not refetch it.
+  // The saved rate drives the history: typing in the plan must not recompute it.
   const withdrawalRate = savedSettings?.withdrawalRate ?? 4.0;
 
   // ─── Pension lock (preview inputs: the RITA controls update the estimate instantly) ─────
@@ -319,16 +385,18 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   const liquidNetWorth = capital?.liquid ?? 0;
   const illiquidNetWorth = capital?.illiquid ?? 0;
 
-  // `keepPreviousData`: the key moves with every lock flip and residence switch (currentNetWorth),
-  // and without it the whole tab fell back to the skeleton mid-interaction — the pressed switch
-  // unmounted, the Dettaglio closed, every figure counted up from zero.
-  const { data: fireData, isLoading: isLoadingFIRE } = useQuery({
-    queryKey: ['fireData', ownerId, currentNetWorth, withdrawalRate, includePrimaryResidence],
-    queryFn: () => getFIREData(ownerId!, currentNetWorth, withdrawalRate, includePrimaryResidence),
-    enabled: !!user && !!assets && currentNetWorth > 0,
-    staleTime: 300000,
-    placeholderData: keepPreviousData,
-  });
+  // Derived, not queried: a lock flip or the residence switch moves `currentNetWorth` and the
+  // history recomputes in the same render — no key that moves, no skeleton mid-interaction (the
+  // `keepPreviousData` the query needed until 2026-09-29). Nothing without a positive net worth.
+  const fireData = useMemo(
+    () =>
+      assets && snapshots && historyExpenses && currentNetWorth > 0
+        ? buildFIREData(snapshots, historyExpenses, currentNetWorth, withdrawalRate, includePrimaryResidence, readAt)
+        : undefined,
+    [assets, snapshots, historyExpenses, currentNetWorth, withdrawalRate, includePrimaryResidence, readAt],
+  );
+  // The history's wait is the «Dettaglio»'s alone: nothing in the grid reads `fireData`.
+  const isLoadingHistory = currentNetWorth > 0 && (isLoadingSnapshots || isLoadingOlderExpenses);
   // The history is keyed on the SAVED rate; the Dettaglio's passive income follows the plan's preview like the runway does.
   const chartData = useMemo(() => rescaleMonthlyAllowance(fireData?.chartData ?? [], previewWithdrawalRate), [fireData, previewWithdrawalRate]);
   const rawRunwayData = useMemo(() => fireData?.runwayData ?? [], [fireData]);
@@ -484,10 +552,12 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   }, [honestSummary.pensionsConsidered, honest, userAge, scenarios.base.inflationRate, now]);
   // `span` lengthens the run past the shown fan for RS8 (Età obiettivo): its years and the requirement of a walk that reaches them.
   const runFan = useCallback(
-    (inputs: FanSimulationInputs, annualSavings = inputs.annualSavings, span?: { years: number; fireTargets: number[] }) =>
+    // No `= inputs.annualSavings` parameter default: the React Compiler cannot reorder a default
+    // that reads another parameter.
+    (inputs: FanSimulationInputs, annualSavings?: number, span?: { years: number; fireTargets: number[] }) =>
       runAccumulationSimulation({
         ...inputs,
-        annualSavings,
+        annualSavings: annualSavings ?? inputs.annualSavings,
         years: span?.years ?? fanYears,
         retirementHorizonYears: Math.max(retirementHorizonYears, span?.years ?? 0),
         fireTargets: span?.fireTargets ?? fanFireTargets,
@@ -692,10 +762,21 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   }, [currentNetWorth, sensitivityExpenses, annualSavings, previewWithdrawalRate, scenarios, flowsInput, projectionBridge, honest, targetYears]);
   const sensitivityReading = useMemo(() => (sensitivityMatrix ? summarizeSensitivity(sensitivityMatrix) : null), [sensitivityMatrix]);
 
+  // ─── The phone composition (2026-10-15) ──────────────────────────────────────
+  // The rows and the verdict's «Il perché» from the controller (one memory per tab, `tab: 'fire'`);
+  // the strip read from the target and the allowance the tiles print; the lock as the scope line
+  // only below `desktop:` (at 1440 the paragraph says it). Both cells open a row: `reveal` IS the handler.
+  const sections = useMobileSections({ route: 'fire-simulations', tab: 'fire', sections: FIRE_SECTIONS });
+  const stageRef = useTabletStage();
+  const tablet = useTabletComposition({ sections, order: FIRE_ORDER });
+  const { reveal: handleStripOpen } = sections;
+  const strip = target && passiveIncome ? selectFireStrip({ target, passiveIncome }) : [];
+  const lockScope = sections.compact ? describeFireLockScope(lock) : null;
+
   // ─── Loading ─────────────────────────────────────────────────────────────────
   // A failed read comes BEFORE the wait: these queries default to undefined, and a plan built
   // on a base that was never read is a number with nothing behind it.
-  if (resolveSurfaceState({ loading: isLoadingSettings || isLoadingAssets || isLoadingCashflow || (currentNetWorth > 0 && isLoadingFIRE), failed: settingsError || assetsError || cashflowError }) === 'failed') {
+  if (resolveSurfaceState({ loading: isLoadingSettings || isLoadingAssets || isLoadingCashflow, failed: settingsError || assetsError || cashflowError }) === 'failed') {
     return (
       <ErrorNotice
         className="max-w-[920px]"
@@ -707,12 +788,13 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
     );
   }
 
-  if (isLoadingSettings || isLoadingAssets || isLoadingCashflow || (currentNetWorth > 0 && isLoadingFIRE)) {
+  if (isLoadingSettings || isLoadingAssets || isLoadingCashflow) {
     return <TileGridSkeleton cells={SKELETON_CELLS} />;
   }
 
   const dettaglio = (
     <FireDettaglio
+      loading={isLoadingHistory}
       description={describeDettaglio({
         runwayYears: displayedRunwaySummary.currentYearsOfExpenses,
         runwayDelta: displayedRunwaySummary.totalDeltaVs12Months,
@@ -745,47 +827,65 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
         {empty.action.label}
       </Link>
     );
+    // The same rows as the full tab, closed and saying «non ancora calcolabile»: the Traguardo
+    // keeps the action in sight, the scope line names the lock whatever the number.
     return (
       <div className="space-y-4">
-        <div className="pt-1">
+        {/* The stage: the verdict over the grid; on a tablet in landscape the answer on the left
+            (verdict and THE tile) and the index on the right (lib/utils/tabletComposition.ts). */}
+        <div className={STAGE_WRAPPER_CLASS}>
+        <div ref={stageRef} className={STAGE_CLASS}>
+        <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
           <FireAssumptionsRow assumptions={assumptions} />
-          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul FIRE" />
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul FIRE" scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={assumptions} /> : undefined} restCollapse={sections.collapse(VERDICT_REST_SECTION)} />
         </div>
-        <div className={GRID_CLASS}>
-          <div className={TRAGUARDO_CELL}>
+        <div className={COMPACT_GRID_WRAPPER_CLASS}>
+        <div className={COMPACT_GRID_CLASS}>
+          <div data-stage="lead" className={TRAGUARDO_CELL}>
             <Tile eyebrow="Traguardo" ariaLabel="Traguardo FIRE">
               <EmptyState className="mt-2" message={empty.traguardo} action={action} />
             </Tile>
           </div>
-          <div className={BASE_CELL}>
-            <Tile eyebrow="Base di calcolo" ariaLabel="Base di calcolo del FIRE">
+          <div className={INDEX_CLASS}>
+          <PageRest sections={sections} className={REST_CELL_CLASS} />
+          <div className={cn(BASE_CELL, tablet.cellClass(FIRE_SECTION_IDS.base))}>
+            <Tile eyebrow="Base di calcolo" ariaLabel="Base di calcolo del FIRE" collapse={sections.collapse(FIRE_SECTION_IDS.base)} asideWhenClosed={FIRE_ROW_NOT_COMPUTABLE}>
               <EmptyState className="mt-2" message={empty.base} />
             </Tile>
           </div>
-          <div className={REDDITO_CELL}>
+          <div className={cn(REDDITO_CELL, tablet.cellClass(FIRE_SECTION_IDS.reddito))}>
             {empty.passiveIncome === null && passiveIncome ? (
-              <RedditoPassivoTile reading={describePassiveIncome(passiveIncome)} income={passiveIncome} />
+              <RedditoPassivoTile
+                collapse={sections.collapse(FIRE_SECTION_IDS.reddito)}
+                asideWhenClosed={FIRE_CLOSED_ASIDES[FIRE_SECTION_IDS.reddito]}
+                reading={describePassiveIncome(passiveIncome)}
+                income={passiveIncome}
+              />
             ) : (
-              <Tile eyebrow="Reddito passivo" ariaLabel="Reddito passivo sostenibile">
+              <Tile eyebrow="Reddito passivo" ariaLabel="Reddito passivo sostenibile" collapse={sections.collapse(FIRE_SECTION_IDS.reddito)} asideWhenClosed={FIRE_ROW_NOT_COMPUTABLE}>
                 <EmptyState className="mt-2" message={empty.passiveIncome ?? empty.traguardo} />
               </Tile>
             )}
           </div>
-          <div className={SCENARI_CELL}>
-            <Tile eyebrow="Scenari" ariaLabel="Scenari di mercato">
+          <div className={cn(SCENARI_CELL, tablet.cellClass(FIRE_SECTION_IDS.scenari))}>
+            <Tile eyebrow="Scenari" ariaLabel="Scenari di mercato" collapse={sections.collapse(FIRE_SECTION_IDS.scenari)} asideWhenClosed={FIRE_ROW_NOT_COMPUTABLE}>
               <EmptyState className="mt-2" message={empty.scenarios} />
             </Tile>
           </div>
-          <div className={ETA_CELL}>
-            <Tile eyebrow="Età obiettivo" ariaLabel="Età obiettivo">
+          <div className={cn(ETA_CELL, tablet.cellClass(FIRE_SECTION_IDS.eta))}>
+            <Tile eyebrow="Età obiettivo" ariaLabel="Età obiettivo" collapse={sections.collapse(FIRE_SECTION_IDS.eta)} asideWhenClosed={FIRE_ROW_NOT_COMPUTABLE}>
               <EmptyState className="mt-2" message={empty.targetAge} />
             </Tile>
           </div>
-          <div className={SENSIBILITA_CELL}>
-            <Tile eyebrow="Sensibilità" ariaLabel="Sensibilità degli anni al FIRE">
+          <div className={cn(SENSIBILITA_CELL, tablet.cellClass(FIRE_SECTION_IDS.sensibilita))}>
+            <Tile eyebrow="Sensibilità" ariaLabel="Sensibilità degli anni al FIRE" collapse={sections.collapse(FIRE_SECTION_IDS.sensibilita)} asideWhenClosed={FIRE_ROW_NOT_COMPUTABLE}>
               <EmptyState className="mt-2" message={empty.sensitivity} />
             </Tile>
           </div>
+          </div>
+        </div>
+        </div>
+        </div>
         </div>
           {dettaglio}
       </div>
@@ -831,14 +931,26 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
-      <div className="pt-1">
+      {/* The stage: the verdict over the grid; on a tablet in landscape the answer on the left
+          (verdict and THE tile) and the index on the right (lib/utils/tabletComposition.ts). */}
+      <div className={STAGE_WRAPPER_CLASS}>
+      <div ref={stageRef} className={STAGE_CLASS}>
+      <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
         <FireAssumptionsRow assumptions={assumptions} />
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto sul FIRE" />
+        <PageVerdict
+          verdict={verdict}
+          ariaLabel="Verdetto sul FIRE"
+          strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={sections.eyebrows} />}
+          scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={assumptions} /> : undefined}
+          restCollapse={sections.collapse(VERDICT_REST_SECTION)}
+        />
       </div>
 
-      {/* Tablet (768-1439): Traguardo full, Base di calcolo full, Reddito passivo beside Scenari. */}
-      <div className={GRID_CLASS}>
-        <div className={TRAGUARDO_CELL}>
+      {/* Tablet: Traguardo on two columns, the closed rows two by two at 768, an open row on the
+          whole grid row; in landscape the rows in the index beside the verdict and Traguardo. */}
+      <div className={COMPACT_GRID_WRAPPER_CLASS}>
+      <div className={COMPACT_GRID_CLASS}>
+        <div data-stage="lead" className={TRAGUARDO_CELL}>
           <TraguardoTile
             reading={describeTarget(target)}
             target={target}
@@ -865,8 +977,16 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
           />
         </div>
 
-        <div className={BASE_CELL}>
+        {/* What each closed row answers in the landscape index (2026-10-16): the same base, allowance
+            and scenario rows the tiles print. */}
+        <RowAnswers value={describeFireClosedAnswers({ base, passiveIncome, scenarioRows, horizonYears: PROJECTION_HORIZON_YEARS, targetAge: targetAgeSummary })}>
+        <div className={INDEX_CLASS}>
+        <PageRest sections={sections} className={REST_CELL_CLASS} />
+
+        <div className={cn(BASE_CELL, tablet.cellClass(FIRE_SECTION_IDS.base))}>
           <BaseDiCalcoloTile
+            collapse={sections.collapse(FIRE_SECTION_IDS.base)}
+            asideWhenClosed={FIRE_CLOSED_ASIDES[FIRE_SECTION_IDS.base]}
             reading={describeBase(base)}
             aside={describeBaseAside(base)}
             base={base}
@@ -876,13 +996,20 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
           />
         </div>
 
-        <div className={REDDITO_CELL}>
-          <RedditoPassivoTile reading={describePassiveIncome(passiveIncome)} income={passiveIncome} />
+        <div className={cn(REDDITO_CELL, tablet.cellClass(FIRE_SECTION_IDS.reddito))}>
+          <RedditoPassivoTile
+            collapse={sections.collapse(FIRE_SECTION_IDS.reddito)}
+            asideWhenClosed={FIRE_CLOSED_ASIDES[FIRE_SECTION_IDS.reddito]}
+            reading={describePassiveIncome(passiveIncome)}
+            income={passiveIncome}
+          />
         </div>
 
-        <div className={SCENARI_CELL}>
+        <div className={cn(SCENARI_CELL, tablet.cellClass(FIRE_SECTION_IDS.scenari))}>
           {projection ? (
             <ScenariTile
+              collapse={sections.collapse(FIRE_SECTION_IDS.scenari)}
+              asideWhenClosed={FIRE_CLOSED_ASIDES[FIRE_SECTION_IDS.scenari]}
               reading={describeScenarios(scenarioRows, { quotaMissing: targetYears === null })}
               rows={scenarioRows}
               horizonYears={PROJECTION_HORIZON_YEARS}
@@ -899,24 +1026,33 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
           ) : (
             // A projection needs expenses and a positive net worth, which the branch above already
             // guarantees; this is the belt to those braces, and it says so instead of an empty cell.
-            <Tile eyebrow="Scenari" ariaLabel="Scenari di mercato">
+            <Tile eyebrow="Scenari" ariaLabel="Scenari di mercato" collapse={sections.collapse(FIRE_SECTION_IDS.scenari)} asideWhenClosed={FIRE_ROW_NOT_COMPUTABLE}>
               <EmptyState className="mt-2" message={describeEmptyTiles('no-expenses').scenarios} />
             </Tile>
           )}
         </div>
 
-        <div className={ETA_CELL}>
+        <div className={cn(ETA_CELL, tablet.cellClass(FIRE_SECTION_IDS.eta))}>
           {targetAgeSummary ? (
-            <EtaObiettivoTile reading={describeTargetAge(targetAgeSummary)} summary={targetAgeSummary} method={describeTargetAgeMethod()} onOpenCoast={onOpenCoast} />
+            <EtaObiettivoTile
+              collapse={sections.collapse(FIRE_SECTION_IDS.eta)}
+              asideWhenClosed={FIRE_CLOSED_ASIDES[FIRE_SECTION_IDS.eta]}
+              reading={describeTargetAge(targetAgeSummary)}
+              summary={targetAgeSummary}
+              method={describeTargetAgeMethod()}
+              onOpenCoast={onOpenCoast}
+            />
           ) : (
-            <Tile eyebrow="Età obiettivo" ariaLabel="Età obiettivo">
+            <Tile eyebrow="Età obiettivo" ariaLabel="Età obiettivo" collapse={sections.collapse(FIRE_SECTION_IDS.eta)} asideWhenClosed={FIRE_ROW_NOT_COMPUTABLE}>
               <EmptyState className="mt-2" message={describeEmptyTiles('no-expenses').targetAge} />
             </Tile>
           )}
         </div>
 
-        <div className={SENSIBILITA_CELL}>
+        <div className={cn(SENSIBILITA_CELL, tablet.cellClass(FIRE_SECTION_IDS.sensibilita))}>
           <SensibilitaTile
+            collapse={sections.collapse(FIRE_SECTION_IDS.sensibilita)}
+            asideWhenClosed={FIRE_CLOSED_ASIDES[FIRE_SECTION_IDS.sensibilita]}
             reading={sensitivityReading ? describeSensitivity(sensitivityReading, PROJECTION_HORIZON_YEARS, { quotaMissing: targetYears === null }) : [{ text: 'Servono un patrimonio FIRE e spese annue maggiori di zero.' }]}
             aside={sensitivityMatrix?.byQuota ? `quota del numero FIRE all’età obiettivo (${Math.round(previewTargetAge)} anni, ${currentYear + (sensitivityMatrix.targetYears ?? 0)}) · scenario base · piano di oggi` : SENSITIVITY_ASIDE}
             baselineInput={sensitivityBaselineInput}
@@ -926,6 +1062,11 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
             footer={SENSITIVITY_FOOTER}
           />
         </div>
+        </div>
+        </RowAnswers>
+      </div>
+      </div>
+      </div>
       </div>
 
       {dettaglio}

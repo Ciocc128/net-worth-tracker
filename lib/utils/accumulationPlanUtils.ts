@@ -19,9 +19,11 @@ import type {
   PlanPosition,
 } from '@/types/accumulationPlan';
 import type { ModelPortfolio } from '@/types/modelPortfolio';
-import { splitTowardTarget, bandForTarget, type RebalanceBand } from './allocationUtils';
+import { modelGroups } from '@/lib/utils/modelPortfolio';
+import { splitTowardTarget, bandForTarget, resolveAllocationRole, type RebalanceBand } from './allocationUtils';
 import { unitPriceEur } from './costBasisEur';
 import { getItalyMonthYear } from './dateHelpers';
+import { describeZeroQuantityChip, NEVER_BOUGHT_CHIP } from './zeroQuantityChip';
 
 // ---------------------------------------------------------------------------
 // 5.1 Month helpers
@@ -461,11 +463,55 @@ export interface PlanRevisionInput {
   positions: PlanPosition[];
   /** The NEW disposals only (they fall in the first revised month); the plan's existing ones stay. */
   disposals: PlanDisposal[];
+  /** AL11: the source accounts, editable in a revision; absent = the plan's own. */
+  sourceCashAssetIds?: string[];
+  /** AL11: saved sales not yet executed that the revision takes off (by instrument). */
+  removedDisposalAssetIds?: string[];
+  /** AL11: saved sales not yet executed moved to another installment (≥ the first revised one), by instrument. */
+  movedDisposalMonthIndexes?: Record<string, number>;
+}
+
+/** A saved sale a revision can still change: not executed, not skipped, not linked to a ledger sale. */
+export function isOpenSavedDisposal(disposal: PlanDisposal): boolean {
+  return disposal.status === 'planned' && (disposal.transactionIds?.length ?? 0) === 0;
+}
+
+/**
+ * AL11: what a revision's sales list says about the plan's saved sales. `draftDisposals` is the list the
+ * editor holds (the saved open sales it started from, with the reader's changes, and the new ones).
+ * A saved open sale missing from it is removed; one whose shares changed is removed and re-entered as
+ * a new sale; one that stays may carry another `monthIndex` (moved). Executed or linked sales never move.
+ */
+export function diffRevisionDisposals(
+  plan: Pick<AccumulationPlan, 'disposals'>,
+  draftDisposals: PlanDisposal[]
+): { newDisposals: PlanDisposal[]; removedDisposalAssetIds: string[]; movedDisposalMonthIndexes: Record<string, number> } {
+  const open = new Map(plan.disposals.filter(isOpenSavedDisposal).map((disposal) => [disposal.assetId, disposal]));
+  const closedIds = new Set(plan.disposals.filter((disposal) => !isOpenSavedDisposal(disposal)).map((disposal) => disposal.assetId));
+  const newDisposals: PlanDisposal[] = [];
+  const removed: string[] = [];
+  const moved: Record<string, number> = {};
+  for (const disposal of draftDisposals) {
+    if (closedIds.has(disposal.assetId)) continue;
+    const saved = open.get(disposal.assetId);
+    if (!saved) {
+      newDisposals.push(disposal);
+    } else if (saved.quantity !== disposal.quantity) {
+      removed.push(saved.assetId);
+      newDisposals.push(disposal);
+    } else if ((disposal.monthIndex ?? 1) !== (saved.monthIndex ?? 1)) {
+      moved[saved.assetId] = disposal.monthIndex ?? 1;
+    }
+  }
+  for (const saved of open.values()) {
+    if (!draftDisposals.some((disposal) => disposal.assetId === saved.assetId)) removed.push(saved.assetId);
+  }
+  return { newDisposals, removedDisposalAssetIds: removed, movedDisposalMonthIndexes: moved };
 }
 
 export type RevisedPlanResult =
   | { ok: true; plan: AccumulationPlan; firstIndex: number; liquidity: UsableLiquidity }
-  | { ok: false; issue: 'nothing_to_revise' | 'months_range' }
+  | { ok: false; issue: 'nothing_to_revise' | 'months_range' | 'sale_month_range' }
   | { ok: false; issue: 'duplicate_asset'; assetId: string };
 
 /** The first installment with no line executed, skipped or linked: where a revision starts (D-A3). */
@@ -498,8 +544,20 @@ export function buildRevisedPlan(
     return { ok: false, issue: 'months_range' };
   }
 
+  // AL11: a saved sale not yet executed can come off or move to a month ≥ k; an executed one stays as it is.
+  const removedIds = new Set(revision.removedDisposalAssetIds ?? []);
+  const moved = revision.movedDisposalMonthIndexes ?? {};
+  for (const monthIndex of Object.values(moved)) {
+    if (!Number.isInteger(monthIndex) || monthIndex < k || monthIndex > months) return { ok: false, issue: 'sale_month_range' };
+  }
+  const keptDisposals = plan.disposals
+    .filter((disposal) => !(isOpenSavedDisposal(disposal) && removedIds.has(disposal.assetId)))
+    .map((disposal) =>
+      isOpenSavedDisposal(disposal) && moved[disposal.assetId] !== undefined ? { ...disposal, monthIndex: moved[disposal.assetId] } : disposal
+    );
+
   // One sale per instrument: the ledger matching and `setDisposal` address a sale by its asset.
-  const alreadySelling = new Set(plan.disposals.map((disposal) => disposal.assetId));
+  const alreadySelling = new Set(keptDisposals.map((disposal) => disposal.assetId));
   const repeated = revision.disposals.find((disposal) => alreadySelling.has(disposal.assetId));
   if (repeated) return { ok: false, issue: 'duplicate_asset', assetId: repeated.assetId };
 
@@ -508,9 +566,10 @@ export function buildRevisedPlan(
     monthIndex: k,
     estimatedProceedsEur: proceedsOfDisposal(disposal, assetsById.get(disposal.assetId), deps),
   }));
-  const disposals = [...plan.disposals, ...newDisposals];
+  const disposals = [...keptDisposals, ...newDisposals];
   const liquiditySettings: PlanLiquidity = {
     ...plan.liquidity,
+    ...(revision.sourceCashAssetIds ? { sourceCashAssetIds: revision.sourceCashAssetIds } : {}),
     monthlyInflowEur: revision.monthlyInflowEur,
     reserveEur: revision.reserveEur,
   };
@@ -1027,14 +1086,14 @@ export function seedDisposalsFromSale(
 }
 
 export function weightsToSeedPositions(
-  weights: Array<{ key: string; label: string; proposedPct: number }>,
+  weights: Array<{ key: string; label: string; proposedPct: number; /** AL16: a group's members, the buyer (`key`) included. */ memberAssetIds?: string[] }>,
   generateId: () => string = () => crypto.randomUUID()
 ): PlanPosition[] {
   return weights.map((w) => ({
     id: generateId(),
     label: w.label,
     targetPercentage: w.proposedPct,
-    memberAssetIds: [w.key],
+    memberAssetIds: w.memberAssetIds && w.memberAssetIds.length > 1 ? orderGroupMembers({ memberAssetIds: w.memberAssetIds, buyAssetId: w.key }) : [w.key],
     buyAssetId: w.key,
   }));
 }
@@ -1090,6 +1149,38 @@ export function applyWeightsToPositions(
   return [...updated, ...added];
 }
 
+/**
+ * AL16 — the model portfolio onto the positions: its groups of equivalent instruments become ONE
+ * position that buys the group's buyer (a position keeps its id when it already was that group), then
+ * the weights (`applyWeightsToPositions`). A group whose members sit in a position that reaches outside
+ * the group is left to the per-instrument weights: it never splits a position the user built.
+ */
+export function applyModelToPositions(
+  positions: PlanPosition[],
+  model: ModelPortfolio,
+  soldAssetIds: Set<string>,
+  labelOf: (assetId: string) => string,
+  generateId: () => string = () => crypto.randomUUID()
+): PlanPosition[] {
+  let next = positions;
+  for (const group of modelGroups(model.weights)) {
+    const members = new Set(group.memberAssetIds);
+    const overlapping = next.filter((position) => position.memberAssetIds.some((id) => members.has(id)));
+    if (overlapping.length === 0 || overlapping.some((position) => position.memberAssetIds.some((id) => !members.has(id)))) continue;
+    const first = next.indexOf(overlapping[0]);
+    const kept = overlapping.find((position) => position.buyAssetId === group.buyAssetId);
+    const grouped: PlanPosition = {
+      id: kept?.id ?? generateId(),
+      label: kept?.label ?? labelOf(group.buyAssetId),
+      targetPercentage: 0,
+      memberAssetIds: orderGroupMembers({ memberAssetIds: group.memberAssetIds, buyAssetId: group.buyAssetId }),
+      buyAssetId: group.buyAssetId,
+    };
+    next = next.flatMap((position, index) => (index === first ? [grouped] : overlapping.includes(position) ? [] : [position]));
+  }
+  return applyWeightsToPositions(next, modelWeightMap(model), soldAssetIds, labelOf, generateId);
+}
+
 /** The model portfolio as a per-instrument weight map (candidates at 0 are left out). */
 export function modelWeightMap(model: ModelPortfolio): Record<string, number> {
   const map: Record<string, number> = {};
@@ -1122,4 +1213,162 @@ export function redistributeRemainder(positions: PlanPosition[]): PlanPosition[]
     next[largest] = { ...next[largest], targetPercentage: Math.max(0, Math.round((next[largest].targetPercentage + residue) * 10) / 10) };
   }
   return next;
+}
+
+/**
+ * The members of a position with the one that BUYS first. A group's head is the instrument that
+ * receives the purchases (`buyAssetId`), never the first of the list: the target step shows the
+ * figures (today's weight, target, to buy, shares at ITS price) on the head row.
+ * A `buyAssetId` that is not a member leaves the order as it was.
+ */
+export function orderGroupMembers(position: Pick<PlanPosition, 'memberAssetIds' | 'buyAssetId'>): string[] {
+  const { memberAssetIds, buyAssetId } = position;
+  if (!memberAssetIds.includes(buyAssetId)) return [...memberAssetIds];
+  return [buyAssetId, ...memberAssetIds.filter((id) => id !== buyAssetId)];
+}
+
+/**
+ * AL8: the singleton positions of `assetIds` become ONE group that buys `buyAssetId`, at the sum of their
+ * weights, appended after the others. The group keeps the id of the buy instrument's own position, so the
+ * lines already closed under it still belong to the position that bought them.
+ */
+export function groupPositions(
+  positions: PlanPosition[],
+  assetIds: ReadonlySet<string>,
+  buyAssetId: string,
+  labelOf: (assetId: string) => string,
+  newId: () => string = () => crypto.randomUUID()
+): PlanPosition[] {
+  const selected = positions.filter((position) => position.memberAssetIds.length === 1 && assetIds.has(position.memberAssetIds[0]));
+  if (selected.length < 2 || !assetIds.has(buyAssetId)) return positions;
+  const buyPosition = selected.find((position) => position.memberAssetIds[0] === buyAssetId);
+  const grouped: PlanPosition = {
+    id: buyPosition?.id ?? newId(),
+    label: labelOf(buyAssetId),
+    targetPercentage: selected.reduce((sum, position) => sum + position.targetPercentage, 0),
+    memberAssetIds: orderGroupMembers({ memberAssetIds: selected.flatMap((position) => position.memberAssetIds), buyAssetId }),
+    buyAssetId,
+  };
+  return [...positions.filter((position) => !selected.includes(position)), grouped];
+}
+
+/**
+ * AL8: a group back into one position per instrument, the weight split by today's value (evenly when
+ * none has value). The member that buys keeps the group's id (closed lines stay with it).
+ */
+export function separatePosition(
+  positions: PlanPosition[],
+  positionId: string,
+  valueOf: (assetId: string) => number,
+  labelOf: (assetId: string) => string,
+  newId: () => string = () => crypto.randomUUID()
+): PlanPosition[] {
+  const position = positions.find((candidate) => candidate.id === positionId);
+  if (!position || position.memberAssetIds.length < 2) return positions;
+  const total = position.memberAssetIds.reduce((sum, id) => sum + valueOf(id), 0);
+  const split: PlanPosition[] = position.memberAssetIds.map((assetId) => ({
+    id: assetId === position.buyAssetId ? position.id : newId(),
+    label: labelOf(assetId),
+    targetPercentage: total > 0 ? (valueOf(assetId) / total) * position.targetPercentage : position.targetPercentage / position.memberAssetIds.length,
+    memberAssetIds: [assetId],
+    buyAssetId: assetId,
+  }));
+  return [...positions.filter((candidate) => candidate.id !== positionId), ...split];
+}
+
+/**
+ * AL9: «Sostituisci» — `newAssetId` becomes the instrument that BUYS in `positionId`, the old buyer staying
+ * in the group (nothing is sold: it keeps what it holds); the weight is the same. A singleton becomes
+ * the group [new, old]; a group changes its buyer (to a member or to an instrument from outside). The position
+ * takes a new id: the lines already closed under the old id name the old instrument and stay readable.
+ * Null when `newAssetId` already sits in another position.
+ */
+export function replaceBuyAsset(
+  positions: PlanPosition[],
+  positionId: string,
+  newAssetId: string,
+  labelOf: (assetId: string) => string,
+  newId: () => string = () => crypto.randomUUID()
+): PlanPosition[] | null {
+  const position = positions.find((candidate) => candidate.id === positionId);
+  if (!position) return null;
+  if (position.buyAssetId === newAssetId) return positions;
+  const usedElsewhere = positions.some((candidate) => candidate.id !== positionId && candidate.memberAssetIds.includes(newAssetId));
+  if (usedElsewhere) return null;
+  const members = position.memberAssetIds.includes(newAssetId) ? position.memberAssetIds : [...position.memberAssetIds, newAssetId];
+  const replaced: PlanPosition = {
+    id: newId(),
+    label: labelOf(newAssetId),
+    targetPercentage: position.targetPercentage,
+    memberAssetIds: orderGroupMembers({ memberAssetIds: members, buyAssetId: newAssetId }),
+    buyAssetId: newAssetId,
+  };
+  return positions.map((candidate) => (candidate.id === positionId ? replaced : candidate));
+}
+
+/**
+ * AL8/AL9: the name of an installment line. A revision can retire a position (a group formed, a buyer
+ * replaced) after some of its lines were closed; those lines then name the instrument that bought, never the id.
+ */
+export function installmentLineLabel(
+  line: Pick<InstallmentLine, 'positionId' | 'assetId'>,
+  positions: PlanPosition[],
+  nameOfAsset: (assetId: string) => string | undefined
+): string {
+  const position = positions.find((candidate) => candidate.id === line.positionId);
+  if (position && position.buyAssetId === line.assetId) return position.label;
+  return nameOfAsset(line.assetId) ?? position?.label ?? line.assetId;
+}
+
+/**
+ * AL10: the instruments of an open plan, for the optimizers' «to evaluate» set — also those at 0 shares
+ * (a plan can buy an instrument nobody holds yet), which a model portfolio may not carry.
+ */
+export function planMemberAssetIds(plan: Pick<AccumulationPlan, 'positions'> | null | undefined): Set<string> {
+  return new Set((plan?.positions ?? []).flatMap((position) => position.memberAssetIds));
+}
+
+export interface AddableAsset {
+  asset: Asset;
+  /** Zero shares held: created empty, or sold out. */
+  held: boolean;
+  /** The Registro has no operation for it (only known when the ledger is read). */
+  neverBought: boolean;
+}
+
+/**
+ * AL10: the instruments the Target step can still take: tradable, not a cash account, not already in
+ * the draft (a position or a sale) — also those with no shares, which the seeder never lists. In the
+ * lead the never-bought ones (then the sold-out), then the ones held; by name inside each group.
+ * `alsoAllow` lets a group's own members through (the «Sostituisci» of a group).
+ */
+export function listAddableAssets(
+  allAssets: Asset[],
+  draft: { positions: PlanPosition[]; disposals: PlanDisposal[] },
+  tradedAssetIds: ReadonlySet<string> | null = null,
+  alsoAllow: ReadonlySet<string> = new Set()
+): AddableAsset[] {
+  const taken = new Set<string>();
+  for (const position of draft.positions) for (const id of position.memberAssetIds) taken.add(id);
+  for (const disposal of draft.disposals) taken.add(disposal.assetId);
+  return allAssets
+    .filter((asset) => asset.assetClass !== 'cash' && asset.type !== 'cash' && resolveAllocationRole(asset) === 'tradable' && (!taken.has(asset.id) || alsoAllow.has(asset.id)))
+    .map((asset) => {
+      const held = asset.quantity > 0;
+      return { asset, held, neverBought: describeZeroQuantityChip(asset, tradedAssetIds) === NEVER_BOUGHT_CHIP };
+    })
+    .sort((a, b) => rank(a) - rank(b) || a.asset.name.localeCompare(b.asset.name, 'it'));
+
+  function rank(entry: AddableAsset): number {
+    return entry.neverBought ? 0 : entry.held ? 2 : 1;
+  }
+}
+
+/** Classes of a trajectory point worth showing: with a weight or a target (|x| ≥ 0,05%), as the target step's table. */
+export function liveClassEntries(point: ClassTrajectoryPoint): Array<[AssetClass, NonNullable<ClassTrajectoryPoint['byClass'][AssetClass]>]> {
+  const entries: Array<[AssetClass, NonNullable<ClassTrajectoryPoint['byClass'][AssetClass]>]> = [];
+  for (const [assetClass, entry] of Object.entries(point.byClass) as Array<[AssetClass, ClassTrajectoryPoint['byClass'][AssetClass]]>) {
+    if (entry && (Math.abs(entry.currentPct) >= 0.05 || Math.abs(entry.targetPct) >= 0.05)) entries.push([assetClass, entry]);
+  }
+  return entries;
 }

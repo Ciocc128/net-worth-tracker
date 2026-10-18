@@ -10,8 +10,12 @@
  *   Desktop (12 col): Costo (5, 2 rows) | Per categoria (4) | Ciclo di vita (3)
  *                                       | Per sottocategoria (7)
  *                     Movimenti collegati (12)
- *   Mobile (1 col):   ← Centri di costo → verdict → [Modifica · Archivia · Elimina] at 44px →
- *                     Costo → Per categoria → Ciclo di vita → Per sottocategoria → Movimenti
+ *   Below desktop:    ONE sequence, the desktop DOM (The First-Screen Rule; composed since
+ *                     2026-10-12): ← Centri di costo → verdict (whole, no strip) →
+ *                     [Collega · Modifica · Archivia · Elimina] at 44px → Costo, open → «Il resto
+ *                     della pagina» → Per categoria, Ciclo di vita, Per sottocategoria, Movimenti
+ *                     collegati as closed rows, remembered per PAGE (`cost-centers-center`), never
+ *                     per centre.
  *
  * NO period axis: every figure is the center's whole cost, and the ones on another window
  * name it (the ceiling's own month or year with today's mark, «Questo mese», «Quest'anno»,
@@ -35,23 +39,24 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Archive, ArchiveRestore, Link2, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { queryKeys } from '@/lib/query/queryKeys';
 import type { CostCenter } from '@/types/costCenters';
 import type { Expense } from '@/types/expenses';
-import { assignExpensesToCostCenter, getExpensesForCostCenter } from '@/lib/services/costCenterService';
+import { assignExpensesToCostCenter } from '@/lib/services/costCenterService';
 import { buildUnlinkPlan, seriesKeyOf, seriesRowsOf, type LinkPlan } from '@/lib/utils/costCenterLinking';
 import { describeWriteError } from '@/lib/utils/dialogNarrative';
 import { buildCategoryComposition, buildSubCategoryComposition } from '@/lib/utils/costCenterUtils';
-import { buildCenterMonthStack, summarizeCenter } from '@/lib/utils/costCenterSummary';
+import { COST_CENTER_DETAIL_REST_ID, COST_CENTER_SECTION_IDS, buildCenterMonthStack, summarizeCenter } from '@/lib/utils/costCenterSummary';
 import {
+  CATEGORIE_CLOSED_ASIDE,
   CATEGORIE_FOOTER,
   SOTTOCATEGORIE_FOOTER,
   buildCostCenterVerdict,
+  describeSottocategorieClosedAside,
   describeAverageKpi,
   describeCategorie,
   describeCenterTrailingCaption,
@@ -61,6 +66,7 @@ import {
   describeCosto,
   describeCostoAside,
   describeCostoFooter,
+  describeCostCenterDetailClosedAnswers,
   describeMonthKpi,
   describeMovimenti,
   describeMovimentiAside,
@@ -78,11 +84,22 @@ import { cn } from '@/lib/utils';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 import { Button } from '@/components/ui/button';
 import { PageVerdict } from '@/components/ui/page-verdict';
-import { TILE_CELL_CLASS } from '@/components/ui/tile';
-import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
-import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
-import { ErrorNotice } from '@/components/ui/error-notice';
-import { describeReadFailure } from '@/lib/utils/statesNarrative';
+import { TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
+import { PageRest } from '@/components/ui/page-rest';
+import { RowAnswers } from '@/components/ui/row-answers';
+import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
+import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
+import {
+  COMPACT_GRID_CLASS,
+  COMPACT_GRID_WRAPPER_CLASS,
+  INDEX_CLASS,
+  LEAD_CELL_CLASS,
+  REST_CELL_CLASS,
+  STAGE_CLASS,
+  STAGE_WRAPPER_CLASS,
+  VERDICT_CELL_CLASS,
+} from '@/lib/utils/tabletComposition';
+import { narrativeToText } from '@/lib/utils/narrative';
 import { CostoTile } from './cost-centers/tiles/CostoTile';
 import { CategorieTile } from './cost-centers/tiles/CategorieTile';
 import { CicloTile } from './cost-centers/tiles/CicloTile';
@@ -93,60 +110,51 @@ import { UnlinkSeriesDialog, type UnlinkSeriesRequest } from './cost-centers/Unl
 import { ExpenseDialog } from '@/components/expenses/ExpenseDialog';
 
 /** Stable identity for the empty case: a `= []` default would defeat every memo below. */
-const EMPTY_EXPENSES: Expense[] = [];
 const EMPTY_KEYS: ReadonlySet<string> = new Set();
 const TRAILING_MONTHS = 12;
 
-/** The detail's own grid, so the loading state has the proportions of what replaces it. */
-const SKELETON_CELLS: TileSkeletonCell[] = [
-  { span: 5, rows: 2, lines: 8 },
-  { span: 4, lines: 5 },
-  { span: 3, lines: 4 },
-  { span: 7, lines: 6 },
-  { span: 12, lines: 6 },
+/** The detail's rows below `desktop:`, in the DOM's order: every tile but Costo, THE tile, which never closes. */
+const DETAIL_SECTIONS: readonly SectionSpec[] = [
+  { id: COST_CENTER_SECTION_IDS.centroCategorie, eyebrow: 'Per categoria' },
+  { id: COST_CENTER_SECTION_IDS.centroCiclo, eyebrow: 'Ciclo di vita' },
+  { id: COST_CENTER_SECTION_IDS.centroSottocategorie, eyebrow: 'Per sottocategoria' },
+  { id: COST_CENTER_SECTION_IDS.centroMovimenti, eyebrow: 'Movimenti collegati' },
 ];
+/** The same rows for a centre whose Per categoria is not drawn (one category: the hero said again). */
+const DETAIL_SECTIONS_WITHOUT_CATEGORIES: readonly SectionSpec[] = DETAIL_SECTIONS.filter((section) => section.id !== COST_CENTER_SECTION_IDS.centroCategorie);
 
 interface CostCenterDetailProps {
   costCenter: CostCenter;
   /** Rows linked to this center, income included — the delete cascade's count. */
   linkedExpenseCount: number;
-  /** The list's already-loaded spending rows, seeding the query so the view paints at once. */
-  initialExpenses?: Expense[];
+  /** The center's spending rows (`amount < 0`), grouped by the list from the one expenses key. */
+  expenses: Expense[];
   onBack: () => void;
   onEdit: (costCenter: CostCenter) => void;
   onDelete: (costCenter: CostCenter) => void;
   onArchiveToggle: (costCenter: CostCenter) => void;
   isDemo?: boolean;
+  /** The tab is the one on screen: `PageRest` remounts on activation so its `role="alert"` speaks for it. */
+  active: boolean;
 }
 
 export function CostCenterDetail({
   costCenter,
   linkedExpenseCount,
-  initialExpenses,
+  expenses: allExpenses,
   onBack,
   onEdit,
   onDelete,
   onArchiveToggle,
   isDemo = false,
+  active,
 }: CostCenterDetailProps) {
-  const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const chartColors = useChartColors();
   const queryClient = useQueryClient();
 
-  // Shares the ['cost-centers', userId] prefix invalidated by ExpenseDialog, so the detail
-  // stays in sync with expense mutations elsewhere. placeholderData, NOT initialData: the
-  // global staleTime would turn a seeded query into one that never fetches.
-  const { data, isLoading: loading, isError } = useQuery({
-    queryKey: queryKeys.costCenters.expenses(ownerId ?? '', costCenter.id),
-    enabled: !!user && !!ownerId,
-    queryFn: async () => {
-      const rows = await getExpensesForCostCenter(ownerId!, costCenter.id);
-      return rows.filter((e) => e.amount < 0);
-    },
-    placeholderData: initialExpenses,
-  });
-  const allExpenses = data ?? EMPTY_EXPENSES;
+  // The rows arrive from the list, already grouped from the expenses key (2026-09-29): a link or an
+  // unlink invalidates `expenses.all` and the detail re-reads with the list. No query of its own.
 
   // Evaluated once per mount — the figures read the day the view was opened.
   const now = useMemo(() => new Date(), []);
@@ -191,12 +199,9 @@ export function CostCenterDetail({
 
   /** Writes a plan and offers its undo in the outcome toast: «Annulla» is the plan's other side, not a guess. */
   const applyPlan = async (plan: LinkPlan, outcome: string) => {
-    try {
-      await assignExpensesToCostCenter(plan.writes);
-    } finally {
-      // Also on failure: past one batch a run can stop half-way, and the lists must show what IS.
-      await refreshAfterLinkChange();
-    }
+    // Also on failure: past one batch a run can stop half-way, and the lists must show what IS.
+    // `.finally` rather than try/finally keeps the component compilable by the React Compiler.
+    await assignExpensesToCostCenter(plan.writes).finally(() => refreshAfterLinkChange());
     toast.success(outcome, {
       action: {
         label: 'Annulla',
@@ -207,9 +212,9 @@ export function CostCenterDetail({
           } catch (error) {
             console.error('Error undoing a cost center link change:', error);
             toast.error(`L'annullamento non è riuscito. ${describeWriteError(error)}`);
-          } finally {
-            await refreshAfterLinkChange();
           }
+          // After the try/catch, not in a finally: the React Compiler does not compile try/finally.
+          await refreshAfterLinkChange();
         },
       },
     });
@@ -225,9 +230,8 @@ export function CostCenterDetail({
     } catch (error) {
       console.error('Error unlinking expenses from cost center:', error);
       toast.error(`${rows.length === 1 ? 'La spesa non è stata scollegata' : 'Le spese non sono state scollegate'}. ${describeWriteError(error)}`);
-    } finally {
-      setUnlinking(false);
     }
+    setUnlinking(false);
   };
 
   const askUnlinkSeries = (expense: Expense) => {
@@ -261,6 +265,27 @@ export function CostCenterDetail({
   );
   const sortedExpenses = useMemo(() => [...allExpenses].sort((a, b) => toDate(b.date).getTime() - toDate(a.date).getTime()), [allExpenses]);
   const verdict = useMemo(() => buildCostCenterVerdict(summary, now), [summary, now]);
+  // What the closed rows answer in the landscape index, from the figures the tiles already hold.
+  const rowAnswers = useMemo(
+    () => describeCostCenterDetailClosedAnswers({ center: summary, composition, subComposition, excludedKeys, netSubTotal }),
+    [summary, composition, subComposition, excludedKeys, netSubTotal],
+  );
+
+  // The detail's rows below `desktop:` (The Closed-Row Rule, since 2026-10-12): one memory for
+  // every centre (`cost-centers-center`), two module-level lists — with and without Per categoria.
+  const sections = useMobileSections({
+    route: 'cashflow',
+    tab: 'cost-centers-center',
+    sections: hasCategorySplit ? DETAIL_SECTIONS : DETAIL_SECTIONS_WITHOUT_CATEGORIES,
+    restId: COST_CENTER_DETAIL_REST_ID,
+  });
+  // At 768 the same rows on two columns; on a tablet in landscape the index beside the verdict and
+  // THE tile (lib/utils/tabletComposition.ts). The lists ARE the DOM's rows.
+  const stageRef = useTabletStage();
+  const tablet = useTabletComposition({
+    sections,
+    order: (hasCategorySplit ? DETAIL_SECTIONS : DETAIL_SECTIONS_WITHOUT_CATEGORIES).map((section) => section.id),
+  });
 
   const accentColor = resolveCostCenterColor(costCenter.color, costCenter.id, chartColors);
   const isArchived = !!costCenter.archivedAt;
@@ -275,8 +300,12 @@ export function CostCenterDetail({
 
   return (
     <div className="space-y-4 max-desktop:portrait:pb-20">
+      {/* The stage: the verdict over the grid; on a tablet in landscape the answer on the left
+          (verdict and THE tile) and the index on the right (lib/utils/tabletComposition.ts). */}
+      <div className={STAGE_WRAPPER_CLASS}>
+      <div ref={stageRef} className={STAGE_CLASS}>
       {/* ── Back link, verdict and the actions beside it ─────────────────────────── */}
-      <div className="flex flex-col gap-1 pt-1">
+      <div data-stage="verdict" className={cn('flex flex-col gap-1 pt-1', VERDICT_CELL_CLASS)}>
         <button
           ref={backLinkRef}
           type="button"
@@ -287,7 +316,7 @@ export function CostCenterDetail({
           Centri di costo
         </button>
         <div className="flex flex-col gap-4 desktop:flex-row desktop:items-start desktop:justify-between desktop:gap-6">
-          <PageVerdict verdict={verdict} ariaLabel={`Verdetto su ${costCenter.name}`} />
+          <PageVerdict verdict={verdict} ariaLabel={`Verdetto su ${costCenter.name}`} restCollapse={sections.collapse(COST_CENTER_DETAIL_REST_ID)} />
           {/* The actions and, under them, what the armed one does: the consequence sits where
               the eye already is (it used to open at the far left of the row, 11px muted) and
               its line is reserved from `desktop:`, so arming no longer pushes the grid down. */}
@@ -359,21 +388,17 @@ export function CostCenterDetail({
         </p>
       </div>
 
-      {loading ? (
-        <TileGridSkeleton verdict={false} cells={SKELETON_CELLS} />
-      ) : isError ? (
-        <ErrorNotice
-          className="max-w-[920px]"
-          notice={describeReadFailure({
-            consequence: 'Le spese collegate a questo centro non sono state lette: il costo del progetto non è calcolabile.',
-            untouched: 'Il centro e le spese registrate non sono stati toccati.',
-          })}
-        />
-      ) : (
-        /* ── Tile grid ─────────────────────────────────────────────────────────── */
-        <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
-          <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5 desktop:row-span-2')}>
+      {/* ── Tile grid — the rows arrived with the list, which already waited and gated on
+          the two reads (loading and failure are the list's states, not the detail's) ── */}
+      {/* ONE sequence, the DOM order is the reading order at every width (The First-Screen Rule; the
+          `order-*` went on 2026-10-12): THE tile, «Il resto della pagina», then the rows (inside
+          the index). */}
+      {(
+        <div className={COMPACT_GRID_WRAPPER_CLASS}>
+        <div className={COMPACT_GRID_CLASS}>
+          <div data-stage="lead" className={cn(TILE_CELL_CLASS, LEAD_CELL_CLASS, 'desktop:col-span-5 desktop:row-span-2')}>
             <CostoTile
+              id={COST_CENTER_SECTION_IDS.centro}
               summary={summary}
               stack={stack}
               stackCaption={describeCenterTrailingCaption(stack, now)}
@@ -385,17 +410,35 @@ export function CostCenterDetail({
               now={now}
             />
           </div>
+          <RowAnswers value={rowAnswers}>
+          <div className={INDEX_CLASS}>
+          <PageRest key={active ? 'attiva' : 'inattiva'} sections={sections} className={REST_CELL_CLASS} />
           {/* One category at 100% is the hero said again: the tile is not rendered and Ciclo
               di vita takes its columns (a tile with nothing to say is not a tile). */}
           {hasCategorySplit && (
-            <div className={cn(TILE_CELL_CLASS, 'order-2 desktop:order-none desktop:col-span-4')}>
-              <CategorieTile slices={composition} reading={describeCategorie(composition)} footer={CATEGORIE_FOOTER} color={accentColor} />
+            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(COST_CENTER_SECTION_IDS.centroCategorie), 'desktop:col-span-4')}>
+              <CategorieTile
+                slices={composition}
+                reading={describeCategorie(composition)}
+                footer={CATEGORIE_FOOTER}
+                color={accentColor}
+                collapse={sections.collapse(COST_CENTER_SECTION_IDS.centroCategorie)}
+                asideWhenClosed={CATEGORIE_CLOSED_ASIDE}
+              />
             </div>
           )}
-          <div className={cn(TILE_CELL_CLASS, 'order-3 desktop:order-none', hasCategorySplit ? 'desktop:col-span-3' : 'tablet:col-span-2 desktop:col-span-7')}>
-            <CicloTile summary={summary} aside={describeCicloAside(summary)} reading={describeCiclo(summary)} footer={describeCicloFooter(summary)} />
+          <div
+            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(COST_CENTER_SECTION_IDS.centroCiclo), hasCategorySplit ? 'desktop:col-span-3' : 'desktop:col-span-7')}
+          >
+            <CicloTile
+              summary={summary}
+              aside={describeCicloAside(summary)}
+              reading={describeCiclo(summary)}
+              footer={describeCicloFooter(summary)}
+              collapse={sections.collapse(COST_CENTER_SECTION_IDS.centroCiclo)}
+            />
           </div>
-          <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none desktop:col-span-7')}>
+          <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(COST_CENTER_SECTION_IDS.centroSottocategorie), 'desktop:col-span-7')}>
             <SottocategorieTile
               slices={subComposition}
               excludedKeys={excludedKeys}
@@ -406,14 +449,18 @@ export function CostCenterDetail({
               color={accentColor}
               onToggle={toggleSubKey}
               onReset={() => setExclusion({ id: costCenter.id, keys: new Set() })}
+              collapse={sections.collapse(COST_CENTER_SECTION_IDS.centroSottocategorie)}
+              asideWhenClosed={describeSottocategorieClosedAside(excludedKeys.size)}
             />
           </div>
-          <div className={cn(TILE_CELL_CLASS, 'order-5 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
+          <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(COST_CENTER_SECTION_IDS.centroMovimenti), 'desktop:col-span-12')}>
             <MovimentiTile
               expenses={sortedExpenses}
               now={now}
               aside={describeMovimentiAside(summary)}
               reading={describeMovimenti(summary)}
+              collapse={sections.collapse(COST_CENTER_SECTION_IDS.centroMovimenti)}
+              asideWhenClosed={narrativeToText(describeMovimentiAside(summary))}
               visibleCount={visibleCount}
               onShowMore={() => setListWindow({ id: costCenter.id, count: visibleCount + MOVEMENTS_PAGE_SIZE })}
               onOpen={setEditingExpense}
@@ -422,8 +469,13 @@ export function CostCenterDetail({
               disabled={isDemo}
             />
           </div>
+          </div>
+          </RowAnswers>
+        </div>
         </div>
       )}
+      </div>
+      </div>
 
       <LinkExpensesDialog open={linkOpen} onClose={() => setLinkOpen(false)} costCenter={costCenter} onLink={handleLink} returnFocusTo={linkButtonRef} />
       <UnlinkSeriesDialog request={unlinkSeries} centerName={costCenter.name} onClose={() => setUnlinkSeries(null)} onUnlink={handleUnlink} busy={unlinking} />

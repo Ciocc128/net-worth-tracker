@@ -21,7 +21,7 @@
  * - Apple touch icon for iOS home screen (180x180)
  * - Safari mask icon with brand color (#10B981 emerald-500)
  */
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -32,6 +32,9 @@ import { MotionProvider } from "@/components/providers/MotionProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { ColorThemeProvider } from "@/contexts/ColorThemeContext";
 import { AgentationToolbar } from "@/components/providers/AgentationToolbar";
+import { COLOR_THEME_INIT_SCRIPT } from "@/lib/constants/colorTheme";
+import { ThemeColorSync } from "@/components/providers/ThemeColorSync";
+import { DEFAULT_THEME_COLORS } from "@/lib/utils/themeColor";
 
 // Load Geist fonts with CSS variables for Tailwind integration
 const geistSans = Geist({
@@ -71,6 +74,16 @@ export const metadata: Metadata = {
   },
 };
 
+// The colour the browser paints around the page before any script runs: the default theme's two
+// backgrounds, keyed on the system mode. `ThemeColorSync` below rewrites both metas from the
+// RESOLVED `--background` once the stored theme and mode are known (lib/utils/themeColor.ts).
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: DEFAULT_THEME_COLORS.light },
+    { media: "(prefers-color-scheme: dark)", color: DEFAULT_THEME_COLORS.dark },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -78,6 +91,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="it" suppressHydrationWarning>
+      <head>
+        {/* The stored colour theme onto <html> BEFORE the first paint, the way next-themes puts
+            `.dark` there: the dashboard shell is in the prerendered HTML (since 2026-09-28), so without this
+            a reader on a non-default theme would see the default palette until hydration. In
+            <head>, not in <body>: a script in the body runs after the parser may already have had
+            a rendering opportunity. `suppressHydrationWarning` on <html> covers the attribute the
+            server did not render. The script and the key: lib/constants/colorTheme.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: COLOR_THEME_INIT_SCRIPT }} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
@@ -89,6 +111,7 @@ export default function RootLayout({
             <AuthProvider>
               <ActiveAccountProvider>
                 <ColorThemeProvider>
+                  <ThemeColorSync />
                   <QueryClientProvider>
                     {children}
                     <Toaster />
@@ -98,7 +121,7 @@ export default function RootLayout({
             </AuthProvider>
           </MotionProvider>
         </ThemeProvider>
-        {process.env.NODE_ENV === "development" && <AgentationToolbar />}
+        {process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_DISABLE_AGENTATION !== "true" && <AgentationToolbar />}
       </body>
     </html>
   );

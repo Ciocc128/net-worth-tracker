@@ -60,6 +60,9 @@ export const SPLIT_STORAGE_STATE = 'e2e/.auth/split.json';
  */
 export const HOF_STORAGE_STATE = 'e2e/.auth/hof.json';
 
+/** The `desktop:` width, where the sidebar — and the profile the setups wait for — is a fixed column. */
+const SETUP_VIEWPORT = { viewport: { width: 1440, height: 900 } };
+
 export default defineConfig({
   testDir: './e2e',
   globalSetup: './e2e/global-setup.ts',
@@ -77,19 +80,23 @@ export default defineConfig({
   },
 
   projects: [
-    { name: 'setup', testMatch: /auth\.setup\.ts/ },
-    { name: 'setup-degraded', testMatch: /auth\.degraded\.setup\.ts/ },
-    { name: 'setup-analisi', testMatch: /auth\.analisi\.setup\.ts/ },
-    { name: 'setup-centri', testMatch: /auth\.centri\.setup\.ts/ },
-    { name: 'setup-split', testMatch: /auth\.split\.setup\.ts/ },
-    { name: 'setup-hof', testMatch: /auth\.hof\.setup\.ts/ },
+    // The six setups run at 1440: since 2026-09-28 the shell (`navigation`, `main`) is in the HTML
+    // before anyone is signed in, so each setup anchors on the profile in the sidebar footer — the
+    // one thing that needs the user — and the sidebar is a fixed column only from `desktop:`.
+    { name: 'setup', testMatch: /auth\.setup\.ts/, use: SETUP_VIEWPORT },
+    { name: 'setup-degraded', testMatch: /auth\.degraded\.setup\.ts/, use: SETUP_VIEWPORT },
+    { name: 'setup-analisi', testMatch: /auth\.analisi\.setup\.ts/, use: SETUP_VIEWPORT },
+    { name: 'setup-centri', testMatch: /auth\.centri\.setup\.ts/, use: SETUP_VIEWPORT },
+    { name: 'setup-split', testMatch: /auth\.split\.setup\.ts/, use: SETUP_VIEWPORT },
+    { name: 'setup-hof', testMatch: /auth\.hof\.setup\.ts/, use: SETUP_VIEWPORT },
     {
       name: 'desktop',
       // 1440px is the project's `desktop:` breakpoint — the width where the layout switches.
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, storageState: STORAGE_STATE },
       dependencies: ['setup'],
-      // analisi.* runs in its own projects on the dedicated fixture account.
-      testIgnore: [/\.(mobile|degraded)\.spec\.ts/, /analisi\./, /centri\./, /split\./, /hof\./],
+      // analisi.* runs in its own projects on the dedicated fixture account; *.tablet.* in the two
+      // tablet projects only (since 2026-10-16), or it would run at 1440 as well.
+      testIgnore: [/\.(mobile|degraded|tablet)\.spec\.ts/, /analisi\./, /centri\./, /split\./, /hof\./],
     },
     {
       // Hall of Fame on its own fixture account. Listed BEFORE its mobile twin: with `workers: 1`
@@ -184,6 +191,21 @@ export default defineConfig({
       testMatch: /\.degraded\.spec\.ts/,
     },
     {
+      // Rendimenti composed for a phone, on the degraded account's `performance` fixture
+      // (2026-10-14): the one page whose composition spec needs a fixture with a measured
+      // return. `mobile` ignores `degraded.` below, or it would collect this file on the base account.
+      name: 'degraded-mobile',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 390, height: 844 },
+        hasTouch: true,
+        isMobile: true,
+        storageState: DEGRADED_STORAGE_STATE,
+      },
+      dependencies: ['setup-degraded'],
+      testMatch: /\.degraded\.mobile\.spec\.ts/,
+    },
+    {
       name: 'mobile',
       // 390px is the width DESIGN.md designs against first. Chromium rather than the WebKit-backed
       // iPhone descriptor: one browser to install, and what is under test here is the layout at a
@@ -197,7 +219,37 @@ export default defineConfig({
       },
       dependencies: ['setup'],
       testMatch: /\.mobile\.spec\.ts/,
-      testIgnore: [/analisi\./, /centri\./, /split\./, /hof\./],
+      testIgnore: [/analisi\./, /centri\./, /split\./, /hof\./, /degraded\./],
+    },
+    {
+      // The small-screen composition on a tablet (since 2026-10-16): 768 in portrait, two
+      // columns with the pill. A `*.tablet.spec.ts` runs here AND in `tablet-landscape`, and
+      // branches on `page.viewportSize().width`. Same account and ignores as `mobile`.
+      name: 'tablet',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 768, height: 1024 },
+        hasTouch: true,
+        isMobile: true,
+        storageState: STORAGE_STATE,
+      },
+      dependencies: ['setup'],
+      testMatch: /\.tablet\.spec\.ts/,
+      testIgnore: [/analisi\./, /centri\./, /split\./, /hof\./, /degraded\./],
+    },
+    {
+      // 1024 in landscape: the stage (the answer on the left, the index on the right), the icon rail, no pill and no bar.
+      name: 'tablet-landscape',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1024, height: 768 },
+        hasTouch: true,
+        isMobile: true,
+        storageState: STORAGE_STATE,
+      },
+      dependencies: ['setup'],
+      testMatch: /\.tablet\.spec\.ts/,
+      testIgnore: [/analisi\./, /centri\./, /split\./, /hof\./, /degraded\./],
     },
   ],
 

@@ -23,6 +23,7 @@ import {
   resolveAllocationRole,
   type AllocatableHolding,
   type AllocationAction,
+  type BalanceScore,
   type PlanNode,
   type RebalanceMove,
 } from '@/lib/utils/allocationUtils';
@@ -36,9 +37,119 @@ import {
 } from '@/lib/utils/leverageAwareAllocationUtils';
 import { assetClassLegs } from '@/lib/utils/assetDisplayClass';
 import { estimateSaleTax } from '@/lib/utils/saleTax';
+import type { PlanPosition } from '@/types/accumulationPlan';
+import type { StripFigure } from '@/lib/utils/verdictStrip';
+import type { SectionSpec } from '@/lib/hooks/useMobileSections';
 
 /** Rows below this amount are noise, not a plan (shared with `PlanRow`). */
 export const MIN_VISIBLE_AMOUNT = 0.5;
+
+// ─── The phone composition (2026-10-15) ───────────────────────────────────────
+
+/**
+ * The ids of the page's rows below `desktop:` (`useMobileSections`, The Closed-Row Rule): THE
+ * tile, Bilanciamento, is among them only as the target of a lifted block — it never closes
+ * (The First-Screen Rule). The DOM ids are not narrative, so they live here
+ * (the precedent of `overviewSummary.ts` and `performanceSummary.ts`).
+ */
+export const ALLOCAZIONE_SECTION_IDS = {
+  bilanciamento: 'alloc-bilanciamento',
+  perClasse: 'alloc-per-classe',
+  piano: 'alloc-piano',
+  esposizione: 'alloc-esposizione',
+  previdenza: 'alloc-previdenza',
+} as const;
+
+/** The block of `BilanciamentoTile` the strip lifts: the KPI «Fuori posizione» — its VALUE only, the caption stays (The Lifted-Figure Rule). */
+export const BILANCIAMENTO_MISALLOCATION_BLOCK = 'fuori-posizione';
+
+/**
+ * The rows below `desktop:`, in the DOM's order (The Closed-Row Rule): every tile but
+ * Bilanciamento, which is THE tile and never closes (The First-Screen Rule). Module-level, so the controller
+ * sees one stable list; `resolveAllocazioneSections` hands the page the rows PRESENT.
+ */
+const ALLOCAZIONE_SECTIONS: readonly SectionSpec[] = [
+  { id: ALLOCAZIONE_SECTION_IDS.perClasse, eyebrow: 'Per classe' },
+  { id: ALLOCAZIONE_SECTION_IDS.piano, eyebrow: 'Piano' },
+  { id: ALLOCAZIONE_SECTION_IDS.esposizione, eyebrow: 'Esposizione' },
+  { id: ALLOCAZIONE_SECTION_IDS.previdenza, eyebrow: 'Previdenza' },
+];
+
+const NO_SECTIONS: readonly SectionSpec[] = [];
+
+/**
+ * The subset of `ALLOCAZIONE_SECTIONS` on the page: Previdenza only with a fund, the Esposizione
+ * flagged when its read failed — and none while the page has no composed grid (no asset, no
+ * banded allocation): the empty branch renders no row, so the controller knows none (since
+ * 2026-10-16; until then the four rows were known there). Pure and here so
+ * `__tests__/allocazioneSummary.test.ts` holds it.
+ */
+export function resolveAllocazioneSections(input: { hasRows: boolean; hasPension: boolean; exposureFailed: boolean }): readonly SectionSpec[] {
+  if (!input.hasRows) return NO_SECTIONS;
+  return ALLOCAZIONE_SECTIONS.flatMap((section) => {
+    if (section.id === ALLOCAZIONE_SECTION_IDS.previdenza && !input.hasPension) return [];
+    if (section.id === ALLOCAZIONE_SECTION_IDS.esposizione) return [{ ...section, failed: input.exposureFailed }];
+    return [section];
+  });
+}
+
+/** Below this share nothing is out of position: the threshold `describeBalance` prints «nulla» under. */
+export const MISALLOCATION_FLOOR_PCT = 0.05;
+
+/**
+ * «Nulla è fuori posizione» is true under the floor AND with neither a leverage gap nor wealth in
+ * classes the targets do not name — the reading's own condition (`describeBalance`), shared with the
+ * strip cell since 2026-10-16: until then the cell said «nulla» under the floor alone, a word the
+ * reading did not print when it said «lo 0,0% è fuori posizione e il 12% è in classi senza target».
+ */
+export function isNothingOutOfPosition(input: { misallocationPct: number; leverageGapPp: number; untargeted?: { pct: number } | null }): boolean {
+  const hasLeverageGap = Math.abs(input.leverageGapPp) >= 0.5;
+  const hasUntargeted = !!input.untargeted && input.untargeted.pct >= 0.5;
+  return input.misallocationPct < MISALLOCATION_FLOOR_PCT && !hasLeverageGap && !hasUntargeted;
+}
+
+export interface AllocazioneStripInput {
+  /** `computeBalanceScore(byAssetClass)` — band-independent. */
+  balance: Pick<BalanceScore, 'misallocationPct'>;
+  /** `summarizeClassGaps(byAssetClass)`: the raw list; the dormant classes are dropped here. */
+  gaps: ClassGap[];
+  /** The exposure gap as the page reads it — the score's `leverageGapPp` only while leverage is in play, else 0 (what `describeBalance` gets). */
+  leverageGapPp?: number;
+  /** Wealth in classes the targets do not name, as the page reads it (what `describeBalance` gets). */
+  untargeted?: { pct: number; labels: string[] } | null;
+}
+
+/**
+ * The two figures of a phone's first screen (never the score, 2026-10-10): the share out of position — the
+ * KPI of Bilanciamento, lifted from the tile — opening the Piano, and the largest drift in
+ * points of the classes the band puts off target («Azioni sopra 3,3 pp»), opening Per classe.
+ * Both are read from the figures the verdict and the readings already print, with the same
+ * decimals (`__tests__/allocazioneSummary.test.ts` holds the identity). Neither is a gain or a
+ * loss, so the tone is `neutral`. The score itself is never a cell: it is the headline and the ring.
+ */
+export function selectAllocazioneStrip({ balance, gaps, leverageGapPp = 0, untargeted = null }: AllocazioneStripInput): StripFigure[] {
+  const [largest] = offTargetGaps(activeClassGaps(gaps));
+  // «nulla» exactly when the reading says it; otherwise the KPI's figure, «0,0%» included.
+  const outOfPosition = !isNothingOutOfPosition({ misallocationPct: balance.misallocationPct, leverageGapPp, untargeted });
+  return [
+    {
+      label: 'Fuori posizione',
+      value: outOfPosition ? balance.misallocationPct : null,
+      format: 'percent',
+      tone: 'neutral',
+      opens: ALLOCAZIONE_SECTION_IDS.piano,
+      ...(outOfPosition ? { lifts: { section: ALLOCAZIONE_SECTION_IDS.bilanciamento, block: BILANCIAMENTO_MISALLOCATION_BLOCK } } : { reason: 'nulla' }),
+    },
+    {
+      label: largest ? `${largest.label} ${largest.differencePp > 0 ? 'sopra' : 'sotto'}` : 'Scarto maggiore',
+      value: largest ? Math.abs(largest.differencePp) : null,
+      format: 'pp',
+      tone: 'neutral',
+      opens: ALLOCAZIONE_SECTION_IDS.perClasse,
+      ...(largest ? {} : { reason: 'tutte in soglia' }),
+    },
+  ];
+}
 
 // ─── Per classe ───────────────────────────────────────────────────────────────
 
@@ -967,13 +1078,20 @@ export interface PensionLookThrough {
   allFrozen: boolean;
 }
 
+/**
+ * Every asset by class, a loan INCLUDED with its negative value (owner, 2026-10-17): «tutto il
+ * patrimonio» is the net worth, so Immobili is the house minus its mortgage and Liquidità the
+ * accounts minus a personal loan — the rule Composizione and Storico already follow. Until that
+ * day a non-positive value was skipped and the tile printed the house GROSS beside a net total
+ * elsewhere. A class below zero stays declared (a negative slice), never clamped.
+ */
 function toClassSlices(assets: Asset[], valueOf: (asset: Asset) => number, labels: Record<string, string>): ClassSlice[] {
   const byClass = new Map<string, number>();
   for (const asset of assets) {
     const value = valueOf(asset);
-    if (value <= 0) continue;
+    if (value === 0) continue;
     for (const leg of assetClassLegs(asset, value)) {
-      if (leg.weight <= 0) continue;
+      if (leg.weight === 0) continue;
       byClass.set(leg.assetClass, (byClass.get(leg.assetClass) ?? 0) + leg.weight);
     }
   }
@@ -1006,4 +1124,57 @@ export function buildPensionLookThrough(
     hasExcluded: assets.some((asset) => resolveAllocationRole(asset) === 'excluded' && valueOf(asset) > 0),
     allFrozen: funds.every((fund) => resolveAllocationRole(fund) === 'frozen'),
   };
+}
+
+// ─── Con un PAC attivo (AL17, D-AL4) ──────────────────────────────────────────
+
+/** Whether a node (or any descendant) is an instrument; collects the instrument ids it buys. */
+function collectInstrumentKeys(nodes: PlanNode[], out: Set<string>): void {
+  for (const node of nodes) {
+    if (node.isInstrument) out.add(node.key);
+    collectInstrumentKeys(node.children, out);
+  }
+}
+
+/**
+ * The assets the Piano BUYS in the mode on screen, by asset id: Ribilancia's COMPRA legs, Versa's
+ * nodes (under leverage, the engine's trades with a positive amount). Preleva buys nothing. A
+ * sleeve of a composite instrument maps back to its asset. The plan engines are not touched: this
+ * only reads what they already returned.
+ */
+export function listPlanBuyAssetIds(view: PlanView, holdings: AllocatableHolding[]): string[] {
+  const assetIdOfHolding = new Map(holdings.map((holding) => [holding.id, holding.assetId ?? holding.id]));
+  const ids = new Set<string>();
+  if (view.mode === 'withdraw') return [];
+  if (view.trades) {
+    for (const trade of view.trades) if (trade.amount > 0) ids.add(trade.assetId);
+    return Array.from(ids);
+  }
+  const keys = new Set<string>();
+  if (view.mode === 'rebalance') {
+    for (const move of view.moves) if (move.action === 'COMPRA') collectInstrumentKeys(move.children, keys);
+  } else {
+    collectInstrumentKeys(view.nodes, keys);
+  }
+  for (const key of keys) ids.add(assetIdOfHolding.get(key) ?? key);
+  return Array.from(ids);
+}
+
+export interface PacSubstitution {
+  /** The group member the Piano buys although the plan does not: the plan buys `buyAssetId` instead. */
+  replacedAssetId: string;
+  buyAssetId: string;
+}
+
+/** The instruments the Piano buys that the open plan replaced with another member of their group. */
+export function findPacSubstitutions(positions: PlanPosition[], boughtAssetIds: Iterable<string>): PacSubstitution[] {
+  const bought = new Set(boughtAssetIds);
+  const out: PacSubstitution[] = [];
+  for (const position of positions) {
+    if (position.memberAssetIds.length < 2) continue;
+    for (const memberId of position.memberAssetIds) {
+      if (memberId !== position.buyAssetId && bought.has(memberId)) out.push({ replacedAssetId: memberId, buyAssetId: position.buyAssetId });
+    }
+  }
+  return out;
 }

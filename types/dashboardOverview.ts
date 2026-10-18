@@ -1,6 +1,8 @@
 import { PieChartData } from '@/types/assets';
 import type { ExpenseType } from '@/types/expenses';
 import type { PeriodSalesSummary } from '@/lib/utils/periodSales';
+import type { MonthFlows } from '@/lib/utils/marketEffect';
+import type { OwnershipSummary } from '@/lib/utils/assetOwnership';
 
 export interface DashboardOverviewSparklinePoint {
   month: number;
@@ -36,10 +38,16 @@ export interface DashboardOverviewTopAsset {
   assetType: string;
   // Raw AssetClass value ('equity' | 'bonds' | ...) — used to derive the icon color.
   assetClass: string;
+  // The asset's value in EUR — for a property, NET of the loans that finance it (owner,
+  // 2026-10-17, `rankTopAssets`): the house is what it is worth minus its mortgage, and the
+  // mortgage is no row of its own here.
   totalValue: number;
   portfolioPercent: number;
   // Null when the asset has no cost basis (cash, imported positions).
   returnPercent: number | null;
+  // The debt netted off `totalValue` (the mortgages' principal), so the row can say «netto del
+  // mutuo di 95.000 €». Absent on an asset with no loan behind it and on payloads before source version 23.
+  debtNetted?: number;
 }
 
 // One instrument's share of the annual management cost (value × TER), largest first
@@ -178,6 +186,11 @@ export interface DashboardOverviewPayload {
   // snapshot, or one without a per-asset breakdown), distinct from a measured 0.
   // Optional so old cached docs degrade gracefully.
   marketEffect?: number | null;
+  // The user's money that moved the net worth outside the cashflow since the previous snapshot:
+  // the pension contributions and the principal repaid per debt (lib/utils/marketEffect.ts →
+  // `MonthFlows`), named in the month's split instead of «altre variazioni». null exactly when
+  // `marketEffect` is; optional so old cached docs degrade to the split without them.
+  monthFlows?: MonthFlows | null;
   // The instruments behind `topMovers`, each by its own price effect (capped at ten). Optional
   // so old cached docs degrade gracefully (Patrimonio's verdict drops its driver clause).
   topInstrumentMovers?: DashboardOverviewInstrumentMover[];
@@ -192,6 +205,11 @@ export interface DashboardOverviewPayload {
   // Every in-progress goal in featured order (head = goalProgress) — the Obiettivi tile
   // shows the first few. Optional so old cached docs degrade to the single goal.
   goalProgressList?: DashboardOverviewGoalProgress[];
+  // The household's wealth by «Intestatario» (lib/utils/assetOwnership.ts, since source version 22):
+  // one row per member holding something, then «In comune» and the orphaned ids. null exactly when
+  // no held asset names a person — the Intestatari tile does not exist then; optional so old cached
+  // docs degrade the same way.
+  ownership?: OwnershipSummary | null;
   // Held instruments with a TER, by annual cost — the Costi tile names the top few.
   // Optional so old cached docs degrade gracefully.
   costDrivers?: DashboardOverviewCostDriver[];

@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, Pencil, Trash2, Calculator, ArrowLeftRight, ScrollText, PiggyBank, Info } from 'lucide-react';
-import type { Asset } from '@/types/assets';
+import { isLoanAsset, type Asset } from '@/types/assets';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCurrency, formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { computeUnrealizedGain, resolveBondRowFacts } from '@/lib/utils/patrimonioSummary';
-import { describeBondRow, describeManualValuation } from '@/lib/utils/patrimonioNarrative';
+import { describeBondRow, describeLoanRow, describeManualValuation } from '@/lib/utils/patrimonioNarrative';
 import { costBasisPerUnitEur, isEurNative } from '@/lib/utils/costBasisEur';
 import { hasMarketPrice } from '@/lib/utils/assetPricing';
 import { toDate } from '@/lib/utils/dateHelpers';
@@ -21,7 +21,21 @@ import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { getMetricValueColor } from '@/lib/utils/metricColors';
 import type { AssetPerformanceData } from '@/lib/utils/assetPerformanceDeltas';
 import { cn } from '@/lib/utils';
-import { AssetSparkline } from '@/components/assets/AssetSparkline';
+import { describeZeroQuantityChip } from '@/lib/utils/zeroQuantityChip';
+import { lazyComponent } from '@/components/ui/lazy-component';
+
+/**
+ * The unit-price sparkline, its code a chunk of its own: it is the only path from Patrimonio to
+ * recharts, and it is drawn only inside a row someone opened (AGENTS.md § Dynamic Imports — a chart
+ * inside something closed by default). `StrumentiTile` preloads it when idle, on a phone only.
+ */
+const AssetSparkline = lazyComponent(() => import('@/components/assets/AssetSparkline').then((m) => m.AssetSparkline));
+
+/** Every lazy chart of a row, for `usePreloadWhenIdle` (a module-level array, so it runs once). */
+export const ASSET_ROW_LAZY_CHARTS = [AssetSparkline];
+
+/** The sparkline's 32px, reserved before the row is opened and while its chunk arrives: nothing moves. */
+const SPARKLINE_SLOT = <div className="h-8" aria-hidden="true" />;
 
 /** "+1,2%" / "−3,4%" / "—" — it-IT decimals, typographic minus (The Comma Rule). */
 export function formatDeltaPercent(delta: number | null): string {
@@ -31,12 +45,23 @@ export function formatDeltaPercent(delta: number | null): string {
 
 /**
  * The sub-line under an instrument's name, shared by the desktop table and the mobile row:
- * a bond says when it matures and when its next coupon falls; a hand-valued holding says when
- * its value was last typed. Null for a quoted instrument, whose ticker is enough.
+ * a bond says when it matures and when its next coupon falls; a loan what it finances and its
+ * TAN (`financedAssetName` resolved by the caller, who holds the assets); a hand-valued holding
+ * when its value was last typed. Null for a quoted instrument, whose ticker is enough.
  */
-export function describeAssetRowSubLine(asset: Asset, now: Date): string | null {
+export function describeAssetRowSubLine(asset: Asset, now: Date, financedAssetName: string | null = null, ownerLabel: string | null = null): string | null {
+  const facts = describeAssetRowFacts(asset, now, financedAssetName);
+  // The owner closes the line (owner, 2026-10-17): «di Marco» for a whole asset, the quotas by
+  // name for a split one («Marco 100 · Giulia 20 · 30 in comune», `describeAssetOwnerLabel`), no
+  // column added; a shared asset prints nothing — the default stays silent, the exception is named.
+  return [facts, ownerLabel].filter((part): part is string => part !== null).join(' · ') || null;
+}
+
+/** The storage facts of the row (a bond's dates, a loan's property and TAN, a hand-valued holding's date), without the owner. */
+function describeAssetRowFacts(asset: Asset, now: Date, financedAssetName: string | null): string | null {
   const bond = resolveBondRowFacts(asset);
   if (bond) return describeBondRow(bond, bond.nextCoupon, now);
+  if (isLoanAsset(asset)) return describeLoanRow(financedAssetName, asset.debtInterestRate);
   if (!hasMarketPrice(asset.type, asset.subCategory)) return describeManualValuation(toDate(asset.lastPriceUpdate), now);
   return null;
 }
@@ -127,8 +152,15 @@ export function InstrumentClassChip({ asset }: { asset: Pick<Asset, 'assetClass'
   );
 }
 
-/** The gross/debt/net breakdown of a mortgaged property, as a tooltip on its value. */
-export function RealEstateValueTooltip({ asset, value }: { asset: Asset; value: number }) {
+/**
+ * The gross/debt/net breakdown of a mortgaged property, as a tooltip on its value. The row prints
+ * the GROSS value (the mortgage is a loan row of its own since 2026-10-10); `debt` is the linked
+ * loan's principal — or, on a property the migration has not reached, its legacy field, which the
+ * printed value is then already net of.
+ */
+export function RealEstateValueTooltip({ asset, value, debt }: { asset: Asset; value: number; debt: number }) {
+  const isLegacy = !!asset.outstandingDebt && asset.outstandingDebt > 0;
+  const gross = isLegacy ? asset.quantity * asset.currentPrice : value;
   return (
     <TooltipProvider>
       <Tooltip>
@@ -141,13 +173,13 @@ export function RealEstateValueTooltip({ asset, value }: { asset: Asset; value: 
         <TooltipContent>
           <div className="space-y-1 text-xs">
             <p>
-              <strong>Valore lordo:</strong> {formatCurrency(asset.quantity * asset.currentPrice)}
+              <strong>Valore lordo:</strong> {formatCurrency(gross)}
             </p>
             <p>
-              <strong>Debito residuo:</strong> {formatCurrency(asset.outstandingDebt ?? 0)}
+              <strong>Mutuo residuo:</strong> {formatCurrency(debt)}
             </p>
             <p>
-              <strong>Valore netto:</strong> {formatCurrency(value)}
+              <strong>Valore netto:</strong> {formatCurrency(gross - debt)}
             </p>
           </div>
         </TooltipContent>
@@ -156,13 +188,25 @@ export function RealEstateValueTooltip({ asset, value }: { asset: Asset; value: 
   );
 }
 
+/**
+ * The loan that finances a property, found among the assets by `financedAssetId`; the legacy
+ * `outstandingDebt` of a property the migration has not reached counts as a mortgage too.
+ */
+export function resolveMortgageOf(asset: Asset, assets: Asset[]): { debt: number } | null {
+  if (asset.assetClass !== 'realestate' || isLoanAsset(asset)) return null;
+  const loan = assets.find((candidate) => isLoanAsset(candidate) && candidate.financedAssetId === asset.id && candidate.quantity > 0);
+  if (loan) return { debt: loan.quantity };
+  return asset.outstandingDebt && asset.outstandingDebt > 0 ? { debt: asset.outstandingDebt } : null;
+}
+
 interface AssetRowProps {
   asset: Asset;
   /** The gross portfolio total the weight is measured against. */
   totalValue: number;
   /** The clock the dated sub-line is read against (one per tile). */
   now: Date;
-  onEdit: (asset: Asset) => void;
+  /** `opener` is the button pressed: the page hands the focus back to it when the dialog closes. */
+  onEdit: (asset: Asset, opener: HTMLElement) => void;
   onDelete: (assetId: string) => void;
   /** The tile's one live region: the arm and the disarm of Elimina are spoken there. */
   announce: (text: string) => void;
@@ -170,11 +214,21 @@ interface AssetRowProps {
   isManualPrice: boolean;
   isDemo?: boolean;
   sparklineData?: { value: number }[];
+  /** The page's `useChartColors()` palette, for the sparkline: one read per page, not one per row. */
+  chartColors: readonly string[];
   performance?: AssetPerformanceData;
   /** Trade-ledger row actions — shown only for ledger asset types once migration has run. */
   showLedgerActions?: boolean;
+  /** Ids with an operation in the Registro; null while it is unread — the zero-quantity chip's word. */
+  tradedAssetIds?: ReadonlySet<string> | null;
   onRegisterTrade?: (asset: Asset) => void;
   onMovements?: (asset: Asset) => void;
+  /** The mortgage on this property (`resolveMortgageOf`), null when none. */
+  mortgage?: { debt: number } | null;
+  /** The property a loan finances, for its sub-line; null for a personal loan. */
+  financedAssetName?: string | null;
+  /** The owner part of the sub-line («di Marco», the quotas by name — `describeAssetOwnerLabel`); null for a shared asset. */
+  ownerLabel?: string | null;
 }
 
 /**
@@ -196,12 +250,20 @@ export function AssetRow({
   isManualPrice,
   isDemo = false,
   sparklineData,
+  chartColors,
   performance,
   showLedgerActions = false,
+  tradedAssetIds = null,
   onRegisterTrade,
   onMovements,
+  mortgage = null,
+  financedAssetName = null,
+  ownerLabel = null,
 }: AssetRowProps) {
   const [open, setOpen] = useState(false);
+  // The sparkline is born at the first opening and stays: unmounting it on close would empty the
+  // panel while it collapses, and a reopened row would draw it again for nothing.
+  const [hasOpened, setHasOpened] = useState(false);
   const deleteRef = useRef<HTMLButtonElement | null>(null);
   const { armed, onClick: onDeleteClick, onBlur: onDeleteBlur } = useArmedDelete(deleteRef, () => onDelete(asset.id));
   const wasArmed = useRef(false);
@@ -225,12 +287,12 @@ export function AssetRow({
   const gainLoss = gain?.gainLoss ?? 0;
   const gainLossPercent = gain?.gainPercent ?? 0;
   const weight = totalValue > 0 ? (value / totalValue) * 100 : null;
-  const isMortgaged = asset.assetClass === 'realestate' && !!asset.outstandingDebt && asset.outstandingDebt > 0;
   const panelId = `asset-row-${asset.id}`;
-  const subLine = describeAssetRowSubLine(asset, now);
+  const subLine = describeAssetRowSubLine(asset, now, financedAssetName, ownerLabel);
   const showTicker = !!asset.ticker && asset.type !== 'pensionFund';
   // The actions sit in a two-column grid; with an odd count the last one (Elimina) would be
   // alone in its row, so it takes the whole row instead of leaving a hole beside it.
+  const zeroChip = describeZeroQuantityChip(asset, tradedAssetIds);
   const actionCount = 2 + (onCalculateTaxes ? 1 : 0) + (showLedgerActions ? 2 : 0) + (asset.type === 'pensionFund' ? 1 : 0);
   const deleteSpansRow = actionCount % 2 === 1;
 
@@ -270,7 +332,10 @@ export function AssetRow({
     >
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => !v);
+          setHasOpened(true);
+        }}
         aria-expanded={open}
         aria-controls={panelId}
         className="flex min-h-[56px] w-full items-center gap-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -278,9 +343,9 @@ export function AssetRow({
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex min-w-0 items-center gap-2">
             <span className="line-clamp-2 break-words text-[13px] font-medium text-foreground">{asset.name}</span>
-            {asset.quantity === 0 && (
+            {zeroChip && (
               <span className="shrink-0 rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                Azzerato
+                {isLoanAsset(asset) ? 'Estinto' : zeroChip}
               </span>
             )}
           </span>
@@ -293,7 +358,7 @@ export function AssetRow({
         </div>
         <div className="flex shrink-0 flex-col items-end gap-0.5">
           <span className="font-mono text-[13px] font-semibold tabular-nums text-foreground">
-            {isMortgaged ? <RealEstateValueTooltip asset={asset} value={value} /> : formatCurrency(value)}
+            {mortgage ? <RealEstateValueTooltip asset={asset} value={value} debt={mortgage.debt} /> : formatCurrency(value)}
           </span>
           {hasGainLoss ? (
             <span className={cn('font-mono text-[11px] tabular-nums', getMetricValueColor(gainLoss, 'number'))}>
@@ -326,9 +391,18 @@ export function AssetRow({
               ))}
             </div>
 
-            {sparklineData && sparklineData.length >= 2 && (
-              <AssetSparkline data={sparklineData} label={`Prezzo unitario di ${asset.name}`} />
-            )}
+            {sparklineData &&
+              sparklineData.length >= 2 &&
+              (hasOpened ? (
+                <AssetSparkline
+                  fallback={SPARKLINE_SLOT}
+                  data={sparklineData}
+                  label={`Prezzo unitario di ${asset.name}`}
+                  colors={chartColors}
+                />
+              ) : (
+                SPARKLINE_SLOT
+              ))}
 
             {performance && (
               <div className="flex flex-col divide-y divide-border border-t border-border">
@@ -389,7 +463,7 @@ export function AssetRow({
                 type="button"
                 variant="outline"
                 className="h-11"
-                onClick={() => onEdit(asset)}
+                onClick={(event) => onEdit(asset, event.currentTarget)}
                 disabled={isDemo}
                 title={isDemo ? 'Non disponibile in modalità demo' : undefined}
               >

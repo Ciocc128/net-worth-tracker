@@ -7,20 +7,30 @@
  * fetched via adminDb.
  */
 
-import { Asset, MonthlySnapshot } from '@/types/assets';
+import { Asset, isLoanAsset, MonthlySnapshot } from '@/types/assets';
 import { GoalAssetAssignment, GoalPriority, InvestmentGoal } from '@/types/goals';
 import {
   DashboardOverviewCostDriver,
   DashboardOverviewGoalProgress,
   DashboardOverviewInstrumentMover,
   DashboardOverviewMover,
+  DashboardOverviewTopAsset,
 } from '@/types/dashboardOverview';
 import { calculateAssetValue } from '@/lib/services/assetService';
+import { assignmentFraction } from '@/lib/utils/goalMath';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
+import { costBasisPerUnitEur } from '@/lib/utils/costBasisEur';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import { PENSION_BAND_KEY } from '@/lib/utils/historyComposition';
 import { attributeSelectedChange } from '@/lib/utils/snapshotAssetBreakdown';
-import { pensionPaidInBetween, sumByMarketBand, tradeAwarePriceEffect } from '@/lib/utils/marketEffect';
+import {
+  debtRepaymentsBetween,
+  pensionPaidInAcross,
+  pensionPaidInBetween,
+  sumByMarketBand,
+  tradeAwarePriceEffect,
+  type MonthFlows,
+} from '@/lib/utils/marketEffect';
 import type { PensionContribution } from '@/types/pension';
 import type { AssetTransaction } from '@/types/assetTransactions';
 
@@ -230,6 +240,38 @@ export function computeMarketEffect(
 }
 
 /**
+ * The user's money that moved the net worth since the previous snapshot WITHOUT a cashflow row:
+ * the pension contributions (the same ones `computePriceEffectsByAsset` takes out of a fund's
+ * market) and the principal repaid on each debt — the instalment is booked whole as spending,
+ * but its principal stays in the net worth. Storico's Driver names the same two parts with the
+ * same rules (`pensionPaidInAcross`, `debtRepaymentsBetween`); here they are measured against
+ * the LIVE portfolio, like the market. Null when the market is (no previous snapshot, or one
+ * without `byAsset`): the split is printed only beside a measured market.
+ */
+export function computeMonthFlows(
+  assets: Asset[],
+  previousSnapshot: MonthlySnapshot | null,
+  pension?: PensionMarketInput
+): MonthFlows | null {
+  const previousRows = previousSnapshot?.byAsset ?? [];
+  if (!previousSnapshot || previousRows.length === 0) return null;
+
+  const fundIds = assets.filter((asset) => asset.type === 'pensionFund').map((asset) => asset.id);
+  const previousMonthKey = monthKeyOf(previousSnapshot.year, previousSnapshot.month);
+  const pensionPaidIn = pension ? pensionPaidInAcross(pension.contributions, fundIds, pension.startMonth, previousMonthKey) : 0;
+
+  // The live portfolio in the snapshot's shape: a property's `price` is its gross unit value and
+  // its `totalValue` net of a legacy debt, a loan's `totalValue` minus its principal.
+  const currentRows = assets
+    .filter((asset) => asset.quantity > 0)
+    .map((asset) => ({ assetId: asset.id, name: asset.name, quantity: asset.quantity, price: asset.currentPrice, totalValue: calculateAssetValue(asset) }));
+  const realEstateIds = new Set(assets.filter((asset) => asset.type === 'realestate').map((asset) => asset.id));
+  const loans = assets.filter(isLoanAsset).map((loan) => ({ id: loan.id, name: loan.name, financedAssetId: loan.financedAssetId }));
+  const debts = debtRepaymentsBetween(previousRows, currentRows, loans, realEstateIds);
+  return { pensionPaidIn, debts };
+}
+
+/**
  * Held instruments that carry a TER, by what they cost per year (value × TER ÷ 100), largest
  * first — the same per-asset figure `calculateAnnualPortfolioCost` sums. Stamp duty is not
  * an instrument's cost and stays out. `name` is resolved via `getAssetDisplayTicker` (alias →
@@ -299,7 +341,7 @@ export function rankGoalProgress(
         if (assignment.goalId !== goal.id) continue;
         const asset = assetMap.get(assignment.assetId);
         if (!asset) continue; // Skip orphaned assignments (asset deleted from portfolio)
-        currentValue += (calculateAssetValue(asset) * assignment.percentage) / 100;
+        currentValue += calculateAssetValue(asset) * assignmentFraction(assignment, asset);
       }
       const progressPercentage = (currentValue / goal.targetAmount!) * 100;
       return { goal, currentValue, progressPercentage };
@@ -329,4 +371,59 @@ export function pickFeaturedGoalProgress(
   assets: Asset[]
 ): DashboardOverviewGoalProgress | null {
   return rankGoalProgress(goals, assignments, assets)[0] ?? null;
+}
+
+/** How many positions «Asset principali» carries in the payload (the tile shows five). */
+export const TOP_ASSETS_LIMIT = 15;
+
+/**
+ * «Asset principali»: the held positions by value, largest first, capped at `TOP_ASSETS_LIMIT`.
+ *
+ * A property is listed NET of the loans that finance it (owner, 2026-10-17): the house is what it
+ * is worth minus its mortgage, `debtNetted` says how much came off so the row can declare it, and
+ * the mortgage is no row of its own here (it would count the debt twice). A personal loan — a debt
+ * with nothing to net against — keeps its negative value and therefore never reaches the top. The
+ * weight is the share of `totalValue`, the NET worth, like every other figure of the page.
+ * Until that day the list printed the house gross at 43,6% of a net total.
+ *
+ * The return compares EUR with EUR (`costBasisPerUnitEur`), never the native PMC with the EUR value;
+ * `null` (not `undefined`: Firestore rejects it) when the asset has no comparable basis.
+ */
+export function rankTopAssets(assets: Asset[], totalValue: number): DashboardOverviewTopAsset[] {
+  const debtByFinancedAsset = new Map<string, number>();
+  for (const asset of assets) {
+    if (!isLoanAsset(asset) || !asset.financedAssetId || !(asset.quantity > 0)) continue;
+    const debt = -calculateAssetValue(asset);
+    if (debt <= 0) continue;
+    debtByFinancedAsset.set(asset.financedAssetId, (debtByFinancedAsset.get(asset.financedAssetId) ?? 0) + debt);
+  }
+  const financedIds = new Set(assets.map((asset) => asset.id));
+
+  return assets
+    .filter((asset) => asset.quantity > 0)
+    // A mortgage whose property is in the list is inside that property's row.
+    .filter((asset) => !(isLoanAsset(asset) && asset.financedAssetId && financedIds.has(asset.financedAssetId)))
+    .map((asset) => {
+      const grossValue = calculateAssetValue(asset);
+      const debtNetted = debtByFinancedAsset.get(asset.id);
+      const value = debtNetted ? grossValue - debtNetted : grossValue;
+      let returnPercent: number | null = null;
+      const basisPerUnit = costBasisPerUnitEur(asset);
+      if (basisPerUnit && basisPerUnit > 0) {
+        const costBasis = asset.quantity * basisPerUnit;
+        returnPercent = costBasis > 0 ? ((grossValue - costBasis) / costBasis) * 100 : null;
+      }
+      return {
+        id: asset.id,
+        name: getAssetDisplayTicker(asset),
+        assetType: asset.type,
+        assetClass: asset.assetClass,
+        totalValue: value,
+        portfolioPercent: totalValue > 0 ? (value / totalValue) * 100 : 0,
+        returnPercent,
+        ...(debtNetted ? { debtNetted } : {}),
+      };
+    })
+    .sort((a, b) => b.totalValue - a.totalValue)
+    .slice(0, TOP_ASSETS_LIMIT);
 }

@@ -28,7 +28,7 @@ import {
   OBJECTIVES_TILE_EYEBROW,
 } from '@/lib/utils/weightOptimizerNarrative';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import { Tile } from '@/components/ui/tile';
+import { Tile, type TileCollapse } from '@/components/ui/tile';
 import { Button } from '@/components/ui/button';
 import { ObjectiveBars } from '@/components/allocation/OptimizerReport';
 import { DEPS, TILE_ACTION_CLASS } from '@/components/allocation/tiles/accumuloShared';
@@ -47,9 +47,12 @@ interface ObiettiviTileProps {
   ownerId?: string;
   allAssets?: Asset[];
   targets?: AssetAllocationTarget | null;
+  /** The row of the phone composition (The Closed-Row Rule); absent at 1440. */
+  collapse?: TileCollapse;
+  asideWhenClosed?: string;
 }
 
-export function ObiettiviTile({ idealAllocation, targetLeverageRatio, snapshot, onEdit, editRef, disabled, plan, ownerId, allAssets, targets }: ObiettiviTileProps) {
+export function ObiettiviTile({ idealAllocation, targetLeverageRatio, snapshot, onEdit, editRef, disabled, plan, ownerId, allAssets, targets, collapse, asideWhenClosed }: ObiettiviTileProps) {
   const isDemo = useDemoMode();
   const fallbackRef = useRef<HTMLButtonElement>(null);
   const enabled = !!idealAllocation?.enabled;
@@ -99,6 +102,8 @@ export function ObiettiviTile({ idealAllocation, targetLeverageRatio, snapshot, 
   return (
     <Tile
       eyebrow={OBJECTIVES_TILE_EYEBROW}
+      collapse={collapse}
+      asideWhenClosed={asideWhenClosed}
       aside={planObjectives ? OBJECTIVES_TILE_PLAN_ASIDE : OBJECTIVES_TILE_ASIDE}
       reading={enabled && input ? describeIdealComposition(input) : [{ text: OBJECTIVES_OFF_READING }]}
     >

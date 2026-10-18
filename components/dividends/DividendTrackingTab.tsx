@@ -6,8 +6,14 @@
  * 12-column bento of tiles, each answering ONE question with a reading line over its figures.
  * The payments list — table or calendar — is the last tile, the inventory it is.
  *
- *   Mobile (1 col):   Verdict → [periodo · + · scarica] → Incasso netto → Rendimento → Chi paga
- *                     di più → Affidabilità → Per anno → Pagamenti → Dettaglio
+ *   Below desktop:    ONE sequence, the desktop DOM (DESIGN.md → The First-Screen Rule;
+ *                     composed since 2026-10-12): title → [periodo · +] in the verdict's
+ *                     axis slot → the verdict, whole (no strip, no cut: received
+ *                     and announced are never one figure, and the Rendimento is not on the axis)
+ *                     → Incasso netto, open → «Il resto della pagina» → Affidabilità, Rendimento,
+ *                     Chi paga di più, Per anno, Pagamenti as closed rows (Pagamenti open by
+ *                     default while a provisional coupon asks for a rate) → Dettaglio. With
+ *                     nothing recorded: no axis, no rows, Pagamenti alone with its action.
  *   Desktop (12 col): Incasso netto (5, 2 rows) | Affidabilità (3) | Rendimento (4)
  *                                               | Chi paga di più (4) | Per anno (3)
  *                     Pagamenti (12)
@@ -21,8 +27,8 @@
  * picker. The Rendimento tile does not: YOC and current yield are TTM on the current holding
  * and DPS growth runs on closed calendar years, all measured by the server — so that tile says
  * so in its aside and its footer, and since 2026-09-14 the verdict's yield clause names the
- * window and the population too (AGENTS.md → Centri di Costo, "a view that displays a period
- * must name the window of every figure that uses a different one").
+ * window and the population too (doc/guide/centri-di-costo.md: a view that displays a period
+ * must name the window of every figure that uses a different one).
  *
  * TWO POPULATIONS, BOTH NAMED (2026-09-14, the owner's call). The verdict and the inventory
  * read the REGISTRY — every payment of the period, sold instruments included, because the
@@ -42,7 +48,6 @@ import { resolveCenteredModalOrigin } from '@/lib/utils/modalOrigin';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useDividendStats } from '@/lib/hooks/useDividendStats';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { Dividend } from '@/types/dividend';
@@ -65,12 +70,25 @@ import { SegmentedPill } from '@/components/ui/segmented-pill';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { PageVerdict } from '@/components/ui/page-verdict';
-import { Tile, TILE_CELL_CLASS } from '@/components/ui/tile';
-import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
+import { Tile, TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { EmptyState } from '@/components/ui/empty-state';
+import { PageRest } from '@/components/ui/page-rest';
+import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
+import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
+import {
+  COMPACT_GRID_CLASS,
+  COMPACT_GRID_WRAPPER_CLASS,
+  INDEX_CLASS,
+  LEAD_CELL_CLASS,
+  REST_CELL_CLASS,
+  STAGE_CLASS,
+  STAGE_WRAPPER_CLASS,
+  VERDICT_CELL_CLASS,
+} from '@/lib/utils/tabletComposition';
+import { narrativeToText } from '@/lib/utils/narrative';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
-import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
+import { DividendsTabSkeleton } from '@/components/cashflow/CashflowTabSkeletons';
 import { Download, FileDown, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -80,6 +98,8 @@ import { cn } from '@/lib/utils';
 import { dividendTypeLabels } from '@/lib/constants/dividendTypes';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import {
+  DIVIDEND_SECTION_IDS,
+  DIVIDENDS_REST_ID,
   DividendPeriod,
   buildCoverageMonths,
   computeNetComparison,
@@ -97,6 +117,8 @@ import {
   filterPaidByPeriod,
 } from '@/lib/utils/dividendAnalytics';
 import {
+  PAGATORI_CLOSED_ASIDE,
+  RENDIMENTO_CLOSED_ASIDE,
   buildDividendiVerdict,
   describeComparisonLabel,
   describeConcentration,
@@ -111,13 +133,17 @@ import {
   describePeriodEyebrow,
   describeFilteredDividends,
   describeReliability,
+  describeReliabilityClosedAside,
   describeSoldIncomeNote,
   describeYearlyFooter,
   describeYearlyIncome,
+  describeYearsAside,
   describeYield,
   describeYieldFooter,
+  describeDividendiClosedAnswers,
   dryMonthNames,
 } from '@/lib/utils/dividendiNarrative';
+import { RowAnswers } from '@/components/ui/row-answers';
 import { DIVIDEND_SCRAPE_SUBMITTING, describeModalStatus, describeScrapeReading } from '@/lib/utils/dialogNarrative';
 import type { Narrative } from '@/lib/utils/narrative';
 
@@ -128,7 +154,31 @@ interface DividendTrackingTabProps {
   /** The dividends/assets read failed: say so, never render an unread ledger as zero. */
   loadFailed: boolean;
   onRefresh: () => Promise<void>;
+  /** The tab is the one on screen: `PageRest` remounts on activation so its `role="alert"` speaks for it. */
+  active: boolean;
 }
+
+/**
+ * The rows of the phone composition, in the DOM's order (The Closed-Row Rule): every tile but
+ * Incasso netto, THE tile, which never closes. Two module-level lists, the second with Rendimento's
+ * read failed (`useDividendStats`): the controller asks for a stable list, and a literal array
+ * would rebuild every handler on every render. With nothing recorded there are no rows at all.
+ */
+const DIVIDEND_SECTIONS: readonly SectionSpec[] = [
+  { id: DIVIDEND_SECTION_IDS.affidabilita, eyebrow: 'Affidabilità' },
+  { id: DIVIDEND_SECTION_IDS.rendimento, eyebrow: 'Rendimento' },
+  { id: DIVIDEND_SECTION_IDS.pagatori, eyebrow: 'Chi paga di più' },
+  { id: DIVIDEND_SECTION_IDS.perAnno, eyebrow: 'Per anno' },
+  { id: DIVIDEND_SECTION_IDS.pagamenti, eyebrow: 'Pagamenti' },
+];
+const DIVIDEND_SECTIONS_STATS_FAILED: readonly SectionSpec[] = DIVIDEND_SECTIONS.map((section) =>
+  section.id === DIVIDEND_SECTION_IDS.rendimento ? { ...section, failed: true } : section,
+);
+const NO_SECTIONS: readonly SectionSpec[] = [];
+/** The five rows of the composed grid, in DOM order; with nothing recorded the grid is not drawn. */
+const DIVIDEND_ORDER = DIVIDEND_SECTIONS.map((section) => section.id);
+/** A provisional coupon asks for its rate inside Pagamenti: the row opens by default while one is there. */
+const PAGAMENTI_OPEN_BY_DEFAULT: readonly string[] = [DIVIDEND_SECTION_IDS.pagamenti];
 
 const PERIOD_OPTIONS: { value: DividendPeriod; label: string }[] = [
   { value: 'month', label: 'Mese' },
@@ -149,16 +199,6 @@ const RANKED_PAYERS = 5;
 /** Announced payments listed in the hero's footer. */
 const UPCOMING_SHOWN = 3;
 
-/** The page's own grid, so the loading state has the proportions of what replaces it. */
-const SKELETON_CELLS: TileSkeletonCell[] = [
-  { span: 5, rows: 2, lines: 8 },
-  { span: 3, lines: 5 },
-  { span: 4, lines: 5 },
-  { span: 4, lines: 6 },
-  { span: 3, lines: 4 },
-  { span: 12, lines: 6 },
-];
-
 const ALL = '__all__';
 
 /** A pill option is 44px on touch and the dense 32px on a pointer (AGENTS.md → Accessibility). */
@@ -174,7 +214,7 @@ function focusedControl(): HTMLElement | null {
   return active instanceof HTMLElement && active !== document.body ? active : null;
 }
 
-export function DividendTrackingTab({ dividends, assets, loading, loadFailed, onRefresh }: DividendTrackingTabProps) {
+export function DividendTrackingTab({ dividends, assets, loading, loadFailed, onRefresh, active }: DividendTrackingTabProps) {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
@@ -269,6 +309,11 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
       }),
     [period, now, summary, comparison, ranking.payerCount, yieldSummary, nextOverall, upcomingNet],
   );
+  // What the closed rows answer in the landscape index, from the figures the tiles already hold.
+  const rowAnswers = useMemo(
+    () => describeDividendiClosedAnswers({ reliability, yieldSummary, ranking, yearly }),
+    [reliability, yieldSummary, ranking, yearly],
+  );
 
   // Affidabilità's footer: the concentration of the held income, then where the sold income went.
   const reliabilityFooter = useMemo<Narrative | null>(() => {
@@ -319,6 +364,23 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
     [dividends, now],
   );
 
+  // The rows of the phone composition and the verdict's «Il perché» (The Closed-Row Rule, since
+  // 2026-10-12): at 1440 every `collapse()` is `undefined`. Rendimento's row carries the stats
+  // read's failure (open on every visit, its eyebrow red when closed); with nothing recorded
+  // there are no rows, so nothing is ever written to the memory of an empty ledger.
+  const nothingRecorded = dividends.length === 0;
+  const sections = useMobileSections({
+    route: 'cashflow',
+    tab: 'dividends',
+    sections: nothingRecorded ? NO_SECTIONS : statsError ? DIVIDEND_SECTIONS_STATS_FAILED : DIVIDEND_SECTIONS,
+    defaultOpen: provisionalCoupons.length > 0 ? PAGAMENTI_OPEN_BY_DEFAULT : undefined,
+    restId: DIVIDENDS_REST_ID,
+  });
+  // At 768 the same rows on two columns; on a tablet in landscape the index beside the verdict and
+  // THE tile (lib/utils/tabletComposition.ts).
+  const stageRef = useTabletStage();
+  const tablet = useTabletComposition({ sections, order: DIVIDEND_ORDER });
+
   // --- Handlers ---
   const handleCreate = useCallback(() => {
     formTriggerRef.current = focusedControl();
@@ -367,7 +429,11 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
    */
   const executeScrapeAll = async () => {
     if (!user || !ownerId) return;
-    try {
+    // The run and each instrument's request are functions of their own, awaited inside the
+    // try blocks, and the reset follows the catch instead of a finally: the React Compiler does
+    // not compile conditional/logical expressions inside a try/catch, nor a try/finally, nor
+    // `++` on a variable a nested function captures (hence `+= 1` on the counters).
+    const scrapeAll = async () => {
       setScraping(true);
       let successCount = 0;
       let failedCount = 0;
@@ -377,24 +443,27 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
       // «Nessun nuovo dividendo trovato» and nothing else.
       let filteredCount = 0;
       let filteredByCreation = 0;
+      const scrapeOne = async (asset: Asset) => {
+        const response = await authenticatedFetch('/api/dividends/scrape', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: ownerId, assetId: asset.id }),
+        });
+        if (response.ok) {
+          const result = await response.json();
+          if (result.created > 0) successCount += 1;
+          if (typeof result.filtered === 'number' && result.filtered > 0) {
+            filteredCount += result.filtered;
+            if (result.floorSource === 'created') filteredByCreation += 1;
+          }
+        } else failedCount += 1;
+      };
       for (const asset of assetsWithIsin) {
         try {
-          const response = await authenticatedFetch('/api/dividends/scrape', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: ownerId, assetId: asset.id }),
-          });
-          if (response.ok) {
-            const result = await response.json();
-            if (result.created > 0) successCount++;
-            if (typeof result.filtered === 'number' && result.filtered > 0) {
-              filteredCount += result.filtered;
-              if (result.floorSource === 'created') filteredByCreation++;
-            }
-          } else failedCount++;
+          await scrapeOne(asset);
         } catch (error) {
           console.error(`Error scraping ${asset.ticker}:`, error);
-          failedCount++;
+          failedCount += 1;
         }
       }
       if (successCount > 0) {
@@ -407,13 +476,16 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
         toast.info(describeFilteredDividends(filteredCount, filteredByCreation), { duration: 12_000 });
       }
       if (failedCount > 0) toast.warning(`${failedCount} ${failedCount === 1 ? 'strumento ha' : 'strumenti hanno'} fallito lo scarico`);
+    };
+
+    try {
+      await scrapeAll();
     } catch (error) {
       console.error('Error scraping dividends:', error);
       toast.error('Errore durante lo scarico dei dividendi');
-    } finally {
-      setScraping(false);
-      setScrapeDialogOpen(false);
     }
+    setScraping(false);
+    setScrapeDialogOpen(false);
   };
 
   const handleExportCSV = () => {
@@ -465,13 +537,8 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
   }
 
   if (loading) {
-    return (
-      <TileGridSkeleton
-        cells={SKELETON_CELLS}
-        className="pt-1"
-        toolbar={<Skeleton className="mx-auto h-9 w-full max-w-[320px] rounded-lg desktop:hidden" />}
-      />
-    );
+    // The page draws the same element while this tab's chunk is on its way: one wait, nothing moves.
+    return <DividendsTabSkeleton />;
   }
 
   // The axis picks a VALUE the whole page reads, so it is a radiogroup, not a tablist with no
@@ -489,9 +556,20 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
     />
   );
 
-  const nothingRecorded = dividends.length === 0;
-
   const addButtonLabel = isDemo ? 'Aggiungi dividendo — non disponibile in modalità demo' : 'Aggiungi dividendo';
+
+  // The axis below `desktop:` — the verdict's slot (DESIGN.md → Page Verdict): the period pill and the only
+  // «add» affordance there is on a phone (the bottom-nav FAB belongs to Tracciamento). The
+  // scrape lives in the Pagamenti toolbar there: four period labels and two 44px squares did
+  // not fit 390. None with nothing recorded: the empty Pagamenti carries both actions.
+  const axis = nothingRecorded ? undefined : (
+    <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1">{periodPicker}</div>
+      <Button size="icon" onClick={handleCreate} disabled={isDemo} aria-label={addButtonLabel} className="h-11 w-11 shrink-0">
+        <Plus className="h-4 w-4" aria-hidden="true" />
+      </Button>
+    </div>
+  );
 
   const listFilters = (
     <>
@@ -589,23 +667,24 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
 
   return (
     <div className="space-y-4">
-      {/* ── Verdict, with the one period axis beside it on desktop ──────────────── */}
-      <div className="flex items-start justify-between gap-6 pt-1">
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto sui dividendi" />
+      {/* The stage: the verdict over the grid; on a tablet in landscape the answer on the left
+          (verdict and THE tile) and the index on the right (lib/utils/tabletComposition.ts).
+          With nothing recorded there is no grid: the stage stays a plain column. */}
+      <div className={STAGE_WRAPPER_CLASS}>
+      <div ref={stageRef} className={nothingRecorded ? 'space-y-4' : STAGE_CLASS}>
+      {/* ── Verdict, whole at every width (no strip, no cut — see the header), the axis under its
+          title below `desktop:` and a second instance of the pill beside it from there ──────── */}
+      <div data-stage="verdict" className={cn('flex items-start justify-between gap-6 pt-1', !nothingRecorded && VERDICT_CELL_CLASS)}>
+        <div className="min-w-0 flex-1">
+          <PageVerdict
+            verdict={verdict}
+            ariaLabel="Verdetto sui dividendi"
+            axis={axis}
+            restCollapse={nothingRecorded ? undefined : sections.collapse(DIVIDENDS_REST_ID)}
+          />
+        </div>
         {!nothingRecorded && <div className="hidden w-[320px] shrink-0 desktop:block">{periodPicker}</div>}
       </div>
-
-      {/* ── Below desktop: the axis under the verdict, with the only «add» affordance there is
-          on a phone — the bottom-nav FAB belongs to Tracciamento. The scrape lives in the
-          Pagamenti toolbar there: four period labels and two 44px squares did not fit 390. ── */}
-      {!nothingRecorded && (
-        <div className="flex items-center gap-2 desktop:hidden">
-          <div className="min-w-0 flex-1">{periodPicker}</div>
-          <Button size="icon" onClick={handleCreate} disabled={isDemo} aria-label={addButtonLabel} className="h-11 w-11 shrink-0">
-            <Plus className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </div>
-      )}
 
       {nothingRecorded ? (
         // Nothing recorded is the FIRST name of an absence (doc/guide/stati.md): one tile that
@@ -646,10 +725,14 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
         </div>
       ) : (
         <>
-          {/* ── Tile grid ───────────────────────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
-            <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5 desktop:row-span-2')}>
+          {/* ── Tile grid: ONE sequence, the DOM order is the reading order at every width
+              (The First-Screen Rule; the `order-*` the phone used went on 2026-10-12) — THE tile, «Il resto
+              della pagina», then the rows (inside the index) ─────────────────────────── */}
+          <div className={COMPACT_GRID_WRAPPER_CLASS}>
+          <div className={COMPACT_GRID_CLASS}>
+            <div data-stage="lead" className={cn(TILE_CELL_CLASS, LEAD_CELL_CLASS, 'desktop:col-span-5 desktop:row-span-2')}>
               <IncassoNettoTile
+                id={DIVIDEND_SECTION_IDS.incasso}
                 eyebrow={describePeriodEyebrow(period, now)}
                 reading={describeNetIncome(summary, windowMonths)}
                 net={summary.net}
@@ -665,7 +748,11 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
               />
             </div>
 
-            <div className={cn(TILE_CELL_CLASS, 'order-4 desktop:order-none desktop:col-span-3')}>
+            <RowAnswers value={rowAnswers}>
+            <div className={INDEX_CLASS}>
+            <PageRest key={active ? 'attiva' : 'inattiva'} sections={sections} className={REST_CELL_CLASS} />
+
+            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(DIVIDEND_SECTION_IDS.affidabilita), 'desktop:col-span-3')}>
               <AffidabilitaTile
                 reliability={reliability}
                 reading={describeReliability(reliability, dryMonthNames(coverage))}
@@ -676,36 +763,66 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
                     ? `Nessun incasso ${subject.inPeriod} dagli strumenti ancora in portafoglio: i ${ranking.soldPayerCount === 1 ? 'pagamenti vengono da uno strumento venduto' : `pagamenti vengono da ${ranking.soldPayerCount} strumenti venduti`}.`
                     : `Nessun incasso ${subject.inPeriod}: non c’è una regolarità da misurare.`
                 }
+                collapse={sections.collapse(DIVIDEND_SECTION_IDS.affidabilita)}
+                asideWhenClosed={describeReliabilityClosedAside(windowMonths)}
               />
             </div>
 
-            <div className={cn(TILE_CELL_CLASS, 'order-2 desktop:order-none desktop:col-span-4')}>
-              <RendimentoTile
-                summary={yieldSummary}
-                reading={yieldSummary ? describeYield(yieldSummary) : null}
-                footer={yieldSummary ? describeYieldFooter(yieldSummary) : null}
-                isLoading={statsLoading}
-                isError={statsError}
-              />
+            {/* Rendimento's failed read, as a row: the notice IS the row's panel, its eyebrow red
+                when closed and the row open on every visit (`failed`), spoken by `PageRest`'s one
+                sentence rather than by a `role="alert"` of its own (`live={false}`). At 1440 the
+                tile's own `isError` branch stays. */}
+            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(DIVIDEND_SECTION_IDS.rendimento), 'desktop:col-span-4')}>
+              {sections.compact && statsError ? (
+                <ErrorNotice
+                  collapse={sections.collapse(DIVIDEND_SECTION_IDS.rendimento)}
+                  live={false}
+                  notice={describeReadFailure({
+                    subject: 'Rendimento',
+                    consequence: 'Rendimento sul costo e crescita del dividendo non sono stati letti.',
+                    untouched: 'I pagamenti registrati non sono stati toccati.',
+                  })}
+                />
+              ) : (
+                <RendimentoTile
+                  summary={yieldSummary}
+                  reading={yieldSummary ? describeYield(yieldSummary) : null}
+                  footer={yieldSummary ? describeYieldFooter(yieldSummary) : null}
+                  isLoading={statsLoading}
+                  isError={statsError}
+                  collapse={sections.collapse(DIVIDEND_SECTION_IDS.rendimento)}
+                  asideWhenClosed={RENDIMENTO_CLOSED_ASIDE}
+                />
+              )}
             </div>
 
-            <div className={cn(TILE_CELL_CLASS, 'order-3 desktop:order-none desktop:col-span-4')}>
+            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(DIVIDEND_SECTION_IDS.pagatori), 'desktop:col-span-4')}>
               <PagatoriTile
                 ranking={ranking}
                 reading={describePayerRanking(ranking, subject.inPeriod)}
                 footer={describePayersFooter(upcomingNet)}
                 emptyCopy={`Nessun dividendo incassato ${subject.inPeriod}.`}
+                collapse={sections.collapse(DIVIDEND_SECTION_IDS.pagatori)}
+                asideWhenClosed={PAGATORI_CLOSED_ASIDE}
               />
             </div>
 
-            <div className={cn(TILE_CELL_CLASS, 'order-5 desktop:order-none desktop:col-span-3')}>
-              <PerAnnoTile summary={yearly} reading={describeYearlyIncome(yearly)} footer={describeYearlyFooter(yearly)} />
+            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(DIVIDEND_SECTION_IDS.perAnno), 'desktop:col-span-3')}>
+              <PerAnnoTile
+                summary={yearly}
+                reading={describeYearlyIncome(yearly)}
+                footer={describeYearlyFooter(yearly)}
+                collapse={sections.collapse(DIVIDEND_SECTION_IDS.perAnno)}
+                asideWhenClosed={describeYearsAside(yearly.years.length)}
+              />
             </div>
 
-            <div className={cn(TILE_CELL_CLASS, 'order-6 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
+            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(DIVIDEND_SECTION_IDS.pagamenti), 'desktop:col-span-12')}>
               <PagamentiTile
                 aside={describePaymentsCount(listDividends.length, periodList.length)}
                 reading={describePaymentsInventory(inventory)}
+                collapse={sections.collapse(DIVIDEND_SECTION_IDS.pagamenti)}
+                asideWhenClosed={narrativeToText(describePaymentsCount(listDividends.length, periodList.length))}
                 notice={
                   provisionalCoupons.length > 0 ? (
                     <ProvisionalCouponBanner
@@ -756,21 +873,30 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
                 )}
               </PagamentiTile>
             </div>
+            </div>
+            </RowAnswers>
           </div>
-
-          {/* ── Dettaglio, below the fold — or the failed read said in its place, never nothing ── */}
-          {statsError ? (
-            <ErrorNotice
-              compact
-              notice={describeReadFailure({
-                consequence: 'Il dettaglio per strumento non è stato letto: crescita del dividendo e rendimento totale restano fuori.',
-              })}
-            />
-          ) : (
-            <DividendiDettaglio stats={stats ?? null} now={now} />
-          )}
+          </div>
         </>
       )}
+      </div>
+      </div>
+
+      {/* ── Dettaglio, below the fold (outside the stage: never a cell of the landscape grid) — or
+          the failed read said in its place, never nothing; on a phone the Rendimento row already
+          announced the failure, so this one is silent ── */}
+      {!nothingRecorded &&
+        (statsError ? (
+          <ErrorNotice
+            compact
+            live={!sections.compact}
+            notice={describeReadFailure({
+              consequence: 'Il dettaglio per strumento non è stato letto: crescita del dividendo e rendimento totale restano fuori.',
+            })}
+          />
+        ) : (
+          <DividendiDettaglio stats={stats ?? null} now={now} />
+        ))}
 
       {/* Scrape confirmation, in the modal vocabulary: the reading names the instruments and the
           floor, then says «Sto scaricando» for the whole run. */}

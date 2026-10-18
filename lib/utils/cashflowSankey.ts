@@ -6,7 +6,7 @@
  * `__tests__/**\/*.test.ts`, so logic living inside a `.tsx` has no way to be covered at
  * all. The shapes below are plain objects; @nivo/sankey consumes them structurally.
  *
- * A second, structural reason to keep this file free of React: AGENTS.md § Recharts records that
+ * A second, structural reason to keep this file free of React: doc/guide/grafici.md § Recharts records that
  * `useChartColors()` must never reach a Nivo component (react-spring cannot interpolate
  * oklch and crashes on arity). The palettes live here precisely because a module that
  * cannot import a hook cannot break that rule.
@@ -102,7 +102,7 @@ export const MAX_SUBCATEGORIES = 4;
 /**
  * Label text, one neutral per mode — the labels used to take each node's colour brightened
  * 1.5×, which put rgb(255,255,19) yellow beside the type's violet. Hex because the chart is
- * Nivo on react-spring (AGENTS.md → Recharts: never a CSS token here); the values are the
+ * Nivo on react-spring (doc/guide/grafici.md § Recharts: never a CSS token here); the values are the
  * sRGB of DESIGN.md's off-blanc and charcoal, declared in the DOM-side hex inventory.
  */
 export const LABEL_TEXT_COLORS = { dark: '#e5e5e5', light: '#262626' } as const;
@@ -170,6 +170,42 @@ const MAX_HEIGHT = 1100;
 export function resolveSankeyHeight(counts: SankeyLayerCounts): number {
   const widest = Math.max(counts.incomeCategories, counts.expenseTypes + (counts.hasSavings ? 1 : 0), counts.categories, counts.subCategories, 1);
   return Math.min(MAX_HEIGHT, Math.max(BASE_HEIGHT, widest * ROW_PX + 80));
+}
+
+/** The thin chart's floor, and the pitch of one two-line label in its widest column. */
+const THIN_MIN_HEIGHT = 520;
+const THIN_ROW_PX = 44;
+
+/** Nodes in the most crowded column, by each node's depth from the sources (d3-sankey's `start` alignment). */
+function widestColumn(view: SankeyView): number {
+  const incoming = new Map<string, string[]>();
+  for (const link of view.links) incoming.set(link.target, [...(incoming.get(link.target) ?? []), link.source]);
+  const depth = new Map<string, number>();
+  const depthOf = (id: string, seen = new Set<string>()): number => {
+    const known = depth.get(id);
+    if (known !== undefined) return known;
+    if (seen.has(id)) return 0;
+    seen.add(id);
+    const parents = incoming.get(id) ?? [];
+    const d = parents.length === 0 ? 0 : 1 + Math.max(...parents.map((p) => depthOf(p, seen)));
+    depth.set(id, d);
+    return d;
+  };
+  const perColumn = new Map<number, number>();
+  for (const node of view.nodes) {
+    const d = depthOf(node.id);
+    perColumn.set(d, (perColumn.get(d) ?? 0) + 1);
+  }
+  return Math.max(1, ...perColumn.values());
+}
+
+/**
+ * The thin chart's plot height: its floor, the view's own height, or the widest column's label pitch.
+ * Pure and here, not in the chart's module, so FlussoTile can hold the lazy chart's box open with the
+ * SAME figure without importing the chunk (e2e/bundle.lazy.spec.ts: the placeholder is the plot's height).
+ */
+export function resolveThinSankeyHeight(view: SankeyView, height: number): number {
+  return Math.max(THIN_MIN_HEIGHT, height, widestColumn(view) * THIN_ROW_PX + 48);
 }
 
 // ── Public shapes ────────────────────────────────────────────────────────────

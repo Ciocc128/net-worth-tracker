@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import type { Asset } from '@/types/assets';
 import type { ConflictReport, ObjectiveReport, OptimizerSaleReport, OptimizerWarning, SecondLevelGap } from '@/lib/utils/weightOptimizer';
 import {
   describeConflict,
+  describeModelDebtNote,
   describeObjectiveLabel,
   describeObjectiveRow,
   describeOptimizerMode,
@@ -13,6 +15,7 @@ import {
   formatObjectiveAchieved,
   formatObjectiveGap,
   formatObjectiveTarget,
+  MODEL_DEBT_BASE_NOTE,
   OPTIMIZER_MODE_LABELS,
 } from '@/lib/utils/weightOptimizerNarrative';
 
@@ -89,7 +92,7 @@ describe('describeConflict', () => {
       improvements: [{ objectiveId: 'geo:us', fromGapPp: 0, toGapPp: -4.1 }],
     };
     expect(describeConflict(conflict, objectives)).toBe(
-      "Senza l'obiettivo «Leva»: Stati Uniti nell'azionario da 66,1% a 62,0%."
+      "Senza il criterio «Leva»: Stati Uniti nell'azionario da 66,1% a 62,0%."
     );
   });
 
@@ -99,7 +102,7 @@ describe('describeConflict', () => {
       removedObjectiveId: 'leverage',
       improvements: [{ objectiveId: 'unknown', fromGapPp: 0, toGapPp: -1 }],
     };
-    expect(describeConflict(conflict, objectives)).toBe("Senza l'obiettivo «Leva»: .");
+    expect(describeConflict(conflict, objectives)).toBe("Senza il criterio «Leva»: .");
   });
 });
 
@@ -130,7 +133,7 @@ describe('describeOptimizerWarning', () => {
 
   it('factor_unmapped names the class and the sub-category without labelOf', () => {
     expect(describeOptimizerWarning({ code: 'factor_unmapped', assetClass: 'equity', subCategory: 'Momentum' }, labelOf)).toBe(
-      '«Momentum» (Azioni) non ha un peso tra i sotto-obiettivi: pesa zero nel calcolo.'
+      '«Momentum» (Azioni) non ha un peso tra i sotto-criteri: pesa zero nel calcolo.'
     );
   });
 });
@@ -250,5 +253,31 @@ describe('describeSecondLevelGaps', () => {
     expect(lines).toHaveLength(2);
     expect(lines[0]).toBe('1 strumento nella classe Azioni senza sottocategoria: VWCE.');
     expect(lines[1]).toBe('1 strumento nella classe Azioni con una sottocategoria non configurata: IWDA.');
+  });
+});
+
+describe('R11-S2 — the model tile says its base ignores the debts (D-R11-2)', () => {
+  const asset = (overrides: Partial<Asset>): Asset =>
+    ({ id: 'a', userId: 'u', ticker: 'X', name: 'X', type: 'etf', assetClass: 'equity', currency: 'EUR', quantity: 1, currentPrice: 1000, ...overrides }) as Asset;
+  const valueOf = (a: Asset) => (a.type === 'loan' ? -a.quantity : a.quantity * a.currentPrice);
+
+  it('a personal loan Bilanciamento nets: the note is there', () => {
+    const assets = [asset({ id: 'etf', quantity: 100 }), asset({ id: 'car', type: 'loan', assetClass: 'cash', quantity: 5000, currentPrice: 1 })];
+    expect(describeModelDebtNote(assets, valueOf)).toBe(MODEL_DEBT_BASE_NOTE);
+  });
+
+  it('a mortgage on a property inside the allocation: the note is there', () => {
+    const assets = [
+      asset({ id: 'flat', type: 'realestate', assetClass: 'realestate', quantity: 1, currentPrice: 200000 }),
+      asset({ id: 'mortgage', type: 'loan', assetClass: 'realestate', quantity: 120000, currentPrice: 1, financedAssetId: 'flat' }),
+    ];
+    expect(describeModelDebtNote(assets, valueOf)).toBe(MODEL_DEBT_BASE_NOTE);
+  });
+
+  it('a mortgage on an excluded home moves no figure: no note; and no debt at all: no note', () => {
+    const home = asset({ id: 'home', type: 'realestate', assetClass: 'realestate', quantity: 1, currentPrice: 200000, allocationRole: 'excluded' });
+    const mortgage = asset({ id: 'mortgage', type: 'loan', assetClass: 'realestate', quantity: 120000, currentPrice: 1, financedAssetId: 'home' });
+    expect(describeModelDebtNote([home, mortgage], valueOf)).toBeNull();
+    expect(describeModelDebtNote([asset({ id: 'etf' })], valueOf)).toBeNull();
   });
 });

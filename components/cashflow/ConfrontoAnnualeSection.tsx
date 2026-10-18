@@ -25,34 +25,25 @@ import type { PeriodMode } from '@/lib/utils/analisiSummary';
 import type { Narrative } from '@/lib/utils/narrative';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { formatCurrency as formatCurrencyWithCents, formatCurrencyCompact, formatPercentage } from '@/lib/services/chartService';
+import { formatPercentage } from '@/lib/services/chartService';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { getItalyDate, getItalyYear, toDate } from '@/lib/utils/dateHelpers';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { AsideToggle } from '@/components/cashflow/analisi/AsideToggle';
 import { Tile } from '@/components/ui/tile';
-import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
+import { Skeleton } from '@/components/ui/skeleton';
+import { lazyComponent } from '@/components/ui/lazy-component';
 import { cn } from '@/lib/utils';
 
-// ── Shared chart styles (module-level, as-const — see AGENTS.md Recharts rules) ──
+/** The two plots' heights: the chart draws at them and its placeholder holds them, so it lands in place. */
+const MENSILE_CHART_HEIGHT = 240;
+const HISTORY_CHART_HEIGHT = 200;
 
-const TOOLTIP_CONTENT_STYLE = {
-  backgroundColor: 'var(--card)',
-  border: '1px solid var(--border)',
-  color: 'var(--card-foreground)',
-  fontSize: 12,
-  borderRadius: 8,
-} as const;
-
-const TOOLTIP_LABEL_STYLE = {
-  fontWeight: 600,
-  color: 'var(--card-foreground)',
-} as const;
-
-const TOOLTIP_ITEM_STYLE = {
-  color: 'var(--card-foreground)',
-} as const;
+// The plots are not in the page's initial JavaScript (2026-09-30): `lazyComponent` at module level,
+// preloaded when the page is idle by `ConfrontoDisclosure` (`CONFRONTO_LAZY_CHARTS`), so an opening draws them at once.
+const MensileBarChart = lazyComponent(() => import('@/components/cashflow/ConfrontoAnnualeCharts').then((m) => m.MensileBarChart));
+const HistoryBarChart = lazyComponent(() => import('@/components/cashflow/ConfrontoAnnualeCharts').then((m) => m.HistoryBarChart));
+export const CONFRONTO_LAZY_CHARTS = [MensileBarChart, HistoryBarChart];
 
 // ── Module-level helpers ──────────────────────────────────────────────────────
 
@@ -61,9 +52,6 @@ const dayOf = (expense: Expense): { year: number; month: number; day: number } =
   const date = getItalyDate(toDate(expense.date));
   return { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() };
 };
-
-/** Whole euros, like every aggregate on the page; the tooltips keep the cents of a plotted sum. */
-const formatCurrency = (value: number): string => cachedFormatCurrencyEUR(value, true);
 
 /** «+320 €» / «−400 €» — the Comma Rule: Intl prints a hyphen, the true minus is U+2212. */
 const formatSignedCurrency = (value: number): string => `${value < 0 ? '−' : '+'}${cachedFormatCurrencyEUR(Math.abs(value), true)}`;
@@ -86,48 +74,6 @@ function deltaRowAriaLabel(row: CategoryDeltaRow, comparisonYear: number): strin
 
 /** Ranking rows shown before the "Altre N voci" footer takes over. */
 const MAX_DELTA_ROWS = 10;
-
-// ── MensileBarChart ───────────────────────────────────────────────────────────
-
-/** Side-by-side monthly bars for the YoY comparison: the current year in `--flow-out`, the comparison year the neutral baseline. */
-function MensileBarChart({
-  data,
-  currentYear,
-  comparisonYear,
-}: {
-  data: Array<{ month: string; current: number; comparison: number }>;
-  currentYear: number;
-  comparisonYear: number;
-}) {
-  return (
-    <ResponsiveContainer width="100%" height={240}>
-      <BarChart
-        data={data}
-        margin={{ top: 4, right: 4, left: -16, bottom: 0 }}
-        barCategoryGap="20%"
-        barGap={2}
-        role="img"
-        accessibilityLayer={false}
-        aria-label={`Spese per mese, ${currentYear} contro ${comparisonYear}. ${data.map((d) => `${d.month}: ${formatCurrency(d.current)} contro ${formatCurrency(d.comparison)}`).join('; ')}`}
-      >
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-        <XAxis dataKey="month" tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} />
-        <YAxis tickFormatter={formatCurrencyCompact} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} />
-        <Tooltip
-          formatter={(value, name) => [formatCurrencyWithCents(Number(value ?? 0)), name === 'current' ? currentYear.toString() : comparisonYear.toString()]}
-          contentStyle={TOOLTIP_CONTENT_STYLE}
-          labelStyle={TOOLTIP_LABEL_STYLE}
-          itemStyle={TOOLTIP_ITEM_STYLE}
-          cursor={{ fill: 'var(--muted)', fillOpacity: 0.4 }}
-        />
-        <Legend formatter={(value) => (value === 'current' ? currentYear.toString() : comparisonYear.toString())} wrapperStyle={{ fontSize: 12, color: 'var(--muted-foreground)' }} />
-        <Bar dataKey="current" fill="var(--flow-out)" animationDuration={600} animationEasing="ease-out" radius={[3, 3, 0, 0]} />
-        {/* The baseline year is a neutral, as on the Periodo tile — never a series colour. */}
-        <Bar dataKey="comparison" fill="var(--muted-foreground)" animationDuration={600} animationEasing="ease-out" radius={[3, 3, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
 
 // ── CategoryDeltaList ─────────────────────────────────────────────────────────
 
@@ -203,35 +149,6 @@ function CategoryDeltaList({
         </p>
       )}
     </div>
-  );
-}
-
-// ── HistoryBarChart ───────────────────────────────────────────────────────────
-
-/** Multi-year annual totals for the history — one bar per year. */
-function HistoryBarChart({ data }: { data: Array<{ year: string; spese: number }> }) {
-  return (
-    <ResponsiveContainer width="100%" height={200}>
-      <BarChart
-        data={data}
-        margin={{ top: 4, right: 4, left: -16, bottom: 0 }}
-        role="img"
-        accessibilityLayer={false}
-        aria-label={`Spese per anno. ${data.map((d) => `${d.year}: ${formatCurrency(d.spese)}`).join('; ')}`}
-      >
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-        <XAxis dataKey="year" tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} />
-        <YAxis tickFormatter={formatCurrencyCompact} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} />
-        <Tooltip
-          formatter={(value) => [formatCurrencyWithCents(Number(value ?? 0)), 'Spese']}
-          contentStyle={TOOLTIP_CONTENT_STYLE}
-          labelStyle={TOOLTIP_LABEL_STYLE}
-          itemStyle={TOOLTIP_ITEM_STYLE}
-          cursor={{ fill: 'var(--muted)', fillOpacity: 0.4 }}
-        />
-        <Bar dataKey="spese" fill="var(--flow-out)" animationDuration={600} animationEasing="ease-out" radius={[3, 3, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
   );
 }
 
@@ -378,10 +295,10 @@ export function ConfrontoAnnualeSection({
           </p>
         )}
 
-        {periodMode === 'history' && hasComparisonData && <HistoryBarChart data={multiYearData} />}
+        {periodMode === 'history' && hasComparisonData && <HistoryBarChart data={multiYearData} height={HISTORY_CHART_HEIGHT} fallback={<Skeleton className="w-full" style={{ height: HISTORY_CHART_HEIGHT }} />} />}
 
         {periodMode !== 'history' && hasComparisonData && currentYear !== null && comparisonYear !== null && viewMode === 'mensile' && (
-          <MensileBarChart data={mensileData} currentYear={currentYear} comparisonYear={comparisonYear} />
+          <MensileBarChart data={mensileData} currentYear={currentYear} comparisonYear={comparisonYear} height={MENSILE_CHART_HEIGHT} fallback={<Skeleton className="w-full" style={{ height: MENSILE_CHART_HEIGHT }} />} />
         )}
 
         {periodMode !== 'history' && hasComparisonData && comparisonYear !== null && viewMode === 'categoria' && (

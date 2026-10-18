@@ -18,6 +18,8 @@ import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_NOUNS, type MonteCarloClass } fr
 import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
 import { datedFlowsSignature } from '@/lib/utils/datedFlows';
 import type { VerdictTone } from '@/lib/utils/narrative';
+import type { StripFigure } from '@/lib/utils/verdictStrip';
+import type { SustainableSpendingSummary } from '@/lib/utils/sustainableWithdrawal';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -155,6 +157,77 @@ export function summarizeMonteCarloRun(results: MonteCarloResults, params: Monte
     startCalendarYear: ctx.startCalendarYear,
     startYears: ctx.startYears ?? 0,
   };
+}
+
+// ─── The phone composition (2026-10-15) ───────────────────────────────────────
+
+/**
+ * The ids of the tab's rows below `desktop:` (`useMobileSections` with `tab: 'montecarlo'`, The
+ * Closed-Row Rule): every tile but Probabilità, THE tile, which never closes (The
+ * First-Screen Rule). Without a run Parametri is the one tile and is not a row.
+ */
+export const MONTE_CARLO_SECTION_IDS = {
+  /** THE tile (Probabilità): the page's own `onOpen` scrolls to it; the fork has no Distribuzione row, so the median cell opens this. */
+  probabilita: 'mc-probabilita',
+  distribuzione: 'mc-distribuzione',
+  scenari: 'mc-scenari',
+  parametri: 'mc-parametri',
+  /** The fork's Spesa sostenibile, the LAST row since 2026-10-18 (D-CU17): after Scenari and Parametri. */
+  spesa: 'mc-spesa',
+} as const;
+
+/** The decimals the hero and the verdict print a rate with: none when the rounded rate is whole («95%»), else one («84,2%»). */
+export function rateDecimals(value: number): number {
+  return Number.isInteger(Math.round(value * 10) / 10) ? 0 : 1;
+}
+
+/**
+ * The confidence level of the third cell: the verdict's `SUSTAINABLE_VERDICT_PROBABILITY`, restated
+ * here because that module imports the Monte Carlo service and this one stays SDK-free
+ * (`__tests__/monteCarloSummary.test.ts` pins the two equal).
+ */
+export const SUSTAINABLE_STRIP_PROBABILITY = 0.9;
+
+export interface MonteCarloStripInput {
+  run: MonteCarloRun;
+  comparison: ScenarioComparison | null;
+  /** S1: the sustainable spending of the SAME run; null = not computed (the third cell is not drawn). */
+  sustainable?: SustainableSpendingSummary | null;
+}
+
+/**
+ * The two figures of the Monte Carlo's first screen: the median final value — the verdict's «nel
+ * caso mediano chiudi con» — opening THE tile, and the bear scenario's probability — the
+ * verdict's «nello scenario orso regge nel 61,5%» — opening Scenari. A median at zero is the
+ * verdict's own words, never «0 €» (The Stale-Run Rule). The strip is the SHOWN run's until
+ * «Esegui»: a stale form moves the Parametri footer, not these cells.
+ */
+export function selectMonteCarloStrip({ run, comparison, sustainable = null }: MonteCarloStripInput): StripFigure[] {
+  const bear = comparison?.rows.find((row) => row.key === 'bear') ?? null;
+  const cells: StripFigure[] = [
+    {
+      label: 'Mediana',
+      value: run.medianFinal > 0 ? run.medianFinal : null,
+      format: 'currency',
+      opens: MONTE_CARLO_SECTION_IDS.probabilita,
+      ...(run.medianFinal > 0 ? {} : { reason: 'i soldi finiscono' }),
+    },
+  ];
+  if (bear) cells.push({ label: 'Orso', value: bear.successRate, format: 'percent', decimals: rateDecimals(bear.successRate), opens: MONTE_CARLO_SECTION_IDS.scenari });
+  const withdrawal = sustainable?.rows.find((row) => row.probability === SUSTAINABLE_STRIP_PROBABILITY)?.base.withdrawal;
+  // The figure the verdict's second sentence prints («potresti prelevare fino a …»), which a phone keeps behind
+  // «Il perché»; where that sentence prints none (no withdrawal reaches 90%, or not even a token one) the cell says so.
+  if (withdrawal !== undefined) {
+    const stated = withdrawal !== null && withdrawal > 0;
+    cells.push({
+      label: 'Spesa al 90%',
+      value: stated ? withdrawal : null,
+      format: 'currency',
+      opens: MONTE_CARLO_SECTION_IDS.spesa,
+      ...(stated ? {} : { reason: 'nessun prelievo regge' }),
+    });
+  }
+  return cells;
 }
 
 // ─── The three scenarios ──────────────────────────────────────────────────────

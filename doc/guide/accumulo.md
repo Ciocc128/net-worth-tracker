@@ -303,8 +303,8 @@ stessa console, ora con anche `match /modelPortfolios/{ownerId}`).
   (nessuna riga `executed`/`skipped` né `transactionIds`); le rate 1..k−1 restano identiche, misure comprese; `baseline` non
   cambia; `months = (k−1) + mesi restanti` (1..60, altrimenti `months_range`); le vendite nuove hanno `monthIndex = k`,
   una per strumento (`duplicate_asset`); `revisions[]` ricorda com'era (`fromIndex`, mesi, entrata, riserva). Lo stesso
-  editor in modalità `revise`: passo 1 chiede i «Mesi restanti», conti sorgente e prima rata sono fissi, le vendite già
-  salvate si vedono ma non si tolgono; il salvataggio è `revisePlan` (in `runTransaction`, rilegge e rivalida). Un mese
+  editor in modalità `revise`: passo 1 chiede i «Mesi restanti», la prima rata è fissa, i conti sorgente si cambiano e le
+  vendite salvate non ancora eseguite si tolgono o si rimandano (AL11, sotto); il salvataggio è `revisePlan` (in `runTransaction`, rilegge e rivalida). Un mese
   a metà (una riga eseguita) NON si rivede: si riscrive dal successivo.
 - **Registra (RP5).** `TransactionDialog` ha `prefill` e `onCreated` (opzionali, ignorati in modifica). La riga della rata
   («Registra», su `todo`/`late`) apre un acquisto già compilato (quote pianificate, primo conto sorgente con saldo
@@ -316,10 +316,17 @@ stessa console, ora con anche `match /modelPortfolios/{ownerId}`).
   e `AccumulationRecalibrateDialog` non esistono più.
 - **Piani conclusi (RP6)** (`PianiConclusiTile`, `summarizeClosedPlan`): nome · periodo · rate chiuse («2 / 3 · interrotto») ·
   investito su `L` all'attivazione · scostamento maggiore all'ultima misura contro i target di oggi, per CLASSE («+0,6 pp su
-  Azioni»; «—» senza misure). Nessuna azione.
+  Azioni»; «—» senza misure). **«Riattiva» (AL12, D-AL2)**: su un piano `cancelled` con `closedAt` da meno di 30 giorni e
+  nessun altro piano aperto (`canReactivatePlan`, `PLAN_REACTIVATION_DAYS`), bottone armato (due click) →
+  `reactivatePlan(ownerId, planId, today)`: in `runTransaction` rilegge il piano e ricontrolla le condizioni, `status:
+  'active'`, `closedAt` tolto. «Nessun altro piano aperto» si legge subito prima della transazione (il client non fa query
+  in transazione). Un piano `completed` non si riattiva; le rate dei mesi passati tornano `late` per l'abbinamento.
 - **Entrata suggerita (RP7).** Al passo 1, `suggestMonthlyInflow` (risparmio annuo del Cashflow ÷ 12, per difetto alle decine)
   con «Usa»; mai riempita da sola; nessuna riga con risparmio 0.
-- **Parole (RP8).** «Rata mensile», «Entrate nei N mesi», «Liquidità da spendere»; colonne Strumento · Tieni o vendi · Oggi ·
+- **Una sola «rata» (AL13).** «Rata di ottobre: 4207 €» è la rata del mese (tile, verdetto, pannello del passo Target); la
+  media si dice con il primo mese (`describeInstallmentAverage`: «in media 4455 € al mese; la prima, ottobre, 4207 €», nel
+  pannello del passo Target e nella sintesi del passo 3). Il passo 1 non ha ancora pesi: L ÷ N si chiama «Liquidità per mese».
+- **Parole (RP8).** «Liquidità per mese» (passo 1), «Entrate nei N mesi», «Liquidità da spendere»; colonne Strumento · Tieni o vendi · Oggi ·
   Target · Da comprare · Al mese (euro con le quote sotto, tutto sulla base B del passo); «Raggruppa due strumenti» sotto la
   tabella accende le caselle (non più davanti a ogni nome).
 
@@ -376,3 +383,41 @@ stessa console, ora con anche `match /modelPortfolios/{ownerId}`).
 - **Editor, passo 3**: la lettura del dialogo è la sintesi («N rate da circa X € · copre il Y% · leva Z×»); pesi a fine piano in tabella (oggi → fine · target · scarto, ambra oltre 0,5 pp); calendario coi ticker; classi mese per mese come tabella (solo le classi con peso o target) — il grafico sta già nel pannello del passo 2 e in Classi del piano. I passi 1 e 2 hanno una frase propria al posto del titolo ripetuto.
 - **Stato vuoto**: lettura sulla liquidità dei conti, anteprima in un riquadro («Con una riserva di X e Y al mese, N rate da Z porterebbero:», classi su una colonna con il target scritto), «Cosa fa / Cosa non fa» in frasi.
 - Restano fuori: M8 (link «vedi Accumulo» in Bilanciamento); il verdino di campi e pulsanti secondari in Lime Frost chiaro è del tema (scheda Todoist a parte).
+
+## AL1 «difetti e parole» (2026-10-16)
+
+`doc/allineamento/README.md` § 9.1, onda 1:
+
+- **La testa di un gruppo è lo strumento che compra** (R1): `orderGroupMembers(position)` (`accumulationPlanUtils.ts`) mette `buyAssetId` per primo; il passo Target disegna la testa su quel membro (oggi %, target, da comprare e quote al SUO prezzo) e l'altro «non riceve acquisti»; `confirmGroup` salva i membri già ordinati. Prima la testa era l'indice 0 della lista, e un gruppo `[vecchio, nuovo]` mostrava le quote sul prezzo del vecchio.
+- **Il Calendario scrive le classi per nome** (R2): `ASSET_CLASS_LABELS`, solo le classi con peso o target (`liveClassEntries`, la regola della tabella del passo 3); mai la chiave Firestore. I bottoni di riga sono `h-11 desktop:h-7` (R3).
+- **Le parole**: il modale di «Ricalcola» si intitola «Ricalcola il portafoglio modello» (R8); l'intestazione di Allocazione sulla scheda Accumulo dice «pesi dal portafoglio modello» (o «dai pesi del piano» senza modello) e non porta «Modifica target», che scrive i target di Impostazioni che la scheda non legge (R9).
+
+## AL2 «Rivedi il piano completo» (2026-10-16)
+
+`doc/allineamento/README.md` § 9.2, onda 2, D-AL1 (il caso: un gruppo DBMFE + MFEH, compra MFEH, tenendo le 138 quote del vecchio):
+
+- **Raggruppa e Separa anche in revisione** (AL8): le funzioni pure `groupPositions` / `separatePosition` (`accumulationPlanUtils.ts`) servono creazione e revisione. La struttura nuova vale dal primo mese intatto `k` (la regola di `buildRevisedPlan`, che accetta qualsiasi `positions`); le rate 1..k−1 restano com'erano, con i loro `positionId`. Il gruppo prende l'id della posizione dello strumento che compra, e Separa lo restituisce allo strumento che compra: le righe già chiuse restano di quella posizione. Le righe di una posizione che non esiste più si leggono col nome dello strumento (`installmentLineLabel`, usato dal Calendario), mai con l'id.
+- **«Sostituisci»** (AL9): su una riga del passo Target (la testa, se è un gruppo) sceglie lo strumento che compra al posto di quello di prima o ne crea uno (`AssetDialog` vuoto). Il selettore è un popover ancorato al bottone della riga (D1, collaudo 2026-10-17: prima si apriva sotto la tabella e al clic non si vedeva nulla); durante «Nuovo asset» resta aperto lo stato, non il popover. `replaceBuyAsset(positions, positionId, newAssetId)`: un singolo diventa il gruppo `[nuovo, vecchio]`, `buyAssetId` = nuovo, stesso peso, `label` = nome del nuovo; su un gruppo cambia il membro che compra (un membro, o uno strumento da fuori che entra nel gruppo). Nulla si vende: il vecchio resta nel gruppo con le sue quote. La posizione prende un id nuovo (le righe chiuse nominano il vecchio strumento). Si annulla con «Separa». Rifiutato se il nuovo strumento è già in un'altra posizione.
+- **Strumenti senza valore raggiungibili** (AL10): sotto la tabella del passo Target, «Aggiungi uno strumento» (`listAddableAssets`): `tradable`, non conti, non già nella bozza (posizione o vendita), anche a 0 quote; in testa i mai comprati (il Registro letto con `useAssetTransactions` mentre il passo è aperto; con il Registro non letto nessuno è «mai comprato»), poi gli azzerati, poi i posseduti. Uno strumento creato e abbandonato con la bozza resta un asset a 0 quote: lo si ritrova qui. «Ricalcola» e «Prova» degli obiettivi valutano anche gli strumenti del piano aperto (`planMemberAssetIds`), oltre a quelli del modello. Il seeder non cambia: le righe automatiche restano gli strumenti con valore.
+- **Conti e vendite in revisione** (AL11): `PlanRevisionInput` aggiunge `sourceCashAssetIds` (i conti sorgente, modificabili), `removedDisposalAssetIds` (vendite salvate non eseguite tolte) e `movedDisposalMonthIndexes` (spostate a una rata da `k` all'ultima, altrimenti `sale_month_range`). Una vendita è «aperta» se `planned` e senza `transactionIds` (`isOpenSavedDisposal`); una eseguita o collegata resta com'è. `diffRevisionDisposals(plan, draftDisposals)` legge la lista dell'editor: una vendita aperta assente è tolta, con le quote cambiate è tolta e rifatta come nuova (`monthIndex = k`), con un altro `monthIndex` è spostata. Nell'editor la riga «Vendi» di una vendita salvata ha «Vendi a» (il mese) e «Tieni» la toglie; «già in vendita» resta solo per le eseguite. La prima rata resta fissa (è `k`).
+
+## AL4 «Il modello comanda» (2026-10-16)
+
+`doc/allineamento/README.md` § 9.4, onda 3, D-AL3: il portafoglio modello governa i pesi per strumento, il PAC ne è l'esecuzione nel tempo.
+
+- **Dal piano al modello** (AL14): con un piano ATTIVO e nessun modello il tile Portafoglio modello offre «Usa i pesi del piano» (`planPositionsToModelWeights`: una riga per posizione, il peso sul buyer, i gruppi con i loro membri; una posizione a 0 resta fuori; `origin: 'manual'`, lo snapshot del piano se c'è). Il passo 3 dell'editor (attivazione e revisione) ha «Aggiorna anche il portafoglio modello», acceso quando il modello manca o differisce (`comparePlanToModel`), spento in demo; il modello si scrive DOPO il piano: se la scrittura fallisce il piano resta scritto, l'editor resta aperto sulla riga d'errore («Il piano è salvato, ma il portafoglio modello non si è aggiornato: …») e offre solo «Chiudi».
+- **Divergenza** (AL15): `comparePlanToModel(positions, model)` conta gli strumenti con uno scarto di peso > 0,5 punti, quelli in uno solo dei due (peso > 0), il gruppo o il buyer diversi; un candidato a 0 nel modello non è una differenza. Con almeno una, il tile Questo mese ha una riga «Il piano differisce dal portafoglio modello su N strumenti.» con «Rivedi dal modello», che apre la revisione con i pesi e i gruppi del modello già applicati (`reviseFromModel`, «Parti da › Portafoglio modello»; «Piano attuale» riporta indietro).
+- **Il PAC eredita i gruppi** (AL16): `applyModelToPositions` (usato dal «Parti da › Portafoglio modello» e dalla bozza nuova) fonde in UNA posizione i singoli che il modello raggruppa — il buyer è la testa, la posizione tiene l'id se già era quel gruppo — e poi applica i pesi. Un gruppo il cui membro sta in una posizione che esce dal gruppo non si applica: non spezza ciò che l'utente ha costruito. Versa e Ribilancia non cambiano (D-AL4): la sostituzione la dirà la riga di AL17.
+
+
+## Composizione mobile (tappa A, 2026-10-18)
+
+`doc/contributi-upstream/composizione-mobile.md` § 3 e § 8, D-CU13–D-CU20. Sotto `desktop:` la scheda è composta come le pagine condivise (verdetto · striscia · LA tessera aperta · «Il resto della pagina»); a 1440 è la griglia di sempre. Il telefono mostra meno, mai altro.
+
+- **Il verdetto si taglia alla prima frase** (`splitVerdict`, la Binding-Clause Rule): con un piano attivo e una banda da rientrare, la frase del rientro («il rientro nella banda») passa dietro «Il perché»; la lettura resta intera. `resolveAccumuloVerdictInput` / `describeAccumuloVerdict` (`accumuloSummary.ts`) separano l'input dal testo; `buildAccumuloVerdict` è il wrapper di prima.
+- **La striscia** (`selectAccumuloStrip`, solo con un piano attivo): «Rata di {mese}» (apre Questo mese), «Investito» (apre Classi del piano; manca senza traiettoria) e «{Classe} sopra|sotto» in punti (la classe più lontana dalla banda; «tutte in soglia» se nessuna). **Scarto dallo spec**: la terza cella apre «Il perché» e non Classi del piano, perché `validateStrip` vieta due celle sulla stessa sezione.
+- **LA tessera** è Questo mese (o lo stato vuoto, senza piano). Le righe chiuse, in ordine DOM (`resolveAccumuloSections`): Portafoglio modello (fallito se la lettura del modello è fallita), Classi del piano (solo se c'è la traiettoria), Criteri del modello, Piani conclusi (solo se ce ne sono). Id in `ACCUMULO_SECTION_IDS` (`accumulationNarrative.ts`, riesportato da `accumuloSummary.ts` per evitare un ciclo di import). Le risposte della riga chiusa (`describeAccumuloClosedAnswers`, in orizzontale nel tablet): «differisce su N strumenti» / «allineato al piano», «rientro a {mese}», «{n} criteri», «ultimo a {mese}»; l'`aside` è senza cifre. Memoria per dispositivo: `mobile-sections:allocation:accumulo`.
+- **A 1440** le due colonne sono posizionate sulla griglia (`desktop:row-start-*`, `desktop:self-start`, `desktop:grid-rows-[auto_1fr]` con un piano) e la colonna destra è una scatola `contents desktop:row-span-2 desktop:flex-col`: stesso precedente di Storico. Tutte le righe sono fratelli di UN indice, quello che serve allo stage in orizzontale.
+- **Il grafico Classi del piano non cambia**: è un SVG a viewBox 600, a 390 è già ~125 px; lo spec prevedeva un `min-h`, qui superfluo.
+- **Il fixture del censimento** (`scripts/seedCensusE2E.mts`, `seedAccumulo`) ha un portafoglio modello (3 strumenti) e un piano attivo di 12 rate, la terza aperta (rata 606 €); cambia la clausola «pac» del verdetto di Bilanciamento e quindi le voci di Allocazione. Le voci `allocazione-accumulo` e `fire-proiezione` di `perf/mobile-budget.json` (D-CU19) si scrivono dopo la prima misura sul Mac, con `raisedBy` «prima misura»; `__tests__/mobileSurfaces.test.ts` le pretende ai tre viewport.
+- **E2E**: `e2e/accumulo.mobile.spec.ts`, `e2e/accumulo.tablet.spec.ts` (fixture `e2e/accumuloFixture.ts`, scritto via REST sull'emulatore), più il test 1440 in `e2e/allocation.spec.ts`.

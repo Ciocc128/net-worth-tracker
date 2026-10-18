@@ -21,6 +21,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { test, expect, type Page } from '@playwright/test';
+import { persistedQueryKeys, readPersistedRecord, readRecording, recordLoad } from './freshnessProbe';
 
 const UID = 'test-user-degraded';
 const FIRESTORE = 'http://127.0.0.1:8080/v1/projects/demo-net-worth/databases/(default)/documents';
@@ -69,8 +70,9 @@ function contributi(page: Page) {
   return page.getByRole('region', { name: 'Contributi', exact: true });
 }
 
+/** The measured base is the verdict's `scope` since 2026-10-14, rendered once per width: the visible copy. */
 function baseCaption(page: Page) {
-  return page.getByText(/^Base: /);
+  return page.getByText(/^Base: /).locator('visible=true');
 }
 
 async function gotoPerformance(page: Page): Promise<void> {
@@ -99,7 +101,7 @@ test('toggle OFF: the fund stays out, the attribution lists the ETF alone and it
   await expect(baseCaption(page)).toContainText("Base: portafoglio gestito, al netto dei fondi pensione e degli asset esclusi dall'allocazione.");
 
   // +2%, +1,5%, +2% on 10.000 € over three measured months: 200 + 153 + 207 — the ETF is the whole market.
-  await expect(attribution(page)).toContainText('Il mercato ha reso +560 €: ETF Mondo E2E ne ha portati +560 €.');
+  await expect(attribution(page)).toContainText(/Il mercato ha reso \+560[\s\u00a0]*€: ETF Mondo E2E ne ha portati \+560[\s\u00a0]*€\./);
   await expect(marketRow(page).getByText(euro('\\+560'))).toBeVisible();
   // Rows, not text: the footer explains what «Non attribuito» would be, and must not count as one.
   await expect(attribution(page).getByRole('listitem').filter({ hasText: /^Non attribuito/ })).toHaveCount(0);
@@ -211,4 +213,127 @@ test('the controls answer to keyboard and touch: the axis is a radiogroup, a mon
   await expect(tile.getByRole('button', { name: 'Come si calcola: Contributi' })).toBeVisible();
   // The four «?» became one «Come si calcola» per tile: no 20px help target is left on the grid.
   await expect(page.locator('main section button[aria-label^="Mostra definizione"]')).toHaveCount(0);
+});
+
+// ─── One read of everything (2026-10-04) ─────────────────────────────────────
+//
+// What only a browser knows about the page's READS: how many calls leave for `/api/performance/*`
+// when it mounts (it was ten — two routes per period — and is one), and what a reload paints
+// before the fresh reads land. Both seen red: the count with a second `fetchPerformanceYields`
+// planted in the yields query (two calls counted), the reload with the two `performance` prefixes
+// taken off the persisted allowlist (nothing of Rendimenti on disk: red at the anchor that both
+// payloads are persisted, before the reload is even taken).
+
+test('the dividend yields of every period leave in ONE call, and nothing else is asked of /api/performance', async ({ page }) => {
+  await setPensionToggle(false);
+  const performanceCalls: string[] = [];
+  page.on('request', (request) => {
+    const { pathname } = new URL(request.url());
+    if (pathname.startsWith('/api/performance/')) performanceCalls.push(`${request.method()} ${pathname}`);
+  });
+  const yieldsAnswer = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/performance/yields');
+
+  await gotoPerformance(page);
+
+  // Positive anchor: the call IS made, it is answered, and it carries the periods the page shows.
+  const response = await yieldsAnswer;
+  expect(response.status()).toBe(200);
+  const asked = (response.request().postDataJSON() as { userId: string; periods: Array<{ key: string }> });
+  expect(asked.userId).toBe(UID);
+  expect(asked.periods.length).toBeGreaterThan(0);
+  expect(Object.keys(await response.json())).toEqual(asked.periods.map((period) => period.key));
+
+  // The figures are on screen (the caption waits for every query, the yields included): a second
+  // call would have left by now. An absence has no event to wait for, hence the one fixed wait.
+  await page.waitForTimeout(1_000);
+  expect(performanceCalls).toEqual(['POST /api/performance/yields']);
+});
+
+test('a reload paints the last known figures — no page skeleton, the header says it is rereading, then falls silent', async ({ page }) => {
+  await setPensionToggle(false);
+  await recordLoad(page);
+
+  // ── The positive anchor: a first visit, with nothing persisted, DOES show the page skeleton.
+  await page.goto('/dashboard/performance', { waitUntil: 'load' });
+  await expect(baseCaption(page)).toBeVisible({ timeout: 30_000 });
+  const firstVisit = await readRecording(page);
+  expect(firstVisit.pageSkeletonSeen, 'the first visit is the anchor: its skeleton must have been seen').toBe(true);
+  // The title and the paragraph, not the whole region (since 2026-10-14 it also holds the phone's
+  // axis, strip and scope, hidden at 1440 but in the DOM — and the strip's gap cell changes with
+  // the benchmark series, which are not persisted). `textContent`, what `toHaveText` compares
+  // below (`innerText` would add the line breaks). At 1440 the paragraph is the one `<p>`.
+  const region = page.getByRole('region', { name: 'Verdetto sui rendimenti' });
+  const headline = (await region.locator('h2').textContent()) ?? '';
+  const paragraph = (await region.locator('p').first().textContent()) ?? '';
+  expect(paragraph).toContain('%');
+
+  // The metrics and the yields of THIS account are on disk (the persister writes on a throttle).
+  await expect
+    .poll(
+      async () =>
+        persistedQueryKeys(await readPersistedRecord(page))
+          .filter((queryKey) => queryKey[0] === 'performance' && queryKey[2] === UID)
+          .map((queryKey) => queryKey[1])
+          .sort(),
+      { timeout: 5_000 },
+    )
+    .toEqual(['data', 'yields']);
+
+  await page.reload({ waitUntil: 'load' });
+  await expect(baseCaption(page)).toBeVisible({ timeout: 30_000 });
+
+  const reload = await readRecording(page);
+  expect(reload.pageSkeletonSeen, 'the reload must paint the restored figures, not a skeleton').toBe(false);
+  expect(reload.freshnessTexts.some((text) => text.includes('Aggiornato alle')), `texts seen: ${JSON.stringify(reload.freshnessTexts)}`).toBe(true);
+  // The same verdict, and the header silent once the fresh reads have landed (both copies emptied, never removed).
+  await expect(region.locator('h2')).toHaveText(headline);
+  await expect(region.locator('p').first()).toHaveText(paragraph);
+  await expect(page.locator('[data-freshness]')).toHaveText(['', '']);
+});
+
+// ─── «Analizza con AI» when the model declines (2026-10-12) ──────────────────
+//
+// The route's refusal events are Vitest's (`__tests__/analyzePerformanceRoute.test.ts`); what only
+// a browser knows is what the dialog does with them. The route is answered by the browser itself,
+// so nothing reaches Anthropic (a probe never opens a control that spends: WORKFLOW.md § 3).
+
+const REFUSAL_EMPTY = 'Il modello ha rifiutato di scrivere questo report. Clicca «Rigenera» per riprovare.';
+const REFUSAL_PARTIAL =
+  'Il modello ha interrotto il report rifiutandosi di continuare: il testo qui sotto è incompleto. Clicca «Rigenera» per riprovare.';
+
+/** An SSE body as the route writes it: one `data:` line per payload, `[DONE]` as the bare string. */
+function sseBody(...payloads: unknown[]): string {
+  return payloads.map((payload) => `data: ${typeof payload === 'string' ? payload : JSON.stringify(payload)}\n\n`).join('');
+}
+
+test('a refused report says so, with «Rigenera» beside it even when no text was written', async ({ page }) => {
+  await setPensionToggle(false);
+  const answers = [
+    sseBody({ error: REFUSAL_EMPTY }, '[DONE]'),
+    sseBody({ text: 'Il fenicottero ha reso.' }, { error: REFUSAL_PARTIAL }, '[DONE]'),
+  ];
+  let calls = 0;
+  await page.route('**/api/ai/analyze-performance', (route) => {
+    const body = answers[Math.min(calls, answers.length - 1)];
+    calls += 1;
+    return route.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream' }, body });
+  });
+  await gotoPerformance(page);
+
+  await page.getByRole('button', { name: 'Analizza con AI', exact: true }).locator('visible=true').click();
+  const dialog = page.getByRole('dialog');
+
+  // Refused before any text: the reading says why the report is empty, and «Rigenera» is there
+  // (it stood only beside a written report); «Copia» has nothing to copy.
+  await expect(dialog).toContainText(REFUSAL_EMPTY);
+  await expect(dialog.getByRole('button', { name: 'Rigenera', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Copia il report' })).toHaveCount(0);
+
+  // Refused halfway: the text stays, the reading says it is incomplete, both actions stand.
+  await dialog.getByRole('button', { name: 'Rigenera', exact: true }).click();
+  await expect(dialog).toContainText(REFUSAL_PARTIAL);
+  await expect(dialog).toContainText('Il fenicottero ha reso.');
+  await expect(dialog.getByRole('button', { name: 'Copia il report' })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Rigenera', exact: true })).toBeVisible();
+  expect(calls).toBe(2);
 });

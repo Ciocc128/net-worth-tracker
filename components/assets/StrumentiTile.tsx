@@ -16,7 +16,11 @@
  * only gestures of the page out of view (it did, by 202px at 1440).
  *
  * Below `desktop:` the table becomes a flat list of expandable rows (`AssetRow`): a card per
- * row would be a card inside the tile. The two toggles are remembered per browser
+ * row would be a card inside the tile. ONE of the two is in the DOM, chosen by the width (since
+ * 2026-10-07): until then both were, the hidden copy included, with every phone row's sparkline
+ * mounted inside it. Since 2026-10-14 the tile itself is a closed ROW below `desktop:`
+ * (`collapse`, `patrimonio-strumenti`): the list mounts at its first opening, and each row draws
+ * its sparkline at ITS first opening. The two toggles are remembered per browser
  * (localStorage): a reader who compares the Δ windows every month should not re-enable them.
  *
  * The numbers are not computed here. Δ columns and the unit-price series come from
@@ -46,12 +50,17 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Asset } from '@/types/assets';
+import { isLoanAsset, type Asset, type FamilyMember } from '@/types/assets';
+import { describeAssetOwnerLabel, listAssetOwnerFilterOptions, matchesAssetOwnerFilter } from '@/lib/utils/assetOwnership';
+import { OWNER_FILTER_ALL } from '@/lib/utils/movementsOwnerFilter';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { isLedgerAssetType } from '@/types/assetTransactions';
+import { describeZeroQuantityChip } from '@/lib/utils/zeroQuantityChip';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { formatCurrency, formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { useDeleteAsset } from '@/lib/hooks/useAssets';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
+import { useCompactLayout } from '@/lib/hooks/useCompactLayout';
 import { resolveDisplayAssetClass } from '@/lib/utils/assetDisplayClass';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { hasMarketPrice, requiresManualPricing } from '@/lib/utils/assetPricing';
@@ -65,14 +74,17 @@ import { cn } from '@/lib/utils';
 import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_SUB_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
+import { usePreloadWhenIdle } from '@/components/ui/lazy-component';
 import {
+  ASSET_ROW_LAZY_CHARTS,
   AssetClassChip,
   AssetRow,
   InstrumentClassChip,
   RealEstateValueTooltip,
   describeAssetRowSubLine,
   formatDeltaPercent,
+  resolveMortgageOf,
 } from '@/components/assets/AssetRow';
 
 const DELTA_WINDOWS = [
@@ -109,6 +121,8 @@ const STICKY_ACTIONS_CLASS = 'sticky right-0 z-[1] bg-card';
 
 /** The two toggles are remembered per browser: a monthly reader keeps the Δ windows on. */
 const STORAGE_KEYS = { showDeltas: 'patrimonio.strumenti.andamento', groupByClass: 'patrimonio.strumenti.raggruppa' } as const;
+/** A stable empty list for an account without household members (a literal would be a new identity every render). */
+const EMPTY_MEMBERS: readonly FamilyMember[] = [];
 
 function readStoredToggle(key: string): boolean {
   try {
@@ -219,23 +233,47 @@ interface StrumentiTileProps {
   totalValue: number;
   performance: Record<string, AssetPerformanceData>;
   unitPriceSeries: Record<string, { value: number }[]>;
+  /** The page's `useChartColors()` palette, handed to every phone row's sparkline. */
+  chartColors: readonly string[];
   ledgerReady: boolean;
+  /** Ids of the instruments with at least one operation in the Registro; null while the ledger is unread. */
+  tradedAssetIds?: ReadonlySet<string> | null;
   isDemo: boolean;
   ownerId: string | undefined;
-  onAdd: () => void;
-  onEdit: (asset: Asset) => void;
+  /** `opener` is the button pressed: the page hands the focus back to it when the dialog closes. */
+  onAdd: (opener: HTMLElement) => void;
+  onEdit: (asset: Asset, opener: HTMLElement) => void;
   onRegisterTrade: (asset: Asset) => void;
   onMovements: (asset: Asset) => void;
   onCalculateTaxes: (asset: Asset) => void;
+  /**
+   * The row below `desktop:` (`useMobileSections().collapse(id)`); `undefined` at 1440, where the
+   * tile keeps the anchor `#strumenti` the hero's count links to.
+   */
+  collapse?: TileCollapse;
+  /** What the closed row says beside its eyebrow: the count of the hero («12 strumenti e 1 prestito»). */
+  asideWhenClosed?: string;
+  /**
+   * The household's members (Impostazioni › Famiglia): with at least one, the «Intestatario» filter
+   * and the owner's name under a row appear (lib/utils/assetOwnership.ts, 2026-10-17).
+   */
+  members?: readonly FamilyMember[];
+  /** Every asset of the account — a mortgage resolves its owner through the property it finances. */
+  allAssets?: readonly Asset[];
   className?: string;
 }
+
+/** The tile's anchor at 1440 (the hero's count links to it); below `desktop:` the section takes the row's id. */
+export const STRUMENTI_ANCHOR_ID = 'strumenti';
 
 export function StrumentiTile({
   assets,
   totalValue,
   performance,
   unitPriceSeries,
+  chartColors,
   ledgerReady,
+  tradedAssetIds = null,
   isDemo,
   ownerId,
   onAdd,
@@ -243,9 +281,36 @@ export function StrumentiTile({
   onRegisterTrade,
   onMovements,
   onCalculateTaxes,
+  collapse,
+  asideWhenClosed,
+  members = EMPTY_MEMBERS,
+  allAssets,
   className,
 }: StrumentiTileProps) {
   const deleteAssetMutation = useDeleteAsset(ownerId || '');
+  // The «Intestatario» filter (session-only: a lens, not a view the reader keeps): the options are
+  // the Movimenti filter's — «Tutti · In comune · {members}», «Senza intestatario» when such an
+  // asset exists. A mortgage resolves through the property it finances, so the lookup list is the
+  // whole account's, not the instruments alone.
+  const [ownerFilter, setOwnerFilter] = useState<string>(OWNER_FILTER_ALL);
+  const ownerLookup = allAssets ?? assets;
+  const memberNames = useMemo(() => new Map(members.map((member) => [member.id, member.name])), [members]);
+  const knownMemberIds = useMemo(() => new Set(members.map((member) => member.id)), [members]);
+  const ownerOptions = useMemo(() => listAssetOwnerFilterOptions(ownerLookup, members), [ownerLookup, members]);
+  const showOwnerFilter = members.length > 0 && assets.length > 0;
+  const ownerLabelOf = (asset: Asset): string | null => (members.length > 0 ? describeAssetOwnerLabel(asset, ownerLookup, memberNames) : null);
+  const visibleAssets = useMemo(
+    () => (ownerFilter === OWNER_FILTER_ALL ? assets : assets.filter((asset) => matchesAssetOwnerFilter(asset, ownerLookup, ownerFilter, knownMemberIds))),
+    [assets, ownerFilter, ownerLookup, knownMemberIds],
+  );
+  // The table OR the rows, never both, on the composition's ONE query (`useCompactLayout`, the
+  // `max-desktop:` of the CSS, since 2026-10-14): the server snapshot is `false` — not compact — so
+  // a first frame would be the TABLE; the page is behind `ProtectedRoute` and mounts this tile
+  // after its data, long after hydration, so that frame never paints. 1440 is a desktop, as
+  // `desktop:` is (AGENTS.md § Tailwind Breakpoints) and as the Playwright desktop project runs.
+  const isDesktop = !useCompactLayout();
+  // Only a phone row draws a sparkline: the desktop never downloads recharts for this page.
+  usePreloadWhenIdle(ASSET_ROW_LAZY_CHARTS, !isDesktop);
 
   const [sortState, setSortState] = useState<SortState | null>(null);
   // Off by default: the Δ view replaces the price columns (see `showPriceColumns`). Both
@@ -269,11 +334,14 @@ export function StrumentiTile({
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-  }, [showDeltas, groupByClass, assets.length]);
+  }, [showDeltas, groupByClass, assets.length, isDesktop]);
 
-  // Sold-out rows stay in the table («Azzerato») but are not something the user owns: the
+  // Sold-out rows stay in the table («Azzerato», or «Mai comprato» when nothing was ever bought) but are not something the user owns: the
   // reading counts held positions only.
   const held = assets.filter(isHeld);
+  // The property a loan finances, for the loan row's sub-line («mutuo su Casa · TAN 3,2%»).
+  const financedNameOf = (asset: Asset): string | null =>
+    isLoanAsset(asset) && asset.financedAssetId ? (assets.find((candidate) => candidate.id === asset.financedAssetId)?.name ?? null) : null;
   const manualCount = held.filter((asset) => requiresManualPricing(asset)).length;
   const reading = describeInstruments(held.length, manualCount, computeTopWeightShare(assets, totalValue));
 
@@ -317,10 +385,12 @@ export function StrumentiTile({
     });
   };
 
+  // The rows the list draws: the owner filter narrows ONLY the list (the reading counts every
+  // position, as Tracciamento's filters narrow Movimenti and never a tile).
   const sortedAssets = useMemo(() => {
-    if (!sortState) return assets;
+    if (!sortState) return visibleAssets;
     const gainPct = (a: Asset) => computeUnrealizedGain(a)?.gainPercent ?? 0;
-    return [...assets].sort((a, b) => {
+    return [...visibleAssets].sort((a, b) => {
       // A Δ column: a row without the window (a pension fund, a hand-valued row) goes last in
       // both directions — «no measure» is not the smallest measure.
       if (DELTA_KEYS.has(sortState.column)) {
@@ -351,7 +421,7 @@ export function StrumentiTile({
       }
       return sortState.dir === 'asc' ? cmp : -cmp;
     });
-  }, [assets, sortState, performance]);
+  }, [visibleAssets, sortState, performance]);
 
   // Grouped mode: an ordered map keyed by display class, in first-occurrence order of the sort.
   const groupedAssets = useMemo(() => {
@@ -393,13 +463,14 @@ export function StrumentiTile({
     const withCost = gain !== null;
     const gainLoss = gain?.gainLoss ?? 0;
     const gainPct = gain?.gainPercent ?? 0;
-    const isMortgaged = asset.assetClass === 'realestate' && !!asset.outstandingDebt && asset.outstandingDebt > 0;
+    const mortgage = resolveMortgageOf(asset, assets);
     // The PMC cell is the EUR PMC (fees included — the one the G/P beside it uses); a foreign row
     // keeps its native PMC under it, alone when the ledger has not projected the EUR one yet.
     const pmcEur = isHandValued ? undefined : costBasisPerUnitEur(asset);
     const nativePmc = !isHandValued && !isEurNative(asset) && asset.averageCost ? asset.averageCost : undefined;
-    const subLine = describeAssetRowSubLine(asset, now);
+    const subLine = describeAssetRowSubLine(asset, now, financedNameOf(asset), ownerLabelOf(asset));
     const dash = <span className="text-muted-foreground">—</span>;
+    const zeroChip = describeZeroQuantityChip(asset, tradedAssetIds);
 
     return (
       <tr key={asset.id} className={cn('border-t border-border', isManualPrice && MANUAL_ROW_TINT)}>
@@ -423,9 +494,9 @@ export function StrumentiTile({
                 </span>
               ) : null}
             </div>
-            {asset.quantity === 0 && (
+            {zeroChip && (
               <span className="shrink-0 rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                Azzerato
+                {isLoanAsset(asset) ? 'Estinto' : zeroChip}
               </span>
             )}
           </div>
@@ -459,7 +530,7 @@ export function StrumentiTile({
           </>
         )}
         <td className={cn(CELL_CLASS, 'font-mono font-semibold tabular-nums')}>
-          {isMortgaged ? <RealEstateValueTooltip asset={asset} value={value} /> : formatCurrency(value)}
+          {mortgage ? <RealEstateValueTooltip asset={asset} value={value} debt={mortgage.debt} /> : formatCurrency(value)}
         </td>
         <td className={cn(CELL_CLASS, 'font-mono font-medium tabular-nums')}>
           {totalValue > 0 ? formatPercentage((value / totalValue) * 100, 2) : '—'}
@@ -524,7 +595,7 @@ export function StrumentiTile({
               variant="ghost"
               size="sm"
               className={ICON_BUTTON_CLASS}
-              onClick={() => onEdit(asset)}
+              onClick={(event) => onEdit(asset, event.currentTarget)}
               disabled={isDemo}
               aria-label={`Modifica ${asset.name}`}
               title={isDemo ? 'Non disponibile in modalità demo' : undefined}
@@ -576,34 +647,55 @@ export function StrumentiTile({
 
   return (
     <Tile
-      id="strumenti"
+      {...(collapse ? { collapse } : { id: STRUMENTI_ANCHOR_ID })}
+      asideWhenClosed={asideWhenClosed}
       eyebrow="Strumenti"
       ariaLabel="Strumenti"
       aside={
-        assets.length > 0 ? (
-          <div className="hidden items-center gap-1.5 desktop:flex">
-            <Button
-              type="button"
-              variant={showDeltas ? 'default' : 'outline'}
-              size="sm"
-              className={cn('h-8 px-2.5 text-[11px]', showDeltas && TOGGLE_ON_CLASS)}
-              onClick={toggleShowDeltas}
-              aria-pressed={showDeltas}
-            >
-              <TrendingUp className="h-3 w-3" aria-hidden="true" />
-              Andamento
-            </Button>
-            <Button
-              type="button"
-              variant={groupByClass ? 'default' : 'outline'}
-              size="sm"
-              className={cn('h-8 px-2.5 text-[11px]', groupByClass && TOGGLE_ON_CLASS)}
-              onClick={toggleGroupByClass}
-              aria-pressed={groupByClass}
-            >
-              <LayoutGrid className="h-3 w-3" aria-hidden="true" />
-              Raggruppa per classe
-            </Button>
+        // The «Intestatario» filter at every width (as a row it is a control of the panel); the two
+        // toggles exist at 1440 only (their columns are the table's).
+        showOwnerFilter || (assets.length > 0 && !collapse) ? (
+          <div className="flex items-center gap-1.5">
+            {showOwnerFilter && (
+              <Select value={ownerFilter} onValueChange={(value) => value && setOwnerFilter(value)}>
+                <SelectTrigger aria-label="Intestatario" className="h-8 w-[150px] text-[11px] desktop:h-8 max-desktop:h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ownerOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {assets.length > 0 && !collapse && (
+              <div className="hidden items-center gap-1.5 desktop:flex">
+                <Button
+                  type="button"
+                  variant={showDeltas ? 'default' : 'outline'}
+                  size="sm"
+                  className={cn('h-8 px-2.5 text-[11px]', showDeltas && TOGGLE_ON_CLASS)}
+                  onClick={toggleShowDeltas}
+                  aria-pressed={showDeltas}
+                >
+                  <TrendingUp className="h-3 w-3" aria-hidden="true" />
+                  Andamento
+                </Button>
+                <Button
+                  type="button"
+                  variant={groupByClass ? 'default' : 'outline'}
+                  size="sm"
+                  className={cn('h-8 px-2.5 text-[11px]', groupByClass && TOGGLE_ON_CLASS)}
+                  onClick={toggleGroupByClass}
+                  aria-pressed={groupByClass}
+                >
+                  <LayoutGrid className="h-3 w-3" aria-hidden="true" />
+                  Raggruppa per classe
+                </Button>
+              </div>
+            )}
           </div>
         ) : undefined
       }
@@ -613,7 +705,7 @@ export function StrumentiTile({
       {assets.length === 0 ? (
         <div className="mt-3 flex flex-col items-start gap-3">
           <p className="text-[13px] text-muted-foreground">Nessuno strumento ancora: aggiungi il primo per vedere la tabella.</p>
-          <Button type="button" size="sm" onClick={onAdd} disabled={isDemo} title={isDemo ? 'Non disponibile in modalità demo' : undefined}>
+          <Button type="button" size="sm" onClick={(event) => onAdd(event.currentTarget)} disabled={isDemo} title={isDemo ? 'Non disponibile in modalità demo' : undefined}>
             <Plus className="h-4 w-4" aria-hidden="true" />
             Aggiungi il primo strumento
           </Button>
@@ -625,88 +717,95 @@ export function StrumentiTile({
             {announcement}
           </span>
 
-          {/* Below desktop: flat expandable rows (the Δ windows and actions live inside each). */}
-          <div className="mt-2 flex flex-col divide-y divide-border desktop:hidden">
-            {sortedAssets.map((asset) => (
-              <AssetRow
-                key={asset.id}
-                asset={asset}
-                totalValue={totalValue}
-                now={now}
-                onEdit={onEdit}
-                onDelete={handleDelete}
-                announce={setAnnouncement}
-                onCalculateTaxes={hasCostBasis(asset) ? onCalculateTaxes : undefined}
-                isManualPrice={requiresManualPricing(asset)}
-                isDemo={isDemo}
-                sparklineData={unitPriceSeries[asset.id]}
-                performance={performance[asset.id]}
-                showLedgerActions={showLedgerActions(asset)}
-                onRegisterTrade={onRegisterTrade}
-                onMovements={onMovements}
-              />
-            ))}
-          </div>
-
-          {/* Desktop: the table. Scrolls inside the tile when the Δ columns are on; the actions
-              column stays put. */}
-          <div ref={scrollerRef} className="-mx-5 mt-2 hidden overflow-x-auto px-5 desktop:block">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr>
-                  <SortHead column="name" align="left" sortState={sortState} onSort={handleSort}>Nome</SortHead>
-                  <SortHead column="class" align="left" sortState={sortState} onSort={handleSort}>Classe</SortHead>
-                  {showPriceColumns && (
-                    <>
-                      <th scope="col" className={HEAD_CLASS}>Quantità</th>
-                      <th scope="col" className={HEAD_CLASS}>Prezzo</th>
-                      <th scope="col" className={HEAD_CLASS}>PMC</th>
-                      <th scope="col" className={HEAD_CLASS}>TER</th>
-                    </>
-                  )}
-                  <SortHead column="value" sortState={sortState} onSort={handleSort}>Valore</SortHead>
-                  <SortHead column="weight" sortState={sortState} onSort={handleSort}>Peso</SortHead>
-                  <SortHead column="gainPct" sortState={sortState} onSort={handleSort}>G/P</SortHead>
-                  {showDeltas &&
-                    DELTA_WINDOWS.map(({ key, label }) => (
-                      <SortHead key={key} column={key} sortState={sortState} onSort={handleSort}>
-                        {key === 'allTimeDelta' ? (
-                          // The three Δ columns are price variations over time windows, not G/P.
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="inline-flex cursor-help items-center gap-1">
-                                  {label}
-                                  <Info className="h-3 w-3" aria-hidden="true" />
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-[240px] text-left font-normal normal-case tracking-normal">
-                                Variazione del prezzo unitario nel periodo (dal primo dato registrato, per Δ Inizio). Diverso dal
-                                G/P, che confronta col prezzo medio di carico (PMC). Per fondi pensione e conti non esiste.
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        ) : (
-                          label
-                        )}
-                      </SortHead>
-                    ))}
-                  {/* Named for a screen reader only: a visible «AZIONI» sat over a column of «Azioni» class chips. */}
-                  <th scope="col" className={cn(HEAD_CLASS, stickyCellClass)}>
-                    <span className="sr-only">Azioni sulla riga</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {groupedAssets
-                  ? Array.from(groupedAssets.entries()).flatMap(([cls, groupAssets]) => [
-                      renderGroupHeader(cls, groupAssets),
-                      ...(collapsedGroups.has(cls) ? [] : groupAssets.map(renderRow)),
-                    ])
-                  : sortedAssets.map(renderRow)}
-              </tbody>
-            </table>
-          </div>
+          {!isDesktop ? (
+            // Below desktop: flat expandable rows (the Δ windows and actions live inside each).
+            <div className="mt-2 flex flex-col divide-y divide-border">
+              {sortedAssets.map((asset) => (
+                <AssetRow
+                  key={asset.id}
+                  asset={asset}
+                  totalValue={totalValue}
+                  now={now}
+                  onEdit={onEdit}
+                  onDelete={handleDelete}
+                  announce={setAnnouncement}
+                  onCalculateTaxes={hasCostBasis(asset) ? onCalculateTaxes : undefined}
+                  isManualPrice={requiresManualPricing(asset)}
+                  isDemo={isDemo}
+                  sparklineData={unitPriceSeries[asset.id]}
+                  chartColors={chartColors}
+                  mortgage={resolveMortgageOf(asset, assets)}
+                  financedAssetName={financedNameOf(asset)}
+                  ownerLabel={ownerLabelOf(asset)}
+                  performance={performance[asset.id]}
+                  showLedgerActions={showLedgerActions(asset)}
+                  tradedAssetIds={tradedAssetIds}
+                  onRegisterTrade={onRegisterTrade}
+                  onMovements={onMovements}
+                />
+              ))}
+            </div>
+          ) : (
+            // Desktop: the table. Scrolls inside the tile when the Δ columns are on; the actions
+            // column stays put.
+            <div ref={scrollerRef} className="-mx-5 mt-2 overflow-x-auto px-5">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>
+                    <SortHead column="name" align="left" sortState={sortState} onSort={handleSort}>Nome</SortHead>
+                    <SortHead column="class" align="left" sortState={sortState} onSort={handleSort}>Classe</SortHead>
+                    {showPriceColumns && (
+                      <>
+                        <th scope="col" className={HEAD_CLASS}>Quantità</th>
+                        <th scope="col" className={HEAD_CLASS}>Prezzo</th>
+                        <th scope="col" className={HEAD_CLASS}>PMC</th>
+                        <th scope="col" className={HEAD_CLASS}>TER</th>
+                      </>
+                    )}
+                    <SortHead column="value" sortState={sortState} onSort={handleSort}>Valore</SortHead>
+                    <SortHead column="weight" sortState={sortState} onSort={handleSort}>Peso</SortHead>
+                    <SortHead column="gainPct" sortState={sortState} onSort={handleSort}>G/P</SortHead>
+                    {showDeltas &&
+                      DELTA_WINDOWS.map(({ key, label }) => (
+                        <SortHead key={key} column={key} sortState={sortState} onSort={handleSort}>
+                          {key === 'allTimeDelta' ? (
+                            // The three Δ columns are price variations over time windows, not G/P.
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex cursor-help items-center gap-1">
+                                    {label}
+                                    <Info className="h-3 w-3" aria-hidden="true" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-[240px] text-left font-normal normal-case tracking-normal">
+                                  Variazione del prezzo unitario nel periodo (dal primo dato registrato, per Δ Inizio). Diverso dal
+                                  G/P, che confronta col prezzo medio di carico (PMC). Per fondi pensione e conti non esiste.
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : (
+                            label
+                          )}
+                        </SortHead>
+                      ))}
+                    {/* Named for a screen reader only: a visible «AZIONI» sat over a column of «Azioni» class chips. */}
+                    <th scope="col" className={cn(HEAD_CLASS, stickyCellClass)}>
+                      <span className="sr-only">Azioni sulla riga</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupedAssets
+                    ? Array.from(groupedAssets.entries()).flatMap(([cls, groupAssets]) => [
+                        renderGroupHeader(cls, groupAssets),
+                        ...(collapsedGroups.has(cls) ? [] : groupAssets.map(renderRow)),
+                      ])
+                    : sortedAssets.map(renderRow)}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* The tint is a theme slot (blue on the default light theme), so the copy names the
               meaning, not a hue; the «Andamento» sentence only where the toggle exists. */}

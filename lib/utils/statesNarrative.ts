@@ -100,6 +100,18 @@ export function describeReadFailure({
   };
 }
 
+/**
+ * The ONE announcement of a phone's failed reads (`PageRest`'s live region): below `desktop:` the
+ * rows are closed and each `ErrorNotice` is silent (`live={false}`), so three failures are one
+ * sentence instead of three alerts. «Una sezione non è stata letta: Benchmark.» · «2 sezioni non
+ * sono state lette: Benchmark, Contributi.» · `null` when nothing failed — the node empties.
+ */
+export function describeFailedSections(eyebrows: readonly string[]): string | null {
+  if (eyebrows.length === 0) return null;
+  if (eyebrows.length === 1) return `Una sezione non è stata letta: ${eyebrows[0]}.`;
+  return `${eyebrows.length} sezioni non sono state lette: ${eyebrows.join(', ')}.`;
+}
+
 const TIME_FORMAT = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' });
 const DAY_FORMAT = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'long' });
 
@@ -119,4 +131,48 @@ export function describeLastSuccessfulRead(at: Date | null, now: Date): string |
 
   const when = sameDay ? 'oggi' : DAY_FORMAT.format(at);
   return `Ultima lettura riuscita: ${when} alle ${TIME_FORMAT.format(at)}`;
+}
+
+// ── The last known figures, while the fresh ones are in flight ──────────────
+
+/** Italy's clock and calendar for the freshness reading, whatever the machine's zone. */
+const ITALY_ZONE = 'Europe/Rome';
+const ITALY_TIME_FORMAT = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: ITALY_ZONE });
+const ITALY_DAY_FORMAT = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'long', timeZone: ITALY_ZONE });
+const ITALY_ISO_DAY_FORMAT = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: ITALY_ZONE });
+
+/** The Italian calendar day as `YYYY-MM-DD` (`en-CA` prints ISO order). No Firebase import here, unlike dateHelpers. */
+function italyIsoDay(date: Date): string {
+  return ITALY_ISO_DAY_FORMAT.format(date);
+}
+
+/** The calendar day before an ISO day, in UTC arithmetic so a DST edge cannot skip a day. */
+function previousIsoDay(isoDay: string): string {
+  const [year, month, day] = isoDay.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day - 1)).toISOString().slice(0, 10);
+}
+
+export interface FreshnessInput {
+  /** When the oldest figure on screen was read; `null` when nothing on screen is old. */
+  updatedAt: Date | null;
+  now: Date;
+}
+
+/**
+ * The header's reading while the page shows the last KNOWN figures and rereads them
+ * (the query cache survives a reload, so the page paints before the fresh read lands).
+ *
+ * «Aggiornato alle 18:42, sto rileggendo…» — the hour alone on the same Italian calendar day,
+ * «ieri» the day before, the date further back. First person, like every other sentence the app
+ * says about what it is doing. `null` when nothing is old: the clause disappears, it is never
+ * padded with a placeholder (the Narrative Honesty Rule).
+ */
+export function describeFreshness({ updatedAt, now }: FreshnessInput): string | null {
+  if (!updatedAt) return null;
+
+  const day = italyIsoDay(updatedAt);
+  const today = italyIsoDay(now);
+  const when =
+    day === today ? '' : day === previousIsoDay(today) ? ' ieri' : ` il ${ITALY_DAY_FORMAT.format(updatedAt)}`;
+  return `Aggiornato${when} alle ${ITALY_TIME_FORMAT.format(updatedAt)}, sto rileggendo…`;
 }

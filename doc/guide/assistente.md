@@ -13,6 +13,7 @@
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 - **Assistant**: `app/dashboard/assistant/page.tsx`, `components/assistant/AssistantPageClient.tsx` + `tiles/*`, pure `lib/utils/{assistantNarrative,assistantPeriodOptions}.ts`; `app/api/ai/assistant/*`, `lib/server/assistant/*` (`goalEvaluation.ts` pure, `goalEvaluationService.ts` I/O, `memoryExtraction.ts`, `store.ts` → `mergeMemoryItem`), `components/assistant/AssistantModals.tsx` (Conversazioni · Memoria), `lib/hooks/useAssistantStreaming.ts`, `lib/services/assistantMonthContextService.ts` over `lib/utils/expenseBreakdown.ts` (`buildCashflowBreakdown`); goals `lib/server/goalData.ts`, `lib/utils/goalProposal.ts` (ONE zod schema), `app/api/goals/route.ts`, `components/assistant/GoalProposalCard.tsx`
+- **Suites to run after a change here — Assistant** (moved from `AGENTS.md` § Commands on 2026-09-30): `assistantRoutes`, `assistantThreadsStore` (the pages and the cursor), `assistantWebSearchPolicy`, `assistantMonthContextService` · **Verdetto e letture** `assistantNarrative` (+ `overviewNarrative` for the no-context verdict) · **Obiettivi** `assistantGoalEvaluation`, `assistantGoalEvaluationService`, `assistantMemoryExtraction`, `assistantMemoryStore` · **Goal-Based** `goalMath`, `goalProposal`, `apiAuthRoutes`
 
 ## Assistant
 
@@ -49,12 +50,44 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   data it was never given.
 
 ### Streaming, threads, memory
+- **The thread list is read 50 at a time** (2026-10-05; it was read whole and grew forever):
+  `listAssistantThreads(userId, { limit = ASSISTANT_THREADS_PAGE_SIZE, after })` asks for ONE more than the page,
+  so `nextCursor` (the page's last id) is `null` on a list of exactly 50, and the next page starts with
+  `startAfter(<cursor snapshot>)` — `startAt` repeats the cursor's thread (seen red: 11 rows, «t049» twice,
+  `__tests__/assistantThreadsStore.test.ts`). A cursor of another account is 403, a deleted one 404;
+  `GET /api/ai/assistant/threads?after=` validates it (`assistantThreadCursorSchema`: never empty, never a path)
+  and answers `{ threads, nextCursor }` with `Server-Timing: auth, db, total`. `useAssistantThreads` is a
+  `useInfiniteQuery` whose `select` flattens the pages, on the same key every writer invalidates (an invalidation
+  re-reads every loaded page from the fresh cursors). **Nothing hides in silence** (owner's wording, 2026-10-05):
+  while a page is unread the list closes on «Mostra altre», the header says «Più di 50 conversazioni»
+  (`describeAssistantHeader` `moreThreads`), its icon «Conversazioni (più di 50)» with a «50+» dot (`CountDot`'s
+  `isFloor`; past two digits it reads «99+», where it printed a bare «99» until 2026-10-05) and the modal «Le 50
+  conversazioni più recenti: premine una per riprenderla; «Mostra altre» legge le precedenti.»
+  (`describeThreadsReading` `hasMore`). Seen in the browser on 60 planted threads (2026-10-05, a throwaway spec):
+  50 rows, the three sentences, «Mostra altre» → 60 rows, none twice, the button gone.
+- **The context route takes the test-snapshot preference from the request** (2026-10-05):
+  `GET /api/ai/assistant/context?…&includeDummy=true|false` (`assistantIncludeDummySchema`: anything else is 400).
+  The page reads the memory at mount and hands `memory.preferences.includeDummySnapshots` to
+  `useAssistantPeriodContext`, so the route no longer reads the memory a second time per opening —
+  `getAssistantMemoryDocument` is TWO documents, the memory and the settings behind it, and it ran in series before
+  the builder. While the memory has not answered the parameter is absent and the route reads the stored preference
+  itself, as it always did. The value is NOT in the query keys: a key that changed when the memory lands would fetch
+  every context twice. The builders are untouched (they take the same boolean), and the stream route already took
+  its preferences from the request body. Pinned by `__tests__/assistantRoutes.test.ts` (seen red: the memory read
+  under a request that carried the value).
 - `deleteAssistantThread` must delete the `messages` subcollection in ≤400-doc batches first (no cascade in the Admin
   SDK). Never clear `streamingMessages` in a `useEffect([selectedThreadId])` — the SSE `meta` event sets the id
   mid-stream and wipes the buffer; post-stream invalidation uses a local `resolvedThreadId` updated from `meta`.
 - **`max_tokens` budgets thinking AND text together** (chat 12000, chat+web 16000, structured 18000) — re-check whenever
   the data block grows. **Read `stop_reason` from the terminal `message_delta`** and append `TRUNCATION_NOTICE`: a limit
   either does not exist or announces itself.
+- **The stream runs with the server-side fallback** (2026-10-12, owner's decision): `anthropic.beta.messages.create` with
+  `betas: [SERVER_SIDE_FALLBACK_BETA]` + `fallbacks: 'default'` (`lib/constants/aiModels.ts`, sdk ≥ 0.115). A `cyber` or
+  `frontier_llm` decline is re-run on Sonnet 5 inside the same stream — the text already streamed stays, the answer goes
+  on, a `fallback` content block marks the switch and the log names both models; the other categories still end on
+  `stop_reason: 'refusal'`, which is why `REFUSAL_NOTICE` stays. The history replayed is TEXT only, so a fallback turn needs
+  no block stripping; a future replay of thinking or tool blocks owes the echo rules of the fallback docs. Pinned by
+  `__tests__/anthropicStream.test.ts` (the request shape).
 - Memory: only `status === 'active'` items are injected; the fetch is `.catch(() => null)` and never blocks the stream;
   the Anthropic client is lazily imported (a module-level `new Anthropic()` breaks test environments). The context
   bundle lives in React state and is never persisted. `MARKDOWN_COMPONENTS` must be module-level or ReactMarkdown
@@ -78,6 +111,10 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **Structure is NEVER parsed from text.** It arrives from a forced-tool-use Haiku call validated with zod. A malformed
   payload discards the **structure**, not the goal — an un-trackable goal is a legitimate state the panel states out
   loud. `unit` is derived from `kind`, never asked of the model.
+- **The extraction's `max_tokens` holds the tool input alone** (2048 since 2026-10-12): a forced `tool_choice` on Haiku 5.5
+  skips thinking, and the call sends neither `thinking` nor `effort`. The 1024 sized on Haiku 4.5 was doubled for Haiku
+  5.5's tokenizer (~30% more tokens for the same text): a cut mid-input fails the zod parse and drops every candidate in
+  silence. Haiku 5.5 has no server-side fallback — never add `fallbacks` here.
 - **A tool schema's enum description must speak the UI's vocabulary**, or the model splits one sentence across two kinds
   (e.g. "liquidità" is the product's label for the `cash` class).
 - **Goals are always evaluated against the CURRENT month**, never the bundle the request happened to build —
@@ -98,6 +135,11 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `goalDrivenAllocationEnabled` on, Allocazione overrides them with `deriveTargetAllocationFromGoals`; quoting the
   Settings ones would be right numbers about the wrong thing. `buildGoalFields` derives goals, targets and source in ONE
   pass, falling back to the manual targets when the derivation yields null, mirroring the page.
+- **A quota reaches the model only as euro** (2026-10-17): a quota is a percent of the asset or a number of its units
+  (`GoalAssetAssignment`, doc/guide/fire.md), and the bundle carries each goal's `currentValue` through
+  `calculateGoalProgress`, which converts both forms (`assignmentFraction`); the prompt's goals block says a quota is
+  «in percentuale o in quote … già convertita in euro qui» and the ```goal-proposal schema carries NO assignment at all —
+  the model never sees a field the type does not have, and a proposal creates a goal, never a quota.
 - **Carry the trajectory numbers, don't make the model compute them**: `requiredMonthlyContribution` and
   `projectedValueAtDeadline` ship with `assumedAnnualReturn` and are labelled **projections** — a required pace without
   its return assumption cannot be audited, and a model without them multiplies contribution × months, ignoring
@@ -158,8 +200,24 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   region), the rows by `list` «Domande suggerite», the axis by `tablist` «Periodo di analisi», the disclosure by `button` «Come
   funziona».
 
+## Composizione mobile
+
+No composition, by design: the page's content is a conversation (DESIGN.md → The Conversation-Is-Content Rule), not a grid of tiles answering one question — below `desktop:` the conversation and its composer are the page and the companion tiles follow them in one column; nothing is closed, lifted or remembered (no `mobile-sections:` key). It is not one of the nineteen surfaces of `mobile:census`.
+
 ## Per-page blind spots
 
 - **Assistente**: no Playwright spec (the throwaway specs were deleted); the Cashflow tile is absent for a period without cashflow rows; the savings rate is `netCashFlow / (income + dividends)`; «Patrimonio oggi» prints the GROSS total (the verdict's figure), the old card printed the net; the Conversazione count includes the user's messages; starter rows prefill the composer, follow-up rows submit; the thread rows and the memory rows both use `useArmedDelete` (the threads' 3 s auto-disarm went on 2026-09-18, with the sheet); a companion taller than the viewport is reachable only at the end of the scroll (sticky, by design); the «goal reached» tile and the sheet's row are two surfaces of ONE suggestion.
 - **The Assistant's cashflow figures changed on 2026-07-29**; saved threads are prose and are not regenerated (moved here from CLAUDE.md → Known Issues on 2026-09-18: it is this page's blind spot, not a cross-cutting one).
+- **A period's own thread older than the pages read is not found** (owner's call, 2026-10-05): switching period
+  re-opens the existing thread for it by scanning the LOADED threads (`findThreadForPeriod`), so with more than 50
+  conversations one older than the 50 most recent is not resumed and the next question opens a new one — until
+  «Mostra altre» has read its page. No query of its own, by decision.
+- **The context preview reads the page's copy of the test-snapshot preference** (2026-10-05), not the stored one:
+  the two differ only when the preference was changed from another device inside the memory query's five minutes. It
+  is the toggle of test accounts, shown only where dummy snapshots exist.
+- **The stream route reads the memory twice per message, on purpose** (read against the code on 2026-10-05):
+  once before the answer, for the active items the prompt carries, and once in `extractAndSaveMemory`, after the
+  stream has closed — possibly a minute later. The second read is what honours a `memoryEnabled` switched off while
+  the answer was streaming, and what dedupes against an item added from the panel meanwhile; it runs in the
+  background, off the reader's wait. Do not hand the first read down to it.
 - **A confirmed goal proposal can be confirmed again after a reload** (accepted for v1): reopening the thread re-parses the fenced block and a second press creates a SECOND goal. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

@@ -185,7 +185,7 @@ export function IdealAllocationTile({
       <div className="mt-3.5 flex items-center justify-between gap-4 py-2">
         <div className="min-w-0">
           <p className={rowLabelClass}>Attiva</p>
-          <p className={rowHintClass}>Propone i pesi degli strumenti: nella composizione ideale e nel passo Target del PAC.</p>
+          <p className={rowHintClass}>Propone i pesi degli strumenti: nel portafoglio modello e nel passo Target del PAC.</p>
         </div>
         <Switch
           checked={value.enabled}
@@ -530,7 +530,7 @@ export function IdealAllocationTile({
 
   if (bare) return <div className="min-w-0">{content}</div>;
   return (
-    <Tile eyebrow="Allocazione ideale" reading={describeIdealAllocation(readingInput)}>
+    <Tile eyebrow="Criteri del modello" reading={describeIdealAllocation(readingInput)}>
       {content}
     </Tile>
   );

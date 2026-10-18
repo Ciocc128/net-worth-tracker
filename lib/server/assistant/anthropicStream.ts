@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { ASSISTANT_MODEL } from '@/lib/constants/aiModels';
+import { ASSISTANT_MODEL, SERVER_SIDE_FALLBACK_BETA } from '@/lib/constants/aiModels';
 import { AssistantMemoryItem, AssistantMessage, AssistantMode, AssistantMonthContextBundle, AssistantMonthSelectorValue, AssistantPreferences } from '@/types/assistant';
 import {
   AssistantPromptParts,
@@ -119,6 +119,14 @@ function buildMessagesArray(
 const TRUNCATION_NOTICE =
   '\n\n_(Risposta interrotta: ho raggiunto il limite di lunghezza. Chiedimi di continuare o restringi la domanda.)_';
 
+/**
+ * The whole answer when the model declined (`stop_reason: 'refusal'`, an HTTP 200 with no
+ * text): the Sonnet 5.x generation declines in more categories than before, and an empty
+ * bubble would read as a broken stream rather than as a decision.
+ */
+const REFUSAL_NOTICE =
+  '_(Non posso rispondere a questa richiesta. Riformula la domanda sui tuoi dati finanziari.)_';
+
 /** The object stored at `key`, when `value` is an object holding one there. */
 function readNestedObject(value: unknown, key: string): object | undefined {
   if (typeof value !== 'object' || value === null || !(key in value)) return undefined;
@@ -182,8 +190,12 @@ export async function streamAssistantResponse({
     const isStructuredAnalysis = ['month_analysis', 'year_analysis', 'ytd_analysis', 'history_analysis'].includes(mode);
     const chatMaxTokens = enableWebSearch ? 16000 : 12000;
     const { system, userContent } = buildPrompt(mode, prompt, contextBundle, month, preferences, memoryItems);
-    const stream = await anthropic.messages.create({
+    const stream = await anthropic.beta.messages.create({
       model: ASSISTANT_MODEL,
+      // A policy decline is re-run on the fallback model inside this stream (aiModels.ts). The
+      // history replayed below is text only, so a fallback turn needs no block stripping.
+      betas: [SERVER_SIDE_FALLBACK_BETA],
+      fallbacks: 'default',
       max_tokens: isStructuredAnalysis ? 18000 : chatMaxTokens,
       // Static role/domain/guardrail/format instructions, identical for every user and
       // every request of this mode. No cache_control: this app's traffic pattern
@@ -196,10 +208,10 @@ export async function streamAssistantResponse({
         ? {
             tools: [
               {
-                type: 'web_search_20250305',
+                type: 'web_search_20260209',
                 name: 'web_search',
                 max_uses: isStructuredAnalysis ? 2 : 3,
-              } satisfies Anthropic.WebSearchTool20250305,
+              } satisfies Anthropic.Beta.BetaWebSearchTool20260209,
             ],
           }
         : {}),
@@ -211,6 +223,13 @@ export async function streamAssistantResponse({
       if (chunk.type === 'content_block_start' && chunk.content_block?.type === 'server_tool_use') {
         webSearchUsed = true;
         onStatus('searching');
+      }
+
+      // The switch point of a server-side fallback: the answer goes on, written by another model.
+      if (chunk.type === 'content_block_start' && chunk.content_block?.type === 'fallback') {
+        console.info(
+          `[assistant] ${chunk.content_block.from.model} declined; ${chunk.content_block.to.model} continued`
+        );
       }
 
       // The terminal message_delta carries why generation stopped. Without reading it a
@@ -240,6 +259,9 @@ export async function streamAssistantResponse({
     if (stopReason === 'max_tokens' && text.length > 0) {
       onText(TRUNCATION_NOTICE);
       text += TRUNCATION_NOTICE;
+    } else if (stopReason === 'refusal' && text.length === 0) {
+      onText(REFUSAL_NOTICE);
+      text = REFUSAL_NOTICE;
     }
 
     onStatus('saving');

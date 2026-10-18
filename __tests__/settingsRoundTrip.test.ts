@@ -34,62 +34,17 @@ const DELETE_SENTINEL = { __deleteField: true };
 
 import { getDoc, setDoc } from 'firebase/firestore';
 import { getSettings, setSettings } from '@/lib/services/assetAllocationService';
-import type { AssetAllocationSettings, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
-
-/** Allocazione ideale (doc/weight-optimizer-ate.md §7) — every field diverges from
- *  DEFAULT_IDEAL_ALLOCATION so a field lost on either write chain or the read mapping shows. */
-const STORED_IDEAL_ALLOCATION: IdealAllocationSettings = {
-  enabled: true,
-  classPriority: 'high',
-  leveragePriority: 'medium',
-  factorObjectives: [{ assetClass: 'equity', priority: 'low' }],
-  geography: { enabled: true, referenceIndexId: 'ftse-all-world', priority: 'medium' },
-  instrumentLimits: [{ assetId: 'asset-1', minPct: 5, maxPct: 40 }],
-  groupLimits: [{ id: 'group-1', label: 'Leva', assetIds: ['asset-1', 'asset-2'], maxPct: 20, priority: 'high' }],
-};
-
-/** Un mercato Monte Carlo v2 (Q1) con numeri scritti diversi dal default, l'inflazione, la scelta «Nessuna» per l'oro, la matrice e lo spread. */
-const STORED_MONTE_CARLO_MARKET = {
-  version: 2 as const,
-  classes: { equity: { cagr: 6.5, uncertainty: 3 }, carry: { premium: 2.5, volatility: 21 } },
-  inflationRate: 2.5,
-  goldSubCategory: null,
-  correlations: [0.3, ...new Array(20).fill(-0.05)],
-  leverageSpread: 3,
-};
-
-const STORED_DATED_FLOWS = [
-  { id: 'f1', label: 'Eredità', kind: 'lumpIn', amount: 100_000, indexed: false, start: { anchor: 'year', year: 2036 }, durationYears: null },
-  { id: 'f2', label: 'Part-time', kind: 'income', amount: 9_600, indexed: true, start: { anchor: 'fire', afterYears: 0 }, durationYears: 10 },
-];
-
-/** Ogni valore è scelto per essere DIVERSO dal default, così un campo perso si vede. */
-const STORED_SETTINGS = {
-  targets: { equity: { targetPercentage: 60 }, bonds: { targetPercentage: 40 } },
-  performanceIncludesPensionFunds: true,
-  performanceIncludesExcludedAssets: true,
-  performanceExcludesCash: true,
-  pensionReturnStartMonth: '2026-07',
-  costCentersEnabled: true,
-  includePrimaryResidenceInFIRE: true,
-  respectPensionLockInFire: true,
-  pensionInpsRetirementAge: 68,
-  pensionRitaLongUnemployment: true,
-  cashflowHistoryStartYear: 2019,
-  familyMembers: [{ id: 'm1', name: 'Giuseppe' }],
-  expenseSplitEnabled: true,
-  spendingRolesEnabled: true,
-  idealAllocation: STORED_IDEAL_ALLOCATION,
-  monteCarloMarket: STORED_MONTE_CARLO_MARKET,
-  dividendCashAssetId: 'cash-1',
-  transferFeeCategoryId: 'cat-fee',
-  transferFeeSubCategoryId: 'sub-fee',
-  plannedAnnualExpenses: 31_000,
-  fireEmergencyFund: 24_000,
-  fireCashToInvestPct: 35,
-  fireDatedFlows: STORED_DATED_FLOWS,
-  coastFireCustomExpenses: 29_000,
-};
+import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
+import { composeSettingsDocument, sliceSettings } from '@/lib/utils/settingsDraft';
+import type { AssetAllocationSettings, AssetAllocationTarget } from '@/types/assets';
+// The fixture is shared with settingsDraft.test.ts since 2026-10-08: the page's draft
+// is held to the same document the service's whitelists are.
+import {
+  STORED_DATED_FLOWS,
+  STORED_IDEAL_ALLOCATION,
+  STORED_MONTE_CARLO_MARKET,
+  STORED_SETTINGS,
+} from './fixtures/storedSettings';
 
 const TARGETS = { equity: { targetPercentage: 100 } } as unknown as AssetAllocationTarget;
 
@@ -467,7 +422,7 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
     expect(writtenPayload().idealAllocation).toEqual(STORED_IDEAL_ALLOCATION);
   });
 
-  // RV6 / PT7: «Salva gli obiettivi» (Allocazione › Accumulo) sends ONLY idealAllocation.
+  // RV6 / PT7: «Salva i criteri» (Allocazione › Accumulo) sends ONLY idealAllocation.
   it('writes the objectives alone: no other setting is in the payload', async () => {
     await setSettings('user-1', { idealAllocation: STORED_IDEAL_ALLOCATION } as AssetAllocationSettings);
 
@@ -535,5 +490,50 @@ describe('«Il mio piano» — il salvataggio unico', () => {
     expect(written).not.toHaveProperty('coastFireCustomExpenses');
     // T9: gli scaglioni non sono del piano
     expect(written.coastFireTaxBrackets).toEqual(PLAN_STORED.coastFireTaxBrackets);
+  });
+});
+
+describe('setSettings — il riepilogo della Panoramica', () => {
+  // Il riepilogo resta fresco per tutto il giorno: ogni campo che il payload legge deve invalidarlo,
+  // anche quando arriva da solo (prima reggeva per caso: Impostazioni manda sempre il bollo).
+  beforeEach(() => vi.mocked(invalidateDashboardOverviewSummary).mockClear());
+
+  it.each([
+    ['goalBasedInvestingEnabled', { goalBasedInvestingEnabled: true }],
+    ['pensionReturnStartMonth', { pensionReturnStartMonth: '2026-01' }],
+    ['pensionReturnStartMonth svuotato', { pensionReturnStartMonth: undefined }],
+    ['stampDutyEnabled', { stampDutyEnabled: false }],
+  ])('invalida per %s', async (_field, update) => {
+    await setSettings('user-1', update as Partial<AssetAllocationSettings> as AssetAllocationSettings);
+
+    expect(invalidateDashboardOverviewSummary).toHaveBeenCalledWith('user-1', 'overview_settings_updated');
+  });
+
+  it('non invalida per un campo che il payload non legge', async () => {
+    await setSettings('user-1', { costCentersEnabled: true } as AssetAllocationSettings);
+
+    expect(invalidateDashboardOverviewSummary).not.toHaveBeenCalled();
+  });
+});
+
+describe('Impostazioni «Salva» ∘ setSettings — the fork’s fields survive a save from the page', () => {
+  // S1 (doc/allineamento-upstream/README.md § 5): the page composes a whole document and
+  // `setSettings` replaces `targets`; a field the compose forgot would vanish on a clean «Salva».
+  it('writes the Monte Carlo market, the dated flows and the Allocazione ideale back untouched', async () => {
+    const result = composeSettingsDocument(sliceSettings(STORED_SETTINGS, TARGETS), STORED_SETTINGS);
+    if (!result.ok) throw new Error(`compose refused: ${result.tab}`);
+
+    // The stored document is what `setSettings` spreads under the page's own fields.
+    vi.mocked(getDoc).mockResolvedValue({ exists: () => true, data: () => STORED_SETTINGS } as never);
+    await setSettings('user-1', result.document);
+    const written = writtenPayload();
+
+    expect(written.monteCarloMarket).toEqual(STORED_MONTE_CARLO_MARKET);
+    expect(written.fireDatedFlows).toEqual(STORED_DATED_FLOWS);
+    expect(written.idealAllocation).toEqual(STORED_IDEAL_ALLOCATION);
+    expect(written.fireEmergencyFund).toBe(STORED_SETTINGS.fireEmergencyFund);
+    expect(written.fireCashToInvestPct).toBe(STORED_SETTINGS.fireCashToInvestPct);
+    expect(written.plannedAnnualExpenses).toBe(STORED_SETTINGS.plannedAnnualExpenses);
+    expect(written.coastFireTaxBrackets).toEqual(STORED_SETTINGS.coastFireTaxBrackets);
   });
 });
