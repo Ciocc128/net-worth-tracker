@@ -2,8 +2,8 @@
 
 > Analisi in sola lettura del 18/10/2026, primo passo del piano `doc/contributi-upstream/README.md` (§ 5, riga R11;
 > D-CU3). Il decimo riallineamento è in `README.md` di questa cartella: modello, regole comuni e rischi silenziosi
-> S1–S3 restano validi e non si ripetono. Le decisioni D-R11-1…D-R11-5 (§ 5) sono **proposte**: valgono quando il
-> proprietario le conferma. Questo dossier non cambia codice.
+> S1–S3 restano validi e non si ripetono. Le decisioni D-R11-1…D-R11-5 (§ 5) le ha prese il proprietario il
+> 18/10/2026, tutte nella forma proposta («Ok»). Questo dossier non cambia codice.
 
 Confronto: `Ciocc128/net-worth-tracker:main` (`21992f3c`, dopo la PR #121) contro
 `GiuseppeDM98/net-worth-tracker:main` (`9a5b318e`, PR #476 del 17/10). Merge-base `a66f822f` (#470), il taglio di T5.
@@ -107,16 +107,16 @@ Obiettivi del FIRE (la lettura del dialog di assegnazione e il piede di Assegnaz
   facoltativi, e la loro assenza vuol dire quello che voleva dire prima. Diversamente da T4, non serve la prova sul
   mirror prima del merge, ma basta un giro.
 
-## 5. Decisioni (proposte, da confermare)
+## 5. Decisioni (prese dal proprietario il 18/10/2026)
 
 **D-R11-1 — Quote degli obiettivi in quote.**
-- **Proposta:** prenderle intere, con `resolveGoalFlows` che legge la frazione di upstream (R11-S1) e le parole
+- **Presa:** prenderle intere, con `resolveGoalFlows` che legge la frazione di upstream (R11-S1) e le parole
   «traguardo/traguardi» (R11-S4).
 - Scartata: tenere solo la percentuale nel fork. Upstream ha cambiato il tipo salvato, quindi ogni tappa successiva
   andrebbe in conflitto sullo stesso punto, e U1–U3 verso upstream partirebbero da un tipo diverso dal suo.
 
 **D-R11-2 — Prestiti in Allocazione.**
-- **Proposta:** prendere la lettura netta di upstream per Bilanciamento e per il PAC, che la eredita da
+- **Presa:** prendere la lettura netta di upstream per Bilanciamento e per il PAC, che la eredita da
   `compareAllocations`. Ottimizzatore, portafoglio modello, FIRE, Monte Carlo ed Esposizione continuano a lasciare
   fuori i debiti (T4). Il motivo:
   - un peso di strumento non può essere negativo e un debito non si compra;
@@ -130,19 +130,19 @@ Obiettivi del FIRE (la lettura del dialog di assegnazione e il piede di Assegnaz
   upstream proprio su `allocationUtils.ts`, il file che U1–U3 devono portare a upstream.
 
 **D-R11-3 — Intestatari degli asset.**
-- **Proposta:** prenderli interi, come sono in upstream. Le superfici del fork (FIRE, PAC, ottimizzatore, Esposizione)
+- **Presa:** prenderli interi, come sono in upstream. Le superfici del fork (FIRE, PAC, ottimizzatore, Esposizione)
   restano sull'intero nucleo familiare e non leggono `ownerMemberId` né `ownerShares`.
 - Scartata: un FIRE o un PAC per persona. È una funzione nuova, non un riallineamento: se interessa, diventa una card
   in Backlog.
 
 **D-R11-4 — «Fuori dal budget».**
-- **Proposta:** prenderlo intero. Il cancello vale per Budget e per le due email di budget del fork; ogni altro totale,
+- **Presa:** prenderlo intero. Il cancello vale per Budget e per le due email di budget del fork; ogni altro totale,
   il 50/30/20 compreso, tiene la riga (R11-S3).
 - Scartata: togliere la riga anche dal 50/30/20 e dal blocco dati dell'email mensile. Andrebbe contro la regola di
   upstream: la spesa poi rimborsata è spesa vera in ogni totale tranne il tetto del budget.
 
 **D-R11-5 — Granularità.**
-- **Proposta:** **una tappa sola** (R11-T1), cioè un merge di `9a5b318e` (#476) con una PR in bozza. I conflitti sono
+- **Presa:** **una tappa sola** (R11-T1), cioè un merge di `9a5b318e` (#476) con una PR in bozza. I conflitti sono
   pochi (17 blocchi) e le tre PR toccano gli stessi file (`types/assets.ts`, `AssetDialog`, `assetOwnership.ts`).
 - Scartata: tre tappe, una per PR. Tre PR e tre giri sul Mac per circa 15 file, e la #475 rifà a metà la #473: si
   risolverebbero due volte gli stessi blocchi di `AssetDialog`.
