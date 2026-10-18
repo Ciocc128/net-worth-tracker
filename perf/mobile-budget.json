@@ -104,7 +104,7 @@
   "budget": {
     "panoramica": {
       "390": {
-        "screens": 1.83,
+        "screens": 1.82,
         "tilesAboveFold": 1,
         "tilesFullyAboveFold": 1,
         "figuresAboveFold": 5,
@@ -115,7 +115,7 @@
       },
       "768": {
         "screens": 1.17,
-        "tilesAboveFold": 8,
+        "tilesAboveFold": 9,
         "tilesFullyAboveFold": 7,
         "figuresAboveFold": 5,
         "figuresOutsideVerdict": 5,
@@ -124,8 +124,8 @@
       },
       "1024": {
         "screens": 1,
-        "tilesAboveFold": 8,
-        "tilesFullyAboveFold": 8,
+        "tilesAboveFold": 9,
+        "tilesFullyAboveFold": 9,
         "figuresAboveFold": 10,
         "figuresOutsideVerdict": 10,
         "firstClosedRowAbovePill": true,
@@ -135,7 +135,7 @@
     },
     "patrimonio": {
       "390": {
-        "screens": 1.75,
+        "screens": 1.74,
         "tilesAboveFold": 1,
         "tilesFullyAboveFold": 0,
         "figuresAboveFold": 7,
@@ -146,8 +146,8 @@
       },
       "768": {
         "screens": 1.15,
-        "tilesAboveFold": 6,
-        "tilesFullyAboveFold": 6,
+        "tilesAboveFold": 7,
+        "tilesFullyAboveFold": 7,
         "figuresAboveFold": 7,
         "figuresOutsideVerdict": 4,
         "firstClosedRowAbovePill": true,
@@ -155,9 +155,9 @@
         "raisedBy": "2026-10-14: deriva del giorno del mese, non del codice — la build di develop (83de3f68) misurata lo stesso giorno (2026-10-14) dà esattamente questi valori prima e dopo la sessione: 390 screens 3,23 → 3,25; 768 figuresAboveFold 25 → 26; 1024 screens 2,64 → 2,67, figuresAboveFold 18 → 19, tilesAboveFold 3 → 1 (doc/guide/prima-schermata.md § Per-page blind spots, la prova N / N+1, non fatta il 2026-10-16: resta aperta)"
       },
       "1024": {
-        "screens": 1.01,
-        "tilesAboveFold": 6,
-        "tilesFullyAboveFold": 6,
+        "screens": 1,
+        "tilesAboveFold": 7,
+        "tilesFullyAboveFold": 7,
         "figuresAboveFold": 12,
         "figuresOutsideVerdict": 9,
         "firstClosedRowAbovePill": true,
@@ -187,7 +187,7 @@
         "raisedBy": "2026-10-16: riga null → false — la prima riga chiusa finisce 47 px sotto la pill a 947 — a 768 LA tessera sta a tutta larghezza dopo il verdetto, la curva già a 120 px (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main); 2026-10-15: deriva del giorno del mese, non del codice: il confronto «sui primi N giorni» del mese scorso prendeva le righe del seed ai giorni 5, 10, 15 e 20 una alla volta — dal 15 lo stipendio porta sulla prima schermata le due frecce del trio (la seconda ristampa il ritmo del primo enunciato); valori identici sulla build di develop prima del codice nuovo (4dc553c2) misurata il 2026-10-15, due corse. Il seed mette ora ogni mese passato al giorno 5 (scripts/seedCensusE2E.mts): dal 5 al penultimo questi sono i valori di ogni giorno. Ritiro del 2026-10-15 (PAST_DAY); la pill a 44 px dal 2026-10-10"
       },
       "1024": {
-        "screens": 1.15,
+        "screens": 1.14,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 4,
         "figuresAboveFold": 15,
@@ -283,7 +283,7 @@
         "raisedBy": "2026-10-16: screens 1.19 → 1.2, riga null → false — la testata più alta di 8 px: l'icona Impostazioni di Cashflow e «Crea snapshot» passano da 36 a 44 px, bersagli per il pollice; la prima riga chiusa finisce 50 px sotto la pill a 947 — a 768 LA tessera sta a tutta larghezza dopo il verdetto, la curva già a 120 px (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main); 2026-10-10: pill a 44 px"
       },
       "1024": {
-        "screens": 1.13,
+        "screens": 1.12,
         "tilesAboveFold": 4,
         "tilesFullyAboveFold": 3,
         "figuresAboveFold": 20,
@@ -337,7 +337,7 @@
         "raisedBy": "2026-10-14: la prima riga chiusa (Fuori scala) finisce a 1031 contro la pill a 767 — il verdetto è alto 392 (titolo su due righe, l'asse 2×2 e il mese, il primo enunciato, le due celle, lo scope del calendario, «Il perché»), LA tessera (Periodo) 392 con le barre già a 120 px; la riga sotto la pill registrata false con raisedBy, estesa ad Analisi"
       },
       "768": {
-        "screens": 1.23,
+        "screens": 1.22,
         "tilesAboveFold": 6,
         "tilesFullyAboveFold": 6,
         "figuresAboveFold": 9,
@@ -435,13 +435,13 @@
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 5,
         "figuresAboveFold": 18,
-        "figuresOutsideVerdict": 17,
+        "figuresOutsideVerdict": 16,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
         "raisedBy": "2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.07 → 1.13); 2026-10-16: la cella «Fuori posizione» stampa lo 0,0% che la lettura stampa (sul fixture la casa e il conto stanno in classi senza target) e dal tablet il KPI resta intero accanto alla striscia: una cifra in più sopra la piega e fuori dal verdetto; a 390 il KPI è sollevato e nulla si muove"
       },
       "1024": {
-        "screens": 1.16,
+        "screens": 1.15,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 5,
         "figuresAboveFold": 19,
@@ -473,7 +473,7 @@
         "raisedBy": "2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.22 → 1.24, tilesFullyAboveFold 5 → 3); 2026-10-16: riga null → false — la prima riga chiusa finisce 9 px sotto la pill a 947 — a 768 LA tessera sta a tutta larghezza dopo il verdetto, la curva già a 120 px (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main); 2026-10-15: le cifre fuori dal verdetto sono le tre celle, l'eroe e le chip di Il fondo oggi («≤ 5» non raggiunto, dichiarato e registrato come misurato); a 768 la striscia di tre celle lascia sopra la piega una tessera sola; 2026-10-11: deriva del giorno del mese, non del codice — il codice di develop (1629613) misurato lo stesso giorno (11, contro il 10 della prima misura del budget) dà esattamente questi valori; il fixture non è invariante al giorno come la scelta di un fixture deterministico assume (doc/guide/prima-schermata.md § Per-page blind spots)"
       },
       "1024": {
-        "screens": 1.21,
+        "screens": 1.2,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 4,
         "figuresAboveFold": 14,
@@ -485,7 +485,7 @@
     },
     "fire-calcolatore": {
       "390": {
-        "screens": 3.75,
+        "screens": 1.94,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
         "figuresAboveFold": 14,
@@ -495,7 +495,7 @@
         "raisedBy": "2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.81 → 3.94, figuresAboveFold 13 → 17, figuresOutsideVerdict 10 → 13); 2026-10-15: la prima riga chiusa (Base di calcolo) finisce sotto la pill a 390 con il grafico del Traguardo già a 120 px; le cifre fuori dal verdetto sono le due celle, il numero FIRE, il chip e la didascalia del Traguardo («≤ 5» non raggiunto, dichiarato e registrato come misurato); la pill a 44 px dal 2026-10-10"
       },
       "768": {
-        "screens": 2.54,
+        "screens": 1.34,
         "tilesAboveFold": 4,
         "tilesFullyAboveFold": 4,
         "figuresAboveFold": 18,
@@ -505,9 +505,9 @@
         "raisedBy": "2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.22 → 2.56, figuresAboveFold 18 → 24, figuresOutsideVerdict 11 → 21, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 1, firstClosedRowAbovePill True → False); 2026-10-10: pill a 44 px"
       },
       "1024": {
-        "screens": 2.91,
-        "tilesAboveFold": 5,
-        "tilesFullyAboveFold": 4,
+        "screens": 1.27,
+        "tilesAboveFold": 7,
+        "tilesFullyAboveFold": 6,
         "figuresAboveFold": 17,
         "figuresOutsideVerdict": 13,
         "firstClosedRowAbovePill": true,
@@ -581,7 +581,7 @@
     },
     "fire-monte-carlo": {
       "390": {
-        "screens": 2.5,
+        "screens": 2.04,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
         "figuresAboveFold": 12,
@@ -591,7 +591,7 @@
         "raisedBy": "2026-10-18: figuresAboveFold 10 → 12, figuresOutsideVerdict 2 → 4 — la terza cella «Spesa al 90%» della striscia di Dopo il FIRE (D-CU17) e Spesa sostenibile come ultima riga chiusa con la sua risposta (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.83 → 2.69, figuresAboveFold 5 → 15, figuresOutsideVerdict 2 → 9); 2026-10-15: la prima riga chiusa (Distribuzione) finisce sotto la pill a 390 con il ventaglio già a 120 px; le cifre fuori dal verdetto sono le due celle; 2026-10-12: screens oscilla fra 4,87 e 4,89 a parità di codice — due corse consecutive sulla stessa build di develop (e450d00e, 2026-10-12, ritiro) leggono prima l'uno e poi l'altro; il --tighten della sessione aveva scritto 4,87 come deriva del giorno; la composizione di Monte Carlo (2026-10-15) rimisura; la pill a 44 px dal 2026-10-10"
       },
       "768": {
-        "screens": 1.54,
+        "screens": 1.31,
         "tilesAboveFold": 4,
         "tilesFullyAboveFold": 2,
         "figuresAboveFold": 14,
@@ -601,9 +601,9 @@
         "raisedBy": "2026-10-18: figuresAboveFold 12 → 14, figuresOutsideVerdict 5 → 7 — la terza cella «Spesa al 90%» della striscia di Dopo il FIRE (D-CU17) e Spesa sostenibile come ultima riga chiusa con la sua risposta (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.18 → 1.57, figuresAboveFold 6 → 18, figuresOutsideVerdict 3 → 12, tilesAboveFold 4 → 1, tilesFullyAboveFold 4 → 1, firstClosedRowAbovePill True → False); 2026-10-10: pill a 44 px"
       },
       "1024": {
-        "screens": 1.66,
-        "tilesAboveFold": 4,
-        "tilesFullyAboveFold": 3,
+        "screens": 1.29,
+        "tilesAboveFold": 5,
+        "tilesFullyAboveFold": 4,
         "figuresAboveFold": 17,
         "figuresOutsideVerdict": 9,
         "firstClosedRowAbovePill": true,
@@ -740,31 +740,31 @@
     },
     "fire-proiezione": {
       "390": {
-        "screens": 4.73,
+        "screens": 1.96,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
-        "figuresAboveFold": 25,
-        "figuresOutsideVerdict": 11,
+        "figuresAboveFold": 20,
+        "figuresOutsideVerdict": 8,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
         "raisedBy": "2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
       },
       "768": {
-        "screens": 2.96,
-        "tilesAboveFold": 3,
+        "screens": 1.31,
+        "tilesAboveFold": 4,
         "tilesFullyAboveFold": 2,
-        "figuresAboveFold": 47,
-        "figuresOutsideVerdict": 37,
+        "figuresAboveFold": 40,
+        "figuresOutsideVerdict": 35,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
         "raisedBy": "2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
       },
       "1024": {
-        "screens": 3.6,
-        "tilesAboveFold": 2,
-        "tilesFullyAboveFold": 1,
-        "figuresAboveFold": 40,
-        "figuresOutsideVerdict": 33,
+        "screens": 1.29,
+        "tilesAboveFold": 5,
+        "tilesFullyAboveFold": 4,
+        "figuresAboveFold": 36,
+        "figuresOutsideVerdict": 27,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
         "raisedBy": "2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
