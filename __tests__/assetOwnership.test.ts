@@ -13,6 +13,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Asset, FamilyMember } from '@/types/assets';
 import {
+  isOwnershipEnabled,
   describeAssetOwnerLabel,
   hasOwnOwnerField,
   isOwnedHolding,
@@ -205,6 +206,17 @@ describe('summarizeOwnership — the net worth by owner', () => {
     const summary = summarizeOwnership([OVER, CASH], MEMBERS, valueOf);
     expect(summary.reassign).toEqual([{ assetId: 'over', name: 'Over ETF' }]);
     expect(summary.rows.reduce((sum, row) => sum + row.value, 0)).toBeCloseTo(summary.total, 6);
+  });
+
+  it('has no owners with a single member, whatever the assets name (solo fork, 2026-10-20)', () => {
+    const [marco] = MEMBERS;
+    const alone = summarizeOwnership(ALL, [marco], valueOf);
+    expect(alone.hasOwners).toBe(false);
+    // The groups are still computed: only the gate closes, the stored quotas are untouched.
+    expect(alone.total).toBe(225_000);
+    expect(isOwnershipEnabled([])).toBe(false);
+    expect(isOwnershipEnabled([marco])).toBe(false);
+    expect(isOwnershipEnabled(MEMBERS)).toBe(true);
   });
 
   it('has no owners when every held asset is shared, and no shares without a positive total', () => {

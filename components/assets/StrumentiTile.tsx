@@ -51,7 +51,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { isLoanAsset, type Asset, type FamilyMember } from '@/types/assets';
-import { describeAssetOwnerLabel, listAssetOwnerFilterOptions, matchesAssetOwnerFilter } from '@/lib/utils/assetOwnership';
+import { describeAssetOwnerLabel, isOwnershipEnabled, listAssetOwnerFilterOptions, matchesAssetOwnerFilter } from '@/lib/utils/assetOwnership';
 import { OWNER_FILTER_ALL } from '@/lib/utils/movementsOwnerFilter';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { isLedgerAssetType } from '@/types/assetTransactions';
@@ -297,8 +297,10 @@ export function StrumentiTile({
   const memberNames = useMemo(() => new Map(members.map((member) => [member.id, member.name])), [members]);
   const knownMemberIds = useMemo(() => new Set(members.map((member) => member.id)), [members]);
   const ownerOptions = useMemo(() => listAssetOwnerFilterOptions(ownerLookup, members), [ownerLookup, members]);
-  const showOwnerFilter = members.length > 0 && assets.length > 0;
-  const ownerLabelOf = (asset: Asset): string | null => (members.length > 0 ? describeAssetOwnerLabel(asset, ownerLookup, memberNames) : null);
+  // One member splits nothing (solo fork, 2026-10-20): no filter, no «di Giorgio» on every row.
+  const ownershipOn = isOwnershipEnabled(members);
+  const showOwnerFilter = ownershipOn && assets.length > 0;
+  const ownerLabelOf = (asset: Asset): string | null => (ownershipOn ? describeAssetOwnerLabel(asset, ownerLookup, memberNames) : null);
   const visibleAssets = useMemo(
     () => (ownerFilter === OWNER_FILTER_ALL ? assets : assets.filter((asset) => matchesAssetOwnerFilter(asset, ownerLookup, ownerFilter, knownMemberIds))),
     [assets, ownerFilter, ownerLookup, knownMemberIds],
