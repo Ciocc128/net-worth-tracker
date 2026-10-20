@@ -28,6 +28,11 @@
  *  - A credit card in the red is a debt its owner holds: the gate is «balance ≠ 0», not
  *    «quantity > 0» (the owner's P.S. of 2026-10-17: a card named to a person did not lower
  *    their share).
+ *  - Solo fork (owner, 2026-10-20): the whole feature — the tile, the form's block, the Strumenti
+ *    filter and sub-line — exists only with TWO or more members in Impostazioni › Famiglia
+ *    (`isOwnershipEnabled`). One member (the Previdenza fund's owner, say) splits nothing: «il 91%
+ *    è di Giorgio, il resto in comune» on a household of one. The stored quotas stay untouched and
+ *    come back with a second member.
  */
 
 import { isLoanAsset, type Asset, type AssetOwnerShare, type FamilyMember } from '@/types/assets';
@@ -35,6 +40,11 @@ import { SPLIT_UNASSIGNED_LABEL } from '@/lib/utils/expenseSplitSummary';
 import { OWNER_FILTER_ALL, OWNER_FILTER_COMMON, OWNER_FILTER_UNASSIGNED, type OwnerFilterOption } from '@/lib/utils/movementsOwnerFilter';
 import { isUnitsSlice, sliceBase, sliceUnit, sliceUnitLabel, sliceUnits, summarizeSlices, SLICE_UNITS_EPSILON, type AssetSlice, type SliceBudget, type SliceUnit } from '@/lib/utils/assetSlice';
 import { cachedFormatCurrencyEUR, formatNumberIt, formatPercentageIt } from '@/lib/utils/formatters';
+
+/** Whether «Intestatari» exists at all: two members or more (solo fork, owner 2026-10-20). */
+export function isOwnershipEnabled(members: readonly unknown[]): boolean {
+  return members.length >= 2;
+}
 
 /** The shared group's label — the same words the expense form and the Movimenti filter use. */
 export const OWNER_COMMON_LABEL = 'In comune';
@@ -185,7 +195,7 @@ export interface OwnershipSummary {
   total: number;
   /** Distinct held assets, every group counted once. */
   assetCount: number;
-  /** Whether any held asset names a person — the tile exists only then (a household with no owner set sees nothing new). */
+  /** Whether any held asset names a person AND the household has two members (`isOwnershipEnabled`) — the tile exists only then. */
   hasOwners: boolean;
   /** The held assets whose stored quotas no longer fit their quantity — the tile's warning footer. */
   reassign: { assetId: string; name: string }[];
@@ -239,7 +249,7 @@ export function summarizeOwnership(
   const unassigned = row(OWNER_FILTER_UNASSIGNED, 'unassigned', null, OWNER_UNASSIGNED_LABEL);
   const rows = [...memberRows, ...(common ? [common] : []), ...(unassigned ? [unassigned] : [])];
 
-  return { rows, total, assetCount, hasOwners: rows.some((r) => r.kind !== 'common'), reassign };
+  return { rows, total, assetCount, hasOwners: isOwnershipEnabled(members) && rows.some((r) => r.kind !== 'common'), reassign };
 }
 
 // ─── The Strumenti filter ─────────────────────────────────────────────────────

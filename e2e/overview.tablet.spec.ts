@@ -3,8 +3,9 @@
  * one spec, two projects — `tablet` (768×1024, two columns, the pill) and `tablet-landscape`
  * (1024×768, the stage: the answer on the left, the index on the right, the icon rail) — branching on
  * the width. Base account with the overview response patched on the wire (`e2e/overviewFixture.ts`:
- * `hasTERTracking` on and no goal, so EIGHT closed rows — Sintesi, Cashflow, Composizione, Costi,
- * Spese, Entrate, Asset, and since 2026-10-17 Intestatari, which the fixture's pension fund member brings).
+ * `hasTERTracking` on and no goal, so SEVEN closed rows — Sintesi, Cashflow, Composizione, Costi,
+ * Spese, Entrate, Asset; no Intestatari, since the fixture names one household member only and one
+ * member splits nothing (solo fork, 2026-10-20, `isOwnershipEnabled`).
  *
  * What a browser alone can prove: the columns at 768 and the landscape stage (the verdict and THE tile
  * 16px apart on the left, the 360px index on the right starting on the verdict line and ending on
@@ -43,7 +44,7 @@ import {
 } from './tabletLayout';
 
 const LEAD_ID = 'panoramica-patrimonio';
-/** The eight rows of the patched payload (no goal), in DOM order — Intestatari since 2026-10-17 (the fixture's pension fund names a member). */
+/** The seven rows of the patched payload (no goal), in DOM order — no Intestatari with one household member (2026-10-20). */
 const ROW_IDS = [
   'panoramica-sintesi',
   'panoramica-cashflow',
@@ -52,7 +53,6 @@ const ROW_IDS = [
   'panoramica-spese',
   'panoramica-entrate',
   'panoramica-asset',
-  'panoramica-intestatari',
 ] as const;
 
 // Framer's entrance and the panels' spring off: every box is read where it lands.

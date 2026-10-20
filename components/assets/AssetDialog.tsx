@@ -54,7 +54,7 @@ import { useSettings } from '@/lib/hooks/useSettings';
 import { queryKeys } from '@/lib/query/queryKeys';
 import { formatCurrency, formatNumberIt, formatPercentageIt } from '@/lib/utils/formatters';
 import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
-import { hasOwnOwnerField } from '@/lib/utils/assetOwnership';
+import { hasOwnOwnerField, isOwnershipEnabled } from '@/lib/utils/assetOwnership';
 import { suggestIsLiquid } from '@/lib/utils/assetLiquidity';
 import { hasMarketPrice } from '@/lib/utils/assetPricing';
 import { sliceBase, sliceUnit, sliceUnitLabel, summarizeSlices, type AssetSlice } from '@/lib/utils/assetSlice';
@@ -2465,8 +2465,10 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
               comune»); the Panoramica's and Patrimonio's «Intestatari» tile and the Strumenti
               filter read it. Nothing typed and no rest member is «in comune», the absence of both
               fields. Not shown for a pension fund (its «Membro famiglia» IS its owner) nor for a
-              loan that finances a property (it follows the property's quotas). */}
-          {selectedType !== 'pensionFund' && (settings?.familyMembers ?? []).length > 0 && (
+              loan that finances a property (it follows the property's quotas). Nor with fewer than
+              two members (solo fork, 2026-10-20, `isOwnershipEnabled`): the stored quotas ride
+              through the save untouched, as the form's defaults read them. */}
+          {selectedType !== 'pensionFund' && isOwnershipEnabled(settings?.familyMembers ?? []) && (
             <div id="ownerShares" tabIndex={-1} className="space-y-3 rounded-lg border p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <div className="space-y-0.5">
                 <Label>Intestatari</Label>
