@@ -26,7 +26,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   skeleton cells `lib/constants/cashflowTabSkeletons.ts`, the fallbacks of Dividendi and Divisione
   `components/cashflow/CashflowTabSkeletons.tsx` (2026-10-06); held by `perf:budget` (Cashflow's ceiling), by every
   `e2e/cashflow.*.spec.ts` that opens a tab, and by `e2e/lazyTabLanding.ts` (the fallback's geometry)
-- **Suites to run after a change here — Transfers / cash** (moved from `AGENTS.md` § Commands on 2026-09-30): `cashBalanceReconciliation`, `updateCashAssetBalancesAtomic`, `transferFeature`, `cashSettlement`, `serverCashSettlement` · **Commissione** `expenseFee`, `dialogNarrative` (+ `settingsRoundTrip`, `settingsNarrative`) · **Mutuo** `mortgageRepayment`, `mortgageSummary`, `updateAssetDebtFields`, `loanAssets`, `growthDrivers` (+ `patrimonioNarrative` for the tile's words) · **Ricorrenze** `recurrenceDates` · **Browser** `e2e/cashflow.{accounts,transfer-fee,mortgage}.spec.ts`
+- **Suites to run after a change here — Transfers / cash** (moved from `AGENTS.md` § Commands on 2026-09-30): `cashBalanceReconciliation`, `updateCashAssetBalancesAtomic`, `transferFeature`, `cashSettlement`, `serverCashSettlement`, `propertyTransfer`, `propertyLink` · **Commissione** `expenseFee`, `dialogNarrative` (+ `settingsRoundTrip`, `settingsNarrative`) · **Mutuo** `mortgageRepayment`, `mortgageSummary`, `updateAssetDebtFields`, `loanAssets`, `growthDrivers` (+ `patrimonioNarrative` for the tile's words) · **Ricorrenze** `recurrenceDates` · **Browser** `e2e/cashflow.{accounts,transfer-fee,mortgage}.spec.ts`
 
 ## Expenses by window (`lib/utils/expenseWindows.ts`)
 - **Tracciamento, Divisione, Budget and FIRE read a WINDOW of the expenses, never the collection** (2026-09-30).
@@ -94,8 +94,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   icons statically (tree-shaken, ~30 KB raw by the 2026-09-26 estimate) and only the render by name keeps the lazy map.
 
 ## Expense Grouping: key by id, label by name (`lib/utils/expenseGrouping.ts`)
-- **Category names are NOT unique and never will be** — the product deliberately allows "Casa" as both a *Spese Fisse*
-  and a *Spese Variabili* category, so anything keyed on `categoryName` merges them.
+- **Category names are NOT unique and never will be** — the product deliberately allows "Casa" as both a *Spese Necessarie*
+  and a *Spese Non Necessarie* category, so anything keyed on `categoryName` merges them.
 - **The one rule: group by `getCategoryKey`/`getSubCategoryKey`, display via `resolveDisplayLabels`.** `getCategoryKey` =
   `categoryId || trimmed name || UNCATEGORIZED_LABEL`; `getSubCategoryKey` maps missing/blank to `NO_SUBCATEGORY_KEY`, a
   key like any other — which is what lets callers drop their `=== 'Altro'` special cases.
@@ -104,6 +104,13 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   fixed+variable+debt together and let transfers through.
 
 ## Expense Sign Convention and Type Changes
+- **The two spending types mean NECESSITY, not cadence** (owner, 2026-10-20): `fixed` is labelled «Spese Necessarie»
+  (rent, utilities, groceries, the car, the children, health, taxes) and `variable` «Spese Non Necessarie» (eating out,
+  subscriptions, hobbies, clothes, gifts, holidays). The stored ids stay `fixed`/`variable`, every reader of the type is
+  untouched, and the Budget's pace rule (`budgetUtils` — a `fixed` category is what is booked, never paced) keeps its
+  name. The owner's production categories were rationalised the same day with a one-off scratchpad script (40 → 30,
+  727 rows re-pointed), outside the repo. Blind spot: «necessarie» is a substring of «non necessarie», so a search for
+  that token matches both types; the discriminating token is «non» (`__tests__/entitySearch.test.ts`).
 - **A cash account's balance is stored to the cent, not only the movement** (2026-10-07): every movement was already
   `roundToCents`, but `balance + movement` in binary floats left a residue that grew at each write and surfaced raw in
   the asset form's «Saldo» («4033,050000000001» on the owner's account). Every writer of a cash account's `quantity`
@@ -201,8 +208,21 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `assertFundValueLivesInQuantity`). The account falls and the property's value rises by the amount on the transfer's
   date (`balanceEffectsOf` is generic over asset ids; the client and the server write `quantity + delta` whatever the
   asset), net-zero for Cashflow, a transfer for the Driver (`other` on both legs, which cancel). The picker groups
-  «Conti» and «Immobili» and the hint says it is patrimony changing form, not a spending; the origin stays a cash
-  account. The feed and the table name the destination from EVERY asset (`accountNames`), not the cash ones alone.
+  «Conti» and «Immobili» and the hint says it is patrimony changing form, not a spending. The feed and the table name
+  the destination from EVERY asset (`accountNames`), not the cash ones alone.
+- **A transfer can START from a property** (owner, 2026-10-21 — a sale, a deposit received;
+  `lib/utils/propertyTransfer.ts`): «Origine» groups «Conti» and «Immobili» like the destination, a property is
+  offered on one end only, the hint reads «una vendita o una caparra ricevuta non è un’entrata». A property never
+  gives more than it is worth: an amount above its value (plus what the edited row already took, `propertyValueAvailable`)
+  is refused under the amount, the revaluation being the owner's gesture in Patrimonio. «Commissione» is hidden on such
+  a transfer (it would debit the house) and leaving the type clears a property origin. The guided path that writes a
+  whole purchase or sale with these transfers is Patrimonio › Compravendita (doc/guide/compravendita.md).
+- **«Legata all'immobile»** (`Expense.propertyAssetId`, owner 2026-10-21): any row but a transfer may name the house it
+  belongs to (the form's «Impostazioni avanzate»; «Collega la serie a un immobile…» from a series row's detail links
+  every occurrence, past included — it moves no balance; absent = none, no migration). Nothing in Cashflow reads it
+  but the detail («Immobile», «· dal mutuo» when the row repays a loan that finances the house — the loan wins,
+  `lib/utils/propertyLink.ts`); a sale in Compravendita proposes to stop the house's series. The rule and the reason in
+  doc/guide/compravendita.md § «Legata all'immobile».
 - **The BATCH paths refuse to cross the transfer boundary** (`crossesTransferBoundary`): `updateExpensesType`,
   `moveExpensesToCategory`, `moveExpensesFromSubCategory` throw `TransferBoundaryError` when expenses exist, since each
   row would need its own destination account.

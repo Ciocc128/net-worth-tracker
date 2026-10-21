@@ -4,6 +4,8 @@
 
 ## ✨ New Features
 
+- **Patrimonio — Compravendita** — Added «Compra o vendi casa», a guided path that records a house's purchase or sale one event at a time (the preliminare, then the rogito), one question per screen with «Indietro» and «Ricomincia»: buying creates the house, moves the deposit and the rest of the price onto it, opens the mortgage with its monthly instalments and records the policies — scoppio e incendio, and life/CPI ones paid at once, monthly or by a loan, each naming its insured from your household and tied to the house or personal; selling brings the house's value to the price, closes the mortgage with the price as at the notary (no expense: only the rest lands on the account) and proposes to stop the series that belong to the house. Notary, taxes, agency and the like are expenses in their own categories (a default per kind in Impostazioni › Spese › «Compravendita»), can be gathered in a cost centre, and a summary lists every write in words before «Conferma».
+
 - **Allocazione — Consulente** — Added a guided path that sets your allocation with two AI agents: eight screens, one question each («Indietro» always available, the draft kept on your browser) — age and horizon, how much of a loss you can stand shown as euro on your own base, the exchange you buy on, accumulation or distribution, your goals one per screen with «cosa manca?» at the end, whether your home, pension funds and illiquid holdings count in the base, what to keep and avoid, a summary —, then three model calls saved as each lands (the strategy, the instruments found on the web for your exchange, the review) and a report with the proposal against today, the instruments per sub-target, the goals with the instruments behind them, the role changes and «Applica», one checkbox per thing it writes (targets and sub-targets, asset roles, goals and quotas), with a date to review the plan by printed in the Allocazione header once applied. Under the report, «Chiedi una modifica» rewrites report and proposal on a request in your words in a couple of minutes (the review alone is run again; the requests stay listed on the report). Each of the three model calls is its own request, so a run fits the platform's five-minute limit and a stage that fails is retried from itself. Redoing the path later starts from the plan in force and its reasons — the last report, the changes you asked for, when you applied it — and the new report says what it confirms and what it changes. In the thirty days before the review date, and after it, the «Consulente» button of Allocazione becomes «Rivedi con il Consulente» and the report says how close the date is («La revisione del piano è vicina: entro il 31/10/2027, fra 12 giorni»). Reached from the «Consulente» button of Allocazione and from a row under the Assistente's conversation; not on the demo account.
 
 - **Cashflow › Budget — «Fuori dal budget»** — Added a checkbox on a spending row for a purchase made for someone else and refunded later: the row stays in your cashflow (Tracciamento, Analisi, Panoramica, Storico), but the month's ceiling, the category budgets, their projections and alerts and the budget emails no longer count it; a series or an instalment plan takes the flag on every occurrence, the feed and the table show a «fuori budget» chip and the row's detail a «Budget» line.
@@ -48,7 +50,8 @@
 
 - **Cashflow › Nuova voce** — Added the «Commissione» field on every entry, not only on a transfer: the bank fee becomes a spending row of its own in the category chosen in Impostazioni › Spese («Commissioni bancarie»), on the same account and date, edited from its entry and deleted with it; on a recurring series or an instalment plan every occurrence gets its own fee.
 - **Cashflow › Nuova voce** — Added «Estinzione anticipata» on a Debt entry that repays a loan: the whole amount goes to principal, partial or total, and the line under the field says the debt it leaves («da 10.000 € a 6.000 €»); a penalty goes in the fee.
-- **Cashflow › Nuova voce** — Added a transfer that lands on a property: the deposit on a house you are buying leaves the account and becomes value of the house, nothing counts as spending.
+- **Cashflow › Nuova voce** — Added transfers between an account and a house: the deposit on a house you are buying leaves the account and becomes value of the house, and a sale or a deposit you receive leaves the house and lands on the account — nothing counts as spending or income. The house never gives more than it is worth (the form says so and points to Patrimonio to raise its value first), and such a transfer takes no bank fee.
+- **Cashflow › Nuova voce** — Added «Legata all'immobile» in the advanced settings of an entry, and «Collega la serie a un immobile…» in a series entry's detail: a home or CPI policy tied to its house is proposed to stop when you sell it. A mortgage instalment needs no link — its detail reads «Immobile: Casa · dal mutuo».
 
 ## 🐛 Bug Fixes
 
@@ -86,6 +89,8 @@
 
 - **Cashflow › Movimenti (tabella)** — Fixed the deletion of a whole series from the table view, which left the fees' debits on the account; the feed already gave them back.
 
+- **Analisi › Vai a categoria…** — Fixed the page jumping back to the top a moment after the chosen category's Scheda had scrolled into view: the Scheda now opens once the search has closed, and stays where you can read it.
+
 - **Rendimenti › Analizza con AI** — Fixed the empty or cut-off report: when the model declines to write it, another model takes over where the kind of refusal allows it, and the dialog names the model that actually wrote the report; when the refusal stands, or the report reaches its maximum length, the dialog says so — refused, or stopped halfway with the text written so far incomplete — and «Rigenera» is offered after any failure, not only beside a finished report.
 
 ## 🔧 Improvements
@@ -107,6 +112,8 @@
 
 - **Cashflow · FIRE e Simulazioni · Impostazioni (telefono e tablet)** — Improved the section pill under the title: every tab is now a 44-pixel target for the thumb, so the pill is a little taller.
 - **Ogni pagina** — Improved the figures in every verdict and reading: the «€» now sits right after its number («+1.200 €» instead of a whole monospace cell of space between them), on the phone's figure strip too.
+
+- **Cashflow — Spese Necessarie e Non Necessarie** — Changed the names of the two spending types: «Spese Fisse» is now «Spese Necessarie» and «Spese Variabili» is «Spese Non Necessarie», in the type cards of a new entry («Spesa necessaria» / «Spesa non necessaria»), the filters, the feed, Analisi and the CSV import. Your categories keep their type; only its name changes, so you can sort them by what you need and what you choose.
 
 - **FIRE** — Improved the FIRE number: the loan on an excluded primary residence is left out with the house, so a debt on a thing not counted never lowers the figure.
 - **Storico › Driver** — Improved «mutuo»: a month that opens a loan shows the debt going up and one that closes it shows it repaid.

@@ -40,7 +40,7 @@ async function cashQuantity(db: FirebaseFirestore.Firestore): Promise<number> {
 }
 
 /** Opens the two-step create dialog from Tracciamento and picks the type on step 1. */
-async function openNewEntry(page: Page, type: 'Spesa variabile' | 'Trasferimento') {
+async function openNewEntry(page: Page, type: 'Spesa non necessaria' | 'Trasferimento') {
   await page.goto('/dashboard/cashflow', { waitUntil: 'load' });
   await page.getByRole('region', { name: 'Movimenti' }).waitFor({ timeout: 60_000 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('cashflow:add-expense')));
@@ -55,7 +55,7 @@ test('a transfer without its two accounts is refused, the reason under each fiel
   await dialog.locator('#amount').fill(String(DECOY_AMOUNT));
   await dialog.locator('button[type=submit]').click();
 
-  await expect(dialog.getByRole('alert').filter({ hasText: 'Scegli il conto di origine' })).toBeVisible();
+  await expect(dialog.getByRole('alert').filter({ hasText: 'Scegli il conto o l’immobile di origine' })).toBeVisible();
   await expect(dialog.getByRole('alert').filter({ hasText: 'Scegli il conto o l’immobile di destinazione' })).toBeVisible();
   await expect(dialog.locator('#linkedCashAssetId')).toHaveAttribute('aria-invalid', 'true');
   await expect(dialog.locator('#transferCashAssetId')).toHaveAttribute('aria-invalid', 'true');
@@ -70,7 +70,7 @@ test('a recurring expense links every row, debits today\'s at save and leaves th
   const db = await admin();
   const before = await cashQuantity(db);
 
-  const dialog = await openNewEntry(page, 'Spesa variabile');
+  const dialog = await openNewEntry(page, 'Spesa non necessaria');
   await dialog.locator('#amount').fill(String(DECOY_AMOUNT));
   await dialog.locator('#categoryId').click();
   await dialog.getByRole('button', { name: 'Alimentari', exact: true }).click();
