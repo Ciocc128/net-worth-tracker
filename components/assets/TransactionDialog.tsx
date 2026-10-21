@@ -704,6 +704,9 @@ export function TransactionDialog({ open, onClose, asset, transaction, prefill, 
                 placeholder="es. 1.00"
                 {...register('fees', { valueAsNumber: true })}
               />
+              <p className="text-xs text-muted-foreground">
+                Non entra nel PMC: va in Cashflow come spesa, nella categoria delle commissioni scelta in Impostazioni.
+              </p>
               {errors.fees && <p className="text-sm text-destructive">{errors.fees.message}</p>}
             </div>
 
