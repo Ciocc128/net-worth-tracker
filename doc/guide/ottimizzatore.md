@@ -17,6 +17,12 @@ monthly inflow gets closer.
   projection in `boxProjection.ts`). Two modes: **Raggiungibile col PAC** never goes below what is held (the PAC does
   not sell), **Ideale** ignores what is held. An objective that cannot be met is reported as a conflict
   (`computeConflicts`), never silently dropped.
+- **«Con vendite mirate»** (a third mode, only in «Allocazione ideale»; the PAC does not sell): the same objectives
+  under a tax cap in euro (`Tasse massime`) and a «Non vendere» box per instrument (dialog state, never persisted;
+  a frozen instrument or one with no fiscal cost basis is locked). The tax of a sale is the gain share of the price
+  times the asset's rate (`taxPerEuroSoldOf`); where the cap does not bind the mode is Ideale, where it does the
+  engine searches the tax multiplier on the same solver (`solveTargeted`). The table shows the tax per row and one
+  total line («Vendi …, paghi circa … di tasse»); «Crea un PAC» seeds the sales as planned disposals.
 - **The model** lives in `modelPortfolios/{ownerId}` (`types/modelPortfolio.ts`): weights per instrument (a group of
   equivalent instruments buys with its first member), an origin (`manual` | `optimizer`) and the snapshot of the
   calculation it started from. The Firestore rule is in `firestore.rules` and **must be published by hand**.
@@ -29,7 +35,7 @@ monthly inflow gets closer.
 
 ## Files
 
-`types/modelPortfolio.ts` · `lib/utils/{weightOptimizer,weightOptimizerNarrative,activeSetQP,boxProjection,modelPortfolio,idealAllocationEditor,runGuarded}.ts` · `lib/services/modelPortfolioService.ts` · `lib/hooks/useModelPortfolio.ts` · `components/allocation/{OptimizerPanel,OptimizerReport,IdealCompositionDialog,ObiettiviDialog,ModelEditDialog}.tsx` · `components/allocation/tiles/{ObiettiviTile,PortafoglioModelloTile}.tsx` · `components/settings/{IdealAllocationTile,IdealAllocationSummary}.tsx` · tests `__tests__/{weightOptimizer,weightOptimizerNarrative,activeSetQP,boxProjection,modelPortfolio,modelPortfolioGroups,idealAllocationEditor}.test.ts`.
+`types/modelPortfolio.ts` · `lib/utils/{weightOptimizer,weightOptimizerNarrative,activeSetQP,boxProjection,modelPortfolio,idealAllocationEditor,runGuarded}.ts` · `lib/services/modelPortfolioService.ts` · `lib/hooks/useModelPortfolio.ts` · `components/allocation/{OptimizerPanel,OptimizerReport,IdealCompositionDialog,ObiettiviDialog,ModelEditDialog}.tsx` · `components/allocation/tiles/{ObiettiviTile,PortafoglioModelloTile}.tsx` · `components/settings/{IdealAllocationTile,IdealAllocationSummary}.tsx` · tests `__tests__/{weightOptimizerTargeted,weightOptimizer,weightOptimizerNarrative,activeSetQP,boxProjection,modelPortfolio,modelPortfolioGroups,idealAllocationEditor}.test.ts`.
 
 ## Per-page blind spots
 
@@ -37,5 +43,5 @@ monthly inflow gets closer.
   the header all read.
 - **The optimizer weighs class, leverage, factor and group objectives only**; a class objective and a leverage
   objective can disagree, and the report then names the conflict instead of picking a side.
-- **The model never sells**: an instrument above its model weight stays above it, and the tile says so.
+- **The model never sells**: an instrument above its model weight stays above it, and the tile points at «Con vendite mirate» in «Ricalcola».
 - **The census fixture and the mobile budget have no model**: the tab with a model is measured by hand.

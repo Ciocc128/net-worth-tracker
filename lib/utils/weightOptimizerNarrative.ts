@@ -9,9 +9,9 @@
  * not "Momentum (Azioni)".
  */
 import { isLoanAsset, type Asset, type AssetClass } from '@/types/assets';
-import type { ConflictReport, ObjectiveReport, OptimizerMode, OptimizerWarning, SecondLevelGap } from './weightOptimizer';
+import type { ConflictReport, ObjectiveReport, OptimizerMode, OptimizerSaleReport, OptimizerWarning, SecondLevelGap } from './weightOptimizer';
 import { ASSET_CLASS_LABELS, resolveAllocationRoleWithin } from './allocationUtils';
-import { cachedFormatCurrencyEUR, formatNumberIt, formatPercentageIt } from './formatters';
+import { cachedFormatCurrencyEUR, formatCurrency, formatNumberIt, formatPercentageIt } from './formatters';
 import { formatSignedCurrency } from './accumulationNarrative';
 
 const SECOND_LEVEL_GAP_NAME_LIMIT = 5;
@@ -185,13 +185,16 @@ export const OPTIMIZER_SPECIFIC_ASSETS_NOTE =
 export const OPTIMIZER_MODE_LABELS: Record<OptimizerMode, string> = {
   reachable: 'Raggiungibile col PAC',
   ideal: 'Ideale',
+  targeted: 'Con vendite mirate',
 };
 
-/** The one-line difference shown under the mode toggle (§9.2 point 3). */
+/** The one-line difference shown under the mode toggle (§9.2 point 3;. */
 export function describeOptimizerMode(mode: OptimizerMode): string {
   switch (mode) {
     case 'reachable':
       return 'Raggiungibile non scende sotto ciò che possiedi, perché il PAC non vende.';
+    case 'targeted':
+      return 'Con vendite mirate vende solo ciò che conviene di più, finché le tasse restano sotto il tetto; gli strumenti spuntati non si vendono.';
     case 'ideal':
       return 'Ideale ignora quanto possiedi oggi: propone i pesi più vicini ai criteri del modello, anche sotto il posseduto.';
   }
@@ -275,6 +278,45 @@ export const IDEAL_COMPOSITION_ACTION_CREATE_PAC = 'Crea un PAC con questi pesi'
 export const IDEAL_COMPOSITION_PLAN_ALREADY_OPEN =
   'Hai già un piano aperto: modificalo dal tile Accumulo.';
 
+// ---------------------------------------------------------------------------
+// «Con vendite mirate» — only in the standalone tool
+// ---------------------------------------------------------------------------
+
+export const IDEAL_COMPOSITION_TAX_CAP_LABEL = 'Tasse massime (€)';
+export const IDEAL_COMPOSITION_COL_LOCK = 'Non vendere';
+export const IDEAL_COMPOSITION_COL_TAX = 'Tasse';
+export const IDEAL_COMPOSITION_LOCK_UNKNOWN_BASIS = 'Costo fiscale sconosciuto';
+export const IDEAL_COMPOSITION_LOCK_FROZEN = 'Bloccato in Impostazioni';
+
+/** Below half a euro a «sale» is float noise, not an order anyone places. */
+const SALE_NOISE_EUR = 0.5;
+
+/** The «Tasse» cell: the estimated tax on a row in sale — «0,00 €» on a sale at a loss — and «—»
+ *  on a row that sells nothing. */
+export function formatSaleTaxCell(soldEur: number, taxEur: number): string {
+  return soldEur < SALE_NOISE_EUR ? '—' : formatCurrency(taxEur);
+}
+
+function wholeEuro(value: number): string {
+  return formatCurrency(Math.round(value), 'EUR', 0);
+}
+
+/**
+ * The total line under the table «Vendi 8.213 €, paghi circa 494 € di tasse
+ * (tetto 500 €).» when the cap binds, «…: è l'Ideale, il tetto di 1.000 € non serve.» when it
+ * does not, «Nessuna vendita…» when nothing is sold — and, first, the tax the Impostazioni limits
+ * force when it exceeds the cap (owner's call, 2026-09-27).
+ */
+export function describeTargetedSaleTotal(sale: OptimizerSaleReport): string {
+  if (sale.soldEur < SALE_NOISE_EUR) return 'Nessuna vendita: i pesi sono quelli raggiungibili col PAC.';
+  const sold = `Vendi ${wholeEuro(sale.soldEur)}, paghi circa ${wholeEuro(sale.taxEur)} di tasse`;
+  if (sale.minTaxEur > sale.taxCapEur + SALE_NOISE_EUR) {
+    return `I limiti in Impostazioni obbligano a pagare almeno ${wholeEuro(sale.minTaxEur)} di tasse, oltre il tetto di ${wholeEuro(sale.taxCapEur)}: ${sold.charAt(0).toLowerCase()}${sold.slice(1)}.`;
+  }
+  if (!sale.capBinding) return `${sold}: è l'Ideale, il tetto di ${wholeEuro(sale.taxCapEur)} non serve.`;
+  return `${sold} (tetto ${wholeEuro(sale.taxCapEur)}).`;
+}
+
 /** «+1.240,00 €» — the weight's € distance at B, mono (The Comma Rule: never `toFixed`). */
 export function formatOptimizerWeightDiffEur(currentPct: number, proposedPct: number, baseEur: number): string {
   return formatSignedCurrency(((proposedPct - currentPct) / 100) * baseEur);
@@ -330,6 +372,8 @@ export const MODEL_GROUP_NO_BUY = 'non riceve acquisti';
 export function describeModelGroupMembers(otherLabels: string[]): string {
   return `Gruppo con ${otherLabels.join(', ')}: compra solo il primo.`;
 }
+export const MODEL_TARGETED_HINT =
+  'Per avvicinarti al modello vendendo poco, «Ricalcola» ha la modalità «Con vendite mirate», con un tetto di tasse.';
 
 function formatModelDay(updatedAt: Date): string {
   return `${String(updatedAt.getDate()).padStart(2, '0')}/${String(updatedAt.getMonth() + 1).padStart(2, '0')}/${updatedAt.getFullYear()}`;
@@ -366,12 +410,15 @@ export function describeModelTileAside(baseEur: number): string {
   return `pesi di mercato · base ${cachedFormatCurrencyEUR(baseEur, true)}`;
 }
 
-/** The tile's foot: who stays above the model, since the PAC never sells. Null when nobody does. */
-export function describeModelSalesHint(overweightLabels: string[]): string | null {
-  if (overweightLabels.length === 0) return null;
+/**
+ * The tile's foot (render, view 1): who stays above the model without selling, then where the sale
+ * is — a calculation the reader asks for in «Ricalcola», never run here.
+ */
+export function describeModelSalesHint(overweightLabels: string[]): string {
+  if (overweightLabels.length === 0) return MODEL_TARGETED_HINT;
   const names = overweightLabels.length === 1 ? overweightLabels[0] : `${overweightLabels.slice(0, -1).join(', ')} e ${overweightLabels[overweightLabels.length - 1]}`;
   const verb = overweightLabels.length === 1 ? 'resta sopra' : 'restano sopra';
-  return `Senza vendere, ${names} ${verb} il modello.`;
+  return `Senza vendere, ${names} ${verb} il modello. ${MODEL_TARGETED_HINT}`;
 }
 
 export const MODEL_SAVE_ACTION = 'Salva come portafoglio modello';
