@@ -55,6 +55,7 @@
     },
     "allocazione-accumulo": {
       "path": "/dashboard/allocation?tab=accumulo",
+      "tab": "Accumulo",
       "target": true
     },
     "previdenza": {
