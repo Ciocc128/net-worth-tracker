@@ -1,7 +1,6 @@
 /**
  * Allocazione › Accumulo a 390px — la composizione per il telefono (2026-10-18; le regole in
- * doc/guide/accumulo.md § Composizione mobile e in DESIGN.md → Small-Screen Composition; le specifiche in
- * doc/contributi-upstream/composizione-mobile.md § 3).
+ * doc/guide/accumulo.md § Composizione mobile e in DESIGN.md → Small-Screen Composition).
  *
  * PERCHÉ ESISTE: la pagina era una pila di sei tessere aperte; ora ha il verdetto tagliato dopo la prima
  * frase («Il perché · il rientro nella banda»), una striscia di celle da pollice, LA tessera Questo mese

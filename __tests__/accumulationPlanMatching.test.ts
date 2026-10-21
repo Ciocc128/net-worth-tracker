@@ -1,5 +1,5 @@
 /**
- * Tests for the PAC ledger-matching engine (lib/utils/accumulationPlanMatching.ts, doc/pac-ate.md §9/§11).
+ * Tests for the PAC ledger-matching engine (lib/utils/accumulationPlanMatching.ts).
  */
 import { describe, it, expect } from 'vitest';
 import type { AccumulationPlan, Installment, PlanDisposal } from '@/types/accumulationPlan';

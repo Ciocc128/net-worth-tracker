@@ -1,6 +1,6 @@
 /**
  * accumulationPlanMatching — proposes ledger matches for a plan's installment lines and disposals,
- * and derives the confirmation state the tile renders (doc/pac-ate.md §9, D10).
+ * and derives the confirmation state the tile renders.
  *
  * Pure: no Firebase import, `today` arrives as a parameter (mirrors `accumulationPlanUtils.ts`'s
  * discipline). A candidate is a trade the ledger already carries; confirming a match writes its

@@ -302,13 +302,20 @@ export const ALLOCAZIONE_CLOSED_ASIDES = {
 export function describeAllocazioneHeader(input: {
   marketValue: number;
   classCount: number;
-  targetSource: 'settings' | 'goals';
+  /** Where the page's weights come from: the Accumulo tab reads them from the model or the plan, not the settings. */
+  targetSource: 'settings' | 'goals' | 'model' | 'plan';
   /** The Consulente's line when its plan was applied (`describeReviewBy`, 2026-10-20); absent otherwise. */
   reviewBy?: string | null;
 }): string | undefined {
   if (input.classCount === 0) return undefined;
   const classes = input.classCount === 1 ? '1 classe' : `${input.classCount} classi`;
-  const source = input.targetSource === 'goals' ? 'target dagli obiettivi' : 'target dalle impostazioni';
+  const SOURCES = {
+    goals: 'target dagli obiettivi',
+    settings: 'target dalle impostazioni',
+    model: 'pesi dal portafoglio modello',
+    plan: 'dai pesi del piano',
+  } as const;
+  const source = SOURCES[input.targetSource];
   const base = `${cachedFormatCurrencyEUR(input.marketValue, true)} allocati · ${classes} · ${source}`;
   return input.reviewBy ? `${base} · ${input.reviewBy}` : base;
 }

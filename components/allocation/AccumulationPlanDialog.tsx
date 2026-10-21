@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * AccumulationPlanDialog — the three-step PAC editor (doc/pac-ate.md §10.3).
+ * AccumulationPlanDialog — the three-step PAC editor.
  *
  * Step 1 picks where the money comes from, step 2 where it goes (one row per tradable asset, a
  * toggle between «Nel piano» and «Da vendere», optional proxy grouping, «+ Nuovo asset» for a
@@ -15,10 +15,12 @@
  * before the write is even attempted (§6, §10.3: "uno alla volta, il primo").
  */
 import { useEffect, useMemo, useState } from 'react';
-import type { Asset, AssetAllocationTarget } from '@/types/assets';
+import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
+import type { ModelPortfolio } from '@/types/modelPortfolio';
 import type {
   AccumulationPlan,
   AccumulationPlanDraft,
+  OptimizerSnapshot,
   PlanDisposal,
   PlanPosition,
 } from '@/types/accumulationPlan';
@@ -38,6 +40,8 @@ import {
   isOpenSavedDisposal,
   listAddableAssets,
   marketWeights,
+  applyModelToPositions,
+  modelWeightMap,
   orderGroupMembers,
   proceedsOfDisposal,
   resolvePositionStates,
@@ -48,6 +52,8 @@ import {
 import { validateDraftAgainstAssets, type DraftIssue } from '@/lib/utils/accumulationPlanSchema';
 import { compareAllocations } from '@/lib/services/assetAllocationService';
 import { calculateAssetValue } from '@/lib/services/assetService';
+import { useSaveModelPortfolio } from '@/lib/hooks/useModelPortfolio';
+import { comparePlanToModel, MODEL_NO_TRADABLE_INSTRUMENTS, planPositionsToModelWeights } from '@/lib/utils/modelPortfolio';
 import { useCreateDraftPlan, useUpdateDraftPlan, useActivatePlan, useRevisePlan } from '@/lib/hooks/useAccumulationPlan';
 import { useAssetLedgerMeta, useAssetTransactions } from '@/lib/hooks/useAssetTransactions';
 import { useAnnualCashflow } from '@/lib/hooks/useAnnualCashflow';
@@ -64,9 +70,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AssetDialog } from '@/components/assets/AssetDialog';
 import { PlanDraftSidePanel } from '@/components/allocation/PlanDraftSidePanel';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
+import { OptimizerPanel } from '@/components/allocation/OptimizerPanel';
 import { SegmentedPill } from '@/components/ui/segmented-pill';
+import {
+  describeOptimizerSnapshot,
+  OPTIMIZER_STEP2_ARIA_LABEL,
+} from '@/lib/utils/weightOptimizerNarrative';
 import { cachedFormatCurrencyEUR, formatNumberIt, formatPercentageIt } from '@/lib/utils/formatters';
-import { describeModalStatus, describeWriteError, type ModalStatus } from '@/lib/utils/dialogNarrative';
+import { describeModalStatus, describeWriteError, userFacingError, type ModalStatus } from '@/lib/utils/dialogNarrative';
 import {
   ACCUMULO_ACTION_ACTIVATE,
   ACCUMULO_ACTION_BACK,
@@ -81,8 +92,10 @@ import {
   ACCUMULO_STEP2_COL_PER_MONTH,
   ACCUMULO_STEP2_COL_TO_BUY,
   ACCUMULO_STEP2_FROM_LABEL,
+  ACCUMULO_STEP2_FROM_MODEL,
   ACCUMULO_STEP2_FROM_PLAN,
   ACCUMULO_STEP2_FROM_HINT,
+  ACCUMULO_STEP2_FROM_OPTIMIZER,
   ACCUMULO_STEP2_FROM_TODAY,
   ACCUMULO_STEP2_GROUP_HINT,
   ACCUMULO_STEP2_GROUP_NO_BUY,
@@ -152,6 +165,9 @@ import {
   monthLabelLong,
   monthLabelShort,
   trajectoryPointLabel,
+  ACCUMULO_ACTION_CLOSE_EDITOR,
+  ACCUMULO_STEP3_UPDATE_MODEL,
+  describeModelWriteAfterPlan,
 } from '@/lib/utils/accumulationNarrative';
 
 interface AccumulationPlanDialogProps {
@@ -163,11 +179,23 @@ interface AccumulationPlanDialogProps {
   allAssets: Asset[];
   targets: AssetAllocationTarget;
   band: RebalanceBand;
-  /** deriveTargetLeverageRatio(targets) — the leva target the preview's class strip reads against. */
+  /** deriveTargetLeverageRatio(targets) — the leva target the optimizer's leverage objective aims at. */
   targetLeverageRatio: number;
+  /** The owner's "Allocazione ideale" objectives (Impostazioni → Allocazione), or `null` when not
+   *  yet loaded — the Ottimizzato view of step 2 reads it, never a second copy. */
+  idealAllocation: IdealAllocationSettings | null;
   /** A «+ Nuovo asset» create landed: the page must reload `allAssets`. */
   onAssetsChanged: () => void;
   onSaved: (planId: string) => void;
+  /** §4.2 — seeds a BRAND-NEW draft (`plan === null`) from `IdealCompositionDialog`'s proposed
+   *  weights, in place of `seedPositionsFromAssets`. Ignored whenever `plan` is set (editing an
+   *  existing draft/active plan never re-seeds it) — without this prop the dialog behaves exactly
+   *  as before. */
+  seedDraft?: { positions: PlanPosition[]; disposals?: PlanDisposal[]; optimizerSnapshot?: OptimizerSnapshot };
+  /** RP1: the model portfolio — a brand-new draft starts from it, and the Target step offers it under «Parti da». */
+  model?: ModelPortfolio | null;
+  /** AL15: with `revise`, the draft opens on «Parti da › Portafoglio modello» (the plan's weights replaced by the model's). */
+  reviseFromModel?: boolean;
   /** RP4: «Rivedi il piano» on an ACTIVE `plan` — same form, step 1 asks the months left, the save is `revisePlan`. */
   revise?: boolean;
 }
@@ -178,6 +206,7 @@ const MAX_CALENDAR_ROWS = 8;
 function emptyDraft(
   startMonth: string,
   positions: PlanPosition[] = [],
+  optimizerSnapshot?: OptimizerSnapshot,
   disposals: PlanDisposal[] = []
 ): AccumulationPlanDraft {
   return {
@@ -187,6 +216,7 @@ function emptyDraft(
     liquidity: { sourceCashAssetIds: [], reserveEur: 0, monthlyInflowEur: 0 },
     positions,
     disposals,
+    optimizerSnapshot,
   };
 }
 
@@ -198,6 +228,7 @@ function draftFromPlan(plan: AccumulationPlan): AccumulationPlanDraft {
     liquidity: plan.liquidity,
     positions: plan.positions,
     disposals: plan.disposals,
+    optimizerSnapshot: plan.optimizerSnapshot,
   };
 }
 
@@ -215,6 +246,7 @@ function draftForRevision(plan: AccumulationPlan): AccumulationPlanDraft {
     liquidity: plan.liquidity,
     positions: plan.positions,
     disposals: plan.disposals.filter((disposal) => disposal.status !== 'executed'),
+    optimizerSnapshot: plan.optimizerSnapshot,
   };
 }
 
@@ -251,9 +283,13 @@ export function AccumulationPlanDialog({
   targets,
   band,
   targetLeverageRatio,
+  idealAllocation,
   onAssetsChanged,
   onSaved,
+  seedDraft,
+  model = null,
   revise = false,
+  reviseFromModel = false,
 }: AccumulationPlanDialogProps) {
   const isDemo = useDemoMode();
   const chartColors = useChartColors();
@@ -269,16 +305,22 @@ export function AccumulationPlanDialog({
   // AL9: the position whose buyer is being replaced (a row's «Sostituisci»), and where a «+ Nuovo asset» lands.
   const [replacingPositionId, setReplacingPositionId] = useState<string | null>(null);
   const [newAssetFor, setNewAssetFor] = useState<'add' | 'replace'>('add');
-  const [weightsFrom, setWeightsFrom] = useState<'plan' | 'today' | null>(null);
+  const [showOptimizer, setShowOptimizer] = useState(false);
+  const [weightsFrom, setWeightsFrom] = useState<'plan' | 'model' | 'today' | 'optimizer' | null>(null);
   // The plan's own weights and sales as the dialog opened on them: «Piano attuale» brings them back.
   const [planBase, setPlanBase] = useState<{ positions: PlanPosition[]; disposals: PlanDisposal[] } | null>(null);
   const [groupingMode, setGroupingMode] = useState(false);
+  // AL14: the checkbox of step 3 — null = its default (on when the plan differs from the model).
+  const [updateModelChoice, setUpdateModelChoice] = useState<boolean | null>(null);
+  // The plan is written but the model's write failed: the editor stays open on the error row, nothing else to submit.
+  const [modelWriteFailed, setModelWriteFailed] = useState(false);
 
   // Reset on every (open, plan) change, settled during render — AGENTS.md § Dialog Form Reset.
   const [openSubject, setOpenSubject] = useState<{ open: boolean; plan: AccumulationPlan | null } | null>(null);
   if (!openSubject || openSubject.open !== open || openSubject.plan !== plan) {
     setOpenSubject({ open, plan });
     if (open) {
+      const fromModel = !plan && !seedDraft && !!model && Object.keys(modelWeightMap(model)).length > 0;
       setDraft(
         plan
           ? revise
@@ -286,20 +328,41 @@ export function AccumulationPlanDialog({
             : draftFromPlan(plan)
           : emptyDraft(
               addMonths(toMonthKey(new Date()), 1),
-              applyWeightsToPositions(
-                seedPositionsFromAssets(allAssets),
-                marketWeights(
-                  seedPositionsFromAssets(allAssets).flatMap((position) => position.memberAssetIds).map((id) => allAssets.find((a) => a.id === id)).filter((a): a is Asset => !!a),
-                  DEPS
-                ),
-                new Set(),
-                (id) => allAssets.find((a) => a.id === id)?.name ?? id
-              )
+              seedDraft?.positions ??
+                (fromModel && model
+                  ? applyModelToPositions(
+                      seedPositionsFromAssets(allAssets),
+                      model,
+                      new Set(),
+                      (id) => allAssets.find((a) => a.id === id)?.name ?? id
+                    )
+                  : applyWeightsToPositions(
+                      seedPositionsFromAssets(allAssets),
+                      marketWeights(
+                        seedPositionsFromAssets(allAssets).flatMap((position) => position.memberAssetIds).map((id) => allAssets.find((a) => a.id === id)).filter((a): a is Asset => !!a),
+                        DEPS
+                      ),
+                      new Set(),
+                      (id) => allAssets.find((a) => a.id === id)?.name ?? id
+                    )),
+              seedDraft?.optimizerSnapshot ?? (fromModel ? model?.optimizerSnapshot : undefined),
+              seedDraft?.disposals
             )
       );
+      // AL15: «Rivedi dal modello» opens the revision with the model's weights (and groups) already applied.
+      const fromModelRevision = !!plan && revise && reviseFromModel && !!model;
+      if (fromModelRevision && model)
+        setDraft((prev) => ({
+          ...prev,
+          positions: applyModelToPositions(prev.positions, model, new Set(), (id) => allAssets.find((a) => a.id === id)?.name ?? id),
+          optimizerSnapshot: model.optimizerSnapshot ?? prev.optimizerSnapshot,
+        }));
       const planDraft = plan ? (revise ? draftForRevision(plan) : draftFromPlan(plan)) : null;
       setPlanBase(planDraft ? { positions: planDraft.positions, disposals: planDraft.disposals } : null);
-      setWeightsFrom(plan ? 'plan' : 'today');
+      setWeightsFrom(fromModel || fromModelRevision ? 'model' : seedDraft ? 'optimizer' : plan ? 'plan' : 'today');
+      setShowOptimizer(false);
+      setUpdateModelChoice(null);
+      setModelWriteFailed(false);
       setGroupingMode(false);
       setStep(plan && !revise ? 2 : 1);
       setStatus({ phase: 'idle' });
@@ -409,32 +472,42 @@ export function AccumulationPlanDialog({
     [revise, plan, draft.disposals],
   );
 
-  /** RP1: «Parti da» — the plan's own weights, or today's market weights, onto the draft's positions. */
-  const startFrom = (source: 'plan' | 'today') => {
+  /** RP1: «Parti da» — the model's weights, or today's market weights, onto the draft's positions. */
+  const startFrom = (source: 'plan' | 'model' | 'today' | 'optimizer') => {
     setWeightsFrom(source);
     if (source === 'plan') {
+      setShowOptimizer(false);
       if (planBase) setDraft((prev) => ({ ...prev, positions: planBase.positions, disposals: planBase.disposals }));
       setKeptPositions({});
       return;
     }
+    if (source === 'optimizer') {
+      setShowOptimizer(true);
+      return;
+    }
+    setShowOptimizer(false);
     // Picking a source goes back to its initial setup: every whole-instrument sale taken back to
     // Tieni (the ones the plan already carries stay), then the source's weights.
     const givenBack = draft.disposals.filter((d) => d.quantity === undefined && !lockedSaleIds.has(d.assetId) && keptPositions[d.assetId]);
     const sold = new Set(draft.disposals.filter((d) => d.quantity === undefined && !givenBack.includes(d)).map((d) => d.assetId));
     const base = [...draft.positions, ...givenBack.map((d) => keptPositions[d.assetId])];
-    const nextPositions = applyWeightsToPositions(
-      base,
-      marketWeights(
-        draft.positions.flatMap((position) => position.memberAssetIds).map((id) => assetsById.get(id)).filter((a): a is Asset => !!a),
-        DEPS
-      ),
-      sold,
-      labelOfAsset
-    );
+    const nextPositions =
+      source === 'model' && model
+        ? applyModelToPositions(base, model, sold, labelOfAsset)
+        : applyWeightsToPositions(
+            base,
+            marketWeights(
+              draft.positions.flatMap((position) => position.memberAssetIds).map((id) => assetsById.get(id)).filter((a): a is Asset => !!a),
+              DEPS
+            ),
+            sold,
+            labelOfAsset
+          );
     setDraft((prev) => ({
       ...prev,
       positions: nextPositions,
       disposals: prev.disposals.filter((d) => !givenBack.includes(d)),
+      optimizerSnapshot: source === 'model' ? model?.optimizerSnapshot ?? prev.optimizerSnapshot : prev.optimizerSnapshot,
     }));
   };
 
@@ -528,6 +601,35 @@ export function AccumulationPlanDialog({
   const updateMutation = useUpdateDraftPlan(ownerId);
   const activateMutation = useActivatePlan(ownerId);
   const reviseMutation = useRevisePlan(ownerId);
+  const saveModelMutation = useSaveModelPortfolio(ownerId);
+
+  // AL14: «Aggiorna anche il portafoglio modello» — on when the plan's weights differ from the model (or none exists).
+  const modelDiffers = useMemo(() => !model || comparePlanToModel(draft.positions, model).count > 0, [draft.positions, model]);
+  const updateModel = !isDemo && (updateModelChoice ?? modelDiffers);
+
+  /** AL14: the draft's weights into the model, with the plan's own snapshot. Throws like any write. */
+  const writeModelFromDraft = async () => {
+    const fit = planPositionsToModelWeights(draft.positions, assetsById, (asset) => asset.quantity);
+    if (fit.portfolioWeights.length === 0) throw userFacingError(MODEL_NO_TRADABLE_INSTRUMENTS);
+    await saveModelMutation.mutateAsync({
+      input: { weights: fit.portfolioWeights, origin: 'manual', optimizerSnapshot: draft.optimizerSnapshot },
+      allAssets,
+    });
+  };
+
+  /** After the plan is written: the model too when asked. Returns true when the editor can close. */
+  const finishWithModel = async (): Promise<boolean> => {
+    if (!updateModel) return true;
+    try {
+      await writeModelFromDraft();
+      return true;
+    } catch (error) {
+      setModelWriteFailed(true);
+      setStatus({ phase: 'error', message: describeModelWriteAfterPlan(describeWriteError(error)) });
+      return false;
+    }
+  };
+
   const saveDraft = async (): Promise<string | null> => {
     setStatus({ phase: 'submitting' });
     try {
@@ -567,8 +669,10 @@ export function AccumulationPlanDialog({
       setStatus({ phase: 'error', message: describeWriteError(error) });
       return;
     }
-    onSaved(planId);
-    onClose();
+    if (await finishWithModel()) {
+      onSaved(planId);
+      onClose();
+    }
   };
 
   /** RP4/AL11: the revision writes the new sales and the changes to the saved ones; executed sales stay as they are. */
@@ -594,8 +698,10 @@ export function AccumulationPlanDialog({
       setStatus({ phase: 'error', message: describeWriteError(error) });
       return;
     }
-    onSaved(plan.id);
-    onClose();
+    if (await finishWithModel()) {
+      onSaved(plan.id);
+      onClose();
+    }
   };
 
   const canProceedFromStep2 = Math.abs(weightsSum - 100) <= 0.01 && draft.positions.length > 0;
@@ -690,6 +796,8 @@ export function AccumulationPlanDialog({
               <Button onClick={() => setStep((step + 1) as 2 | 3)} disabled={step === 2 && !canProceedFromStep2}>
                 {ACCUMULO_ACTION_NEXT}
               </Button>
+            ) : modelWriteFailed ? (
+              <Button onClick={onClose}>{ACCUMULO_ACTION_CLOSE_EDITOR}</Button>
             ) : revise ? (
               <Button onClick={() => void handleRevise()} disabled={isDemo || status.phase === 'submitting' || issues.length > 0}>
                 {ACCUMULO_ACTION_SAVE_REVISION}
@@ -886,18 +994,41 @@ export function AccumulationPlanDialog({
               <SegmentedPill
                 options={[
                   ...(planBase ? [{ value: 'plan' as const, label: ACCUMULO_STEP2_FROM_PLAN }] : []),
+                  ...(model ? [{ value: 'model' as const, label: ACCUMULO_STEP2_FROM_MODEL }] : []),
                   { value: 'today' as const, label: ACCUMULO_STEP2_FROM_TODAY },
+                  { value: 'optimizer' as const, label: ACCUMULO_STEP2_FROM_OPTIMIZER },
                 ]}
-                value={(weightsFrom ?? 'none') as 'plan' | 'today'}
+                value={(weightsFrom ?? 'none') as 'plan' | 'model' | 'today' | 'optimizer'}
                 onChange={startFrom}
                 layoutId="accumulo-step2-from"
-                ariaLabel={ACCUMULO_STEP2_FROM_LABEL}
+                ariaLabel={OPTIMIZER_STEP2_ARIA_LABEL}
                 semantics="radio"
                 optionClassName="min-h-11 desktop:min-h-0"
               />
               {weightsFrom && <p className="mt-1.5 text-[12px] text-muted-foreground">{ACCUMULO_STEP2_FROM_HINT[weightsFrom]}</p>}
             </div>
 
+            {showOptimizer ? (
+              <OptimizerPanel
+                draft={draft}
+                allAssets={allAssets}
+                targets={targets}
+                targetLeverageRatio={targetLeverageRatio}
+                idealAllocation={idealAllocation}
+                liquidityL={liquidity?.L ?? 0}
+                onApply={(weightsByPositionKey, snapshot) => {
+                  setDraft((prev) => ({
+                    ...prev,
+                    positions: prev.positions.map((position) => ({
+                      ...position,
+                      targetPercentage: weightsByPositionKey[position.id] ?? position.targetPercentage,
+                    })),
+                    optimizerSnapshot: snapshot,
+                  }));
+                  setShowOptimizer(false);
+                }}
+              />
+            ) : (
               <>
             {candidateAssets.length === 0 ? (
               <p className="text-[13px] text-muted-foreground">{ACCUMULO_STEP2_NO_TRADABLE_ASSETS}</p>
@@ -1220,6 +1351,7 @@ export function AccumulationPlanDialog({
               </div>
             )}
               </>
+            )}
 
             <div className="flex items-center justify-between border-t border-border pt-2.5 text-[13px]">
               <span className="font-medium text-foreground">{ACCUMULO_STEP2_TOTAL_LABEL}</span>
@@ -1253,6 +1385,23 @@ export function AccumulationPlanDialog({
                 {describeUnpricedWarning(
                   preview.unpricedPositionIds.map((id) => draft.positions.find((p) => p.id === id)?.label ?? id),
                 )}
+              </p>
+            )}
+
+            {!isDemo && (
+              <label className="flex items-center gap-2 text-[13px] text-foreground">
+                <Checkbox
+                  checked={updateModel}
+                  disabled={status.phase === 'submitting' || modelWriteFailed}
+                  onCheckedChange={(checked) => setUpdateModelChoice(checked === true)}
+                />
+                {ACCUMULO_STEP3_UPDATE_MODEL}
+              </label>
+            )}
+
+            {draft.optimizerSnapshot && (
+              <p className="text-[11px] text-muted-foreground">
+                {describeOptimizerSnapshot(draft.optimizerSnapshot, draft.positions)}
               </p>
             )}
 

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * PianiConclusiTile — «come sono andati i piani passati?» (doc/pac-ottimizzatore § RP6, PO9). Read-only:
+ * PianiConclusiTile — «come sono andati i piani passati?». Read-only:
  * one row per `completed` or `cancelled` plan, newest first — name, period, installments closed,
  * what was invested against what the plan could spend, and the largest class gap at its last
  * measurement. The one action is AL12's «Riattiva», on a plan interrupted under 30 days ago while no

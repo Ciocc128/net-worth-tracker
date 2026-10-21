@@ -41,6 +41,6 @@ landscape the stage and the icon rail. At 1440 nothing changes: two columns, no 
 
 - **Query key**: every write (create, revise, interrupt, reactivate, confirm) invalidates `queryKeys.accumulationPlans.all`,
   the one key the tab and the Bilanciamento clause both read.
-- **«Parti da» has no portfolio-model source**: today's tradable weights or typed targets only.
+- **«Parti da»** seeds from today's tradable weights, typed targets or, when one is saved, the portfolio model (doc/guide/ottimizzatore.md).
 - **`zeroQuantityChip` («Mai comprato») is a util here, not yet shown in Patrimonio.**
 - **The census fixture and the mobile budget entry for this tab need a measurement on a real build** (`npm run mobile:census`, `mobile:budget`).

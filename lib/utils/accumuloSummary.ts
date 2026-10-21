@@ -1,5 +1,5 @@
 /**
- * accumuloSummary — the numbers of Allocazione's «Accumulo» tab (doc/pac-ottimizzatore § RV2–RV3).
+ * accumuloSummary — the numbers of Allocazione's «Accumulo» tab.
  *
  * Pure: the tab's verdict (`buildAccumuloVerdict`) and the one clause the Bilanciamento verdict
  * borrows from the active plan (`summarizePacMonth`) are read from the SAME open installment, so
@@ -24,7 +24,9 @@ import {
   type AllocationCompare,
   type PlanDeps,
 } from './accumulationPlanUtils';
-import { ASSET_CLASS_LABELS, resolveAllocationRole, type RebalanceBand } from './allocationUtils';
+import { toModelWeights } from './modelPortfolio';
+import type { ModelPortfolioWeight } from '@/types/modelPortfolio';
+import { ASSET_CLASS_LABELS, type RebalanceBand } from './allocationUtils';
 import type { StripFigure } from './verdictStrip';
 import { VERDICT_REST_SECTION } from './mobileSections';
 import type { SectionSpec } from '@/lib/hooks/useMobileSections';
@@ -68,6 +70,8 @@ export interface AccumuloVerdictContext {
   currentIndex: number;
   /** Σ value of the source cash accounts (none state). */
   sourceCashEur: number;
+  /** A saved model portfolio exists (A2); false until then. */
+  hasModel: boolean;
   /** The ledger matching's state per `${index}:${positionId}`. */
   lineStates: Record<string, LineUiState>;
   /** Draft: Σ of the whole plan's purchases (`computeTotalPurchases`). */
@@ -82,7 +86,7 @@ export interface AccumuloVerdictContext {
  */
 export function resolveAccumuloVerdictInput(context: AccumuloVerdictContext): AccumuloVerdictInput {
   const { plan, currentIndex } = context;
-  if (!plan) return { state: 'none', sourceCashEur: context.sourceCashEur };
+  if (!plan) return { state: 'none', sourceCashEur: context.sourceCashEur, hasModel: context.hasModel };
 
   if (plan.status === 'draft') {
     return {
@@ -101,7 +105,7 @@ export function resolveAccumuloVerdictInput(context: AccumuloVerdictContext): Ac
   if (isPlanDone(plan, currentIndex)) return { state: 'done', investedEur, totalEur: planTotalEur };
 
   const installment = findOpenInstallment(plan, currentIndex);
-  if (!installment) return { state: 'none', sourceCashEur: context.sourceCashEur };
+  if (!installment) return { state: 'none', sourceCashEur: context.sourceCashEur, hasModel: context.hasModel };
 
   const lines = installment.lines.filter((line) => line.plannedQuantity > 0 || line.status !== 'planned');
   const toConfirmCount = lines.filter((line) => context.lineStates[`${installment.index}:${line.positionId}`] === 'toConfirm').length;
@@ -141,15 +145,20 @@ export interface ResolveAccumuloSectionsInput {
   hasClasses: boolean;
   /** Piani conclusi is on the page: at least one plan closed or interrupted. */
   hasClosedPlans: boolean;
+  /** The model portfolio's read failed: the row opens by itself (`failed`). */
+  modelFailed: boolean;
 }
 
 /**
- * The rows below `desktop:`, in the DOM's order: Classi del piano, Piani conclusi — the subset on the
- * page (none at all with no trajectory and no closed plan: «Il resto della pagina» is then not drawn).
+ * The rows below `desktop:`, in the DOM's order (D-CU15): Portafoglio modello, Classi del piano, Criteri
+ * del modello, Piani conclusi — the subset on the page. Portafoglio modello and Criteri are always there
+ * (an empty model is a row with its own words).
  */
 export function resolveAccumuloSections(input: ResolveAccumuloSectionsInput): readonly SectionSpec[] {
   return [
+    { id: ACCUMULO_SECTION_IDS.modello, eyebrow: 'Portafoglio modello', failed: input.modelFailed },
     ...(input.hasClasses ? [{ id: ACCUMULO_SECTION_IDS.classi, eyebrow: 'Classi del piano' }] : []),
+    { id: ACCUMULO_SECTION_IDS.criteri, eyebrow: 'Criteri del modello' },
     ...(input.hasClosedPlans ? [{ id: ACCUMULO_SECTION_IDS.conclusi, eyebrow: 'Piani conclusi' }] : []),
   ];
 }
@@ -221,32 +230,10 @@ export interface AccumuloPreview {
   inflowEur: number;
   /** Where the classes would stand today and at the end of the plan, on today's prices. */
   classes: { assetClass: AssetClass; currentPct: number; targetPct: number; finalPct: number }[];
+  /** The saved model portfolio when there is one, else today's holdings (RV4). */
+  weightsFrom: 'today' | 'model';
   /** The cash in the liquidity accounts the preview spends from. */
   cashEur: number;
-}
-
-/**
- * Today's weights as a plan can use them: only tradable instruments (no cash account, nothing frozen
- * or excluded from the allocation), rescaled to Σ = 100 in hundredths of a point with the remainder
- * on the largest.
- */
-function tradableWeights(proposed: Array<{ assetId: string; pct: number }>, assetsById: Map<string, Asset>): Array<{ assetId: string; pct: number }> {
-  const kept = proposed.filter((entry) => {
-    const asset = assetsById.get(entry.assetId);
-    if (!asset || asset.type === 'cash') return false;
-    const role = resolveAllocationRole(asset);
-    return role !== 'frozen' && role !== 'excluded';
-  });
-  const total = kept.reduce((sum, entry) => sum + entry.pct, 0);
-  if (total <= 0) return [];
-  const cents = kept.map((entry) => Math.round((entry.pct / total) * 10000));
-  const remainder = 10000 - cents.reduce((sum, c) => sum + c, 0);
-  if (remainder !== 0) {
-    let largest = 0;
-    for (let i = 1; i < cents.length; i++) if (cents[i] > cents[largest]) largest = i;
-    cents[largest] += remainder;
-  }
-  return kept.map((entry, i) => ({ assetId: entry.assetId, pct: cents[i] / 100 }));
 }
 
 /**
@@ -261,23 +248,26 @@ export function buildAccumuloPreview(input: {
   compare: AllocationCompare;
   deps: PlanDeps;
   today: Date;
+  /** The saved model's weights: the preview starts from them instead of today's holdings. */
+  model?: ModelPortfolioWeight[] | null;
   /** RV4: the entry RP7 suggests; 0 or absent = no inflow. */
   monthlyInflowEur?: number;
 }): AccumuloPreview | null {
-  const { allAssets, targets, band, compare, deps, today } = input;
+  const { allAssets, targets, band, compare, deps, today, model } = input;
   const inflowEur = Math.max(0, input.monthlyInflowEur ?? 0);
   const cashIds = allAssets.filter((asset) => asset.assetClass === 'cash' && asset.type === 'cash').map((asset) => asset.id);
   const cashEur = allAssets.filter((asset) => cashIds.includes(asset.id)).reduce((sum, asset) => sum + deps.valueOf(asset), 0);
   if (cashEur <= PREVIEW_RESERVE_EUR) return null;
 
   const assetsById = new Map(allAssets.map((asset) => [asset.id, asset]));
-  const weights = tradableWeights(
-    allAssets
-      .filter((asset) => asset.assetClass !== 'cash' && asset.assetClass !== 'realestate')
-      .map((asset) => ({ assetId: asset.id, pct: deps.valueOf(asset) }))
-      .filter((entry) => entry.pct > 0),
-    assetsById,
-  );
+  const useModel = !!model && model.length > 0;
+  const proposed = useModel
+    ? model.map((weight) => ({ assetId: weight.assetId, pct: weight.targetPercentage })).filter((entry) => entry.pct > 0)
+    : allAssets
+        .filter((asset) => asset.assetClass !== 'cash' && asset.assetClass !== 'realestate')
+        .map((asset) => ({ assetId: asset.id, pct: deps.valueOf(asset) }))
+        .filter((entry) => entry.pct > 0);
+  const { weights } = toModelWeights(proposed, assetsById);
   if (weights.length === 0) return null;
 
   let n = 0;
@@ -312,7 +302,7 @@ export function buildAccumuloPreview(input: {
     if (Math.abs(entry.currentPct) < 0.05 && Math.abs(entry.targetPct) < 0.05 && Math.abs(final.currentPct) < 0.05) return [];
     return [{ assetClass: assetClass as AssetClass, currentPct: entry.currentPct, targetPct: entry.targetPct, finalPct: final.currentPct }];
   });
-  return { months: PREVIEW_MONTHS, reserveEur: PREVIEW_RESERVE_EUR, monthlyEur: totalEur / PREVIEW_MONTHS, inflowEur, classes, cashEur };
+  return { months: PREVIEW_MONTHS, reserveEur: PREVIEW_RESERVE_EUR, monthlyEur: totalEur / PREVIEW_MONTHS, inflowEur, classes, weightsFrom: useModel ? 'model' : 'today', cashEur };
 }
 
 /** Σ of the purchases a draft would make over its whole length (the verdict's «12 rate da X €»). */

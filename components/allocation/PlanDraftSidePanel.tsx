@@ -1,8 +1,7 @@
 'use client';
 
 /**
- * PlanDraftSidePanel — what the weights typed in the Target step do (doc/pac-ottimizzatore § PO15,
- * RV5, § 7 view 2). Sits beside the table: the monthly installment and what L is made of, whether
+ * PlanDraftSidePanel — what the weights typed in the Target step do. Sits beside the table: the monthly installment and what L is made of, whether
  * the weights add up to 100%, the classes at the end of the plan, the leverage and the month-by-month
  * class chart. The parent hands it a preview computed 300 ms after the last keystroke.
  */

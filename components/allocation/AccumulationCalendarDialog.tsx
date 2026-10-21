@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * AccumulationCalendarDialog — the plan's whole calendar, month by month (doc/pac-ate.md §10.4).
+ * AccumulationCalendarDialog — the plan's whole calendar, month by month.
  *
  * `ClassDriftChart` draws the trajectory (D11: solid where measured, dashed where projected);
  * under it, one row per installment — month, total, the class drift after that rata (grey while

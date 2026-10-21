@@ -452,6 +452,10 @@ file used to carry.
 - Sentences and figures live in `accumulationNarrative.ts` / `accumuloSummary.ts`; every write invalidates `queryKeys.accumulationPlans.all`, which the Bilanciamento verdict's PAC clause reads too.
 - Il resto — the mobile composition (§ Composizione mobile), «Rivedi il piano», «Riattiva», the ledger matching — in `doc/guide/accumulo.md`.
 
+### Allocazione › Portafoglio modello e ottimizzatore → `doc/guide/ottimizzatore.md`
+- The criteri («Criteri del modello», `idealAllocation` in the settings doc) drive a pure optimizer (`weightOptimizer.ts`, exact active-set QP) that proposes the weights of a saved portfolio model (`modelPortfolios/{ownerId}`, rule published by hand); the PAC never sells, so «Raggiungibile» never goes below what is held.
+- Sentences live in `weightOptimizerNarrative.ts` / `settingsNarrative.ts`; saving the model invalidates `queryKeys.modelPortfolio.byOwner`.
+
 ### Allocazione › Consulente → `doc/guide/consulente.md`
 - A guided path (one question per screen, the draft on the browser) whose answers and the whole portfolio go to THREE model calls in series — the strategy on Opus 5.5, the instruments on Sonnet 5.5 with web search, the review on Opus 5.5 — persisted after every stage in `allocationAdvice/{uid}` (Admin writes only, `rules: write false`); ONE request per stage (`runAllocationAdviceStage`, `maxDuration = 300`: Vercel Hobby's ceiling, a whole run is six to seven minutes), chained by the client, a failed stage retried from itself.
 - STRUCTURE IS NEVER PARSED FROM PROSE: ONE fenced ```allocation-proposal block validated by the zod schema of `lib/utils/allocationAdviceProposal.ts` (classes without a fixed amount sum to 100, sleeves sum to 100 or are empty, names copied EXACTLY from the STRUMENTI block); a malformed strategy fails the run, a malformed review keeps the strategy's proposal.

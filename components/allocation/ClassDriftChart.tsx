@@ -1,10 +1,9 @@
 'use client';
 
 /**
- * ClassDriftChart — the classes' drift from target, month by month (doc/pac-ate.md §10.6, D11).
+ * ClassDriftChart — the classes' drift from target, month by month.
  *
- * Hand-written SVG (DESIGN.md → In-tile Bars) in the approved render's form (render-accumulo.html,
- * view 1): y axis in pp with a grid, month ticks under the plot, a dotted «oggi» line, no label on the
+ * Hand-written SVG (DESIGN.md → In-tile Bars) in the approved form: y axis in pp with a grid, month ticks under the plot, a dotted «oggi» line, no label on the
  * lines — the colours are named by the legend row under the chart (one chip per class with its drift at
  * the cursor month) and by the key (measured · projected · band). One polyline per asset class, solid where both its
  * endpoints are `measured` points, dashed where either is `projected` — the plan's own baseline

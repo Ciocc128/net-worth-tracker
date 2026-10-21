@@ -1,5 +1,5 @@
 /**
- * AL8–AL11 — «Rivedi il piano» completo (doc/allineamento/README.md § 9.2): Raggruppa, Separa and
+ * AL8–AL11 — «Rivedi il piano» completo: Raggruppa, Separa and
  * Sostituisci in a revision, the instruments with no shares, the source accounts and the saved sales.
  * The proof case is the owner's PAC (a DBMFE + MFEH group at 18%, MFEH buys) with invented names.
  */

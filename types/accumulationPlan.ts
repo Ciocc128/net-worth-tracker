@@ -1,4 +1,5 @@
-import type { AssetClass } from './assets';
+import type { AssetClass, IdealAllocationSettings } from './assets';
+import type { ConflictReport, ObjectiveReport, OptimizerMode } from '@/lib/utils/weightOptimizer';
 
 export type AccumulationPlanStatus = 'draft' | 'active' | 'completed' | 'cancelled';
 export type InstallmentLineStatus = 'planned' | 'executed' | 'skipped';
@@ -79,6 +80,23 @@ export interface PlanBaseline {
   measurement: ClassMeasurement;             // month 0 of the trajectory
 }
 
+/** Where the Target step's weights came from, the last time the weight optimizer ran
+ *. Stamped by "Usa questi pesi"; stays after the reader
+ *  edits a weight by hand — it documents the starting point, not the current one. */
+export interface OptimizerSnapshot {
+  computedAt: Date;
+  mode: OptimizerMode;
+  settingsUsed: IdealAllocationSettings;
+  weights: Array<{ key: string; proposedPct: number }>;
+  objectives: ObjectiveReport[];
+  /** The calculation's conflicts (model portfolio, A2): the Obiettivi tile quotes the first. Absent on older snapshots. */
+  conflicts?: ConflictReport[];
+  /** Only mode 'targeted': the tax cap and the
+   *  «Non vendere» keys the weights were computed with. */
+  taxCapEur?: number;
+  lockedKeys?: string[];
+}
+
 export interface AccumulationPlan {
   id: string;
   userId: string;               // ownerId (shared-account convention)
@@ -92,6 +110,7 @@ export interface AccumulationPlan {
   baseline?: PlanBaseline;      // present from 'active'
   installments: Installment[];  // empty in 'draft', the S1 calendar from 'active'
   residualEur?: number;         // planned leftover after the last month (< one share)
+  optimizerSnapshot?: OptimizerSnapshot;
   revisions?: PlanRevision[];
   createdAt: Date;
   updatedAt: Date;
@@ -102,5 +121,5 @@ export interface AccumulationPlan {
 /** Draft input edited by the dialog (no system fields). */
 export type AccumulationPlanDraft = Pick<
   AccumulationPlan,
-  'name' | 'startMonth' | 'months' | 'liquidity' | 'positions' | 'disposals'
+  'name' | 'startMonth' | 'months' | 'liquidity' | 'positions' | 'disposals' | 'optimizerSnapshot'
 >;

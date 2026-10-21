@@ -1,5 +1,5 @@
 /**
- * accumulationPlanUtils — the pure engine of the PAC (Accumulo) tile (doc/pac-ate.md §5).
+ * accumulationPlanUtils — the pure engine of the PAC (Accumulo) tile.
  *
  * Zero Firebase/service imports on purpose, so the unit suite never mocks `@/lib/firebase/config`:
  * every dependency on live data (an asset's EUR value, its unit price, `compareAllocations`) is
@@ -18,6 +18,8 @@ import type {
   PlanLiquidity,
   PlanPosition,
 } from '@/types/accumulationPlan';
+import type { ModelPortfolio } from '@/types/modelPortfolio';
+import { modelGroups } from '@/lib/utils/modelPortfolio';
 import { splitTowardTarget, bandForTarget, resolveAllocationRole, type RebalanceBand } from './allocationUtils';
 import { unitPriceEur } from './costBasisEur';
 import { getItalyMonthYear } from './dateHelpers';
@@ -782,7 +784,7 @@ function classPointFromEntries(
  * executed buys/disposals move quantities as before, and — since PR #4's review, rilievo 2 — the
  * plan's own cash moves too, instead of sitting untouched while the buy side grows the market base
  * out of nowhere. `cassa(m) = cassa₀ − Σ acquisti pianificati fino a m + E × m + Σ ricavi delle
- * vendite non eseguite (dal mese 1)` (doc/pac-ate.md §5.9), split pro-rata over the LIVE balances of
+ * vendite non eseguite (dal mese 1)`, split pro-rata over the LIVE balances of
  * `liquidity.sourceCashAssetIds` — never over the user's `allocationRole`: an `excluded` source
  * account is dropped by `compare()`'s market base regardless of its projected balance, so moving it
  * here changes nothing about the trajectory (verified). An `executed` line/disposal is skipped on
@@ -1047,13 +1049,43 @@ export function buildDraftPreview(input: {
 // separately for a `PlanDeps.priceOf` implementation.
 export { unitPriceEur };
 
+// ---------------------------------------------------------------------------
+// §4.4 — the weight optimizer's standalone tool: converts its proposed weights into freshly-seeded PAC positions,
+// the same shape `seedPositionsFromAssets` builds in `AccumulationPlanDialog.tsx` — one position
+// per single instrument, target = the proposed weight. `generateId` is injected (never
+// `crypto.randomUUID()` called inline) so the conversion stays deterministic under test.
+// ---------------------------------------------------------------------------
+
 /**
- * Weights per instrument as freshly-seeded PAC positions: one position per instrument, target = the
- * weight (a group's members ride along when `memberAssetIds` is given). `generateId` is injected
- * (never `crypto.randomUUID()` called inline) so the conversion stays deterministic under test.
+ * RP2: the sales «Con vendite mirate» chose, as the PAC's disposals. A candidate brought to weight 0
+ * is sold whole (outside the plan); one that stays in the plan sells `floor(€ / price)` shares, never
+ * all of them (a total sale of a position is refused by the schema), and nothing when that is 0.
  */
+export function seedDisposalsFromSale(
+  sold: Array<{ key: string; soldEur: number }>,
+  keptKeys: Set<string>,
+  assetsById: Map<string, Asset>,
+  deps: PlanDeps
+): PlanDisposal[] {
+  const disposals: PlanDisposal[] = [];
+  for (const { key, soldEur } of sold) {
+    const asset = assetsById.get(key);
+    if (!asset || soldEur <= 0) continue;
+    const price = deps.priceOf(asset);
+    if (!keptKeys.has(key)) {
+      disposals.push({ assetId: key, estimatedProceedsEur: deps.valueOf(asset), status: 'planned' });
+      continue;
+    }
+    if (price <= 0) continue;
+    const quantity = Math.min(Math.floor(soldEur / price + 1e-9), Math.ceil(asset.quantity) - 1);
+    if (quantity <= 0) continue;
+    disposals.push({ assetId: key, quantity, estimatedProceedsEur: quantity * price, status: 'planned' });
+  }
+  return disposals;
+}
+
 export function weightsToSeedPositions(
-  weights: Array<{ key: string; label: string; proposedPct: number; memberAssetIds?: string[] }>,
+  weights: Array<{ key: string; label: string; proposedPct: number; /** AL16: a group's members, the buyer (`key`) included. */ memberAssetIds?: string[] }>,
   generateId: () => string = () => crypto.randomUUID()
 ): PlanPosition[] {
   return weights.map((w) => ({
@@ -1088,7 +1120,8 @@ export function marketWeights(assets: Asset[], deps: PlanDeps): Record<string, n
 }
 
 /**
- * Sets the positions' target weights from a per-instrument map (today's market weights): a position takes the sum of its members' weights (none = 0); an instrument of the map
+ * Sets the positions' target weights from a per-instrument map (the model portfolio, today's market
+ * weights): a position takes the sum of its members' weights (none = 0); an instrument of the map
  * that no position holds and that is not being sold becomes a new single-instrument position.
  */
 export function applyWeightsToPositions(
@@ -1113,6 +1146,45 @@ export function applyWeightsToPositions(
       buyAssetId: assetId,
     }));
   return [...updated, ...added];
+}
+
+/**
+ * AL16 — the model portfolio onto the positions: its groups of equivalent instruments become ONE
+ * position that buys the group's buyer (a position keeps its id when it already was that group), then
+ * the weights (`applyWeightsToPositions`). A group whose members sit in a position that reaches outside
+ * the group is left to the per-instrument weights: it never splits a position the user built.
+ */
+export function applyModelToPositions(
+  positions: PlanPosition[],
+  model: ModelPortfolio,
+  soldAssetIds: Set<string>,
+  labelOf: (assetId: string) => string,
+  generateId: () => string = () => crypto.randomUUID()
+): PlanPosition[] {
+  let next = positions;
+  for (const group of modelGroups(model.weights)) {
+    const members = new Set(group.memberAssetIds);
+    const overlapping = next.filter((position) => position.memberAssetIds.some((id) => members.has(id)));
+    if (overlapping.length === 0 || overlapping.some((position) => position.memberAssetIds.some((id) => !members.has(id)))) continue;
+    const first = next.indexOf(overlapping[0]);
+    const kept = overlapping.find((position) => position.buyAssetId === group.buyAssetId);
+    const grouped: PlanPosition = {
+      id: kept?.id ?? generateId(),
+      label: kept?.label ?? labelOf(group.buyAssetId),
+      targetPercentage: 0,
+      memberAssetIds: orderGroupMembers({ memberAssetIds: group.memberAssetIds, buyAssetId: group.buyAssetId }),
+      buyAssetId: group.buyAssetId,
+    };
+    next = next.flatMap((position, index) => (index === first ? [grouped] : overlapping.includes(position) ? [] : [position]));
+  }
+  return applyWeightsToPositions(next, modelWeightMap(model), soldAssetIds, labelOf, generateId);
+}
+
+/** The model portfolio as a per-instrument weight map (candidates at 0 are left out). */
+export function modelWeightMap(model: ModelPortfolio): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const weight of model.weights) if (weight.targetPercentage > 0) map[weight.assetId] = weight.targetPercentage;
+  return map;
 }
 
 /**
@@ -1248,8 +1320,8 @@ export function installmentLineLabel(
 }
 
 /**
- * AL10: the instruments of an open plan — also those at 0 shares (a plan can buy an instrument
- * nobody holds yet).
+ * AL10: the instruments of an open plan, for the optimizers' «to evaluate» set — also those at 0 shares
+ * (a plan can buy an instrument nobody holds yet), which a model portfolio may not carry.
  */
 export function planMemberAssetIds(plan: Pick<AccumulationPlan, 'positions'> | null | undefined): Set<string> {
   return new Set((plan?.positions ?? []).flatMap((position) => position.memberAssetIds));

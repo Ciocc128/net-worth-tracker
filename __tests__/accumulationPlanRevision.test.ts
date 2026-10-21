@@ -1,6 +1,6 @@
 /**
  * A3 — the PAC's partial sales (RP2), «Rivedi il piano» (RP4) and the recalibration proposal (RP3),
- * on the dossier's fixture F (doc/pac-ottimizzatore/README.md § 8, PP1–PP7).
+ * on the dossier's fixture F.
  */
 import { describe, it, expect } from 'vitest';
 import type { Asset } from '@/types/assets';
@@ -15,6 +15,7 @@ import {
   recalibrateInstallment,
   resolvePositionStates,
   scheduleInstallments,
+  seedDisposalsFromSale,
   shouldProposeRecalibration,
   recalibrationQuantities,
   type PlanDeps,
@@ -172,6 +173,17 @@ describe('RP2 — validation (PP5) and seeding from the targeted sale (PP6)', ()
     const partial = validateDraftAgainstAssets(draft([sale()]), assets);
     expect(partial).toEqual([]);
   });
+
+  it('PP6: 6.916 € of XDEM at 60 € sells 115 shares (6.900 €); weight 0 is a total sale', () => {
+    const assets = byId(vwce(), xdem(), conto());
+    const kept = new Set(['vwce', 'xdem']);
+    const [partial] = seedDisposalsFromSale([{ key: 'xdem', soldEur: 6916 }], kept, assets, deps);
+    expect(partial).toMatchObject({ assetId: 'xdem', quantity: 115, estimatedProceedsEur: 6900 });
+    const [whole] = seedDisposalsFromSale([{ key: 'xdem', soldEur: 6916 }], new Set(['vwce']), assets, deps);
+    expect(whole.quantity).toBeUndefined();
+    expect(whole.estimatedProceedsEur).toBe(12000);
+    expect(seedDisposalsFromSale([{ key: 'xdem', soldEur: 30 }], kept, assets, deps)).toEqual([]);
+  });
 });
 
 describe('RP3 — the recalibration proposal (PP7)', () => {
@@ -270,22 +282,31 @@ describe('RP7 — the suggested inflow (PP10)', () => {
   });
 });
 
-import { applyWeightsToPositions, marketWeights } from '@/lib/utils/accumulationPlanUtils';
+import { applyWeightsToPositions, marketWeights, modelWeightMap } from '@/lib/utils/accumulationPlanUtils';
+import type { ModelPortfolio } from '@/types/modelPortfolio';
 
 describe('RP1 — «Parti da» (PP11)', () => {
-  const weightMap = { vwce: 60, xdem: 40 };
+  const model: ModelPortfolio = {
+    userId: 'u1',
+    origin: 'manual',
+    updatedAt: new Date(0),
+    weights: [
+      { assetId: 'vwce', targetPercentage: 60 },
+      { assetId: 'xdem', targetPercentage: 40 },
+    ],
+  };
   const ids = ['pv', 'px', 'pn'];
   const gen = () => ids.shift()!;
   const label = (id: string) => id.toUpperCase();
 
-  it('a weight map VWCE 60 / XDEM 40 gives two positions at 60 and 40, even from empty seeds', () => {
-    const seeded = applyWeightsToPositions([], weightMap, new Set(), label, gen);
+  it('a model VWCE 60 / XDEM 40 gives two positions at 60 and 40, even from empty seeds', () => {
+    const seeded = applyWeightsToPositions([], modelWeightMap(model), new Set(), label, gen);
     expect(seeded.map((p) => [p.buyAssetId, p.targetPercentage])).toEqual([['vwce', 60], ['xdem', 40]]);
   });
 
-  it('seeds at 0 for held instruments are re-weighted; an instrument outside the map stays at 0', () => {
+  it('seeds at 0 for held instruments are re-weighted; an instrument outside the model stays at 0', () => {
     const extra: PlanPosition = { id: 'pe', label: 'EXTRA', targetPercentage: 0, memberAssetIds: ['extra'], buyAssetId: 'extra' };
-    const out = applyWeightsToPositions([...positions.map((p) => ({ ...p, targetPercentage: 0 })), extra], weightMap, new Set(), label);
+    const out = applyWeightsToPositions([...positions.map((p) => ({ ...p, targetPercentage: 0 })), extra], modelWeightMap(model), new Set(), label);
     expect(out.map((p) => p.targetPercentage)).toEqual([60, 40, 0]);
   });
 

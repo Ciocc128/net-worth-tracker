@@ -1,5 +1,5 @@
 /**
- * One test per DraftIssue code (doc/pac-ate.md §6/§11).
+ * One test per DraftIssue code.
  */
 import { describe, it, expect } from 'vitest';
 import type { Asset } from '@/types/assets';

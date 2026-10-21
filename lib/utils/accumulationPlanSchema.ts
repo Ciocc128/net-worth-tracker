@@ -1,5 +1,5 @@
 /**
- * accumulationPlanSchema — structural (zod) and domain validation for a PAC draft (doc/pac-ate.md §6).
+ * accumulationPlanSchema — structural (zod) and domain validation for a PAC draft.
  *
  * `accumulationPlanDraftSchema` checks SHAPE only (ranges, required fields); everything that needs
  * the actual portfolio (a member's allocationRole, a source account's assetClass) lives in

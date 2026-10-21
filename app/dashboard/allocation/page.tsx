@@ -160,6 +160,7 @@ import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { BilanciamentoTile, isBilanciamentoLiftedBlock } from '@/components/allocation/tiles/BilanciamentoTile';
 import { PianoTile } from '@/components/allocation/tiles/PianoTile';
 import { AccumuloTab } from '@/components/allocation/AccumuloTab';
+import { useModelPortfolio } from '@/lib/hooks/useModelPortfolio';
 import { PerClasseTile } from '@/components/allocation/tiles/PerClasseTile';
 import { EsposizioneTile } from '@/components/allocation/tiles/EsposizioneTile';
 import { PrevidenzaTile } from '@/components/allocation/tiles/PrevidenzaTile';
@@ -233,6 +234,7 @@ export default function AllocationPage() {
   const loadFailed = assetsError || settingsError || goalsError;
   // Full, unfiltered asset list — the Previdenza tile's «tutto il patrimonio» needs every role.
   const allAssets = useMemo(() => assetsData ?? [], [assetsData]);
+  const modelQuery = useModelPortfolio(ownerId);
 
   // The page's one control: the drift tolerance that decides COMPRA/VENDI/OK. Session-only; the
   // default matches the server's ±2 p.p. so the first render equals the persisted classification.
@@ -277,6 +279,9 @@ export default function AllocationPage() {
     return {
       targets: effectiveTargets,
       usingGoalTargets: fromGoals,
+      // The owner's model-portfolio criteria (Allocazione › Accumulo) — the PAC editor's Ottimizzato view
+      // reads it; `null` before the first load, same as `targets`.
+      idealAllocation: settings?.idealAllocation ?? null,
       allocation: compareAllocations(inAllocation, effectiveTargets),
       // Per-instrument rows of everything IN the allocation — tradable and frozen alike. Each
       // carries its own `tradable` flag: the frozen ones count in every total and percentage but
@@ -295,6 +300,7 @@ export default function AllocationPage() {
   const targets = composed?.targets ?? null;
   const allocation = composed?.allocation ?? null;
   const usingGoalTargets = composed?.usingGoalTargets ?? false;
+  const idealAllocation = composed?.idealAllocation ?? null;
   const holdings = composed?.holdings ?? EMPTY_HOLDINGS;
   const reportedHoldings = composed?.reportedHoldings ?? EMPTY_HOLDINGS;
   const tradableAssets = composed?.tradableAssets ?? EMPTY_ASSETS;
@@ -505,7 +511,7 @@ export default function AllocationPage() {
   const headerDescription = describeAllocazioneHeader({
     marketValue: bandedAllocation?.marketValue ?? 0,
     classCount,
-    targetSource: usingGoalTargets ? 'goals' : 'settings',
+    targetSource: activeTab === 'accumulo' ? (modelQuery.data ? 'model' : 'plan') : usingGoalTargets ? 'goals' : 'settings',
     // The Consulente's «rivedi entro» once its plan was applied (2026-10-20); a failed read of
     // that document drops the clause, never the header.
     reviewBy: describeReviewBy(adviceQuery.data),
@@ -797,6 +803,7 @@ export default function AllocationPage() {
                 targets={targets}
                 band={band}
                 targetLeverageRatio={targetLeverageRatio}
+                idealAllocation={idealAllocation}
                 onAssetsChanged={retryLoad}
               />
             )}

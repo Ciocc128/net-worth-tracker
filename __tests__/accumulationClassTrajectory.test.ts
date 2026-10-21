@@ -1,5 +1,5 @@
 /**
- * projectClassTrajectory against the real compareAllocations (doc/pac-ate.md §5.9/§11).
+ * projectClassTrajectory against the real compareAllocations.
  * assetAllocationService pulls in the client Firebase SDK — mock it (same convention as
  * __tests__/compareAllocations.test.ts).
  */
@@ -188,7 +188,7 @@ describe('projectClassTrajectory — disposals and executed lines', () => {
 describe('projectClassTrajectory — fixed-amount cash target (PR #4 review, rilievo 1)', () => {
   // 800 quote × 100 € di azioni + 20.000 € di cassa, riserva PAC = tutta la cassa (mai spesa),
   // entrata mensile stimata che rifinanzia esattamente ogni rata: il denaro in cassa non si
-  // muove mai (doc/pac-ate.md §5.9's numeri di riferimento, idx2), isolando l'effetto del solo
+  // muove mai, isolando l'effetto del solo
   // rilievo 1 — la base di mercato CRESCE comunque (nuovo denaro da E), e prima della correzione
   // il target restava congelato alla base della baseline invece di seguirla.
   const cash = makeAsset({ id: 'cash1', assetClass: 'cash', quantity: 1, currentPrice: 20000 });
@@ -217,7 +217,7 @@ describe('projectClassTrajectory — fixed-amount cash target (PR #4 review, ril
   });
 
   it('reads a non-cash class target from the SAME point, not the frozen baseline', () => {
-    // Reference numbers (doc/pac-ate.md §5.9): idx2 target 83,333 (was 80,000 frozen), drift 0.
+    // Reference numbers: idx2 target 83,333 (was 80,000 frozen), drift 0.
     const point2 = points.find((p) => p.index === 2)!;
     expect(point2.byClass.equity?.targetPct).toBeCloseTo(83.3333, 3);
     expect(point2.byClass.equity?.driftPp).toBeCloseTo(0, 6);

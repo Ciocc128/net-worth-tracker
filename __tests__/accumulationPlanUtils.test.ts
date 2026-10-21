@@ -1,5 +1,5 @@
 /**
- * Tests for the pure PAC engine (lib/utils/accumulationPlanUtils.ts, doc/pac-ate.md §5/§11).
+ * Tests for the pure PAC engine (lib/utils/accumulationPlanUtils.ts).
  */
 import { describe, it, expect, vi } from 'vitest';
 import type { Asset } from '@/types/assets';

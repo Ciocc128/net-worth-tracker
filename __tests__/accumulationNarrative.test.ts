@@ -1,5 +1,5 @@
 /**
- * Tests for the PAC (Accumulo) narrative (lib/utils/accumulationNarrative.ts, doc/pac-ate.md §10.5/§11).
+ * Tests for the PAC (Accumulo) narrative (lib/utils/accumulationNarrative.ts).
  *
  * One reading per tile state (none/draft/active/done/read-failure), the Comma Rule on every
  * currency and percentage figure (Italian comma decimals, never `toFixed`'s dot), and
