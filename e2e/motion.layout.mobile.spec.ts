@@ -3,8 +3,8 @@
  *
  * `BottomNavigation` turns `layout` and the active pill's `layoutId` on only in portrait below 1440
  * (`useMediaQuery`, `false` on the server and during hydration). Here it must be on:
- *   1. the «+» of Cashflow › Tracciamento appears beside the pill and the pill GLIDES to make room —
- *      sampled every frame: several intermediate positions, not a jump from one place to the other;
+ *   1. the «+» of Cashflow › Tracciamento appears ABOVE the pill at the right edge, and the pill stays
+ *      where it was, centred — sampled every frame (since 2026-10-23: it used to glide aside);
  *   2. a client navigation measures the nav's nodes (Framer reads them through
  *      `getBoundingClientRect`, spied) — the positive control of the «0 at 1440» in
  *      `motion.layout.spec.ts`, which proves that spy counts what it claims to.
@@ -29,10 +29,9 @@ async function openPanoramica(page: Page) {
   await page.waitForTimeout(1_000);
 }
 
-test('the pill glides aside when the «+» of Tracciamento appears', async ({ page }) => {
+test('the «+» of Tracciamento floats above the pill, which stays centred', async ({ page }) => {
   // The browser-without-view-transitions path (Firefox's; `runViewTransition` feature-detects the
-  // API): on a dev server the page scene freezes rendering while the route compiles, and the
-  // spring settles inside that frozen window — the frames would read a jump whatever the code did.
+  // API): on a dev server the page scene freezes rendering while the route compiles.
   await page.addInitScript(() => {
     delete (Document.prototype as unknown as Record<string, unknown>).startViewTransition;
   });
@@ -53,17 +52,21 @@ test('the pill glides aside when the «+» of Tracciamento appears', async ({ pa
   });
   await bottomNav(page).getByRole('link', { name: 'Cashflow' }).click();
   await page.waitForURL('**/dashboard/cashflow');
-  await expect(page.getByRole('button', { name: 'Aggiungi nuova voce' })).toBeVisible();
+  const fab = page.getByRole('button', { name: 'Aggiungi nuova voce' });
+  await expect(fab).toBeVisible();
   await page.waitForTimeout(2_600);
 
+  // The pill never moved: one left edge in every frame, and its centre is the viewport's.
   const lefts = await page.evaluate(() => (window as unknown as { __lefts: number[] }).__lefts);
-  const first = lefts[0];
-  const last = lefts[lefts.length - 1];
-  // The pill moved left to make room for the 56px «+» and its 8px gap…
-  expect(last).toBeLessThan(first - 20);
-  // …through positions in between: a layout animation, not a re-centring in one frame.
-  const between = new Set(lefts.filter((left) => left < first - 0.5 && left > last + 0.5));
-  expect(between.size).toBeGreaterThanOrEqual(3);
+  expect(new Set(lefts).size).toBe(1);
+  const pill = (await bottomNav(page).boundingBox())!;
+  const viewport = page.viewportSize()!;
+  expect(Math.abs(pill.x + pill.width / 2 - viewport.width / 2)).toBeLessThanOrEqual(1);
+  // The «+» sits above the pill, inside the right edge, at least 44px.
+  const plus = (await fab.boundingBox())!;
+  expect(plus.y + plus.height).toBeLessThanOrEqual(pill.y);
+  expect(plus.x + plus.width).toBeLessThanOrEqual(viewport.width);
+  expect(plus.width).toBeGreaterThanOrEqual(44);
 });
 
 test('a client navigation measures the visible nav — the control of the 0 at 1440', async ({ page }) => {
