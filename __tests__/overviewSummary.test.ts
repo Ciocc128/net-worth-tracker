@@ -173,7 +173,7 @@ describe('selectOverviewStrip', () => {
       expenseStats: { ...STATS, currentMonth: { income: 100, expenses: 2100, net: -2000, expensesScheduled: 0, incomeScheduled: 0 } },
     });
     const cell = selectOverviewStrip(overspent)[2];
-    expect(cellText(cell)).toBe('−2.000 €');
+    expect(cellText(cell)).toBe('−2000 €');
     expect(cellText(cell)).not.toContain('%');
   });
 
