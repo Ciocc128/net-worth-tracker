@@ -16,6 +16,7 @@ import {
   describeLeadingClass,
   liquidityShare,
   narrativeToText,
+  overspendInEuro,
   projectCashflowMonthEnd,
   resolveLivedCashflow,
   type OverviewVerdictInput,
@@ -71,10 +72,14 @@ export function monthCoverageRatio(stats: DashboardOverviewExpenseStats | null |
  * the whole month on a payload that cannot say — rounded as the sentence rounds it
  * (`Math.round`; doc/guide/panoramica.md § Composizione mobile). `null` with nothing to divide by.
  */
-function verdictSavingsRate(stats: DashboardOverviewExpenseStats | null | undefined): { rate: number | null; lived: boolean } {
+function verdictSavingsRate(
+  stats: DashboardOverviewExpenseStats | null | undefined,
+): { rate: number | null; lived: boolean; overspend: number | null } {
   const lived = resolveLivedCashflow(stats);
   const rate = lived ? lived.savingsRate : monthSavingsRate(stats);
-  return { rate: rate === null ? null : Math.round(rate), lived: lived !== null };
+  // Past −100% the sentence says the euros; the cell says the same, never «−1926%».
+  const overspend = lived && rate !== null ? overspendInEuro({ savingsRate: rate, cashflow: lived }) : null;
+  return { rate: rate === null ? null : Math.round(rate), lived: lived !== null, overspend };
 }
 
 /**
@@ -110,11 +115,11 @@ export function selectOverviewStrip(overview: DashboardOverviewPayload): StripFi
     },
     {
       label: 'Messo da parte finora',
-      value: saved.rate,
-      format: 'percent',
+      value: saved.overspend !== null ? -saved.overspend : saved.rate,
+      format: saved.overspend !== null ? 'signed-currency' : 'percent',
       decimals: 0,
       opens: OVERVIEW_SECTION_IDS.cashflow,
-      ...(saved.rate === null ? { reason: saved.lived ? 'nessuna entrata finora' : 'nessuna entrata nel mese' } : {}),
+      ...(saved.overspend === null && saved.rate === null ? { reason: saved.lived ? 'nessuna entrata finora' : 'nessuna entrata nel mese' } : {}),
     },
   ];
   return figures.every((figure) => figure.value === null) ? [] : figures;

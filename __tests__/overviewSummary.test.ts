@@ -167,6 +167,16 @@ describe('selectOverviewStrip', () => {
     for (const figure of strip) expect(sentence).toContain(cellText(figure));
   });
 
+  it('prints the euros, not a percentage, when the lived rate is past −100%', () => {
+    // income 100 lived, expenses 2100 → −2000%: the sentence says the euros, so does the cell.
+    const overspent = makeOverview({
+      expenseStats: { ...STATS, currentMonth: { income: 100, expenses: 2100, net: -2000, expensesScheduled: 0, incomeScheduled: 0 } },
+    });
+    const cell = selectOverviewStrip(overspent)[2];
+    expect(cellText(cell)).toBe('−2000 €');
+    expect(cellText(cell)).not.toContain('%');
+  });
+
   it('says why a figure is missing, never a zero', () => {
     const noSnapshots = selectOverviewStrip(makeOverview({ variations: { monthly: null, yearly: null } }));
     expect(noSnapshots[0]).toMatchObject({ value: null, reason: 'nessuno snapshot prima di questo mese' });
