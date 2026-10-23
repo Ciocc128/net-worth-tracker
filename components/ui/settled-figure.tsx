@@ -61,9 +61,10 @@ export function SettledFigure({ value, format, memoryKey, className }: SettledFi
   const frame = useSettledFigure(value, memoryKey) ?? value;
   const landed = format(value);
   const shown = format(frame);
-  if (shown === landed) return <span className={className}>{landed}</span>;
+  // `data-figure` names the slot for a probe (e2e/motion.transform.analisi.spec.ts).
+  if (shown === landed) return <span className={className} data-figure={memoryKey}>{landed}</span>;
   return (
-    <span className={className}>
+    <span className={className} data-figure={memoryKey}>
       <span aria-hidden="true">{shown}</span>
       <span className="sr-only">{landed}</span>
     </span>

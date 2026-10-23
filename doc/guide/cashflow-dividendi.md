@@ -279,6 +279,10 @@ Composed on 2026-10-12 (PR #454; its spec, retired the same day, is in `git log 
   - Pagamenti: null — it keeps its count and follows the filters.
 - **The specs**: `e2e/mobile-composition.cashflow.mobile.spec.ts` (a coupon planted through the emulator's REST API on the base account, which has none: the rows' order and no `order-*`; the stats read failed by REWRITING `/api/dividends/stats` with `stats: null` — `route.fetch()` + `route.fulfill`, never an abort, which is the tab's failure), `e2e/cashflow.dividendi.mobile.spec.ts` (opens Pagamenti first), `e2e/bundle.lazy.mobile.spec.ts` (the chunk lands on the fallback, axis included); `__tests__/dividendiNarrative.test.ts` (`describeDividendiClosedAnswers`); `npm run mobile:budget` holds the surface `cashflow-dividendi` of `perf/mobile-budget.json`.
 
+## Movimento (AN2, 2026-10-23)
+
+A period switch keeps the tiles mounted: the hero of «Incasso netto» and the strip's cells glide from the figures they showed (`SettledFigure`, 620 ms), the payers re-rank in place (`RankedRows`). Doc: `doc/animazioni/README.md` § 5.6.
+
 ## Per-page blind spots
 
 - **No strip on a phone** (2026-10-12): under the title there is the period pill and the «+», then the verdict's one sentence — received and announced are never one figure, and the two already open THE tile; a reader looking for the three cells the other tabs show finds none here, by design. Not proven in a browser: Pagamenti open by default while a provisional coupon asks for its rate, and the «nothing recorded» state on a phone (no axis, no rows, no memory) — the fixtures' coupons are past and not provisional.

@@ -605,6 +605,13 @@ file used to carry.
   «riduci movimento») or says `isAnimationActive={false}`; `__tests__/chartMotionGuard.test.ts` fails, naming the line, on
   one that does neither. A tab panel fades in through CSS (`[data-tab-switched]`, globals.css), «Dettaglio» opens through
   `DISCLOSURE_MOTION_CLASS` (`components/ui/collapsible.tsx`), «Il perché» through the closed-row grid.
+- **A list, a figure or a drill level that changes TRANSFORMS** (AN2, 2026-10-23; DESIGN.md → The View-Transforms Rule):
+  `RankedRows`/`CompositionList` keep a row's node by key or hand a freed node to a new key (`lib/utils/rowMorph.ts`,
+  `useRowMorph`: ONE `requestAnimationFrame` per list, ≤ 10 rows, never a count-up per row); a period's figure is a
+  `SettledFigure` (`components/ui/settled-figure.tsx`), and across an unmount (a skeleton between two reads) it glides
+  from the slot's last figure through the page's `FigureMemory` (`useCountUp`'s `seed`); a drill level is a
+  `DrillSlide` (`components/ui/drill-slide.tsx`). A frame is never read: the frame text is `aria-hidden`, the landed one
+  `sr-only`; a sign colour follows the LANDED value.
 - **Page transitions use `template.tsx`, NOT `layout.tsx` + `AnimatePresence`**; since 2026-09-12 a shell-link click is
   a page SCENE through `lib/utils/viewTransition.ts`, the ONE entry to `document.startViewTransition`; a
   `view-transition-name` is unique among the RENDERED elements (never the tile grid), a named element leaves `root` for

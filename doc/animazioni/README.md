@@ -273,6 +273,26 @@ Proposte tecniche del dossier, da confermare con la PR:
   `Area`/`Bar`/`Line` nella porta. Motivo: la porta esiste per tenere UN chunk di recharts e il suo commento avverte che
   la forma dei suoi export conta; un hook non tocca il grafo dei moduli.
 
+Prese con la PR di AN2 (23/10/2026):
+
+- **D-AN12 — Tracciamento: lo scheletro resta, le cifre scivolano all'arrivo.** Un periodo mai letto è una lettura nuova
+  e la griglia aspetta come scheletro (lib/hooks/useExpenses.ts: mai righe di mesi sbagliati sotto il periodo nuovo);
+  quando i tile tornano, trio, eroe e celle della striscia scivolano dalle cifre del periodo di prima (`FigureMemory` della
+  scheda). Scelta del proprietario sulla card del thread. Scartato: tenere i tile vecchi attenuati durante l'attesa
+  (cambia una regola scritta e mostra un periodo che non è più quello scelto).
+- **D-AN13 — La riga nuova prende il nodo di una riga uscita.** Una riga con la stessa chiave tiene il suo nodo; una riga
+  con una chiave nuova eredita il nodo di una uscita, nell'ordine della lista (`lib/utils/rowMorph.ts`), così Settori →
+  Paesi fa quello che mostrava lo sketch (nomi che sfumano, barre che scorrono, cifre che contano) anche senza chiavi in
+  comune. Scartato: solo chiave per chiave (§ 5.4 alla lettera), che tra due viste senza chiavi comuni avrebbe sfumato via
+  tutte le righe e sfumato dentro le nuove, senza barre che scorrono.
+- **D-AN14 — K vale per la Scheda.** Sul telefono il Flusso non ha un drill (una riga apre la Scheda) e sul desktop il
+  Sankey tiene la sua dissolvenza: `DrillSlide` è sul corpo della Scheda (categoria ↔ sottocategoria); due livelli alla
+  stessa profondità solo sfumano.
+- **D-AN15 — J sui primitivi.** La trasformazione vive in `RankedRows` e `CompositionList` e la ereditano tutti i tile che
+  li usano; i controlli di vista che cambiano un grafico Recharts (Andamento storico, Confronto annuale, Tasso di
+  risparmio) o una tabella (Tappe) restano come sono: Recharts anima già con `useChartMotion`, una tabella non è una
+  classifica.
+
 ## 9. Punti aperti
 
 - **J su Strumenti**: la tabella ha più di 10 righe nel caso reale; con D-AN10 «Raggruppa per classe» atterra senza
