@@ -63,11 +63,13 @@ const FAB_MOTION_REDUCED = {
  * holds no actions, and its row never changes from page to page (Apple HIG → Tab bars). Beside it,
  * the centred group pill + «+» pushed the pill off centre on Tracciamento alone.
  */
-function AddExpenseFab({ pathname }: { pathname: string }) {
+function AddExpenseFab({ pathname, drawerOpen }: { pathname: string; drawerOpen: boolean }) {
   const searchParams = useSearchParams();
   const isDemo = useDemoMode();
   const prefersReducedMotion = useReducedMotion();
-  const shown = isAddExpenseFabShown({ pathname, tab: searchParams.get('tab'), isDemo });
+  // «Altro» open: the «+» sinks into the pill before the sheet rises over it, and comes back when
+  // the sheet closes on Tracciamento (under the backdrop it read as a dimmed, dead button).
+  const shown = !drawerOpen && isAddExpenseFabShown({ pathname, tab: searchParams.get('tab'), isDemo });
   const motionProps = prefersReducedMotion ? FAB_MOTION_REDUCED : FAB_MOTION;
 
   return (
@@ -195,7 +197,7 @@ export function BottomNavigation() {
         {/* Add expense button — the Tracciamento tab only. Its own component because
             `useSearchParams` wants a Suspense boundary in a layout. */}
         <Suspense fallback={null}>
-          <AddExpenseFab pathname={pathname} />
+          <AddExpenseFab pathname={pathname} drawerOpen={drawerOpen} />
         </Suspense>
       </div>
 

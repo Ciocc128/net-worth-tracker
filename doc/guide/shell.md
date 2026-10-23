@@ -101,7 +101,8 @@ rules below name.
   pill + «+» pushed the pill off centre on that tab alone; the pill no longer carries `layout`. The «+» (`AddExpenseFab`,
   56px) floats ABOVE the pill at the right edge (`absolute bottom-full right-4 mb-3` inside the fixed container): it
   rises out of the pill with a spring (opacity, `y` 20 → 0, scale 0.5 → 1, its glyph turning a quarter in) and sinks back
-  in 160ms; under reduced motion it only fades. `main` reserves 88px for the pill alone, so Tracciamento's root adds
+  in 160ms; under reduced motion it only fades. «Altro» open sinks it too, and it rises again when the sheet closes on
+  Tracciamento (under the drawer's backdrop it read as a dimmed, dead button). `main` reserves 88px for the pill alone, so Tracciamento's root adds
   `max-desktop:portrait:pb-16` and the end of its list clears the «+». Pinned by `e2e/motion.layout.mobile.spec.ts` (one left edge in every
   frame from Panoramica to Tracciamento, centred, the «+» above the pill and inside the viewport). In dev the page
   scene freezes rendering while the route compiles, so that spec runs without view transitions.
