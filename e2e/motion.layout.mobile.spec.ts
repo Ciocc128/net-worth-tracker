@@ -91,20 +91,22 @@ test('a client navigation measures the visible nav — the control of the 0 at 1
   expect(bottomNavMeasures).toBeGreaterThan(0);
 });
 
-test('a page scene keeps the pill above the page: its own view-transition group, not root', async ({ page }) => {
+test('a navigation from the pill is the soft scene: no view transition, the pill stays live', async ({ page }) => {
   await openPanoramica(page);
-  // Every frame of the scene: the groups the browser animates, and the name the pill's container wears.
+  // Every frame of the navigation: any view-transition pseudo the browser animates, the name the
+  // pill's container wears, and whether <main> was fading out (data-page-leaving).
   await page.evaluate(() => {
-    const seen = { groups: new Set<string>(), containerNames: new Set<string>() };
+    const seen = { pseudos: new Set<string>(), containerNames: new Set<string>(), leaving: false, vt: false };
     (window as unknown as { __scene: typeof seen }).__scene = seen;
     const container = document.querySelector('[data-bottom-nav]')!;
     const tick = () => {
-      if (document.documentElement.dataset.vt === 'page') {
-        seen.containerNames.add(getComputedStyle(container).viewTransitionName);
-        for (const animation of document.getAnimations()) {
-          const pseudo = (animation.effect as KeyframeEffect | null)?.pseudoElement;
-          if (pseudo) seen.groups.add(pseudo);
-        }
+      const root = document.documentElement;
+      if (root.hasAttribute('data-page-leaving')) seen.leaving = true;
+      if (root.dataset.vt === 'page') seen.vt = true;
+      seen.containerNames.add(getComputedStyle(container).viewTransitionName);
+      for (const animation of document.getAnimations()) {
+        const pseudo = (animation.effect as KeyframeEffect | null)?.pseudoElement;
+        if (pseudo?.startsWith('::view-transition')) seen.pseudos.add(pseudo);
       }
       requestAnimationFrame(tick);
     };
@@ -115,11 +117,16 @@ test('a page scene keeps the pill above the page: its own view-transition group,
   await expect(page.locator('main h1').filter({ visible: true }).first()).toHaveText(/./, { timeout: 30_000 });
   await page.waitForTimeout(800);
   const scene = await page.evaluate(() => {
-    const seen = (window as unknown as { __scene: { groups: Set<string>; containerNames: Set<string> } }).__scene;
-    return { groups: [...seen.groups], containerNames: [...seen.containerNames] };
+    const seen = (window as unknown as { __scene: { pseudos: Set<string>; containerNames: Set<string>; leaving: boolean; vt: boolean } }).__scene;
+    return { pseudos: [...seen.pseudos], containerNames: [...seen.containerNames], leaving: seen.leaving, vt: seen.vt };
   });
-  // Anchor: the scene ran, and page-main — the layer that used to cover the pill — was in it.
-  expect(scene.groups).toContain('::view-transition-new(page-main)');
-  // The pill's container is captured as its own group, painted after page-main.
-  expect(scene.containerNames).toEqual(['bottom-nav']);
+  // Anchor: the page that was left faded out.
+  expect(scene.leaving).toBe(true);
+  // No view transition ran, so the glass pill was never a snapshot: never named, never captured.
+  expect(scene.vt).toBe(false);
+  expect(scene.pseudos).toEqual([]);
+  expect(scene.containerNames).toEqual(['none']);
+  // The next page's mount gave <main> back.
+  await expect(page.locator('html')).not.toHaveAttribute('data-page-leaving', /.*/);
+  expect(await page.locator('#page-main').evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
 });

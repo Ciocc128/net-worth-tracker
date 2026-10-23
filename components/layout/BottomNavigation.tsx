@@ -9,28 +9,18 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { SecondaryMenuDrawer } from './SecondaryMenuDrawer';
 import { isAddExpenseFabShown, isNavItemActive } from '@/lib/utils/navUtils';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import { primaryNav, secondaryHrefs } from '@/lib/constants/navigation';
+import { PILL_VISIBLE_QUERY, primaryNav, secondaryHrefs } from '@/lib/constants/navigation';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 
-/**
- * Where the pill is on screen: the complement of `desktop:hidden max-desktop:landscape:hidden`
- * on its container. Kept beside those classes — change one, change the other.
- */
-const PILL_VISIBLE_QUERY = '(max-width: 1439px) and (orientation: portrait)';
 const ACTIVE_PILL_LAYOUT_ID = 'bottom-nav-active-pill';
 
 const BOTTOM = 'calc(env(safe-area-inset-bottom, 0px) + 12px)';
 /**
- * The container has its own `view-transition-name`: the page scene names `<main>` (`page-main`),
- * and a named region is painted in a layer ABOVE the unnamed root — on a phone `<main>` runs under
- * the pill, so for the whole scene the page's snapshots covered it, and the pill vanished and
- * popped back on every navigation (2026-10-08, the owner's tour). As its own group, later in paint
- * order than `<main>`, it stays on top; `globals.css` gives it no animation in the page scene. The
- * full-width container, not the pill, carries the name: its box never moves, so the group never
- * morphs while the pill glides inside it. Not rendered at 1440 (`desktop:hidden`), so not captured.
- * The name is set by `globals.css` during the page scene ONLY (`[data-bottom-nav]`, 2026-10-23): an
- * element with a `view-transition-name` is a backdrop root, and a name worn at rest left the glass
- * pill's `backdrop-filter` nothing to blur but its own transparent container.
+ * The pill is never inside a view transition (2026-10-23): where it shows, a navigation is the soft
+ * scene (`useSceneNavigation`), so it stays live, glass and all, while the page changes under it. A
+ * named region of a view transition is a backdrop root and its snapshot is painted alone, so in
+ * the old scene the glass had nothing to blur (clear on Safari, a grey box on Chromium) however it
+ * was named. `data-bottom-nav` is the container's handle for the specs.
  */
 const PILL_CONTAINER_STYLE = { bottom: BOTTOM };
 

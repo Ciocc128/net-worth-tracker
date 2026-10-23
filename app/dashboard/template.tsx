@@ -19,10 +19,10 @@
  * API, a `router.push` from a page, the back button.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { pageVariants } from '@/lib/utils/motionVariants';
-import { VIEW_TRANSITION_ATTRIBUTE } from '@/lib/utils/viewTransition';
+import { PAGE_LEAVING_ATTRIBUTE, VIEW_TRANSITION_ATTRIBUTE } from '@/lib/utils/viewTransition';
 
 /** True when this mount is the landing of a page scene: the view transition is the entrance. */
 function isInsidePageScene(): boolean {
@@ -37,6 +37,11 @@ export default function DashboardTemplate({
   const prefersReducedMotion = useReducedMotion();
   // Read once, on the render that mounts the page: the attribute is gone by the time it lands.
   const [sceneEntrance] = useState(isInsidePageScene);
+  // The soft scene (the phone, `useSceneNavigation`) faded `<main>` out: this mount is the next
+  // page landing, so give `<main>` back — the fade below is the entrance.
+  useEffect(() => {
+    document.documentElement.removeAttribute(PAGE_LEAVING_ATTRIBUTE);
+  }, []);
 
   if (sceneEntrance) return <>{children}</>;
 

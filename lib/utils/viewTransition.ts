@@ -18,6 +18,12 @@ export type ViewTransitionKind = 'theme' | 'page';
 /** The attribute the stylesheet keys its scenes on. */
 export const VIEW_TRANSITION_ATTRIBUTE = 'data-vt';
 
+/**
+ * The soft scene's attribute on `<html>` (no view transition: `useSceneNavigation`, where the
+ * phone's pill shows): `<main>` fades out while it is set; the next page's mount takes it off.
+ */
+export const PAGE_LEAVING_ATTRIBUTE = 'data-page-leaving';
+
 export function supportsViewTransition(): boolean {
   return typeof document !== 'undefined' && 'startViewTransition' in document;
 }
