@@ -97,7 +97,7 @@ test('a page scene keeps the pill above the page: its own view-transition group,
   await page.evaluate(() => {
     const seen = { groups: new Set<string>(), containerNames: new Set<string>() };
     (window as unknown as { __scene: typeof seen }).__scene = seen;
-    const container = document.querySelector('nav[data-nav="pill"]')!.parentElement!.parentElement!;
+    const container = document.querySelector('[data-bottom-nav]')!;
     const tick = () => {
       if (document.documentElement.dataset.vt === 'page') {
         seen.containerNames.add(getComputedStyle(container).viewTransitionName);
