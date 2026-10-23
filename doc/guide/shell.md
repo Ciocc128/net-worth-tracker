@@ -105,7 +105,11 @@ rules below name.
   at rest it left the pill nothing to blur but its own transparent container. During the scene itself the named
   container is still a backdrop root, so the pill went clear on Safari (the owner, 2026-10-23, on the merged #137) and
   sat in a grey box on Chromium: under `html[data-vt="page"]` it drops the blur for a denser tint (`--sidebar` at 88%)
-  and eases its background back in 0.2s after.
+  and eases its background back in 0.2s after. A uniform glass through the scene is not reachable: a snapshot is painted
+  in isolation, so neither the pill nor a `backdrop-filter` on `::view-transition-new(bottom-nav)` sees the page under
+  it (tried in Chromium, 2026-10-23: no visible blur). **Pill and «+» cast a two-layer shadow** (a close `0 2px 6px`,
+  a wide `0 10px 32px` on the pill and `0 10px 15px -3px` at 45% on the «+»), so they lift off the page under them
+  (the owner, 2026-10-23, after the glass).
 - **The pill holds navigation only and is the same box on every page** (2026-10-23, the owner's p1 card with Phone and
   Reddit for reference; Apple HIG → Tab bars: «use a tab bar to support navigation, not to provide actions», «don't
   disable or hide tab bar buttons»). Until then Cashflow › Tracciamento's «+» sat BESIDE it and the centred group

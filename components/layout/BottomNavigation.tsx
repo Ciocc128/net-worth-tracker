@@ -59,7 +59,8 @@ const FAB_MOTION_REDUCED = {
  *
  * It floats ABOVE the pill at the right edge, never beside it (2026-10-23): a tab bar navigates and
  * holds no actions, and its row never changes from page to page (Apple HIG → Tab bars). Beside it,
- * the centred group pill + «+» pushed the pill off centre on Tracciamento alone.
+ * the centred group pill + «+» pushed the pill off centre on Tracciamento alone. Its shadow, like
+ * the pill's (`.nav-glass`), is a close layer plus a wide one, so it lifts off the page under it.
  */
 function AddExpenseFab({ pathname, drawerOpen }: { pathname: string; drawerOpen: boolean }) {
   const searchParams = useSearchParams();
@@ -79,7 +80,7 @@ function AddExpenseFab({ pathname, drawerOpen }: { pathname: string; drawerOpen:
           {...motionProps}
           whileTap={prefersReducedMotion ? undefined : { scale: 0.92 }}
           onClick={() => window.dispatchEvent(new CustomEvent('cashflow:add-expense'))}
-          className="absolute bottom-full right-4 mb-3 flex size-14 origin-bottom items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
+          className="absolute bottom-full right-4 mb-3 flex size-14 origin-bottom items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_2px_6px_rgb(0_0_0/0.18),0_10px_15px_-3px_rgb(0_0_0/0.45)]"
         >
           <motion.span
             className="flex"
