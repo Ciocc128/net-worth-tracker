@@ -15,6 +15,7 @@
  * before the write is even attempted (§6, §10.3: "uno alla volta, il primo").
  */
 import { useEffect, useMemo, useState } from 'react';
+import { StepSlide } from '@/components/ui/step-slide';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { ModelPortfolio } from '@/types/modelPortfolio';
 import type {
@@ -815,6 +816,7 @@ export function AccumulationPlanDialog({
           </>
         }
       >
+        <StepSlide stepKey={String(step)} index={step}>
         {step === 1 && (
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-4">
@@ -1573,6 +1575,7 @@ export function AccumulationPlanDialog({
             </div>
           </div>
         )}
+        </StepSlide>
       </ResponsiveModal>
 
       {newAssetDialogOpen && (

@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
+import { useSkeletonReveal } from '@/lib/hooks/useSkeletonReveal';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -23,6 +24,8 @@ interface TileGridSkeletonProps {
    * the benchmark's auth marker reads that label (scripts/perfBenchmark.mjs).
    */
   label?: string;
+  /** False where the content keeps its own entrance (the Panoramica's cascade) or the wait is the auth's. */
+  reveal?: boolean;
   className?: string;
 }
 
@@ -93,10 +96,13 @@ export function TileGridSkeleton({
   toolbar,
   axis,
   label = 'Caricamento',
+  reveal = true,
   className,
 }: TileGridSkeletonProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  useSkeletonReveal(ref, reveal);
   return (
-    <div className={cn('space-y-4', className)} role="status" aria-label={label}>
+    <div ref={ref} className={cn('space-y-4', className)} role="status" aria-label={label}>
       {verdict && <VerdictSkeleton className="pt-1" axis={axis} />}
       {toolbar}
       <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">

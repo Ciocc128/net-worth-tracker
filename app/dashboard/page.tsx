@@ -402,7 +402,7 @@ export default function DashboardPage() {
     return (
       <PageContainer>
         {pageChrome}
-        <TileGridSkeleton />
+        <TileGridSkeleton reveal={false} />
       </PageContainer>
     );
   }

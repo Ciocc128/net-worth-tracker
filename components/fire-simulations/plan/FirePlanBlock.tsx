@@ -48,6 +48,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NarrativeText } from '@/components/ui/narrative-text';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { SAVED_BUTTON_CLASS, SaveButtonContent } from '@/components/ui/save-button-content';
 import { Switch } from '@/components/ui/switch';
 import { Tile, TileRowShell, TILE_CELL_CLASS, TILE_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
 
@@ -477,8 +478,8 @@ export function FirePlanBlock() {
 
         {/* RP2: ONE action row for the four tiles — the plan is one document. */}
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <Button onClick={() => plan.save({ derivedFund: cashToInvest?.fund })} disabled={isDemo || plan.isSaving || plan.isLoadingSettings} className="h-11 desktop:h-9">
-            {plan.isSaving ? 'Salvataggio…' : 'Salva il piano'}
+          <Button onClick={() => plan.save({ derivedFund: cashToInvest?.fund })} disabled={isDemo || plan.isSaving || plan.isLoadingSettings} className={cn('h-11 desktop:h-9', plan.justSaved && SAVED_BUTTON_CLASS)}>
+            <SaveButtonContent saving={plan.isSaving} saved={plan.justSaved} idle="Salva il piano" />
           </Button>
           {hasUnsavedChanges && (
             <Button variant="ghost" size="sm" onClick={plan.reset} disabled={plan.isSaving} className="h-11 desktop:h-9">

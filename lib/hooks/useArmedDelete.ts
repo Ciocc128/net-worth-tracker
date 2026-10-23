@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import { closeRow, reopenRow } from '@/lib/utils/rowTransition';
 
 /**
  * How many confirms are armed right now, across the whole tree.
@@ -14,6 +15,9 @@ import { useEffect, useState, type RefObject } from 'react';
  */
 let armedConfirmCount = 0;
 
+const REOPEN_AFTER_SETTLE_MS = 800;
+const REOPEN_WITHOUT_PROMISE_MS = 5000;
+
 /** True while any two-click confirm is armed: Escape then means «disarm», not «close». */
 export function hasArmedConfirm(): boolean {
   return armedConfirmCount > 0;
@@ -25,9 +29,23 @@ export function hasArmedConfirm(): boolean {
  * delegating, because on success the row unmounts and nothing else would reset it. The
  * button's ref is an argument, never part of the returned object — a ref inside the return
  * value trips `react-hooks/refs` on every read of that object during render.
+ *
+ * AN3 G (doc/animazioni/README.md § 5.9): the confirm also CLOSES the row — the nearest `[data-row]`
+ * around the button fades and collapses in 220 ms while the write starts — and reopens it if the row is
+ * still there once the write has settled (a handler that returns its promise: 800 ms after it settles, for
+ * a refetch that is about to remove the row; a handler that returns nothing: after 5 s). The marker is put
+ * on the DOM, not in state: the close costs no render, and a row that unmounts takes it along.
  */
-export function useArmedDelete(ref: RefObject<HTMLButtonElement | null>, onDelete: () => void) {
+export function useArmedDelete(ref: RefObject<HTMLButtonElement | null>, onDelete: () => void | Promise<unknown>) {
   const [armed, setArmed] = useState(false);
+  const reopenTimer = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (reopenTimer.current !== null) window.clearTimeout(reopenTimer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!armed) return;
@@ -53,7 +71,20 @@ export function useArmedDelete(ref: RefObject<HTMLButtonElement | null>, onDelet
       return;
     }
     setArmed(false);
-    onDelete();
+    const row = ref.current?.closest<HTMLElement>('[data-row]') ?? null;
+    if (row) closeRow(row);
+    const reopen = (afterMs: number) => {
+      if (reopenTimer.current !== null) window.clearTimeout(reopenTimer.current);
+      reopenTimer.current = window.setTimeout(() => {
+        if (row?.isConnected) reopenRow(row);
+      }, afterMs);
+    };
+    const result = onDelete();
+    if (result && typeof (result as Promise<unknown>).then === 'function') {
+      void (result as Promise<unknown>).then(() => reopen(REOPEN_AFTER_SETTLE_MS), () => reopen(0));
+    } else {
+      reopen(REOPEN_WITHOUT_PROMISE_MS);
+    }
   };
 
   return { armed, onClick, onBlur: () => setArmed(false) };

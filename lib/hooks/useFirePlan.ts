@@ -40,6 +40,7 @@ import {
 } from '@/lib/utils/firePlan';
 import type { PensionDraftIssue } from '@/lib/utils/coastFireView';
 import type { Settings } from '@/types/settings';
+import { useSavedFlash } from '@/lib/hooks/useSavedFlash';
 
 /** How long the Collapsible takes to mount its content before a field inside it can take focus. */
 const PLAN_OPEN_FOCUS_DELAY_MS = 80;
@@ -55,6 +56,8 @@ export interface FirePlanState {
   /** The valid edits to lay over the saved settings; null when there is nothing unsaved (the saved object stays). */
   overlay: Partial<Settings> | null;
   isSaving: boolean;
+  /** True for 1200 ms after a save succeeded: the button wears «Salvato» (AN3 I). */
+  justSaved: boolean;
   /** `derivedFund`: the fund a legacy share stands for (RE5), fixed in euro by this save. */
   save: (options?: { derivedFund?: number | null }) => void;
   reset: () => void;
@@ -96,10 +99,12 @@ export function useFirePlanDraft(): FirePlanState {
   const problems = useMemo(() => validateFirePlan(form, currentYear), [form, currentYear]);
   const pensionIssues = useMemo(() => planPensionIssues(form, new Date()), [form]);
 
+  const { saved: justSaved, flash: flashSaved } = useSavedFlash();
   const mutation = useMutation({
     mutationFn: (payload: object) => setSettings(ownerId!, { ...(settings ?? {}), targets: settings?.targets || getDefaultTargets(), ...payload }),
     onSuccess: () => {
       toast.success('Piano FIRE salvato');
+      flashSaved();
       return queryClient.invalidateQueries({ queryKey: queryKeys.settings.all(ownerId || '') });
     },
     onError: (error) => {
@@ -152,6 +157,7 @@ export function useFirePlanDraft(): FirePlanState {
     pensionIssues,
     overlay,
     isSaving: mutation.isPending,
+    justSaved,
     save,
     reset,
     open,

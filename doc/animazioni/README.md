@@ -323,3 +323,21 @@ Prese con la PR di AN2 (23/10/2026):
    (emulatore spento o regola negata) la riga torna aperta.
 9. `perf:census` desktop e `--mobile` sugli scenari della fase: nessun aumento di render per interazione oltre quanto la
    PR spiega; `perf:budget` e `mobile:budget` verdi senza ritocchi.
+
+## 11. AN3 — come è stata realizzata (23/10/2026)
+
+- **F**: `useSkeletonReveal` (in `TileGridSkeleton`): un effetto passivo segna che lo scheletro è stato dipinto, il cleanup del
+  layout effect mette `data-skeleton-reveal` sul contenitore al commit che lo sostituisce (180 ms, solo opacità, `PageHeader`
+  escluso, una volta per contenitore). Panoramica e attesa dell'accesso: `reveal={false}`.
+- **G**: `useArmedDelete` chiude la riga (`[data-row]` più vicina) alla conferma, marcandola `data-rowExiting` sul DOM (nessun
+  render): una riga a blocchi collassa da `--row-height`, una `<tr>` collassa le sue celle. Si riapre 800 ms dopo che la
+  promessa del gestore si è chiusa e la riga c'è ancora (5 s se il gestore non restituisce nulla). `useAddedRows`: una lista che
+  guadagna 1–2 righe senza perderne evidenzia la nuova (fade 220 ms + sfondo `muted` 1200 ms, solo CSS). Cablato in Spese
+  (`ExpenseTable`), Strumenti (tabella e `AssetRow`), Versamenti, Movimenti dell'asset, Categorie di Impostazioni › Spese.
+- **H**: `StepSlide` (`components/ui/step-slide.tsx`) nel modale del PAC; l'altezza in px su transizione CSS solo durante il
+  cambio di passo.
+- **I**: `useSavedFlash` + `SaveButtonContent`: «Salva» di Impostazioni e «Salva il piano».
+- **Scarti dichiarati**: «Salva gli obiettivi» chiude il modale al successo, quindi il bottone non mostra «Salvato» (il toast resta);
+  `CashAccountDialog` e `TraiettoriaTile` cancellano il conto/l'obiettivo stesso, non una riga di lista; una riga appena
+  creata si apre solo in dissolvenza (l'altezza di una riga non ancora montata non è misurabile senza un render in più).
+

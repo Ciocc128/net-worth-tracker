@@ -262,7 +262,7 @@ export function AssetMovementsDialog({ open, onClose, asset }: AssetMovementsDia
                       effect={effectsById[transaction.id]}
                       isDemo={isDemo}
                       onEdit={() => openEditTrade(transaction)}
-                      onDelete={() => void performDelete(transaction.id)}
+                      onDelete={() => performDelete(transaction.id)}
                     />
                   ))}
                 </tbody>
@@ -277,7 +277,7 @@ export function AssetMovementsDialog({ open, onClose, asset }: AssetMovementsDia
                     effect={effectsById[transaction.id]}
                     isDemo={isDemo}
                     onEdit={() => openEditTrade(transaction)}
-                    onDelete={() => void performDelete(transaction.id)}
+                    onDelete={() => performDelete(transaction.id)}
                   />
                 ))}
               </div>
@@ -383,7 +383,7 @@ function MovementTableRow({
   const realized = transaction.type === 'sell' ? effect?.realizedPnlEur : undefined;
 
   return (
-    <tr className="border-b border-border last:border-b-0">
+    <tr data-row="" className="border-b border-border last:border-b-0">
       <th scope="row" className="py-2.5 text-left font-mono text-[13px] font-normal tabular-nums">
         {formatDate(transaction.date)}
       </th>
@@ -434,7 +434,7 @@ function MovementRow({ transaction, currency, effect, isDemo, onEdit, onDelete }
   const gross = transaction.quantity * transaction.priceEur;
 
   return (
-    <div className="flex items-start gap-3 px-3 py-2.5">
+    <div data-row="" className="flex items-start gap-3 px-3 py-2.5">
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-xs tabular-nums text-muted-foreground">

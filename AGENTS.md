@@ -614,6 +614,10 @@ file used to carry.
   from the slot's last figure through the page's `FigureMemory` (`useCountUp`'s `seed`); a drill level is a
   `DrillSlide` (`components/ui/drill-slide.tsx`). A frame is never read: the frame text is `aria-hidden`, the landed one
   `sr-only`; a sign colour follows the LANDED value.
+- **Skeleton → content, a row that leaves, a wizard step, «Salvato»** (AN3, 2026-10-23, doc/animazioni/README.md § 11): the swap
+  of a painted skeleton is a CSS fade set on the DOM (`useSkeletonReveal`, `data-skeleton-reveal`); a row carries `data-row` and
+  `useArmedDelete` closes it through `data-row-exiting` (DOM, no state), `useAddedRows` marks a created one `data-row-added`;
+  a wizard step is a `StepSlide`; a save button wears `SaveButtonContent` + `SAVED_BUTTON_CLASS` for 1200 ms (`useSavedFlash`).
 - **Page transitions use `template.tsx`, NOT `layout.tsx` + `AnimatePresence`**; since 2026-09-12 a shell-link click is
   a page SCENE through `lib/utils/viewTransition.ts`, the ONE entry to `document.startViewTransition`; a
   `view-transition-name` is unique among the RENDERED elements (never the tile grid), a named element leaves `root` for
