@@ -38,7 +38,13 @@ const nextConfig: NextConfig = {
   ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   // The dev-tools badge floats bottom-left and covers bottom-left buttons at 390px (a dialog's «Calcola»),
   // so a click lands on `<nextjs-portal>` and times out. Off for the e2e server only (2026-10-11).
-  ...(process.env.NEXT_DIST_DIR === '.next-e2e' ? { devIndicators: false as const } : {}),
+  // `devIndicators: false` is not enough since Next 16.4: when the installed version has a security advisory the
+  // dev tools add a «1 Insight» badge in the same corner, outside that switch (outside CI, which skips the check) —
+  // it covered the buttons in motion.layout.spec.ts and allocation.mobile.spec.ts. `agentUpgrade: false` stops the
+  // advisory query on the e2e server only (2026-10-23).
+  ...(process.env.NEXT_DIST_DIR === '.next-e2e'
+    ? { devIndicators: false as const, experimental: { agentUpgrade: false as const } }
+    : {}),
   allowedDevOrigins: ['192.168.1.114'],
   // The React Compiler memoizes every component and hook (babel-plugin-react-compiler, applied by
   // Next only to files with JSX or hooks). On since 2026-10-05; the before/after census is in
