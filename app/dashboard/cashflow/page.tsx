@@ -36,6 +36,7 @@ import { Button } from '@/components/ui/button';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { TabsContent } from '@/components/ui/tabs';
 import { ExpenseTrackingTab } from '@/components/cashflow/ExpenseTrackingTab';
+import { FigureMemory } from '@/components/ui/settled-figure';
 import { lazyComponent, usePreloadWhenIdle } from '@/components/ui/lazy-component';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { BUDGET_SKELETON_CELLS, COST_CENTERS_SKELETON_CELLS } from '@/lib/constants/cashflowTabSkeletons';
@@ -382,6 +383,9 @@ export default function CashflowPage() {
             // generated reference points at nothing. The name is the label above.
             aria-labelledby={undefined}
           >
+          {/* The tiles wait as a skeleton while a new period is read; the memory lets their figures
+              glide from the previous period's when they come back (components/ui/settled-figure.tsx). */}
+          <FigureMemory>
           <ExpenseTrackingTab
             windowExpenses={trackingExpenses}
             period={trackingPeriod}
@@ -397,6 +401,7 @@ export default function CashflowPage() {
             familyMembers={familyMembers}
             active={effectiveTab === 'tracking'}
           />
+          </FigureMemory>
         </TabsContent>
 
         {mountedTabs.has('dividends') && (

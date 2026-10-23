@@ -343,7 +343,15 @@ npm run perf:serve                                  # :3200
 npm run perf:census -- --runs=5 --label=prima       # ~2 minuti; --scenario=settings,expense,tabs,asset · --mobile
 npm run perf:census -- --scenario=mount,nav --route=history,fire-simulations,dashboard   # un caricamento, un cambio di pagina
 npm run perf:census -- --mobile --scenario=hall-of-fame                                 # un tap su una riga chiusa (dal 2026-10-10)
+npm run perf:census -- --email=census@example.com --scenario=view,period,analisi-period,drill   # le trasformazioni di AN2 (dal 2026-10-23)
 ```
+
+**Gli scenari delle trasformazioni (AN2, 2026-10-23, doc/animazioni/README.md § 5.4–5.6)**, sul fixture `census@example.com`:
+**view** (Allocazione › Esposizione, Settori → Paesi → Valute → Titoli; con `--mobile` apre prima la riga), **period**
+(Tracciamento, «Quest'anno» ⇄ «Questo mese» dopo un giro non misurato, così ogni finestra è già in cache e si misura la
+trasformazione, non la lettura), **analisi-period** («Da inizio anno» ⇄ «Anno corrente») e **drill** (la Scheda giù alla
+prima sottocategoria e su dalla briciola, due volte). Ogni passo ha 900 ms, più della glide più lunga (620 ms), così ogni
+frame dell'animazione cade nella finestra. La base «prima» del 23/10/2026 è nella PR di AN2.
 
 Otto scenari (i cinque di default qui, poi i tre aggiunti), ognuno in un contesto nuovo con il login vero, nulla salvato: **settings** (10 tasti in «Anno inizio
 storico cashflow» di Impostazioni › Preferenze, un input controllato della pagina), **allocation** (dal 2026-10-08,

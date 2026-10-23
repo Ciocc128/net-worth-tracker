@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TILE_EYEBROW_CLASS } from '@/components/ui/tile';
@@ -23,6 +26,33 @@ interface PageHeaderProps {
 /** The live region's attributes, the same on both copies (see `freshness` above). */
 const FRESHNESS_LIVE_PROPS = { role: 'status', 'aria-live': 'polite', 'aria-atomic': true, 'data-freshness': '' } as const;
 
+/** How long «sto rileggendo…» takes to fade once the fresh read has landed (doc/animazioni/README.md § 5.7). */
+const FRESHNESS_FADE_MS = 200;
+const FRESHNESS_FADE_CLASS = 'motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out';
+
+/**
+ * The sentence on screen: the freshness reading, and for `FRESHNESS_FADE_MS` after it goes the
+ * last one, fading (`leaving`) — the fresh figure glides in the meantime (`OverviewAnimatedCurrency`).
+ * The live region keeps the same text while it fades, so nothing extra is announced; it empties after.
+ * Reduced motion: the sentence goes at once.
+ */
+function useFadingSentence(sentence: string | null): { text: string | null; leaving: boolean } {
+  const [state, setState] = useState<{ sentence: string | null; text: string | null; leaving: boolean }>({ sentence, text: sentence, leaving: false });
+  if (state.sentence !== sentence) {
+    const reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const fade = sentence === null && state.text !== null && !reduced;
+    setState({ sentence, text: fade ? state.text : sentence, leaving: fade });
+  }
+  // The fade's own timer, in its own effect (AGENTS.md § Motion, auto-dismiss).
+  const { leaving } = state;
+  useEffect(() => {
+    if (!leaving) return;
+    const timer = setTimeout(() => setState((previous) => (previous.leaving ? { ...previous, text: null, leaving: false } : previous)), FRESHNESS_FADE_MS);
+    return () => clearTimeout(timer);
+  }, [leaving]);
+  return { text: state.text, leaving: state.leaving };
+}
+
 /**
  * The compact page header (the default since the shell redesign, the only one since the last
  * propagation): on `desktop:` ONE line — eyebrow · title · description, actions on the right
@@ -32,7 +62,8 @@ const FRESHNESS_LIVE_PROPS = { role: 'status', 'aria-live': 'polite', 'aria-atom
  * navbar is one block, and its title is what the user anchors to while scrolling.
  */
 export function PageHeader({ title, label, description, actions, freshness, className }: PageHeaderProps) {
-  const freshnessSentence = freshness?.sentence ?? null;
+  const { text: freshnessSentence, leaving } = useFadingSentence(freshness?.sentence ?? null);
+  const fadeClass = cn(FRESHNESS_FADE_CLASS, leaving && 'opacity-0');
 
   return (
     // `page-header`: the page scene morphs this line into the next page's (globals.css → Page scene).
@@ -61,7 +92,7 @@ export function PageHeader({ title, label, description, actions, freshness, clas
           // With a freshness reading the line is reserved even on a page with no description, so
           // the sentence never adds a line under the title; the description yields to it and returns.
           <p className={cn('text-sm text-muted-foreground leading-tight truncate', freshness && 'min-h-[1.25em]')}>
-            {freshness && <span {...FRESHNESS_LIVE_PROPS}>{freshnessSentence ?? ''}</span>}
+            {freshness && <span {...FRESHNESS_LIVE_PROPS} className={fadeClass}>{freshnessSentence ?? ''}</span>}
             {!freshnessSentence && description}
           </p>
         )}
@@ -75,7 +106,7 @@ export function PageHeader({ title, label, description, actions, freshness, clas
             {description && <span> · {description}</span>}
           </h1>
           {freshness && (
-            <p {...FRESHNESS_LIVE_PROPS} className="shrink-0 text-sm text-muted-foreground">
+            <p {...FRESHNESS_LIVE_PROPS} className={cn('shrink-0 text-sm text-muted-foreground', fadeClass)}>
               {freshnessSentence ? `· ${freshnessSentence}` : ''}
             </p>
           )}

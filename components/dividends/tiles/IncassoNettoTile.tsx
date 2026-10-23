@@ -12,6 +12,9 @@ import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
 import { resolveHeroValueClass } from '@/components/dashboard/overview/PatrimonioTile';
 import { NetIncomeBars, type NetIncomeBarPoint } from './NetIncomeBars';
+import { SettledFigure } from '@/components/ui/settled-figure';
+
+const formatCompactEuro = (value: number) => cachedFormatCurrencyEUR(value, true);
 import { MONTH_NAMES } from '@/lib/constants/months';
 
 interface IncassoNettoTileProps {
@@ -92,7 +95,8 @@ export function IncassoNettoTile({
       ariaLabel="Incasso netto del periodo"
     >
       <p className={cn('mt-2.5 block leading-none', resolveHeroValueClass(net))}>
-        {cachedFormatCurrencyEUR(net, true)}
+        {/* The period's hero transforms (The Period-Transforms Rule, doc/animazioni/README.md § 5.6). */}
+        <SettledFigure value={net} format={formatCompactEuro} />
       </p>
 
       {/* Grouped chips: the change, then what is announced — same kind of fact, one row. */}

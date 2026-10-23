@@ -21,7 +21,8 @@
  */
 'use client';
 
-import { motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { useRowMorph } from '@/lib/hooks/useRowMorph';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
 import { cn } from '@/lib/utils';
@@ -54,6 +55,14 @@ interface CompositionListProps {
 // function used as a parameter default.
 const formatEuro = (v: number) => cachedFormatCurrencyEUR(v);
 
+/**
+ * The bars and the re-rank on the 400/35 spring, as `RankedRows` (doc/animazioni/README.md § 6): a
+ * switch moves the bar from the width it shows, the figures count (`useRowMorph`), a row that leaves
+ * fades in 100 ms.
+ */
+const BAR_SPRING = { type: 'spring', stiffness: 400, damping: 35 } as const;
+const ROW_EXIT = { opacity: 0, transition: { duration: 0.1, ease: 'easeOut' } } as const;
+
 export function CompositionList({
   items,
   onItemClick,
@@ -62,22 +71,33 @@ export function CompositionList({
   ariaLabel,
 }: CompositionListProps) {
   const reducedMotion = useReducedMotion();
+  const overflow = maxRows && items.length > maxRows;
+  const visible = overflow ? items.slice(0, maxRows - 1) : items;
+  // Before the early return: a hook runs on every render (AGENTS.md § Motion).
+  const morph = useRowMorph(visible.map((item) => ({ key: item.id, label: item.name, figures: { value: item.value, percentage: item.percentage } })));
 
   if (items.length === 0) return null;
 
   const maxValue = Math.max(...items.map((i) => i.value), 0);
-  const overflow = maxRows && items.length > maxRows;
-  const visible = overflow ? items.slice(0, maxRows - 1) : items;
   const hidden = overflow ? items.slice(maxRows - 1) : [];
   const hiddenTotal = hidden.reduce((sum, i) => sum + i.value, 0);
 
   return (
-    <div role="list" aria-label={ariaLabel} className="divide-y divide-border/60">
-      {visible.map((item, i) => {
+    <div role="list" aria-label={ariaLabel} className="relative divide-y divide-border/60">
+      <AnimatePresence initial={false} mode="popLayout">
+      {visible.map((item) => {
         const widthPct = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
+        const slot = morph.slotOf(item.id);
+        const frame = morph.figuresOf(slot, { value: item.value, percentage: item.percentage });
+        // A frame of the count is not a measurement: hidden from the screen reader, the landed figure read instead.
+        const moving = frame.value !== item.value || frame.percentage !== item.percentage;
+        const relabelled = morph.relabelled.has(slot);
         const rowContent = (
           <>
-            <span className="w-[34%] desktop:w-[22%] min-w-0 shrink-0 break-words text-sm font-medium leading-tight text-foreground">
+            <span
+              key={relabelled ? item.name : undefined}
+              className={cn('w-[34%] desktop:w-[22%] min-w-0 shrink-0 break-words text-sm font-medium leading-tight text-foreground', relabelled && 'row-label-in')}
+            >
               {item.name}
             </span>
             <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
@@ -86,28 +106,28 @@ export function CompositionList({
                 style={{ backgroundColor: item.color, opacity: item.barOpacity ?? 1 }}
                 initial={reducedMotion ? false : { width: 0 }}
                 animate={{ width: `${widthPct}%` }}
-                transition={
-                  reducedMotion
-                    ? undefined
-                    : { duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.05 * i }
-                }
+                transition={reducedMotion ? undefined : BAR_SPRING}
               />
             </span>
             <span className="w-24 shrink-0 text-right font-mono text-sm tabular-nums text-foreground">
-              {formatValue(item.value)}
+              <span aria-hidden={moving || undefined}>{formatValue(frame.value)}</span>
+              {moving && <span className="sr-only">{formatValue(item.value)}</span>}
             </span>
             <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground">
-              {formatPercentage(item.percentage, 1)}
+              <span aria-hidden={moving || undefined}>{formatPercentage(frame.percentage, 1)}</span>
+              {moving && <span className="sr-only">{formatPercentage(item.percentage, 1)}</span>}
             </span>
           </>
         );
 
-        const rowClassName = 'flex items-center gap-3 py-2.5';
+        const rowClassName = cn('flex items-center gap-3 py-2.5', morph.entered.has(slot) && 'row-enter');
+        const rowMotion = { layout: morph.animate ? ('position' as const) : false, transition: BAR_SPRING, exit: ROW_EXIT };
 
         if (onItemClick) {
           return (
-            <button
-              key={item.id}
+            <motion.button
+              key={slot}
+              {...rowMotion}
               type="button"
               role="listitem"
               onClick={() => onItemClick(item)}
@@ -118,16 +138,17 @@ export function CompositionList({
               aria-label={`${item.name}, ${formatValue(item.value)}, ${formatPercentage(item.percentage, 1)}`}
             >
               {rowContent}
-            </button>
+            </motion.button>
           );
         }
 
         return (
-          <div key={item.id} role="listitem" className={rowClassName}>
+          <motion.div key={slot} {...rowMotion} role="listitem" className={rowClassName}>
             {rowContent}
-          </div>
+          </motion.div>
         );
       })}
+      </AnimatePresence>
 
       {overflow && (
         <div className="flex items-center justify-between py-2.5 text-xs text-muted-foreground">

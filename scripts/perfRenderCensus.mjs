@@ -51,6 +51,17 @@
  *              (the composition's own measure): a tap must re-render that row, `PageRest` and the page
  *              that holds the controller — never another tile, nor `PageVerdict` or `VerdictStrip`;
  *              read `byName` on a `--no-mangling` build to see who ran.
+ *   view       Allocazione › Esposizione: Settori → Paesi → Valute → Titoli through the tile's own
+ *              view switch, four switches, each given 900 ms so a glide's frames are inside the
+ *              window (opened first with `--mobile`, where the tile is a closed row). Added
+ *              2026-10-23 for the views that transform (doc/animazioni/README.md § 5.4, AN2).
+ *   period     Cashflow › Tracciamento: «Quest'anno» ⇄ «Questo mese» from the period picker, four
+ *              switches after one unmeasured lap (each window read once and cached), so it counts
+ *              the axis moving over data in memory — the transform, not the read (§ 5.6).
+ *   analisi-period  Analisi: «Da inizio anno» ⇄ «Anno corrente» on the page's pill, four switches;
+ *              Analisi reads the history whole, so no read is in the window (§ 5.6).
+ *   drill      Analisi › Scheda: down to the first subcategory and back up by its crumb, twice
+ *              (four steps), from the first category of «Spese per categoria» (§ 5.5).
  * Never saves anything: the typed values are dropped with the context.
  *
  * Prerequisites, in the owner's terminals: `npm run emulators`, the mirror
@@ -90,6 +101,9 @@ const OUT = 'perf/last-census.json';
 const KEYS = '1234567890'; // each key yields a DIFFERENT value, so each one is a real state change
 const KEY_GAP_MS = 150;    // a brisk typist; every commit of a key lands before the next one
 const SETTLE_MS = 600;     // after the last key: effects, deferred work, a debounced reader
+// After a view, period or drill switch: longer than the longest glide it may start (620 ms), so
+// every frame of the transition lands inside the window and is counted.
+const VIEW_SETTLE_MS = 900;
 
 /**
  * Injected before any page script. Runs IN THE PAGE, so it is self-contained. React DOM looks for
@@ -307,6 +321,80 @@ const scenarioRunners = {
       }
     });
   },
+  async view(page, cdp) {
+    await page.goto(`${BASE}/dashboard/allocation`, { waitUntil: 'load' });
+    await page.waitForFunction(isPageSettled, { previousHeading: null, needsEuro: true }, { timeout: 30_000, polling: 100 });
+    // Below `desktop:` the Esposizione is a closed row: open it once, so its read starts and the
+    // measured switches toggle a mounted list, as `tabs` toggles two mounted panels.
+    if (MOBILE) await page.locator('#alloc-esposizione-trigger').click();
+    const group = page.getByRole('group', { name: "Vista dell'esposizione" }).filter({ visible: true }).first();
+    await group.waitFor({ state: 'visible', timeout: 60_000 });
+    await page.getByRole('list', { name: 'Titoli più pesanti' }).first().waitFor({ state: 'visible', timeout: 60_000 });
+    await page.waitForTimeout(1_000);
+    const switches = ['Settori', 'Paesi', 'Valute', 'Titoli'];
+    return record(page, cdp, switches.length, async () => {
+      for (const name of switches) {
+        await group.getByRole('button', { name, exact: true }).click();
+        await page.waitForTimeout(VIEW_SETTLE_MS);
+      }
+    });
+  },
+  async period(page, cdp) {
+    await page.goto(`${BASE}/dashboard/cashflow`, { waitUntil: 'load' });
+    await page.waitForFunction(isPageSettled, { previousHeading: null, needsEuro: true }, { timeout: 30_000, polling: 100 });
+    const choose = async (name) => {
+      await page.getByRole('combobox', { name: /^Periodo selezionato/ }).filter({ visible: true }).first().click();
+      await page.getByRole('button', { name, exact: true }).filter({ visible: true }).first().click();
+      await page.waitForFunction(isGridSettled, null, { timeout: 30_000, polling: 100 });
+      await page.waitForTimeout(VIEW_SETTLE_MS);
+    };
+    // One lap first: each window is read once and lands in the cache, so the measured switches
+    // are the axis moving over data already in memory — what the glide adds, not the read.
+    const month = 'Questo mese';
+    await choose("Quest'anno");
+    await choose(month);
+    const switches = ["Quest'anno", month, "Quest'anno", month];
+    return record(page, cdp, switches.length, async () => {
+      for (const name of switches) await choose(name);
+    });
+  },
+  async 'analisi-period'(page, cdp) {
+    await page.goto(`${BASE}/dashboard/analisi`, { waitUntil: 'load' });
+    await page.waitForFunction(isPageSettled, { previousHeading: null, needsEuro: true }, { timeout: 30_000, polling: 100 });
+    const pill = page.getByRole('radiogroup', { name: 'Periodo di analisi' }).filter({ visible: true }).first();
+    await pill.waitFor({ state: 'visible', timeout: 30_000 });
+    await page.waitForTimeout(1_000);
+    const switches = ['Da inizio anno', 'Anno corrente', 'Da inizio anno', 'Anno corrente'];
+    return record(page, cdp, switches.length, async () => {
+      for (const name of switches) {
+        await pill.getByRole('radio', { name, exact: true }).click();
+        await page.waitForTimeout(VIEW_SETTLE_MS);
+      }
+    });
+  },
+  async drill(page, cdp) {
+    await page.goto(`${BASE}/dashboard/analisi`, { waitUntil: 'load' });
+    await page.waitForFunction(isPageSettled, { previousHeading: null, needsEuro: true }, { timeout: 30_000, polling: 100 });
+    if (MOBILE) await page.locator('#analisi-spese-trigger').click();
+    // The Scheda opens on the first category with subcategories: its rows are the drill's way down.
+    const categories = page.getByRole('list', { name: 'Spese per categoria' }).filter({ visible: true }).first();
+    await categories.waitFor({ state: 'visible', timeout: 30_000 });
+    await categories.getByRole('button').first().click();
+    const subcategories = page.getByRole('list', { name: /^Sottocategorie di / }).filter({ visible: true }).first();
+    await subcategories.waitFor({ state: 'visible', timeout: 30_000 });
+    const category = (await subcategories.getAttribute('aria-label')).replace(/^Sottocategorie di /, '');
+    const crumbs = page.getByRole('navigation', { name: 'Posizione nel drill-down' }).filter({ visible: true }).first();
+    await page.waitForTimeout(1_000);
+    return record(page, cdp, 4, async () => {
+      for (let i = 0; i < 2; i++) {
+        await subcategories.getByRole('button').first().click();
+        await page.waitForTimeout(VIEW_SETTLE_MS);
+        await crumbs.getByRole('button', { name: category, exact: true }).click();
+        await subcategories.waitFor({ state: 'visible', timeout: 10_000 });
+        await page.waitForTimeout(VIEW_SETTLE_MS);
+      }
+    });
+  },
   async nav(page, cdp) {
     await page.goto(`${BASE}/dashboard/hall-of-fame`, { waitUntil: 'load' });
     await page.waitForFunction(isPageSettled, { previousHeading: null }, { timeout: 30_000, polling: 100 });
@@ -329,6 +417,11 @@ const scenarioRunners = {
     });
   },
 };
+
+/** In the page: no skeleton left in `main` — a period's read has landed and the tiles are back. */
+function isGridSettled() {
+  return !document.querySelector('main [data-slot="skeleton"]');
+}
 
 /**
  * In the page: the route's own heading is there (a different one than `previousHeading`, after a

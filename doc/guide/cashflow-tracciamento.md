@@ -243,6 +243,10 @@ Composed on 2026-10-12 (PR #454; its spec, retired the same day, is in `git log 
 - **The specs**: `e2e/mobile-composition.cashflow.mobile.spec.ts` (the first screen with the rate and the coverage still shown, the scope with a row planted at NOON of the month's last day — its late evening is the next month in Rome under summer time —, the «+» and the focus, «Apri tutte» and the overflow, reduced motion), `e2e/cashflow.mobile.spec.ts` (opens Movimenti first). Not proven in a browser: the picker keeping its focus through a wait or a failed read (held by the structure of `PageVerdict.pending` alone).
 - **The tablet specs**: `e2e/cashflow.tablet.spec.ts` (`tablet` and `tablet-landscape`: two columns at 768 and the landscape stage with the first closed row above the fold, an opened row in place in the index at 1024 and across the grid at 768, a rotation with Movimenti open and every row open with the left stack still and nothing past `main`, the tabs at 44×44, the «+» at 768, «Aggiungi» 44px at 1024 with no «+», 1440 unchanged).
 
+## Movimento (AN2, 2026-10-23)
+
+A new period is still a new read behind a skeleton (D-AN12, `doc/animazioni/README.md` § 8); the tab sits in a `FigureMemory` (`app/dashboard/cashflow/page.tsx`), so when the tiles come back the trio and the strip's cells glide from the previous period's figures (`SettledFigure`, 620 ms), and the category lists re-rank in place (`RankedRows`). A window already read glides at once. Measured with `npm run perf:census -- --scenario=period`.
+
 ## Per-page blind spots
 
 - **The trio's spending arrow repeats the first sentence's pacing on a phone** (seen 2026-10-15 on the census fixture, once the previous month's same days hold rows: «in aumento del 121,2%» in the sentence and «↑ 121,2%» under Spese, 7 figures outside the verdict at 390): Analisi lifts that arrow (`CashflowKpiTrio`'s `expensesDeltaLifted`, since 2026-10-14), Tracciamento does not — the owner's call that day was for Analisi alone. Whether to lift it here too is a decision not taken; `perf/mobile-budget.json` records the 7 with its `raisedBy`.

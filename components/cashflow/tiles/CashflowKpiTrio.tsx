@@ -5,6 +5,10 @@ import { printedDelta } from '@/lib/utils/cashflowNarrative';
 import { cn } from '@/lib/utils';
 import { LIFTED_FIGURE_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { SeriesDot } from '@/components/ui/series-dot';
+import { SettledFigure } from '@/components/ui/settled-figure';
+
+// Module-level formatters: a stable identity for the leaf, and the frame prints in the landed face.
+const formatCompactEuro = (value: number) => cachedFormatCurrencyEUR(value, true);
 
 // 22px where the trio has room; in a phone's column the three five-digit figures touched, so the
 // size follows the trio's own width (container units) down to a 15px floor.
@@ -73,7 +77,9 @@ interface CashflowKpiTrioProps {
 
 /**
  * Entrate · Spese · Risparmio at 22px with their deltas — the same trio on Tracciamento's hero
- * and on Analisi's Periodo tile, one component so the two cannot drift. The savings rate and
+ * and on Analisi's Periodo tile, one component so the two cannot drift. The three values glide
+ * when the period moves (The Period-Transforms Rule; on Tracciamento across the skeleton of a new
+ * read, through the tab's `FigureMemory`). The savings rate and
  * the coverage ratio sit together on purpose: same relationship, two units.
  */
 export function CashflowKpiTrio({ totals, incomeDelta, expensesDelta, previousLabel, lifted = false, expensesDeltaLifted = false, className }: CashflowKpiTrioProps) {
@@ -84,14 +90,14 @@ export function CashflowKpiTrio({ totals, incomeDelta, expensesDelta, previousLa
       <div className="flex min-w-0 flex-col gap-1.5">
         <p className={TILE_SUB_EYEBROW_CLASS}><SeriesDot color="var(--flow-in)" />Entrate</p>
         <p className={cn(valueClass, income > 0 ? 'text-income-figure' : 'text-muted-foreground')}>
-          {cachedFormatCurrencyEUR(income, true)}
+          <SettledFigure value={income} format={formatCompactEuro} memoryKey="trio:income" />
         </p>
         <DeltaLine delta={incomeDelta} positiveGood={true} previousLabel={previousLabel} />
       </div>
       <div className="flex min-w-0 flex-col gap-1.5">
         <p className={TILE_SUB_EYEBROW_CLASS}><SeriesDot color="var(--flow-out)" />Spese</p>
         <p className={cn(valueClass, expenses > 0 ? 'text-expense-figure' : 'text-muted-foreground')}>
-          {cachedFormatCurrencyEUR(expenses, true)}
+          <SettledFigure value={expenses} format={formatCompactEuro} memoryKey="trio:expenses" />
         </p>
         <DeltaLine delta={expensesDelta} positiveGood={false} previousLabel={previousLabel} lifted={expensesDeltaLifted} />
       </div>
@@ -99,7 +105,9 @@ export function CashflowKpiTrio({ totals, incomeDelta, expensesDelta, previousLa
         <p className={TILE_SUB_EYEBROW_CLASS}>Risparmio</p>
         {/* The strip's cell repeats this figure on a phone: ONE formatter decides the «−», and a
             net that prints as zero takes none (AGENTS.md § Layout and Color Tokens, 2026-10-12). */}
-        <p className={cn(valueClass, netFigureClass(net))}>{formatEuroMinus(net)}</p>
+        <p className={cn(valueClass, netFigureClass(net))}>
+          <SettledFigure value={net} format={formatEuroMinus} memoryKey="trio:net" />
+        </p>
         <p className="text-[11px] text-muted-foreground">
           {savingsRate !== null ? (
             <span className={cn('font-mono tabular-nums', netFigureClass(net))}>{formatPercentage(savingsRate, 1)}</span>

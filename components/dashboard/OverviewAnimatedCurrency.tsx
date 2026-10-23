@@ -5,11 +5,14 @@ import { cn } from '@/lib/utils';
 import { useCountUp } from '@/lib/utils/useCountUp';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 
+/** The glide from a figure on screen to the fresh one (§ 6: «Dato fresco», 600 ms). */
+const FRESH_GLIDE_MS = 600;
+
 interface OverviewAnimatedCurrencyProps {
   /** Final value to display. Passed as a stable computed prop from the page. */
   value: number;
   /**
-   * When true, animates from 0 to value on the first non-zero data load (once-mode).
+   * When true, animates from 0 to value on the first data load, then glides to every new value.
    * When false, shows the final value immediately without any rAF loop.
    */
   animateOnMount: boolean;
@@ -64,11 +67,15 @@ export function OverviewAnimatedCurrency({
   startDelay = 80,
   duration = 420,
 }: OverviewAnimatedCurrencyProps) {
-  // Pass null when not animating so useCountUp skips the rAF loop entirely.
+  // Pass null when not animating so useCountUp skips the rAF loop entirely. The first value counts
+  // up from zero; every later one — the fresh read landing over the figure restored from the
+  // persisted cache, a change after an edit — glides from the figure on screen in 600 ms
+  // ease-out-quart (doc/animazioni/README.md § 5.7). Until 2026-10-23 `once` made it jump.
   const animated = useCountUp(animateOnMount ? value : null, {
-    once: true,
+    fromPrevious: true,
     startDelay,
     duration,
+    nextDuration: FRESH_GLIDE_MS,
   });
 
   // When animateOnMount is true, use the animated value (falls back to final value
@@ -97,9 +104,18 @@ export function OverviewAnimatedCurrency({
     ? String(Math.round(displayValue))
     : cachedFormatCurrencyEUR(displayValue);
 
+  // A frame of the count is not a measurement: the screen reader reads the landed figure.
+  const landed = format === 'integer' ? String(Math.round(value)) : cachedFormatCurrencyEUR(value);
   return (
     <span className={cn('tabular-nums', className)}>
-      {formatted}
+      {formatted === landed ? (
+        formatted
+      ) : (
+        <>
+          <span aria-hidden="true">{formatted}</span>
+          <span className="sr-only">{landed}</span>
+        </>
+      )}
     </span>
   );
 }

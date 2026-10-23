@@ -8,6 +8,7 @@ import type { CompositionSlice } from '@/lib/utils/cashflowComposition';
 import { Tile, TILE_SUB_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { DrillBreadcrumb } from '@/components/ui/drill-breadcrumb';
 import { RankedRows } from '@/components/ui/ranked-rows';
+import { DrillSlide } from '@/components/ui/drill-slide';
 import { EntityDossier } from '@/components/cashflow/EntityDossier';
 import { FocusTransactions } from '@/components/cashflow/analisi/FocusTransactions';
 
@@ -58,7 +59,8 @@ const ACTION_CLASS =
 export function SchedaTile({ focus, scope, reading, allExpenses, color, period, periodLabel, historyStartYear, subcategoryRows, transactions, onBack, onClose, onCategoryCrumb, onSubcategorySelect, collapse, asideWhenClosed, className }: SchedaTileProps) {
   const isIncome = focus.kind === 'income';
   const title = focus.subCategory?.label ?? focus.category.label;
-  const scopeKey = `${focus.category.expenseType}:${focus.category.key}:${focus.subCategory?.key ?? ''}:${periodLabel}`;
+  const levelKey = `${focus.category.expenseType}:${focus.category.key}:${focus.subCategory?.key ?? ''}`;
+  const scopeKey = `${levelKey}:${periodLabel}`;
 
   return (
       <Tile
@@ -97,7 +99,9 @@ export function SchedaTile({ focus, scope, reading, allExpenses, color, period, 
             ]}
           />
         </div>
-        <div className="mt-4">
+        {/* The level slides the way the reader went: down from the right, up from the left
+            (doc/animazioni/README.md § 5.5); the breadcrumb above says where at once. */}
+        <DrillSlide className="mt-4" levelKey={levelKey} depth={focus.subCategory ? 2 : 1}>
           <EntityDossier
             allExpenses={allExpenses}
             scope={scope}
@@ -132,7 +136,7 @@ export function SchedaTile({ focus, scope, reading, allExpenses, color, period, 
               )
             }
           />
-        </div>
+        </DrillSlide>
       </Tile>
   );
 }

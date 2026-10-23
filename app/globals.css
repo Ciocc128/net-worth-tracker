@@ -1272,6 +1272,37 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   }
 }
 
+/* A ranked list that transforms (AN2, doc/animazioni/README.md § 5.4, DESIGN.md → The View-Transforms
+ * Rule): a row that takes over another's node changes its name — the old one is gone at once, the new
+ * one waits 100 ms and fades in over 160 ms (the sketch's «out 100, in 160») — and a row with no node to
+ * take over fades in over 160 ms. Classes set only on the render of a switch (`useRowMorph`), never on
+ * the list's first paint; nothing under reduced motion. */
+@keyframes row-label-in {
+  0%,
+  38% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes row-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .row-label-in {
+    animation: row-label-in 260ms ease-out;
+  }
+  .row-enter {
+    animation: row-enter 160ms ease-out;
+  }
+}
+
 /* Disable continuous rotation for users who prefer reduced motion.
  * Tailwind's animate-spin has no built-in reduced-motion guard, so we
  * neutralise it globally here rather than wrapping every spinner. */
