@@ -75,6 +75,7 @@ export function PageHeader({ title, label, description, actions, freshness, clas
     // offset is measured from the scroller's content edge, and at `top-0` the rows scrolling
     // past would show through a 16px strip above the bar.
     <div
+      data-page-header=""
       className={cn('max-desktop:sticky max-desktop:-top-4 max-desktop:z-20 tablet-landscape:static', className)}
       style={{ viewTransitionName: 'page-header' }}
     >

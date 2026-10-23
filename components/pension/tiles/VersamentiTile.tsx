@@ -34,6 +34,7 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
 import { Tile, TILE_SUB_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
+import { useAddedRows } from '@/lib/hooks/useAddedRows';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { GHOST_BUTTON_CLASS } from '@/components/pension/pensionStyles';
@@ -184,6 +185,7 @@ export function VersamentiTile({ taxYear, reading, aside, footer, rows, showFund
   }, []);
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const visibleRows = showAll ? rows : rows.slice(0, VISIBLE_ROWS);
+  const addedIds = useAddedRows(visibleRows.map((row) => row.id));
   const canUnfold = rows.length > VISIBLE_ROWS;
 
   return (
@@ -216,7 +218,7 @@ export function VersamentiTile({ taxYear, reading, aside, footer, rows, showFund
                 </thead>
                 <tbody className="[&>tr:last-child>*]:border-b-0">
                   {visibleRows.map((row) => (
-                    <tr key={row.id} className="group">
+                    <tr key={row.id} data-row="" data-row-added={addedIds.has(row.id) ? '' : undefined} className="group">
                       <th scope="row" className={cn(CELL_CLASS, 'text-left font-mono font-normal tabular-nums text-foreground')}>
                         {formatDay(row.date)}
                       </th>
@@ -241,7 +243,7 @@ export function VersamentiTile({ taxYear, reading, aside, footer, rows, showFund
               {visibleRows.map((row) => {
                 const hints = rowHints(row, { fund: showFund, competence: null, notes: false });
                 return (
-                  <li key={row.id} className="flex min-h-[44px] items-center justify-between gap-3 py-2.5">
+                  <li key={row.id} data-row="" data-row-added={addedIds.has(row.id) ? '' : undefined} className="flex min-h-[44px] items-center justify-between gap-3 py-2.5">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-baseline gap-x-2">
                         <span className="text-[13px] text-foreground">{NATURE_LABELS[row.nature]}</span>

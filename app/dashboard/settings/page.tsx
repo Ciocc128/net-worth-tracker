@@ -80,6 +80,9 @@ import { GeneraleTab } from '@/components/settings/tabs/GeneraleTab';
 import { SimulazioniTab } from '@/components/settings/tabs/SimulazioniTab';
 import { SpeseTab } from '@/components/settings/tabs/SpeseTab';
 import { runGuarded, SETTINGS_TABS_LAYOUT_ID } from '@/components/settings/tabs/shared';
+import { SAVED_BUTTON_CLASS, SaveButtonContent } from '@/components/ui/save-button-content';
+import { useSavedFlash } from '@/lib/hooks/useSavedFlash';
+import { cn } from '@/lib/utils';
 
 // Module-level tab definitions drive both the mobile pill and the desktop underline tabs.
 const SETTINGS_TABS: TabDef[] = [
@@ -103,6 +106,7 @@ export default function SettingsPage() {
   const isDemo = useDemoMode();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
+  const { saved: justSaved, flash: flashSaved } = useSavedFlash();
 
   // THE draft: one reducer, one slice per tab (lib/utils/settingsDraft.ts).
   const [draft, dispatch] = useReducer(settingsDraftReducer, undefined, createSettingsDraft);
@@ -267,6 +271,7 @@ export default function SettingsPage() {
 
       await setSettings(ownerId, composed.document);
       toast.success('Impostazioni salvate');
+      flashSaved();
       if (composed.adaptedPairs.length > 0) {
         toast.warning(`Correlazioni corrette: ${composed.adaptedPairs.length} ${composed.adaptedPairs.length === 1 ? 'coppia adattata' : 'coppie adattate'} per renderle coerenti`);
       }
@@ -390,9 +395,8 @@ export default function SettingsPage() {
                 <span className="hidden sm:inline">Ripristina default</span>
               </Button>
             )}
-            <Button size="sm" onClick={handleSave} disabled={isDemo || saving} className="h-11 desktop:h-8">
-              <Save className="h-4 w-4" />
-              {saving ? 'Salvataggio…' : 'Salva'}
+            <Button size="sm" onClick={handleSave} disabled={isDemo || saving} className={cn('h-11 desktop:h-8', justSaved && SAVED_BUTTON_CLASS)}>
+              <SaveButtonContent saving={saving} saved={justSaved} icon={<Save className="h-4 w-4" />} idle="Salva" />
             </Button>
           </div>
         }
@@ -496,9 +500,8 @@ export default function SettingsPage() {
               <Button variant="outline" size="sm" className="h-11 desktop:h-8" onClick={() => void handleRevert()} disabled={saving}>
                 Annulla modifiche
               </Button>
-              <Button size="sm" className="h-11 desktop:h-8" onClick={handleSave} disabled={saving}>
-                <Save className="h-4 w-4" />
-                {saving ? 'Salvataggio…' : 'Salva'}
+              <Button size="sm" className={cn('h-11 desktop:h-8', justSaved && SAVED_BUTTON_CLASS)} onClick={handleSave} disabled={saving}>
+                <SaveButtonContent saving={saving} saved={justSaved} icon={<Save className="h-4 w-4" />} idle="Salva" />
               </Button>
             </div>
           </section>

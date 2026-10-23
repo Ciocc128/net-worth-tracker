@@ -122,7 +122,7 @@ function CategoryRow({ category, onEdit, onMove, onRequestDelete, onConfirmDelet
   const dot = roleColor ?? (category.color || 'var(--chart-1)');
 
   return (
-    <div className={cn('flex items-center justify-between gap-3 py-2.5 transition-colors', armed ? 'bg-destructive/5' : 'hover:bg-muted/30')}>
+    <div data-row="" className={cn('flex items-center justify-between gap-3 py-2.5 transition-colors', armed ? 'bg-destructive/5' : 'hover:bg-muted/30')}>
       <div className="flex min-w-0 items-center gap-3">
         <div
           className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"

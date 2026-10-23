@@ -1329,3 +1329,88 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
 .no-scrollbar::-webkit-scrollbar {
   display: none; /* Chromium, Safari */
 }
+
+/* Skeleton → content (AN3 F, doc/animazioni/README.md § 5.8): the content that replaces a painted
+ * skeleton fades in over 180 ms, opacity only — the page scene has already moved it. The marker is put
+ * on the skeleton's parent by `useSkeletonReveal` for 220 ms, once per container; the page's header
+ * stays put. Nothing under reduced motion. */
+@keyframes content-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-skeleton-reveal] > :not([data-page-header]) {
+    animation: content-reveal 180ms ease-out;
+  }
+}
+
+/* Rows that leave and arrive (AN3 G, doc/animazioni/README.md § 5.9). A row the reader confirmed the delete
+ * of (`[data-row]`, marked `data-row-exiting` by `useArmedDelete`) closes in 220 ms ease-out-quart while the
+ * write starts: a block row collapses from its measured `--row-height`, a table row's cells collapse (padding,
+ * text, wrapper) because a `<tr>` has no height of its own to animate. A row the reader just created
+ * (`data-row-added`) fades in over 220 ms and its background fades from `muted` over 1200 ms. Nothing under
+ * reduced motion: the row leaves and arrives at once. */
+@keyframes row-exit-block {
+  from {
+    max-height: var(--row-height, 4rem);
+    opacity: 1;
+  }
+  to {
+    max-height: 0;
+    opacity: 0;
+    padding-block: 0;
+    margin-block: 0;
+    border-width: 0;
+  }
+}
+@keyframes row-exit-cell {
+  to {
+    padding-block: 0;
+    font-size: 0;
+    line-height: 0;
+    opacity: 0;
+  }
+}
+@keyframes row-exit-cell-content {
+  from {
+    max-height: 4rem;
+  }
+  to {
+    max-height: 0;
+    margin-block: 0;
+    padding-block: 0;
+  }
+}
+@keyframes row-added {
+  from {
+    opacity: 0;
+    background-color: var(--muted);
+  }
+  18% {
+    opacity: 1;
+  }
+  to {
+    background-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-row][data-row-exiting]:not(tr) {
+    overflow: hidden;
+    animation: row-exit-block 220ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  }
+  tr[data-row][data-row-exiting] > td {
+    overflow: hidden;
+    animation: row-exit-cell 220ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  }
+  tr[data-row][data-row-exiting] > td > * {
+    overflow: hidden;
+    animation: row-exit-cell-content 220ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  }
+  [data-row-added] {
+    animation: row-added 1200ms ease-out;
+  }
+}

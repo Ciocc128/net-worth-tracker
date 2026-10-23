@@ -59,6 +59,7 @@ import { isScheduledRow } from '@/lib/utils/tracciamentoSummary';
 import { resolveOwnerLabel } from '@/lib/utils/movementsOwnerFilter';
 import { categoryIconBackground, categoryIconColor } from '@/lib/utils/categoryIconStyle';
 import { describeExpenseDeleteConsequence, EXPENSE_BUDGET_EXCLUSION_CHIP } from '@/lib/utils/dialogNarrative';
+import { useAddedRows } from '@/lib/hooks/useAddedRows';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 import { EXPENSE_TYPE_BADGE_CLASS } from '@/lib/constants/expenseTypeColors';
 import { SeriesDeleteDialog, resolveSeriesDeleteMode, type SeriesDeleteRequest } from '@/components/expenses/SeriesDeleteDialog';
@@ -101,6 +102,8 @@ interface ExpenseTableRowProps {
   isDemo: boolean;
   /** A delete touching this row (or its series) is in flight. */
   busy: boolean;
+  /** The reader just created this row: it fades in and its background fades out (AN3 G). */
+  added: boolean;
   onEdit: (expense: Expense) => void;
   /** A plain row: called by the row's own armed confirm. A series row: opens the series modal. */
   onDelete: (expense: Expense) => void;
@@ -114,7 +117,7 @@ interface ExpenseTableRowProps {
  * Accessibility, the Versamenti precedent). A row of a series does not arm — its first click
  * opens the question the series adds — and says so in its name.
  */
-function ExpenseTableRow({ expense, scheduled, ownerLabel, singleType, categoryMeta, isDemo, busy, onEdit, onDelete, announce }: ExpenseTableRowProps) {
+function ExpenseTableRow({ expense, scheduled, ownerLabel, singleType, categoryMeta, isDemo, busy, added, onEdit, onDelete, announce }: ExpenseTableRowProps) {
   const rowName = expense.notes?.trim() || expense.categoryName;
   const isSeries = resolveSeriesDeleteMode(expense) !== null;
   const deleteRef = useRef<HTMLButtonElement | null>(null);
@@ -139,7 +142,7 @@ function ExpenseTableRow({ expense, scheduled, ownerLabel, singleType, categoryM
   const CatIcon = categoryMeta?.icon ? LAZY_CATEGORY_ICONS[categoryMeta.icon] : undefined;
 
   return (
-    <TableRow className={cn(armed && 'bg-destructive/5')}>
+    <TableRow data-row="" data-row-added={added ? '' : undefined} className={cn(armed && 'bg-destructive/5')}>
       <TableCell className={cn(FIGURE_CLASS, 'text-foreground')}>
         <div className="flex items-center gap-1.5">
           {format(getExpenseDate(expense.date), 'dd/MM/yyyy', { locale: it })}
@@ -426,6 +429,7 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasA
   const paginatedExpenses = useMemo(() => {
     return sortedExpenses.slice(startIndex, endIndex);
   }, [sortedExpenses, startIndex, endIndex]);
+  const addedIds = useAddedRows(paginatedExpenses.map((expense) => expense.id));
 
   /**
    * Why reset sort when the expenses array changes, and page 1 when the view changes?
@@ -568,6 +572,7 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasA
                   categoryMeta={categoryMetaMap.get(expense.categoryId)}
                   isDemo={isDemo}
                   busy={busyFor(expense)}
+                  added={addedIds.has(expense.id)}
                   onEdit={onEdit}
                   onDelete={handleDelete}
                   announce={announce}

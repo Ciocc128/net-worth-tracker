@@ -100,7 +100,7 @@ export default function DashboardLayout({
               fallback={
                 <PageContainer>
                   <PageHeaderSkeleton />
-                  <TileGridSkeleton label="Verifica dell'accesso" />
+                  <TileGridSkeleton label="Verifica dell'accesso" reveal={false} />
                 </PageContainer>
               }
             >

@@ -59,6 +59,7 @@ import { describeZeroQuantityChip } from '@/lib/utils/zeroQuantityChip';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { formatCurrency, formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { useDeleteAsset } from '@/lib/hooks/useAssets';
+import { useAddedRows } from '@/lib/hooks/useAddedRows';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 import { useCompactLayout } from '@/lib/hooks/useCompactLayout';
 import { resolveDisplayAssetClass } from '@/lib/utils/assetDisplayClass';
@@ -424,6 +425,7 @@ export function StrumentiTile({
       return sortState.dir === 'asc' ? cmp : -cmp;
     });
   }, [visibleAssets, sortState, performance]);
+  const addedIds = useAddedRows(sortedAssets.map((asset) => asset.id));
 
   // Grouped mode: an ordered map keyed by display class, in first-occurrence order of the sort.
   const groupedAssets = useMemo(() => {
@@ -475,7 +477,7 @@ export function StrumentiTile({
     const zeroChip = describeZeroQuantityChip(asset, tradedAssetIds);
 
     return (
-      <tr key={asset.id} className={cn('border-t border-border', isManualPrice && MANUAL_ROW_TINT)}>
+      <tr key={asset.id} data-row="" data-row-added={addedIds.has(asset.id) ? '' : undefined} className={cn('border-t border-border', isManualPrice && MANUAL_ROW_TINT)}>
         <th scope="row" className={cn(CELL_CLASS, 'max-w-[260px] text-left font-normal')}>
           <div className="flex min-w-0 items-center gap-2">
             <div className="min-w-0">

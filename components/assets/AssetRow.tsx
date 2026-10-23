@@ -323,6 +323,7 @@ export function AssetRow({
 
   return (
     <div
+      data-row=""
       className={cn(
         'flex flex-col',
         // The desktop table's «no market quote» tint, same token and same flat edge (--manual-row;
