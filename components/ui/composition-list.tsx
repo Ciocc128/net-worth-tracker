@@ -23,6 +23,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useRowMorph } from '@/lib/hooks/useRowMorph';
+import { MorphFigure } from '@/components/ui/morph-figure';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
 import { cn } from '@/lib/utils';
@@ -54,6 +55,7 @@ interface CompositionListProps {
 // A module-level default, not an inline arrow: the React Compiler cannot reorder an arrow
 // function used as a parameter default.
 const formatEuro = (v: number) => cachedFormatCurrencyEUR(v);
+const formatShare = (v: number) => formatPercentage(v, 1);
 
 /**
  * The bars and the re-rank on the 400/35 spring, as `RankedRows` (doc/animazioni/README.md § 6): a
@@ -88,9 +90,6 @@ export function CompositionList({
       {visible.map((item) => {
         const widthPct = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
         const slot = morph.slotOf(item.id);
-        const frame = morph.figuresOf(slot, { value: item.value, percentage: item.percentage });
-        // A frame of the count is not a measurement: hidden from the screen reader, the landed figure read instead.
-        const moving = frame.value !== item.value || frame.percentage !== item.percentage;
         const relabelled = morph.relabelled.has(slot);
         const rowContent = (
           <>
@@ -110,12 +109,10 @@ export function CompositionList({
               />
             </span>
             <span className="w-24 shrink-0 text-right font-mono text-sm tabular-nums text-foreground">
-              <span aria-hidden={moving || undefined}>{formatValue(frame.value)}</span>
-              {moving && <span className="sr-only">{formatValue(item.value)}</span>}
+              <MorphFigure morph={morph} slot={slot} name="value" value={item.value} format={formatValue} />
             </span>
             <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground">
-              <span aria-hidden={moving || undefined}>{formatPercentage(frame.percentage, 1)}</span>
-              {moving && <span className="sr-only">{formatPercentage(item.percentage, 1)}</span>}
+              <MorphFigure morph={morph} slot={slot} name="percentage" value={item.percentage} format={formatShare} />
             </span>
           </>
         );
