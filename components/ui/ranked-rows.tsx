@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { useRovingFocus } from '@/lib/hooks/useRovingFocus';
 import { useRowMorph, type MorphRow } from '@/lib/hooks/useRowMorph';
+import { MorphFigure } from '@/components/ui/morph-figure';
 
 export interface RankedRow {
   key: string;
@@ -83,12 +84,8 @@ export function RankedRows({ rows, color, remainders, labelClassName, onRowClick
   // A switch of view, period or level TRANSFORMS the list (DESIGN.md → The View-Transforms Rule):
   // a row keeps its node, or takes over the node of a row that left; its figures count.
   const morph = useRowMorph(rows.map(toMorphRow));
-  const counting = (slot: string, row: RankedRow) => morph.figuresOf(slot, { amount: row.amount, percentage: row.percentage });
 
-  const rowContent = (row: RankedRow, slot: string, active: boolean) => {
-    const frame = counting(slot, row);
-    const moving = frame.amount !== row.amount || frame.percentage !== row.percentage;
-    return (
+  const rowContent = (row: RankedRow, slot: string, active: boolean) => (
     <>
       {/* The caption yields before the label: a long «12 ago · Manutenzione straordinaria» must
           never push the category name out of its own column — and it WRAPS to a second line
@@ -112,19 +109,15 @@ export function RankedRows({ rows, color, remainders, labelClassName, onRowClick
           }}
         />
       </div>
-      {/* A frame of the count is not a measurement: while it runs the printed figures are hidden
-          from the screen reader and the landed ones are read instead (The Period-Transforms Rule). */}
+      {/* The count's frames reach these leaves alone, never the row (`MorphFigure`). */}
       <span className="w-[64px] shrink-0 text-right font-mono text-[13px] tabular-nums text-foreground">
-        <span aria-hidden={moving || undefined}>{cachedFormatCurrencyEUR(frame.amount, true)}</span>
-        {moving && <span className="sr-only">{cachedFormatCurrencyEUR(row.amount, true)}</span>}
+        <MorphFigure morph={morph} slot={slot} name="amount" value={row.amount} format={formatAmount} />
       </span>
       <span className={SHARE_COLUMN_CLASS}>
-        <span aria-hidden={moving || undefined}>{Math.round(frame.percentage)}%</span>
-        {moving && <span className="sr-only">{Math.round(row.percentage)}%</span>}
+        <MorphFigure morph={morph} slot={slot} name="percentage" value={row.percentage} format={formatShare} />
       </span>
     </>
-    );
-  };
+  );
 
   return (
     <ul className="@container relative flex flex-col divide-y divide-border" aria-label={ariaLabel} {...roving.containerProps}>
@@ -180,6 +173,9 @@ export function RankedRows({ rows, color, remainders, labelClassName, onRowClick
     </ul>
   );
 }
+
+const formatAmount = (value: number) => cachedFormatCurrencyEUR(value, true);
+const formatShare = (value: number) => `${Math.round(value)}%`;
 
 function toMorphRow(row: RankedRow): MorphRow {
   return { key: row.key, label: row.label, figures: { amount: row.amount, percentage: row.percentage } };

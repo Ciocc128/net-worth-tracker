@@ -17,18 +17,58 @@ export interface MorphRow {
   figures: RowFigures;
 }
 
-/** What a ranked list renders from: the node of each row and the figures of this frame. */
+/**
+ * The count's progress, outside React state: ONE `requestAnimationFrame` per list writes it, and
+ * only the figure leaves (`MorphFigure`) subscribe — a frame re-renders the printed numbers, never
+ * the list, its `motion.li` or the bars (measured 2026-10-23: a state per frame re-rendered ~1040
+ * components per view switch on the Esposizione, `perf:census` › `view`).
+ */
+export interface MorphFrameStore {
+  generation: number;
+  progress: number;
+  listeners: Set<() => void>;
+  subscribe: (listener: () => void) => () => void;
+  /** Starts the count of `generation` from 0. */
+  begin: (generation: number) => void;
+  /** Writes a frame and tells the leaves. */
+  advance: (progress: number) => void;
+}
+
+function createFrameStore(): MorphFrameStore {
+  const store: MorphFrameStore = {
+    generation: 0,
+    progress: 1,
+    listeners: new Set(),
+    subscribe: (listener) => {
+      store.listeners.add(listener);
+      return () => store.listeners.delete(listener);
+    },
+    begin: (generation) => {
+      store.generation = generation;
+      store.progress = 0;
+    },
+    advance: (progress) => {
+      store.progress = progress;
+      for (const listener of store.listeners) listener();
+    },
+  };
+  return store;
+}
+
+/** What a ranked list renders from: the node of each row, and what its figure leaves read. */
 export interface RowMorph {
   /** The node (React key) of each row, by the row's key. */
   slotOf: (key: string) => string;
-  /** The figures to print in this frame, by slot — the landed ones once the count is over. */
-  figuresOf: (slot: string, landed: RowFigures) => RowFigures;
   /** A slot whose label changed in the last switch: its name fades in (`row-label-in`). */
   relabelled: ReadonlySet<string>;
   /** A slot that was not on screen before the last switch: the row fades in (`row-enter`). */
   entered: ReadonlySet<string>;
   /** False beyond `ROW_MORPH_MAX_ROWS` or under reduced motion: no re-rank, no count, no fades. */
   animate: boolean;
+  /** For `MorphFigure`: where the running count started, by slot (null once nothing counts). */
+  from: ReadonlyMap<string, RowFigures> | null;
+  store: MorphFrameStore;
+  generation: number;
 }
 
 interface MorphState {
@@ -36,9 +76,9 @@ interface MorphState {
   assignment: SlottedKey[];
   labels: Map<string, string>;
   target: Map<string, RowFigures>;
-  shown: Map<string, RowFigures>;
-  /** Where the running count started; null once it has landed. */
+  /** Where the count of `generation` started; null when the list landed without one. */
   from: Map<string, RowFigures> | null;
+  generation: number;
   relabelled: Set<string>;
   entered: Set<string>;
   animate: boolean;
@@ -64,22 +104,29 @@ function sameRows(a: readonly MorphRow[], b: readonly MorphRow[]): boolean {
 
 function firstState(rows: readonly MorphRow[]): MorphState {
   const assignment = assignRowSlots([], rows.map((row) => row.key));
-  const target = new Map(assignment.map((entry, i) => [entry.slot, rows[i].figures]));
   return {
     rows,
     assignment,
     labels: new Map(assignment.map((entry, i) => [entry.slot, rows[i].label])),
-    target,
-    shown: target,
+    target: new Map(assignment.map((entry, i) => [entry.slot, rows[i].figures])),
     from: null,
+    generation: 0,
     relabelled: new Set(),
     entered: new Set(),
     animate: rows.length <= ROW_MORPH_MAX_ROWS,
   };
 }
 
-/** The next list settled against what is on screen now (pure: the decision of the render that brings it). */
-function settle(previous: MorphState, rows: readonly MorphRow[]): MorphState {
+/** The progress of `generation` as the leaves read it: 0 until its frame loop has started. */
+function progressOf(store: MorphFrameStore, generation: number): number {
+  return store.generation === generation ? store.progress : 0;
+}
+
+/**
+ * The next list settled against what is on screen now (the decision of the render that brings
+ * it). `onScreen` is the frame the leaves painted last — a running count is interrupted from there.
+ */
+function settle(previous: MorphState, rows: readonly MorphRow[], onScreen: Map<string, RowFigures>): MorphState {
   const animate = rows.length <= ROW_MORPH_MAX_ROWS && previous.rows.length <= ROW_MORPH_MAX_ROWS && !prefersReducedMotion();
   const assignment = assignRowSlots(previous.assignment, rows.map((row) => row.key), animate);
   const target = new Map(assignment.map((entry, i) => [entry.slot, rows[i].figures]));
@@ -93,54 +140,54 @@ function settle(previous: MorphState, rows: readonly MorphRow[]): MorphState {
       else if (before !== label) relabelled.add(slot);
     }
   }
-  // The count starts from what is on screen NOW (a frame of a running count included), and only
-  // the slots that were there count: a row that enters prints its figures at once.
-  const from = animate && !sameRowFigures(previous.shown, target) ? previous.shown : null;
-  return { rows, assignment, labels, target, shown: from ?? target, from, relabelled, entered, animate };
+  // Only the slots that were on screen count: a row that enters prints its figures at once.
+  const from = animate && !sameRowFigures(onScreen, target) ? onScreen : null;
+  return { rows, assignment, labels, target, from, generation: previous.generation + 1, relabelled, entered, animate };
 }
 
 /**
  * The rows of a ranked list as nodes that persist across a switch of view, period or level
  * (`lib/utils/rowMorph.ts`), and their figures counting from the ones on screen with ONE
- * `requestAnimationFrame` per list (D-AN10) — never a `useCountUp` per row. The first list lands:
- * the tile's entrance is the page's. The printed figure of a frame is never a measurement: the
- * primitive keeps the landed figures in the row's accessible name.
+ * `requestAnimationFrame` per list (D-AN10) — never a `useCountUp` per row. The list re-renders
+ * on the switch alone; each frame reaches only the `MorphFigure` leaves. The first list lands: the
+ * tile's entrance is the page's.
  */
 export function useRowMorph(rows: readonly MorphRow[]): RowMorph {
   const [state, setState] = useState<MorphState>(() => firstState(rows));
+  const [store] = useState(createFrameStore);
 
   if (!sameRows(state.rows, rows)) {
-    setState(settle(state, rows));
+    const onScreen = state.from ? blendRowFigures(state.from, state.target, progressOf(store, state.generation)) : state.target;
+    setState(settle(state, rows, onScreen));
   }
 
-  const { from, target } = state;
+  const { from, generation } = state;
 
   useEffect(() => {
     if (from === null) return;
+    store.begin(generation);
     let raf = 0;
     let start: number | null = null;
     const tick = (now: number) => {
       if (start === null) start = now;
       const progress = Math.min((now - start) / ROW_COUNT_MS, 1);
-      setState((previous) => {
-        // A newer list has replaced this count: its cleanup cancelled the frame, but a tick
-        // queued before it could still land — leave the new state alone.
-        if (previous.target !== target) return previous;
-        if (progress >= 1) return { ...previous, shown: target, from: null };
-        return { ...previous, shown: blendRowFigures(from, target, progress) };
-      });
+      store.advance(progress);
       if (progress < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [from, target]);
+  }, [from, generation, store]);
 
   const slotByKey = new Map(state.assignment.map((entry) => [entry.key, entry.slot]));
   return {
     slotOf: (key) => slotByKey.get(key) ?? key,
-    figuresOf: (slot, landed) => (state.from === null ? landed : (state.shown.get(slot) ?? landed)),
     relabelled: state.animate ? state.relabelled : NO_SLOTS,
     entered: state.animate ? state.entered : NO_SLOTS,
     animate: state.animate,
+    from,
+    store,
+    generation,
   };
 }
+
+export { progressOf as morphProgressOf };
