@@ -51,6 +51,11 @@
    an E2E decoy or a seed carries amounts like 2500, 1120, 50: the owner's real figures never
    enter the repo, not even as an expected value. The mirror is for the guided tour only
    (§ 3, phase G removes it).
+8. **Every interface proposal comes with an «oggi / proposta» sketch** (2026-10-23). Before the owner chooses among
+   UI or UX proposals (layout, wording on screen, animations, transitions), each one is shown as a sketch that puts
+   today's behaviour beside the proposal; for motion the sketch moves (a published page with «Riproduci» on both sides,
+   readable on a phone). Text alone is not enough to judge the difference. The worked example is
+   `doc/animazioni/README.md` and its sketch page.
 
 ---
 
