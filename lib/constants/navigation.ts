@@ -58,3 +58,11 @@ export const secondaryHrefs: string[] = [
   assistantNavItem.href,
   '/dashboard/settings',
 ];
+
+/**
+ * Where the phone's bottom pill is on screen: the complement of `desktop:hidden
+ * max-desktop:landscape:hidden` on its container (BottomNavigation.tsx). Kept in step with those
+ * classes — change one, change the other. Also where a navigation is the soft scene, not a view
+ * transition (`useSceneNavigation`).
+ */
+export const PILL_VISIBLE_QUERY = '(max-width: 1439px) and (orientation: portrait)';

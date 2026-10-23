@@ -100,12 +100,17 @@ rules below name.
   `backdrop-filter: blur(20px) saturate(180%)` (with the `-webkit-` twin for Safari), a hairline edge from
   `--sidebar-foreground` at 14%, a 1px white highlight on top; every theme from its own tokens, no new ones. Solid (the
   pill as before) under `@supports not` and `prefers-reduced-transparency: reduce`. The true iOS 26 lens (an SVG
-  displacement inside `backdrop-filter: url()`) is Chromium-only, so out. **The container wears `view-transition-name`
-  only during the page scene** (`html[data-vt="page"] [data-bottom-nav]`): a named element is a backdrop root, and named
-  at rest it left the pill nothing to blur but its own transparent container. During the scene itself the named
-  container is still a backdrop root, so the pill went clear on Safari (the owner, 2026-10-23, on the merged #137) and
-  sat in a grey box on Chromium: under `html[data-vt="page"]` it drops the blur for a denser tint (`--sidebar` at 88%)
-  and eases its background back in 0.2s after.
+  displacement inside `backdrop-filter: url()`) is Chromium-only, so out. **Pill and «+» cast a two-layer shadow** (a
+  close `0 2px 6px`, a wide `0 10px 32px` on the pill and `0 10px 15px -3px` at 45% on the «+»), so they lift off the page
+  under them (the owner, 2026-10-23, after the glass).
+- **Where the pill shows, a navigation is the SOFT scene, not a view transition** (2026-10-23, the owner after #138;
+  `useSceneNavigation`, `PILL_VISIBLE_QUERY` in `lib/constants/navigation.ts`). A view transition paints snapshots over
+  the whole document and a snapshot is painted alone, so the glass pill had nothing to blur for the scene however it
+  was named (clear on Safari, a grey box on Chromium; a denser tint, #138, and a `backdrop-filter` on the pseudo-element
+  were tried and dropped). Now `data-page-leaving` on `<html>` fades `<main>` out in 140 ms, the route is pushed, and
+  `template.tsx` takes the attribute off on the next page's mount and fades it in; the pill stays live glass throughout.
+  Given up: the cross-fade (it is out then in) and the header and verdict morph, on the phone only — 1440 and the
+  landscape rail keep The Page Scene. The attribute falls off on its own after 2 s if no page lands.
 - **The pill holds navigation only and is the same box on every page** (2026-10-23, the owner's p1 card with Phone and
   Reddit for reference; Apple HIG → Tab bars: «use a tab bar to support navigation, not to provide actions», «don't
   disable or hide tab bar buttons»). Until then Cashflow › Tracciamento's «+» sat BESIDE it and the centred group
@@ -156,7 +161,7 @@ rules below name.
   circle-clip used to be global and would have clipped every navigation. **A `view-transition-name` must be unique among
   the RENDERED elements of a page**, or the browser skips the whole transition (the update still applies, silently):
   `page-verdict` lives on `PageVerdict` and on the skeleton's verdict block (never both mounted), `page-header` on
-  `PageHeader`, `page-main` on the layout's `<main>`, `bottom-nav` on the phone pill's fixed container; a `forceMount`
+  `PageHeader`, `page-main` on the layout's `<main>`; a `forceMount`
   tab panel is `display: none` and does not count. Do not name the tile grid — several pages render more than one.
 - **A named element leaves `root` for EVERY view transition, not only its own scene** (2026-10-08, found on the
   owner's tour; both defects dated from 2026-09-12). Two consequences, both pinned by `e2e/motion.layout{,.mobile}.spec.ts`
@@ -164,8 +169,8 @@ rules below name.
   it revealed only the sidebar while the page cross-faded — `html[data-vt="theme"] *` switches every name off for the
   theme scene (`globals.css`; `data-vt` is stamped before `startViewTransition`); (2) a named region paints in a layer
   ABOVE `root`, so on a phone `page-main` covered the fixed bottom pill for the whole page scene (it faded under the
-  figures and popped back at the end) — the pill's container has its own name, later in paint order than `<main>`,
-  with no animation in the page scene. A new fixed piece of shell over `<main>` needs the same.
+  figures and popped back at the end) — the pill's container had its own name until 2026-10-23, when the phone left the
+  view transition for the soft scene. A new fixed piece of shell over `<main>` at 1440 needs a name of its own.
 
 ## Per-page blind spots
 

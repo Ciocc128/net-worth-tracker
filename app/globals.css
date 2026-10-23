@@ -418,23 +418,13 @@ html[data-vt="page"]::view-transition-group(page-verdict) {
   animation-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* The phone's bottom nav is shell, not scene: a group of its own only so that page-main's  */
-/* snapshots do not paint over it (BottomNavigation.tsx). The old image leaves at once and  */
-/* the new one is live — the active pill glides inside it. e2e/motion.layout.mobile.spec.ts. */
-/* Named for the scene only: a named element is a backdrop root, and at rest the glass pill */
-/* must blur the page, not its own empty container (2026-10-23).                           */
-html[data-vt="page"] [data-bottom-nav] {
-  view-transition-name: bottom-nav;
-}
-
-html[data-vt="page"]::view-transition-group(bottom-nav),
-html[data-vt="page"]::view-transition-new(bottom-nav) {
-  animation: none;
-}
-
-html[data-vt="page"]::view-transition-old(bottom-nav) {
-  animation: none;
+/* Soft scene (2026-10-23): where the phone's pill shows, a navigation is no view transition  */
+/* (useSceneNavigation.ts). <main> fades out in 140 ms, the route is pushed, and the next page  */
+/* fades in through template.tsx; the pill stays live glass the whole time. The opacity comes  */
+/* back with no transition: the new page's own fade is the entrance.                          */
+html[data-page-leaving] #page-main {
   opacity: 0;
+  transition: opacity 0.14s ease-in;
 }
 
 /* The phone's bottom pill (BottomNavigation.tsx), frosted glass since 2026-10-23: the     */
@@ -442,10 +432,14 @@ html[data-vt="page"]::view-transition-old(bottom-nav) {
 /* a hairline edge and a 1px highlight on top. Every theme gets it from tokens it already */
 /* has. Solid — the pill as it was — where the browser cannot blur the backdrop or the    */
 /* reader asked for less transparency. Apple HIG → Materials; the owner's p4 card.         */
+/* The shadow is two layers, a close contact one and a wide soft one, so the pill lifts   */
+/* off whatever page runs under it (the owner, 2026-10-23: «dar distacco dallo sfondo»).  */
 .nav-glass {
   background: var(--sidebar);
   border: 1px solid var(--sidebar-border);
-  box-shadow: 0 4px 24px rgb(0 0 0 / 0.28);
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 0.16),
+    0 10px 32px rgb(0 0 0 / 0.32);
 }
 
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -456,23 +450,9 @@ html[data-vt="page"]::view-transition-old(bottom-nav) {
     border-color: color-mix(in oklch, var(--sidebar-foreground) 14%, transparent);
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.22),
-      0 8px 32px rgb(0 0 0 / 0.22);
-  }
-}
-
-/* During the page scene the container is named, so a backdrop root: the pill would blur  */
-/* nothing — on Safari it went clear for the scene, on Chromium a grey box framed it. For  */
-/* those 320 ms it is a denser tint with no blur, and eases back to glass after.          */
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .nav-glass {
-    transition: background-color 0.2s ease-out;
-  }
-
-  html[data-vt="page"] .nav-glass {
-    background: color-mix(in oklch, var(--sidebar) 88%, transparent);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    transition: none; /* into the scene at once; the ease is for the way back */
+      inset 0 -1px 0 rgb(0 0 0 / 0.08),
+      0 2px 6px rgb(0 0 0 / 0.16),
+      0 10px 32px rgb(0 0 0 / 0.32);
   }
 }
 
