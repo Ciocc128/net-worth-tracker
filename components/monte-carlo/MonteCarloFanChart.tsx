@@ -13,6 +13,7 @@
 
 import { useMemo } from 'react';
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import type { PercentilesData } from '@/types/assets';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
@@ -101,6 +102,7 @@ function renderSeriesLabel(text: string) {
 }
 
 export function MonteCarloFanChart({ percentiles, startCalendarYear, unlockCalendarYear, height, ariaLabel, zeroLine = true, floorAtZero = false, referenceLine, referenceSeries, markedCalendarYear = null }: MonteCarloFanChartProps) {
+  const chartMotion = useChartMotion();
   const fanColor = SCENARIO_COLOR.base;
 
   const rows = useMemo<FanRow[]>(
@@ -133,7 +135,7 @@ export function MonteCarloFanChart({ percentiles, startCalendarYear, unlockCalen
         <Area dataKey="band2575" name="25°–75° percentile" stroke="none" fill={fanColor} fillOpacity={0.18} isAnimationActive={false} activeDot={false} />
         {unlockCalendarYear !== null && <ReferenceLine x={unlockCalendarYear} stroke="var(--muted-foreground)" strokeOpacity={0.6} strokeDasharray="2 3" />}
         {markedCalendarYear !== null && <ReferenceLine x={markedCalendarYear} stroke="var(--muted-foreground)" strokeOpacity={0.35} />}
-        <Line dataKey="p50" name="Mediana" stroke={fanColor} strokeWidth={2.5} dot={false} animationDuration={800} animationEasing="ease-out" />
+        <Line {...chartMotion} dataKey="p50" name="Mediana" stroke={fanColor} strokeWidth={2.5} dot={false} />
         {/* The capital exhausted: a fact with a sign, so the loss token is the one honest colour here. */}
         {zeroLine && <ReferenceLine y={0} stroke="var(--destructive)" strokeDasharray="3 3" />}
         {referenceSeries && (

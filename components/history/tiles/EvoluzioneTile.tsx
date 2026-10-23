@@ -19,9 +19,9 @@
  */
 
 import { useEffect, useId } from 'react';
-import { useReducedMotion } from 'framer-motion';
 import { MessageSquare, TrendingDown, TrendingUp } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { EvolutionPoint, GrowthPace, GrowthSummary, PeriodMonth } from '@/lib/utils/storicoSummary';
 import { isSamePeriod, type ScrubView } from '@/lib/utils/storicoScrub';
@@ -193,6 +193,7 @@ function HeadValue({ value }: { value: number }) {
 // ─── Tile ─────────────────────────────────────────────────────────────────────
 
 export function EvoluzioneTile({ aside, reading, growth, pace, points, noteCount, onAddNote, disabled = false, scrub, onScrub, id, liftedFigures = [], className }: EvoluzioneTileProps) {
+  const chartMotion = useChartMotion();
   const lifted = (block: EvoluzioneLiftedBlock) => liftedFigures.includes(block);
   // The twelve months' chip keeps its percentage when its euro is lifted; without a percentage (no
   // positive base a year back) the lifted euro was all it held, and it hides whole — an empty
@@ -201,7 +202,6 @@ export function EvoluzioneTile({ aside, reading, growth, pace, points, noteCount
   // The chips' row hides whole when every chip in it is lifted, or it would leave its gap behind
   // (PatrimonioTile's rule).
   const chipsRowLifted = (growth.snapshotCount <= 1 || lifted('growth')) && (growth.cagr === null || lifted('cagr')) && (pace.trailingDelta === null || trailingChipLifted);
-  const prefersReducedMotion = useReducedMotion();
   const canScrub = useMediaQuery('(pointer: fine)');
   const gradientId = `evo-${useId().replace(/:/g, '')}`;
 
@@ -331,7 +331,7 @@ export function EvoluzioneTile({ aside, reading, growth, pace, points, noteCount
                   <XAxis dataKey="date" ticks={ticks} tickFormatter={ticks ? yearOfTick : undefined} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} minTickGap={24} />
                   <YAxis tickFormatter={formatTick} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} width={isNarrowRange ? 72 : 56} domain={['auto', 'auto']} />
                   <Tooltip content={<EvolutionTooltip headFollows={canScrub} />} cursor={{ stroke: 'var(--foreground)', strokeOpacity: 0.25, strokeWidth: 1 }} />
-                  <Area
+                  <Area {...chartMotion}
                     type="monotone"
                     dataKey="totalNetWorth"
                     name="Patrimonio"
@@ -340,9 +340,6 @@ export function EvoluzioneTile({ aside, reading, growth, pace, points, noteCount
                     fill={`url(#${gradientId})`}
                     dot={renderNoteDot}
                     activeDot={{ r: 4, strokeWidth: 1.5, stroke: 'var(--foreground)', fill: 'var(--hero-series)' }}
-                    isAnimationActive={!prefersReducedMotion}
-                    animationDuration={600}
-                    animationEasing="ease-out"
                   />
                 </AreaChart>
               </ResponsiveContainer>

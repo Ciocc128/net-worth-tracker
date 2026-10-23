@@ -19,9 +19,10 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
+import { LayoutGroup, motion } from 'framer-motion';
 import { Info } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { Tile, TILE_FOOTER_ACTION_CLASS, type TileCollapse } from '@/components/ui/tile';
@@ -186,9 +187,9 @@ interface ComposizioneTileProps {
 }
 
 export function ComposizioneTile({ assetClassHistory, liquidityHistory, hasPensionFunds, scrub = null, collapse, asideWhenClosed, className }: ComposizioneTileProps) {
+  const chartMotion = useChartMotion();
   const [cut, setCut] = useState<CompositionCut>('assetClass');
   const chartColors = useChartColors();
-  const prefersReducedMotion = useReducedMotion();
   const isMobile = useMediaQuery('(max-width: 767px)');
 
   const series: CompositionSeries = useMemo(() => resolveCompositionSeries(cut, { assetClassHistory, liquidityHistory }), [cut, assetClassHistory, liquidityHistory]);
@@ -269,7 +270,7 @@ export function ComposizioneTile({ assetClassHistory, liquidityHistory, hasPensi
                 {series.bands.map((band) => {
                   const color = resolveBandColor(band, chartColors);
                   return (
-                    <Area
+                    <Area {...chartMotion}
                       key={band.key}
                       type="monotone"
                       dataKey={shareKey(band.key)}
@@ -280,9 +281,6 @@ export function ComposizioneTile({ assetClassHistory, liquidityHistory, hasPensi
                       fill={color}
                       fillOpacity={0.75}
                       strokeWidth={1}
-                      isAnimationActive={!prefersReducedMotion}
-                      animationDuration={600}
-                      animationEasing="ease-out"
                     />
                   );
                 })}

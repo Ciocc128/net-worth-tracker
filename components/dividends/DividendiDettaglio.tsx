@@ -16,7 +16,7 @@
 
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger, DISCLOSURE_MOTION_CLASS } from '@/components/ui/collapsible';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Badge } from '@/components/ui/badge';
 import { Tile, TILE_CELL_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
@@ -72,7 +72,7 @@ export function DividendiDettaglio({ stats, now }: DividendiDettaglioProps) {
             aria-hidden="true"
           />
         </CollapsibleTrigger>
-        <CollapsibleContent className="pt-3">
+        <CollapsibleContent className={`${DISCLOSURE_MOTION_CLASS} pt-3`}>
           <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
             {growth && (
               <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-7')}>

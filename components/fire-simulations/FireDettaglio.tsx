@@ -20,6 +20,7 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import type { HistoricalFIRERunwayPoint, HistoricalFIRERunwaySummary, MonthlyFIREData } from '@/lib/services/fireService';
 import type { Narrative } from '@/lib/utils/narrative';
 import { CASHFLOW_CHART_READING, EXPLAINER_READING } from '@/lib/utils/fireNarrative';
@@ -28,7 +29,7 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { fmtCurrency } from '@/lib/utils/chartUtils';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { cn } from '@/lib/utils';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger, DISCLOSURE_MOTION_CLASS } from '@/components/ui/collapsible';
 import { Tile, TILE_CELL_CLASS, TILE_EYEBROW_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { SeriesLegend } from '@/components/ui/series-legend';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
@@ -111,6 +112,7 @@ function RunwayTooltip({ active, payload, label }: { active?: boolean; payload?:
 }
 
 export function FireDettaglio({ description, loading, runwayData, runwaySummary, runwayReading, chartData, simulationCount }: FireDettaglioProps) {
+  const chartMotion = useChartMotion();
   const [open, setOpen] = useState(false);
   const chartColors = useChartColors();
   // The chart is drawn only when the latest point measures something: with points but no expenses
@@ -132,7 +134,7 @@ export function FireDettaglio({ description, loading, runwayData, runwaySummary,
     return (
       <Collapsible open={open} onOpenChange={setOpen}>
         {trigger}
-        <CollapsibleContent className="pt-1">
+        <CollapsibleContent className={`${DISCLOSURE_MOTION_CLASS} pt-1`}>
           <TileGridSkeleton verdict={false} cells={SKELETON_CELLS} />
         </CollapsibleContent>
       </Collapsible>
@@ -143,7 +145,7 @@ export function FireDettaglio({ description, loading, runwayData, runwaySummary,
     <Collapsible open={open} onOpenChange={setOpen}>
       {trigger}
 
-      <CollapsibleContent className="pt-1">
+      <CollapsibleContent className={`${DISCLOSURE_MOTION_CLASS} pt-1`}>
         <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
           <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
             <Tile eyebrow="Runway storica" aside="spese rolling 12 mesi" reading={runwayReading} ariaLabel="Runway FIRE storica">
@@ -177,8 +179,8 @@ export function FireDettaglio({ description, loading, runwayData, runwaySummary,
                               label={{ value: `Obiettivo ${oneDecimal(runwaySummary.targetYearsOfExpenses)} anni`, position: 'insideTopRight', fill: 'var(--muted-foreground)', fontSize: 10 }}
                             />
                           )}
-                          <Line type="monotone" dataKey="yearsOfExpenses" stroke={chartColors[0]} strokeWidth={2} name="Totale" dot={false} connectNulls={false} animationDuration={800} animationEasing="ease-out" />
-                          <Line type="monotone" dataKey="liquidYearsOfExpenses" stroke={chartColors[1]} strokeWidth={2} name="Solo liquidi" dot={false} connectNulls={false} animationDuration={800} animationEasing="ease-out" />
+                          <Line {...chartMotion} type="monotone" dataKey="yearsOfExpenses" stroke={chartColors[0]} strokeWidth={2} name="Totale" dot={false} connectNulls={false} />
+                          <Line {...chartMotion} type="monotone" dataKey="liquidYearsOfExpenses" stroke={chartColors[1]} strokeWidth={2} name="Solo liquidi" dot={false} connectNulls={false} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
@@ -206,9 +208,9 @@ export function FireDettaglio({ description, loading, runwayData, runwaySummary,
                         <XAxis dataKey="monthLabel" tick={CHART_TICK_STYLE} tickMargin={6} />
                         <YAxis width={56} tickFormatter={(value) => formatCurrencyCompact(Number(value))} tick={CHART_TICK_STYLE} />
                         <Tooltip formatter={fmtCurrency} contentStyle={TOOLTIP_CONTENT_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
-                        <Line type="monotone" dataKey="income" stroke="var(--flow-in)" strokeWidth={2} name="Entrate" dot={false} animationDuration={800} animationEasing="ease-out" />
-                        <Line type="monotone" dataKey="expenses" stroke="var(--flow-out)" strokeWidth={2} name="Uscite" dot={false} animationDuration={800} animationEasing="ease-out" />
-                        <Line type="monotone" dataKey="monthlyAllowance" stroke={chartColors[3]} strokeWidth={2} name="Reddito passivo" dot={false} animationDuration={800} animationEasing="ease-out" />
+                        <Line {...chartMotion} type="monotone" dataKey="income" stroke="var(--flow-in)" strokeWidth={2} name="Entrate" dot={false} />
+                        <Line {...chartMotion} type="monotone" dataKey="expenses" stroke="var(--flow-out)" strokeWidth={2} name="Uscite" dot={false} />
+                        <Line {...chartMotion} type="monotone" dataKey="monthlyAllowance" stroke={chartColors[3]} strokeWidth={2} name="Reddito passivo" dot={false} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>

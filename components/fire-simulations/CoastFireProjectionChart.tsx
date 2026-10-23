@@ -46,6 +46,7 @@ import {
   XAxis,
   YAxis,
 } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 
 interface CoastFireProjectionChartProps {
   projectionData: CoastFIREProjectionPoint[];
@@ -150,6 +151,7 @@ export function CoastFireProjectionChart({
   pensionUnlockCalendarYear = null,
   pace = null,
 }: CoastFireProjectionChartProps) {
+  const chartMotion = useChartMotion();
   const { bear: bearColor, base: baseColor, bull: bullColor } = SCENARIO_COLOR;
 
   if (projectionData.length === 0) {
@@ -208,39 +210,33 @@ export function CoastFireProjectionChart({
                 />
               }
             />
-            <Line
+            <Line {...chartMotion}
               type="monotone"
               dataKey="bearPortfolioValue"
               stroke={bearColor}
               strokeWidth={2}
               name="Patrimonio Bear"
               dot={false}
-              animationDuration={800}
-              animationEasing="ease-out"
             />
-            <Line
+            <Line {...chartMotion}
               type="monotone"
               dataKey="basePortfolioValue"
               stroke={baseColor}
               strokeWidth={2}
               name="Patrimonio Base"
               dot={false}
-              animationDuration={800}
-              animationEasing="ease-out"
             />
-            <Line
+            <Line {...chartMotion}
               type="monotone"
               dataKey="bullPortfolioValue"
               stroke={bullColor}
               strokeWidth={2}
               name="Patrimonio Bull"
               dot={false}
-              animationDuration={800}
-              animationEasing="ease-out"
             />
             {pace && (
               // The base slot again, dotted: it IS the base scenario, fed by the savings.
-              <Line
+              <Line {...chartMotion}
                 type="monotone"
                 dataKey="paceValue"
                 stroke={baseColor}
@@ -248,8 +244,6 @@ export function CoastFireProjectionChart({
                 strokeDasharray="2 3"
                 name="Base con il risparmio attuale"
                 dot={false}
-                animationDuration={800}
-                animationEasing="ease-out"
               />
             )}
             {/* A reference series, not a part of the total: neutral ink, dashed, no animation. */}

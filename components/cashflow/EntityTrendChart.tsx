@@ -8,6 +8,7 @@
  */
 
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 
@@ -42,6 +43,7 @@ export interface EntityTrendChartProps {
 }
 
 export function EntityTrendChart({ data, seriesName, color, height }: EntityTrendChartProps) {
+  const chartMotion = useChartMotion();
   return (
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart
@@ -64,7 +66,7 @@ export function EntityTrendChart({ data, seriesName, color, height }: EntityTren
           itemStyle={TOOLTIP_ITEM_STYLE}
           cursor={{ fill: 'var(--muted)', fillOpacity: 0.4 }}
         />
-        <Bar dataKey="value" name={seriesName} fill={color} animationDuration={600} animationEasing="ease-out" radius={[2, 2, 0, 0]} />
+        <Bar {...chartMotion} dataKey="value" name={seriesName} fill={color} radius={[2, 2, 0, 0]} />
         {/* connectNulls stays false: pre-floor baseline months render as a gap. */}
         <Line dataKey="prevYearValue" name="Anno precedente" stroke="var(--muted-foreground)" strokeDasharray="4 3" strokeWidth={1.5} dot={false} isAnimationActive={false} />
       </ComposedChart>

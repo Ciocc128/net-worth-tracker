@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { PROJECTION_DETTAGLIO_DESCRIPTION, PROJECTION_EXPLAINER } from '@/lib/utils/projectionNarrative';
 import { cn } from '@/lib/utils';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger, DISCLOSURE_MOTION_CLASS } from '@/components/ui/collapsible';
 import { Tile, TILE_EYEBROW_CLASS } from '@/components/ui/tile';
 
 export function ProjectionDettaglio() {
@@ -26,7 +26,7 @@ export function ProjectionDettaglio() {
         <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} aria-hidden="true" />
       </CollapsibleTrigger>
 
-      <CollapsibleContent className="pt-1">
+      <CollapsibleContent className={`${DISCLOSURE_MOTION_CLASS} pt-1`}>
         <Tile eyebrow="Come si calcola" ariaLabel="Come si calcola la proiezione">
           <div className="mt-3 grid grid-cols-1 gap-5 text-[13px] leading-[1.5] text-muted-foreground desktop:grid-cols-3">
             {PROJECTION_EXPLAINER.map((block) => (

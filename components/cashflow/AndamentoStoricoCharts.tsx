@@ -8,6 +8,7 @@
  */
 
 import { ComposedChart, LineChart, Line, Area, AreaChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import { formatCurrency, formatCurrencyCompact, formatPercentage } from '@/lib/services/chartService';
 import type { buildCategoryTimeSeries, buildTimeBuckets, buildTypeTimeSeries } from '@/lib/utils/cashflowTimeSeries';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
@@ -36,6 +37,7 @@ export function FlowComposedChart({
   colors: string[];
   height: number;
 }) {
+  const chartMotion = useChartMotion();
   return (
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart data={data} margin={{ top: 8, right: 4, left: -8, bottom: 0 }}>
@@ -73,17 +75,15 @@ export function FlowComposedChart({
         />
         {/* The page's slots: income is chart-2, spending chart-1 — the same two the category tiles use. */}
         {/* Money in / money out: the same two tokens the category tiles and Tracciamento's bars use. */}
-        <Bar dataKey="income" fill="var(--flow-in)" radius={[3, 3, 0, 0]} animationDuration={600} animationEasing="ease-out" />
-        <Bar dataKey="expenses" fill="var(--flow-out)" radius={[3, 3, 0, 0]} animationDuration={600} animationEasing="ease-out" />
-        <Line
+        <Bar {...chartMotion} dataKey="income" fill="var(--flow-in)" radius={[3, 3, 0, 0]} />
+        <Bar {...chartMotion} dataKey="expenses" fill="var(--flow-out)" radius={[3, 3, 0, 0]} />
+        <Line {...chartMotion}
           type="monotone"
           dataKey="net"
           stroke={colors[2] ?? '#10b981'}
           strokeWidth={2}
           dot={false}
           activeDot={{ r: 4, strokeWidth: 0 }}
-          animationDuration={800}
-          animationEasing="ease-out"
         />
       </ComposedChart>
     </ResponsiveContainer>
@@ -105,6 +105,7 @@ export function CategoryLinesChart({
   colors: string[];
   height: number;
 }) {
+  const chartMotion = useChartMotion();
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={rows} margin={{ top: 8, right: 4, left: -8, bottom: 0 }}>
@@ -134,7 +135,7 @@ export function CategoryLinesChart({
         />
         <Legend wrapperStyle={{ fontSize: 12, color: 'var(--muted-foreground)' }} />
         {series.map((s, i) => (
-          <Line
+          <Line {...chartMotion}
             key={s.name}
             type="monotone"
             dataKey={s.name}
@@ -143,8 +144,6 @@ export function CategoryLinesChart({
             dot={false}
             activeDot={{ r: 4, strokeWidth: 0 }}
             connectNulls
-            animationDuration={600}
-            animationEasing="ease-out"
           />
         ))}
       </LineChart>
@@ -169,6 +168,7 @@ export function TypeCompositionChart({
   colors: string[];
   height: number;
 }) {
+  const chartMotion = useChartMotion();
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={rows} margin={{ top: 8, right: 4, left: -8, bottom: 0 }}>
@@ -196,7 +196,7 @@ export function TypeCompositionChart({
         />
         <Legend wrapperStyle={{ fontSize: 12, color: 'var(--muted-foreground)' }} />
         {series.map((s, i) => (
-          <Area
+          <Area {...chartMotion}
             key={s.name}
             type="monotone"
             dataKey={s.name}
@@ -205,8 +205,6 @@ export function TypeCompositionChart({
             fill={colors[i % colors.length] ?? '#6366f1'}
             fillOpacity={0.7}
             strokeWidth={1.5}
-            animationDuration={600}
-            animationEasing="ease-out"
           />
         ))}
       </AreaChart>

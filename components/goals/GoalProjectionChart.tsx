@@ -14,6 +14,7 @@
 
 import { useId } from 'react';
 import { Area, AreaChart, CartesianGrid, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import type { GoalProjectionPoint } from '@/lib/utils/goalTrajectory';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
 
@@ -35,6 +36,7 @@ function formatShortMonthYear(date: Date): string {
 }
 
 export function GoalProjectionChart({ series, deadlineTs, color, height = '100%', ariaLabel }: GoalProjectionChartProps) {
+  const chartMotion = useChartMotion();
   const gradientId = useId();
   if (series.length < 2) return null;
   // RO5: the simulated band exists only for a dated goal once the simulation ran.
@@ -82,7 +84,7 @@ export function GoalProjectionChart({ series, deadlineTs, color, height = '100%'
             }}
           />
           {hasBand && <Area type="monotone" dataKey="band" stroke="none" fill={color} fillOpacity={0.14} tooltipType="none" isAnimationActive={false} />}
-          <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#${gradientId})`} animationDuration={600} animationEasing="ease-out" />
+          <Area {...chartMotion} type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#${gradientId})`} />
           {/* Invisible lines carry the three percentiles into the tooltip. */}
           {hasBand && <Line type="monotone" dataKey="p90" stroke="none" dot={false} activeDot={false} isAnimationActive={false} />}
           {hasBand && <Line type="monotone" dataKey="p50" stroke="none" dot={false} activeDot={false} isAnimationActive={false} />}

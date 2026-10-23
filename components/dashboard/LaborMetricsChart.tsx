@@ -17,6 +17,7 @@
  */
 
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import type { prepareMonthlyLaborMetricsData } from '@/lib/services/chartService';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
 import { MONTH_NAMES_SHORT } from '@/lib/utils/period';
@@ -39,6 +40,7 @@ const LABOR_INCOME_COLOR = 'var(--foreground)';
 const shortPeriod = (row: Pick<LaborChartRow, 'month' | 'year'>) => `${MONTH_NAMES_SHORT[row.month - 1].toLowerCase()} ${String(row.year).slice(2)}`;
 
 export default function LaborMetricsChart({ data, isMobile }: LaborMetricsChartProps) {
+  const chartMotion = useChartMotion();
   if (data.length === 0) return null;
   const rows = data.map((row) => ({ ...row, tick: shortPeriod(row) }));
   // The Driver's role tokens (market `--hero-series`, savings `--flow-in`): default to slots 1 and 2.
@@ -68,10 +70,10 @@ export default function LaborMetricsChart({ data, isMobile }: LaborMetricsChartP
               itemStyle={TOOLTIP_ITEM_STYLE}
               cursor={{ stroke: 'var(--foreground)', strokeOpacity: 0.25, strokeWidth: 1 }}
             />
-            <Line type="monotone" dataKey="laborIncome" stroke={LABOR_INCOME_COLOR} strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="4 3" name="Guadagnato da lavoro" dot={false} animationDuration={600} animationEasing="ease-out" />
-            <Line type="monotone" dataKey="savedFromWork" stroke={savingsColor} strokeWidth={2} name="Risparmiato da lavoro" dot={false} animationDuration={600} animationEasing="ease-out" />
+            <Line {...chartMotion} type="monotone" dataKey="laborIncome" stroke={LABOR_INCOME_COLOR} strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="4 3" name="Guadagnato da lavoro" dot={false} />
+            <Line {...chartMotion} type="monotone" dataKey="savedFromWork" stroke={savingsColor} strokeWidth={2} name="Risparmiato da lavoro" dot={false} />
             {/* «Mercato», the same word and the same colour as the row above it and the Driver's bars. */}
-            <Line type="monotone" dataKey="investmentGrowth" stroke={marketColor} strokeWidth={2} name="Mercato" dot={false} animationDuration={600} animationEasing="ease-out" />
+            <Line {...chartMotion} type="monotone" dataKey="investmentGrowth" stroke={marketColor} strokeWidth={2} name="Mercato" dot={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>

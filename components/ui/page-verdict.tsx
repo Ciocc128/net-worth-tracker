@@ -62,6 +62,9 @@ const TONE_DOT_CLASS: Record<VerdictTone, string> = {
   negative: 'text-destructive',
 };
 
+/** The curve of a row's opening, the same as `TileRowShell`'s (components/ui/tile.tsx). */
+const ROW_MOTION_CLASS = 'motion-safe:duration-300 motion-safe:ease-spring';
+
 const SENTENCE_CLASS = 'text-[14px] leading-[1.6] text-muted-foreground desktop:text-[15px]';
 
 /**
@@ -136,20 +139,30 @@ export function PageVerdict({ verdict, ariaLabel, axis, strip, scope, restCollap
             >
               <span>Il perché{split.restLabel ? ` · ${split.restLabel}` : ''}</span>
               <ChevronDown
-                className={cn('h-4 w-4 shrink-0 text-muted-foreground motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-spring', restOpen && 'rotate-180')}
+                className={cn('h-4 w-4 shrink-0 text-muted-foreground motion-safe:transition-transform', ROW_MOTION_CLASS, restOpen && 'rotate-180')}
                 aria-hidden="true"
               />
             </button>
           )}
           {hasRest && restCollapse && (
-            // Inline at 1440 (the paragraph of today); a block under the button on a phone, and
-            // hidden there while closed — the text is in the DOM at every width.
+            // Inline at 1440 (the paragraph of today, always visible: no grid, no clip there); below
+            // `desktop:` a row that opens on the spring like a closed row's (The Closed-Row Rule,
+            // `grid-rows 0fr↔1fr`). Closed it is `invisible` — out of the tab order and of the
+            // reader's tree, as `hidden` kept it — and the visibility lets go only after the close.
             <span
               id={sectionPanelId(restCollapse.id)}
               data-state={restOpen ? 'open' : 'closed'}
-              className={restOpen ? 'max-desktop:mt-1 max-desktop:block' : 'max-desktop:hidden'}
+              className={cn(
+                'max-desktop:grid max-desktop:motion-safe:transition-[grid-template-rows,visibility]',
+                ROW_MOTION_CLASS,
+                restOpen ? 'max-desktop:grid-rows-[1fr]' : 'max-desktop:invisible max-desktop:grid-rows-[0fr]',
+              )}
             >
-              <NarrativeSegments segments={split.rest} />
+              <span className="max-desktop:block max-desktop:min-h-0 max-desktop:overflow-hidden">
+                <span className="max-desktop:block max-desktop:pt-1">
+                  <NarrativeSegments segments={split.rest} />
+                </span>
+              </span>
             </span>
           )}
           {scope && <div className="hidden desktop:block">{scope}</div>}

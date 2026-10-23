@@ -18,7 +18,7 @@ import { EXPLAINER } from '@/lib/utils/monteCarloNarrative';
 import { formatCurrencyCompact } from '@/lib/services/chartService';
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { cn } from '@/lib/utils';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger, DISCLOSURE_MOTION_CLASS } from '@/components/ui/collapsible';
 import { Tile, TILE_CELL_CLASS, TILE_EYEBROW_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { ScenarioOverlayChart } from '@/components/monte-carlo/ScenarioOverlayChart';
 
@@ -52,7 +52,7 @@ export function MonteCarloDettaglio({ description, traiettorieReading, overlay, 
         <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} aria-hidden="true" />
       </CollapsibleTrigger>
 
-      <CollapsibleContent className="pt-1">
+      <CollapsibleContent className={`${DISCLOSURE_MOTION_CLASS} pt-1`}>
         <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
           <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
             <Tile eyebrow="Traiettorie a confronto" aside="mediane · banda 10–90 del base" reading={traiettorieReading} ariaLabel="Traiettorie a confronto">

@@ -16,7 +16,7 @@ import { allocateContributionAcrossGoals } from '@/lib/utils/goalTrajectory';
 import { describeVersamento, EXPLAINER } from '@/lib/utils/goalsNarrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger, DISCLOSURE_MOTION_CLASS } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Tile, TILE_CELL_CLASS, TILE_EYEBROW_CLASS } from '@/components/ui/tile';
 import { PRIORITY_META } from '@/components/goals/goalVerdictMeta';
@@ -45,7 +45,7 @@ export function GoalsDettaglio({ description, goals, progressList }: GoalsDettag
         <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} aria-hidden="true" />
       </CollapsibleTrigger>
 
-      <CollapsibleContent className="pt-1">
+      <CollapsibleContent className={`${DISCLOSURE_MOTION_CLASS} pt-1`}>
         <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
           <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
             <Tile eyebrow="Prossimo versamento" aside="gap × priorità" reading={reading} ariaLabel="Prossimo versamento">

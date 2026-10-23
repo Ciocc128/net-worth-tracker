@@ -4,6 +4,7 @@ import { useId } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { UnderwaterDrawdownData } from '@/types/performance';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import { formatPercentage } from '@/lib/services/chartService';
 import { chartShellSettle } from '@/lib/utils/motionVariants';
 import { MONTH_NAMES } from '@/lib/constants/months';
@@ -95,6 +96,7 @@ export function UnderwaterDrawdownChart({
   data,
   height = 400,
 }: UnderwaterDrawdownChartProps) {
+  const chartMotion = useChartMotion();
   const prefersReducedMotion = useReducedMotion();
   const gradientId = useId();
 
@@ -149,7 +151,7 @@ export function UnderwaterDrawdownChart({
           stroke="var(--border)"
         />
         <Tooltip content={<CustomTooltip />} />
-        <Area
+        <Area {...chartMotion}
           type="monotone"
           dataKey="drawdown"
           stroke={drawdownColor}
@@ -157,8 +159,6 @@ export function UnderwaterDrawdownChart({
           fill={`url(#${gradientId})`}
           name="Drawdown"
           animationBegin={0}
-          animationDuration={prefersReducedMotion ? 0 : 900}
-          animationEasing="ease-out"
         />
       </AreaChart>
       </ResponsiveContainer>

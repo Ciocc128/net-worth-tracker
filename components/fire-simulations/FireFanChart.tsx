@@ -29,6 +29,7 @@ import {
   XAxis,
   YAxis,
 } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import type { AccumulationSimulationResult } from '@/lib/services/monteCarloService';
 import type { FanVerdict } from '@/lib/utils/fireSummary';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
@@ -119,6 +120,7 @@ function FanChartTooltip({ active, payload, label }: FanChartTooltipProps) {
 
 
 export function FireFanChart({ result, startCalendarYear, verdict, height }: FireFanChartProps) {
+  const chartMotion = useChartMotion();
   // Fan + median share the base scenario's colour (the same one the Scenari view gives it); the
   // moving target is a reference series, so it takes the neutral ink, dashed (doc/guide/grafici.md § Recharts).
   const fanColor = SCENARIO_COLOR.base;
@@ -209,24 +211,20 @@ export function FireFanChart({ result, startCalendarYear, verdict, height }: Fir
             isAnimationActive={false}
           />
         ))}
-        <Line
+        <Line {...chartMotion}
           dataKey="p50"
           name="Mediana"
           stroke={fanColor}
           strokeWidth={2.5}
           dot={false}
-          animationDuration={800}
-          animationEasing="ease-out"
         />
-        <Line
+        <Line {...chartMotion}
           dataKey="fireTarget"
           name="Target FIRE"
           stroke={targetColor}
           strokeWidth={1.5}
           strokeDasharray="6 4"
           dot={false}
-          animationDuration={800}
-          animationEasing="ease-out"
         />
       </ComposedChart>
       </ResponsiveContainer>
