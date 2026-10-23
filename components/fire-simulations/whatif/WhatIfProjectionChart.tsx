@@ -15,6 +15,7 @@
 
 import { clipDepletedSeries } from '@/lib/utils/fireDepletion';
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import type { WhatIfComparisonPoint } from '@/lib/utils/whatIfSummary';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
@@ -83,6 +84,7 @@ export function WhatIfProjectionChart({
   height = 400,
   pensionUnlockCalendarYear = null,
 }: WhatIfProjectionChartProps) {
+  const chartMotion = useChartMotion();
   const afterColor = SCENARIO_COLOR.base;
   // § 21 RE3: a walk that runs out stops at zero in that year and has no points after it.
   const clipped = clipDepletedSeries(series, ['before', 'after'] as const);
@@ -110,11 +112,11 @@ export function WhatIfProjectionChart({
         <YAxis width={80} domain={[(dataMin: number) => (dataMin >= 0 || anyDepletion ? 0 : dataMin), "auto"]} allowDataOverflow={anyDepletion} tickFormatter={(value) => formatCurrencyCompact(Number(value))} tick={CHART_TICK_STYLE} />
         <Tooltip content={<ComparisonTooltip afterColor={afterColor} pensionUnlockCalendarYear={pensionUnlockCalendarYear} depletion={clipped.depletion} />} />
         {targetsDiffer && (
-          <Line type="monotone" dataKey="targetBefore" stroke={BASELINE_STROKE} strokeWidth={1.5} strokeDasharray="8 4" name="Numero FIRE senza l'evento" dot={false} connectNulls={false} animationDuration={800} animationEasing="ease-out" />
+          <Line {...chartMotion} type="monotone" dataKey="targetBefore" stroke={BASELINE_STROKE} strokeWidth={1.5} strokeDasharray="8 4" name="Numero FIRE senza l'evento" dot={false} connectNulls={false} />
         )}
-        <Line type="monotone" dataKey="targetAfter" stroke={afterColor} strokeWidth={1.5} strokeDasharray="8 4" name="Numero FIRE" dot={false} connectNulls={false} animationDuration={800} animationEasing="ease-out" />
-        <Line type="monotone" dataKey="before" stroke={BASELINE_STROKE} strokeWidth={2} name="Piano di oggi" dot={false} connectNulls={false} animationDuration={800} animationEasing="ease-out" />
-        <Line type="monotone" dataKey="after" stroke={afterColor} strokeWidth={2} name="Dopo l'evento" dot={false} connectNulls={false} animationDuration={800} animationEasing="ease-out" />
+        <Line {...chartMotion} type="monotone" dataKey="targetAfter" stroke={afterColor} strokeWidth={1.5} strokeDasharray="8 4" name="Numero FIRE" dot={false} connectNulls={false} />
+        <Line {...chartMotion} type="monotone" dataKey="before" stroke={BASELINE_STROKE} strokeWidth={2} name="Piano di oggi" dot={false} connectNulls={false} />
+        <Line {...chartMotion} type="monotone" dataKey="after" stroke={afterColor} strokeWidth={2} name="Dopo l'evento" dot={false} connectNulls={false} />
         {calendarBefore !== null && (
           <ReferenceLine x={calendarBefore} stroke={BASELINE_STROKE} strokeWidth={1} strokeDasharray="4 3" label={{ value: 'FIRE oggi', position: 'top', fill: 'var(--muted-foreground)', fontSize: 11 }} />
         )}

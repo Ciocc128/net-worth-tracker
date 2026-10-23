@@ -29,7 +29,6 @@
 
 import { useState, useEffect, useEffectEvent, useMemo } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowRightLeft, Coins, Target, Layers, Users, Download, Plus, Settings } from 'lucide-react';
 import Link from 'next/link';
@@ -53,7 +52,6 @@ import { queryKeys } from '@/lib/query/queryKeys';
 import { dividendStatsQueryKey, useDividendRegistry } from '@/lib/hooks/useDividendStats';
 import { listExpenseYears, trackingWindow } from '@/lib/utils/expenseWindows';
 import { type Period, currentMonthPeriod } from '@/lib/utils/period';
-import { tabPanelSwitch } from '@/lib/utils/motionVariants';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { PageTabs } from '@/components/layout/PageTabs';
@@ -384,27 +382,21 @@ export default function CashflowPage() {
             // generated reference points at nothing. The name is the label above.
             aria-labelledby={undefined}
           >
-          <motion.div
-            initial={false}
-            animate={effectiveTab === 'tracking' ? 'visible' : 'hidden'}
-            variants={tabPanelSwitch}
-          >
-            <ExpenseTrackingTab
-              windowExpenses={trackingExpenses}
-              period={trackingPeriod}
-              onPeriodChange={setTrackingPeriod}
-              availableYears={availableYears}
-              categories={categories}
-              initialOwnerId={ownerParam}
-              loading={loading}
-                loadFailed={loadFailed}
-              onRefresh={handleRefresh}
-              assetNameMap={assetNameMap}
-              splitEnabled={expenseSplitEnabled === true}
-              familyMembers={familyMembers}
-              active={effectiveTab === 'tracking'}
-            />
-          </motion.div>
+          <ExpenseTrackingTab
+            windowExpenses={trackingExpenses}
+            period={trackingPeriod}
+            onPeriodChange={setTrackingPeriod}
+            availableYears={availableYears}
+            categories={categories}
+            initialOwnerId={ownerParam}
+            loading={loading}
+              loadFailed={loadFailed}
+            onRefresh={handleRefresh}
+            assetNameMap={assetNameMap}
+            splitEnabled={expenseSplitEnabled === true}
+            familyMembers={familyMembers}
+            active={effectiveTab === 'tracking'}
+          />
         </TabsContent>
 
         {mountedTabs.has('dividends') && (
@@ -417,21 +409,15 @@ export default function CashflowPage() {
             // generated reference points at nothing. The name is the label above.
             aria-labelledby={undefined}
           >
-            <motion.div
-              initial={false}
-              animate={effectiveTab === 'dividends' ? 'visible' : 'hidden'}
-              variants={tabPanelSwitch}
-            >
-              <DividendTrackingTab
-                fallback={<DividendsTabSkeleton />}
-                dividends={dividends}
-                assets={dividendAssets}
-                loading={loading || dividendsLoading || assetsLoading}
-                loadFailed={dividendsError || assetsError}
-                onRefresh={handleRefresh}
-                active={effectiveTab === 'dividends'}
-              />
-            </motion.div>
+            <DividendTrackingTab
+              fallback={<DividendsTabSkeleton />}
+              dividends={dividends}
+              assets={dividendAssets}
+              loading={loading || dividendsLoading || assetsLoading}
+              loadFailed={dividendsError || assetsError}
+              onRefresh={handleRefresh}
+              active={effectiveTab === 'dividends'}
+            />
           </TabsContent>
         )}
 
@@ -445,21 +431,15 @@ export default function CashflowPage() {
             // generated reference points at nothing. The name is the label above.
             aria-labelledby={undefined}
           >
-            <motion.div
-              initial={false}
-              animate={effectiveTab === 'budget' ? 'visible' : 'hidden'}
-              variants={tabPanelSwitch}
-            >
-              <BudgetTab
-                fallback={<TileGridSkeleton cells={BUDGET_SKELETON_CELLS} className="pt-1" />}
-                categories={categories}
-                categoriesLoading={categoriesLoading}
-                categoriesFailed={categoriesError}
-                historyStartYear={cashflowHistoryStartYear}
-                userId={ownerId ?? ''}
-                active={effectiveTab === 'budget'}
-              />
-            </motion.div>
+            <BudgetTab
+              fallback={<TileGridSkeleton cells={BUDGET_SKELETON_CELLS} className="pt-1" />}
+              categories={categories}
+              categoriesLoading={categoriesLoading}
+              categoriesFailed={categoriesError}
+              historyStartYear={cashflowHistoryStartYear}
+              userId={ownerId ?? ''}
+              active={effectiveTab === 'budget'}
+            />
           </TabsContent>
         )}
         {expenseSplitEnabled && mountedTabs.has('split') && (
@@ -472,18 +452,12 @@ export default function CashflowPage() {
             // generated reference points at nothing. The name is the label above.
             aria-labelledby={undefined}
           >
-            <motion.div
-              initial={false}
-              animate={effectiveTab === 'split' ? 'visible' : 'hidden'}
-              variants={tabPanelSwitch}
-            >
-              <ExpenseSplitTab
-                fallback={<SplitTabSkeleton />}
-                familyMembers={familyMembers}
-                availableYears={availableYears}
-                active={effectiveTab === 'split'}
-              />
-            </motion.div>
+            <ExpenseSplitTab
+              fallback={<SplitTabSkeleton />}
+              familyMembers={familyMembers}
+              availableYears={availableYears}
+              active={effectiveTab === 'split'}
+            />
           </TabsContent>
         )}
         {costCentersEnabled && mountedTabs.has('cost-centers') && (
@@ -496,13 +470,7 @@ export default function CashflowPage() {
             // generated reference points at nothing. The name is the label above.
             aria-labelledby={undefined}
           >
-            <motion.div
-              initial={false}
-              animate={effectiveTab === 'cost-centers' ? 'visible' : 'hidden'}
-              variants={tabPanelSwitch}
-            >
-              <CostCentersTab fallback={<TileGridSkeleton cells={COST_CENTERS_SKELETON_CELLS} className="pt-1" />} active={effectiveTab === 'cost-centers'} />
-            </motion.div>
+            <CostCentersTab fallback={<TileGridSkeleton cells={COST_CENTERS_SKELETON_CELLS} className="pt-1" />} active={effectiveTab === 'cost-centers'} />
           </TabsContent>
         )}
       </PageTabs>

@@ -31,7 +31,7 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
 import { signTextClass } from '@/lib/utils/metricColors';
 import { cn } from '@/lib/utils';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger, DISCLOSURE_MOTION_CLASS } from '@/components/ui/collapsible';
 import { SegmentedPill } from '@/components/ui/segmented-pill';
 import { Tile, TILE_CELL_CLASS, TILE_EYEBROW_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { TileMethodNote } from '@/components/ui/tile-method-note';
@@ -127,7 +127,7 @@ export function HallOfFameDettaglio({ summary, notes, onNoteClick, onAddNote }: 
         />
       </CollapsibleTrigger>
 
-      <CollapsibleContent className="pt-1">
+      <CollapsibleContent className={`${DISCLOSURE_MOTION_CLASS} pt-1`}>
         <div className="grid grid-cols-1 gap-3 desktop:grid-cols-12">
           <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-12')}>
             <Tile

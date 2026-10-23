@@ -9,6 +9,7 @@
  */
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import { formatCurrency as formatCurrencyWithCents, formatCurrencyCompact } from '@/lib/services/chartService';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
@@ -49,6 +50,7 @@ export function MensileBarChart({
   comparisonYear: number;
   height: number;
 }) {
+  const chartMotion = useChartMotion();
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart
@@ -71,9 +73,9 @@ export function MensileBarChart({
           cursor={{ fill: 'var(--muted)', fillOpacity: 0.4 }}
         />
         <Legend formatter={(value) => (value === 'current' ? currentYear.toString() : comparisonYear.toString())} wrapperStyle={{ fontSize: 12, color: 'var(--muted-foreground)' }} />
-        <Bar dataKey="current" fill="var(--flow-out)" animationDuration={600} animationEasing="ease-out" radius={[3, 3, 0, 0]} />
+        <Bar {...chartMotion} dataKey="current" fill="var(--flow-out)" radius={[3, 3, 0, 0]} />
         {/* The baseline year is a neutral, as on the Periodo tile — never a series colour. */}
-        <Bar dataKey="comparison" fill="var(--muted-foreground)" animationDuration={600} animationEasing="ease-out" radius={[3, 3, 0, 0]} />
+        <Bar {...chartMotion} dataKey="comparison" fill="var(--muted-foreground)" radius={[3, 3, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -83,6 +85,7 @@ export function MensileBarChart({
 
 /** Multi-year annual totals for the history — one bar per year. */
 export function HistoryBarChart({ data, height }: { data: Array<{ year: string; spese: number }>; height: number }) {
+  const chartMotion = useChartMotion();
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart
@@ -102,7 +105,7 @@ export function HistoryBarChart({ data, height }: { data: Array<{ year: string; 
           itemStyle={TOOLTIP_ITEM_STYLE}
           cursor={{ fill: 'var(--muted)', fillOpacity: 0.4 }}
         />
-        <Bar dataKey="spese" fill="var(--flow-out)" animationDuration={600} animationEasing="ease-out" radius={[3, 3, 0, 0]} />
+        <Bar {...chartMotion} dataKey="spese" fill="var(--flow-out)" radius={[3, 3, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

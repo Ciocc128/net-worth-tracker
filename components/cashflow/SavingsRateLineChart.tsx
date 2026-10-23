@@ -11,6 +11,7 @@
  */
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea, ResponsiveContainer } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import { formatPercentage } from '@/lib/services/chartService';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 
@@ -25,6 +26,7 @@ export function SavingsRateLineChart({
   data: Array<{ label: string; rate: number | null }>;
   height: number;
 }) {
+  const chartMotion = useChartMotion();
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart
@@ -79,7 +81,7 @@ export function SavingsRateLineChart({
           }}
         />
 
-        <Line
+        <Line {...chartMotion}
           type="monotone"
           dataKey="rate"
           stroke="var(--flow-in)"
@@ -88,8 +90,6 @@ export function SavingsRateLineChart({
           activeDot={{ r: 5, strokeWidth: 0 }}
           // Gap at months with null income rather than connecting to zero
           connectNulls={false}
-          animationDuration={800}
-          animationEasing="ease-out"
         />
       </LineChart>
     </ResponsiveContainer>

@@ -14,8 +14,8 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, MessageSquare, Settings } from 'lucide-react';
-import { useReducedMotion } from 'framer-motion';
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { PeriodMonth } from '@/lib/utils/storicoSummary';
 import { reconcileRemainder, describeLabor, describeLaborTaxes, describeLaborWindow, describeMonthlyDrivers, describeNotes, describeOtherIncome, describeYearlyVariation, DIVIDENDS_OUTSIDE_CASHFLOW, formatPeriodMonth, type LaborMetricsInput, type MonthlyDriverRow, type YearlyVariationRow } from '@/lib/utils/storicoNarrative';
@@ -26,7 +26,7 @@ import { formatCurrencyCompact, formatPercentage, type prepareMonthlyLaborMetric
 import { signTextClass } from '@/lib/utils/metricColors';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger, DISCLOSURE_MOTION_CLASS } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tile, TILE_CELL_CLASS, TILE_EYEBROW_CLASS } from '@/components/ui/tile';
 import { TileMethodNote } from '@/components/ui/tile-method-note';
@@ -86,8 +86,8 @@ const signed = (value: number) => `${value >= 0 ? '+' : '−'}${cachedFormatCurr
 // ─── Variazione anno su anno ──────────────────────────────────────────────────
 
 function YearlyVariationTile({ rows, currentYear }: { rows: YearlyVariationRow[]; currentYear: number }) {
+  const chartMotion = useChartMotion();
   const [unit, setUnit] = useState<YoyUnit>('eur');
-  const prefersReducedMotion = useReducedMotion();
   const reading = useMemo(() => describeYearlyVariation(rows, currentYear), [rows, currentYear]);
   const format = (value: number) => (unit === 'pct' ? `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatPercentage(Math.abs(value), 1)}` : signed(value));
 
@@ -116,7 +116,7 @@ function YearlyVariationTile({ rows, currentYear }: { rows: YearlyVariationRow[]
                 itemStyle={TOOLTIP_ITEM_STYLE}
                 cursor={CURSOR_FILL}
               />
-              <Bar dataKey={unit === 'pct' ? 'variationPercentage' : 'variation'} name="Variazione" fill="var(--hero-series)" isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out">
+              <Bar {...chartMotion} dataKey={unit === 'pct' ? 'variationPercentage' : 'variation'} name="Variazione" fill="var(--hero-series)">
                 {rows.map((row) => (
                   // A running year is drawn softer: real, but not comparable with the closed ones.
                   <Cell key={row.year} fill={row.variation >= 0 ? 'var(--hero-series)' : 'var(--destructive)'} fillOpacity={Number(row.year) === currentYear ? 0.55 : 1} stroke={Number(row.year) === currentYear ? 'var(--foreground)' : undefined} />
@@ -167,8 +167,8 @@ function DriverMonthTooltip({ active, payload }: { active?: boolean; payload?: A
 }
 
 function MonthlyDriversTile({ rows, years, startYear }: { rows: MonthlyDriverRow[]; years: number[]; startYear: number }) {
+  const chartMotion = useChartMotion();
   const [year, setYear] = useState<'all' | number>('all');
-  const prefersReducedMotion = useReducedMotion();
   const isMobile = useMediaQuery('(max-width: 767px)');
   const shown = useMemo(() => (year === 'all' ? rows : rows.filter((r) => r.year === year)), [rows, year]);
   const data = useMemo<MonthlyDriverDatum[]>(() => shown.map((r) => ({ ...r, period: `${MONTH_NAMES_SHORT[r.month - 1].toLowerCase()} ${String(r.year).slice(2)}`, taxBar: -r.taxes })), [shown]);
@@ -211,13 +211,13 @@ function MonthlyDriversTile({ rows, years, startYear }: { rows: MonthlyDriverRow
               <XAxis dataKey="period" tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={isMobile ? 40 : 24} />
               <YAxis tickFormatter={(v: number) => formatCurrencyCompact(v)} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} width={52} />
               <Tooltip content={<DriverMonthTooltip />} cursor={CURSOR_FILL} />
-              <Bar dataKey="netSavings" name="Risparmio" fill="var(--flow-in)" isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
-              <Bar dataKey="market" name="Mercato" fill="var(--hero-series)" isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out">
+              <Bar {...chartMotion} dataKey="netSavings" name="Risparmio" fill="var(--flow-in)" />
+              <Bar {...chartMotion} dataKey="market" name="Mercato" fill="var(--hero-series)">
                 {data.map((row) => (
                   <Cell key={`${row.year}-${row.month}`} fill={row.market >= 0 ? 'var(--hero-series)' : 'var(--destructive)'} />
                 ))}
               </Bar>
-              {hasTaxes && <Bar dataKey="taxBar" name="Tasse sulle vendite" fill="var(--chart-4)" isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />}
+              {hasTaxes && <Bar {...chartMotion} dataKey="taxBar" name="Tasse sulle vendite" fill="var(--chart-4)" />}
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -429,7 +429,7 @@ export function StoricoDettaglio({ currentYear, startYear, yearlyVariation, mont
         </span>
         <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} aria-hidden="true" />
       </CollapsibleTrigger>
-      <CollapsibleContent className="pt-1">
+      <CollapsibleContent className={`${DISCLOSURE_MOTION_CLASS} pt-1`}>
         <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
           <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
             <YearlyVariationTile rows={yearlyVariation} currentYear={currentYear} />

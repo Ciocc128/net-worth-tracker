@@ -21,9 +21,9 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useReducedMotion } from 'framer-motion';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import type { Narrative } from '@/lib/utils/narrative';
 import { MONTH_NAMES_SHORT } from '@/lib/utils/period';
 import { articleForPercent } from '@/lib/utils/patrimonioNarrative';
@@ -252,9 +252,9 @@ export function ValoreStrumentoTile({
   asideWhenClosed,
   className,
 }: ValoreStrumentoTileProps) {
+  const chartMotion = useChartMotion();
   const [showAll, setShowAll] = useState(false);
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
-  const prefersReducedMotion = useReducedMotion();
   const rows = useMemo(() => {
     const unsorted = breakdown?.rows ?? [];
     const direction = sort.descending ? -1 : 1;
@@ -345,7 +345,7 @@ export function ValoreStrumentoTile({
               <XAxis dataKey="key" tickFormatter={shortTick} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={32} />
               <YAxis tickFormatter={(value: number) => formatCurrencyCompact(value)} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} width={52} domain={[(dataMin: number) => Math.min(0, dataMin), 'auto']} />
               <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'var(--foreground)', strokeOpacity: 0.25, strokeWidth: 1 }} />
-              <Line type="monotone" dataKey="total" name="Selezione" stroke="var(--hero-series)" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 1.5, stroke: 'var(--foreground)', fill: 'var(--hero-series)' }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
+              <Line {...chartMotion} type="monotone" dataKey="total" name="Selezione" stroke="var(--hero-series)" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 1.5, stroke: 'var(--foreground)', fill: 'var(--hero-series)' }} />
             </LineChart>
           </ResponsiveContainer>
         </div>

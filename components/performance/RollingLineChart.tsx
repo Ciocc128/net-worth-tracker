@@ -10,6 +10,7 @@
  */
 
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import type { RollingPeriodPerformance } from '@/types/performance';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 
@@ -36,6 +37,7 @@ export interface RollingLineChartProps {
 }
 
 export function RollingLineChart({ data, primaryKey, averageKey, primaryName, formatValue, primaryColor, averageColor, ariaLabel, height }: RollingLineChartProps) {
+  const chartMotion = useChartMotion();
   return (
     // A numeric height: with "100%" the first render measures -1 x -1 and Recharts warns twice per chart.
     <ResponsiveContainer width="100%" height={height}>
@@ -50,8 +52,8 @@ export function RollingLineChart({ data, primaryKey, averageKey, primaryName, fo
           labelStyle={TOOLTIP_LABEL_STYLE}
           itemStyle={TOOLTIP_ITEM_STYLE}
         />
-        <Line type="monotone" dataKey={primaryKey} stroke={primaryColor} strokeWidth={2} name={primaryName} dot={false} animationDuration={800} animationEasing="ease-out" />
-        <Line type="monotone" dataKey={averageKey} stroke={averageColor} strokeWidth={1.5} name="Media mobile 3M" strokeDasharray="6 4" dot={false} animationDuration={800} animationEasing="ease-out" />
+        <Line {...chartMotion} type="monotone" dataKey={primaryKey} stroke={primaryColor} strokeWidth={2} name={primaryName} dot={false} />
+        <Line {...chartMotion} type="monotone" dataKey={averageKey} stroke={averageColor} strokeWidth={1.5} name="Media mobile 3M" strokeDasharray="6 4" dot={false} />
       </LineChart>
     </ResponsiveContainer>
   );

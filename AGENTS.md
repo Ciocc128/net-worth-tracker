@@ -600,6 +600,11 @@ file used to carry.
 - Shared variants live in `lib/utils/motionVariants.ts`; `useReducedMotion()` once per component, used inline, with ONE
   `<MotionConfig reducedMotion="user">` in `components/providers/MotionProvider.tsx` at the root layout (the nested
   copies went on 2026-09-28/29: a nested copy with the same value is inert) — no separate CSS media queries.
+- **Recharts is not under the `MotionConfig`** (2026-10-23, doc/animazioni/README.md § 5.1): every `<Area>`, `<Bar>` and
+  `<Line>` spreads `{...chartMotion}` from `useChartMotion()` (`lib/hooks/useChartMotion.ts`: 600 ms ease-out, none with
+  «riduci movimento») or says `isAnimationActive={false}`; `__tests__/chartMotionGuard.test.ts` fails, naming the line, on
+  one that does neither. A tab panel fades in through CSS (`[data-tab-switched]`, globals.css), «Dettaglio» opens through
+  `DISCLOSURE_MOTION_CLASS` (`components/ui/collapsible.tsx`), «Il perché» through the closed-row grid.
 - **Page transitions use `template.tsx`, NOT `layout.tsx` + `AnimatePresence`**; since 2026-09-12 a shell-link click is
   a page SCENE through `lib/utils/viewTransition.ts`, the ONE entry to `document.startViewTransition`; a
   `view-transition-name` is unique among the RENDERED elements (never the tile grid), a named element leaves `root` for

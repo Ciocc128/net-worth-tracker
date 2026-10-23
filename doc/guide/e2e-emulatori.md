@@ -248,7 +248,7 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   its OWN loading state (its stats request held; Firestore's channel held behind a period never read), the grid's
   first cell at the same place — seen red at 52, 56 and 4 px with the old fallbacks. **A layout-shift score cannot see
   a node that REPLACES another**: the tab remounts the fallback's nodes, and the score stayed 0 while the grid
-  jumped 52 px — measure the position, and only once the panel's entrance (`tabPanelSwitch`, 6 px) has settled: two
+  jumped 52 px — measure the position, and only once the panel's entrance (the `tab-panel-in` fade, 6 px) has settled: two
   readings 250 ms apart, not `expect.poll`, whose first reading sits beside the previous one. Budget and Centri di
   Costo are not held: their fallback and their loading state are the same cells of one constant.
   Analisi's three disclosures and its Scheda and the four lazy FIRE tabs measured `layout-shift` 0 ONCE, on the mirror at

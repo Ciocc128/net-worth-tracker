@@ -32,7 +32,7 @@ import { describeExcluded, describeFrozen } from '@/lib/utils/allocazioneNarrati
 import type { Narrative } from '@/lib/utils/narrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger, DISCLOSURE_MOTION_CLASS } from '@/components/ui/collapsible';
 import { Tile, TILE_CELL_CLASS, TILE_EYEBROW_CLASS } from '@/components/ui/tile';
 
 interface AllocazioneDettaglioProps {
@@ -129,7 +129,7 @@ export function AllocazioneDettaglio({ frozen, excluded }: AllocazioneDettaglioP
         />
       </CollapsibleTrigger>
 
-      <CollapsibleContent className="pt-1">
+      <CollapsibleContent className={`${DISCLOSURE_MOTION_CLASS} pt-1`}>
         {/* A lone tile takes the whole row at every width: a half-empty grid reads as a missing tile. */}
         <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
           {hasFrozen && (

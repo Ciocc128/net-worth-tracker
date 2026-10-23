@@ -9,6 +9,7 @@
  */
 
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 import type { OverlayPoint } from '@/lib/utils/monteCarloSummary';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
@@ -58,6 +59,7 @@ function OverlayTooltip({ active, payload, label, colors }: OverlayTooltipProps)
 }
 
 export function ScenarioOverlayChart({ series, height, ariaLabel }: ScenarioOverlayChartProps) {
+  const chartMotion = useChartMotion();
   const colors = SCENARIO_COLOR;
   // Instantiated here so the colours are captured; Recharts adds active/payload/label by cloning.
   const tooltip = <OverlayTooltip colors={colors} />;
@@ -70,9 +72,9 @@ export function ScenarioOverlayChart({ series, height, ariaLabel }: ScenarioOver
         <YAxis width={64} tickFormatter={(value) => formatCurrencyCompact(Number(value))} tick={CHART_TICK_STYLE} />
         <Tooltip content={tooltip} />
         <Area dataKey="baseBand" name="10°–90° base" stroke="none" fill={colors.base} fillOpacity={0.1} isAnimationActive={false} activeDot={false} />
-        <Line dataKey="bearP50" name="Bear" stroke={colors.bear} strokeWidth={2} dot={false} animationDuration={800} animationEasing="ease-out" />
-        <Line dataKey="bullP50" name="Bull" stroke={colors.bull} strokeWidth={2} dot={false} animationDuration={800} animationEasing="ease-out" />
-        <Line dataKey="baseP50" name="Base" stroke={colors.base} strokeWidth={2.5} dot={false} animationDuration={800} animationEasing="ease-out" />
+        <Line {...chartMotion} dataKey="bearP50" name="Bear" stroke={colors.bear} strokeWidth={2} dot={false} />
+        <Line {...chartMotion} dataKey="bullP50" name="Bull" stroke={colors.bull} strokeWidth={2} dot={false} />
+        <Line {...chartMotion} dataKey="baseP50" name="Base" stroke={colors.base} strokeWidth={2.5} dot={false} />
         <ReferenceLine y={0} stroke="var(--destructive)" strokeDasharray="3 3" />
       </ComposedChart>
     </ResponsiveContainer>

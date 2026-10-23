@@ -59,22 +59,6 @@ export const metricSettleTransition: Transition = {
   mass: 0.8,
 };
 
-/** Slide-down reveal for collapsible sections (use with AnimatePresence) */
-export const slideDown: Variants = {
-  hidden: { opacity: 0, height: 0, overflow: "hidden" },
-  visible: {
-    opacity: 1,
-    height: "auto",
-    transition: { duration: 0.3, ease: easeOutQuart },
-  },
-  exit: {
-    opacity: 0,
-    height: 0,
-    overflow: "hidden",
-    transition: { duration: 0.2, ease: easeOutQuart },
-  },
-};
-
 /** Subtle chart reveal once the card body is already expanding into place. */
 export const chartReveal: Variants = {
   hidden: { opacity: 0, y: 10, scale: 0.995 },
@@ -122,16 +106,6 @@ export const fadeVariants: Variants = {
   },
 };
 
-/** Controlled tab panel switch: short fade + slight settle, tuned for dense data views. */
-export const tabPanelSwitch: Variants = {
-  hidden: { opacity: 0, y: 6 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.2, ease: easeOutQuart },
-  },
-};
-
 /** Chart shell settle: short container continuity around data changes. */
 export const chartShellSettle: Variants = {
   idle: {
@@ -142,44 +116,6 @@ export const chartShellSettle: Variants = {
     opacity: [0.985, 1],
     y: [6, 0],
     transition: { duration: 0.22, ease: easeOutQuart },
-  },
-};
-
-/** Simulation shell settle: slightly stronger than chartShellSettle for scenario recalculations. */
-export const simulationShellSettle: Variants = {
-  idle: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-  },
-  settle: {
-    opacity: [0.985, 1],
-    y: [8, 0],
-    scale: [0.995, 1],
-    transition: { duration: 0.28, ease: easeOutQuart },
-  },
-};
-
-/** Progressive build for simulation cards/bins without replaying the whole page. */
-export const simulationStagger: Variants = {
-  hidden: {},
-  visible: {
-    transition: { staggerChildren: 0.06, delayChildren: 0.04 },
-  },
-};
-
-/** Short goal-link reveal used when summary, pie, and details respond to the same selection. */
-export const goalLinkSettle: Variants = {
-  idle: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-  },
-  settle: {
-    opacity: [0.98, 1],
-    y: [6, 0],
-    scale: [0.996, 1],
-    transition: { duration: 0.24, ease: easeOutQuart },
   },
 };
 

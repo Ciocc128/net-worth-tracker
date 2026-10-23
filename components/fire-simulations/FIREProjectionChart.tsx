@@ -41,6 +41,7 @@ import {
   ResponsiveContainer,
   ReferenceDot,
 } from '@/components/ui/charts/recharts';
+import { useChartMotion } from '@/lib/hooks/useChartMotion';
 
 interface FIREProjectionChartProps {
   yearlyData: FIREProjectionYearData[];
@@ -190,6 +191,7 @@ export function FIREProjectionChart({
   pensionUnlockCalendarYear = null,
   lumpMarkers = [],
 }: FIREProjectionChartProps) {
+  const chartMotion = useChartMotion();
   const { bear: bearColor, base: baseColor, bull: bullColor } = SCENARIO_COLOR;
 
   if (yearlyData.length === 0) {
@@ -248,38 +250,32 @@ export function FIREProjectionChart({
                 />
               }
             />
-            <Line
+            <Line {...chartMotion}
               type="monotone"
               dataKey="bearNetWorth"
               stroke={bearColor}
               strokeWidth={2}
               name="Scenario Bear"
               dot={false}
-              animationDuration={800}
-              animationEasing="ease-out"
             />
-            <Line
+            <Line {...chartMotion}
               type="monotone"
               dataKey="baseNetWorth"
               stroke={baseColor}
               strokeWidth={2}
               name="Scenario Base"
               dot={false}
-              animationDuration={800}
-              animationEasing="ease-out"
             />
-            <Line
+            <Line {...chartMotion}
               type="monotone"
               dataKey="bullNetWorth"
               stroke={bullColor}
               strokeWidth={2}
               name="Scenario Bull"
               dot={false}
-              animationDuration={800}
-              animationEasing="ease-out"
             />
             {/* A reference series, not a part of the total: neutral ink, dashed (doc/guide/grafici.md § Recharts). */}
-            <Line
+            <Line {...chartMotion}
               type="monotone"
               dataKey="baseFireNumber"
               stroke="var(--muted-foreground)"
@@ -287,8 +283,6 @@ export function FIREProjectionChart({
               strokeDasharray="8 4"
               name="Numero FIRE (base)"
               dot={false}
-              animationDuration={800}
-              animationEasing="ease-out"
             />
             {/* A sign for each lump of the dated flows (D-F12): neutral ink, dotted, the name in the tooltip. */}
             {lumpMarkers

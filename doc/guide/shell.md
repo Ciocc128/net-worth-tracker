@@ -48,7 +48,7 @@ rules below name.
 - **An inactive `PageTabs` panel keeps its `div`, not its CONTENT** (2026-09-22): Radix renders the panel (so its id
   and `aria-controls` survive) but unmounts the children, so a field of another tab is not in the DOM and a spec
   anchors on the OPENED panel (`#<layoutId>-panel-<tab> section`), never on a tile of a tab that is not showing.
-  **Cashflow's panels are `forceMount`** (every visited tab stays mounted, hidden by `tabPanelSwitch`), so there a
+  **Cashflow's panels are `forceMount`** (every visited tab stays mounted, hidden by Radix's `data-state="inactive"`), so there a
   hidden tab IS in the DOM: since 2026-10-12 each tab's composition ids are prefixed (`trk-`, `bud-`, `cdc-`, `spl-`,
   `dvd-`), the memory is per tab, and the page passes `active` so the one `role="alert"` of `PageRest` is remounted
   for the tab that shows (doc/guide/cashflow.md § The tabs load their code on demand). A locator on a Cashflow
@@ -147,6 +147,12 @@ rules below name.
   is gone and it is the only add affordance.
 
 ## Motion — the page scene and view transitions
+- **A tab panel fades in after the reader's first change of tab** (AN1, 2026-10-23, doc/animazioni/README.md § 5.2, D-AN8):
+  `PageTabs` sets `data-tab-switched` on its root at the first `onValueChange`, and ONE rule in `app/globals.css`
+  (`[data-tab-switched] > [role="tabpanel"][data-state="active"]`, 200 ms ease-out-quart, 0→1 and 6 px, inside
+  `prefers-reduced-motion: no-preference`) animates the panel that becomes active — a Cashflow `forceMount` panel restarts it
+  when it goes from `hidden` to visible. Before the first change nothing animates (the page scene owns the entrance); Cashflow's
+  five `motion.div` and `tabPanelSwitch` are gone. Pinned by `e2e/motion.reduced.spec.ts`.
 - **Page transitions use `template.tsx`, NOT `layout.tsx` + `AnimatePresence`** (it re-mounts on every navigation);
   remove page-level `motion.div variants` wrappers once it is in place (compounded opacity: t²). **Since 2026-09-12 a
   click on a shell link is a page SCENE** — a native view transition (`lib/hooks/useSceneNavigation.ts` →
