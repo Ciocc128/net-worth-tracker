@@ -45,6 +45,9 @@ export function ThemePicker() {
   // Prima dell'idratazione nessuna opzione è attiva: è lo stesso markup che ha emesso il server.
   const activeTheme = isHydrated ? theme : undefined;
 
+  // The active square is concentric with the frame: its radius is the frame's minus the 3px between
+  // them (1px border + 2px padding). A fixed `rounded` read as a square inside a pill on a theme with
+  // a large --radius (Lime Frost, 1rem), its corners poking at the frame's curve (the owner, 2026-10-23).
   return (
     <div className="flex items-center gap-0.5 rounded-md border bg-muted/50 p-0.5">
       {THEMES.map(({ value, icon: Icon, label }) => (
@@ -53,7 +56,7 @@ export function ThemePicker() {
           onClick={(e) => applyThemeWithTransition(value, e, setTheme)}
           title={label}
           className={cn(
-            'flex size-6 items-center justify-center rounded transition-colors',
+            'flex size-6 items-center justify-center rounded-[max(0px,calc(var(--radius-md)_-_3px))] transition-colors',
             activeTheme === value
               ? 'bg-segment-active text-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'
