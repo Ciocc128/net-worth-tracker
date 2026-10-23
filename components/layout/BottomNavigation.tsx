@@ -28,13 +28,11 @@ const BOTTOM = 'calc(env(safe-area-inset-bottom, 0px) + 12px)';
  * order than `<main>`, it stays on top; `globals.css` gives it no animation in the page scene. The
  * full-width container, not the pill, carries the name: its box never moves, so the group never
  * morphs while the pill glides inside it. Not rendered at 1440 (`desktop:hidden`), so not captured.
+ * The name is set by `globals.css` during the page scene ONLY (`[data-bottom-nav]`, 2026-10-23): an
+ * element with a `view-transition-name` is a backdrop root, and a name worn at rest left the glass
+ * pill's `backdrop-filter` nothing to blur but its own transparent container.
  */
-const PILL_CONTAINER_STYLE = { bottom: BOTTOM, viewTransitionName: 'bottom-nav' };
-const PILL_STYLE = {
-  background: 'var(--sidebar)',
-  border: '1px solid var(--sidebar-border)',
-  boxShadow: '0 4px 24px rgba(0,0,0,0.28)',
-};
+const PILL_CONTAINER_STYLE = { bottom: BOTTOM };
 
 /**
  * The «+» rises out of the pill (from its edge, below, small) and settles with a spring, its glyph
@@ -127,6 +125,7 @@ export function BottomNavigation() {
       <div
         className="fixed z-30 left-0 right-0 desktop:hidden max-desktop:portrait:flex max-desktop:landscape:hidden items-center justify-center"
         style={PILL_CONTAINER_STYLE}
+        data-bottom-nav=""
       >
         {/* Nav pill — the same box on every page. Remounted when the gate flips: Framer sets up
             its layout measuring when the element MOUNTS, so a `layoutId` turned on afterwards (the
@@ -137,8 +136,8 @@ export function BottomNavigation() {
           // The landscape icon rail is the same landmark (`TabletRail`, 2026-10-16, never visible with
           // the pill): the census and the specs that mean THE PILL select this attribute.
           data-nav="pill"
-          className="flex rounded-full"
-          style={PILL_STYLE}
+          // Frosted glass over the page that scrolls under it (`.nav-glass` in globals.css).
+          className="nav-glass flex rounded-full"
         >
           <div className="flex items-center gap-1 px-2 py-1.5">
             {primaryNav.map((item) => {

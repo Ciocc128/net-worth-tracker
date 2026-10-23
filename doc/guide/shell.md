@@ -95,6 +95,14 @@ rules below name.
   max-desktop:landscape:hidden` classes, `PILL_VISIBLE_QUERY` beside them. The `motion.nav` carries a `key` on that
   value: a `layoutId` turned on after mount never animates (the query is `true` only after hydration). Pinned by
   `e2e/motion.layout{,.mobile}.spec.ts` (0 measures at 1440, measures at 390).
+- **The pill is frosted glass** (2026-10-23, the owner's card after the «+» one; DESIGN.md → the glassmorphism Don't
+  names it as the one justified blur): `.nav-glass` in `app/globals.css` — the theme's `--sidebar` at 55% (`color-mix`),
+  `backdrop-filter: blur(20px) saturate(180%)` (with the `-webkit-` twin for Safari), a hairline edge from
+  `--sidebar-foreground` at 14%, a 1px white highlight on top; every theme from its own tokens, no new ones. Solid (the
+  pill as before) under `@supports not` and `prefers-reduced-transparency: reduce`. The true iOS 26 lens (an SVG
+  displacement inside `backdrop-filter: url()`) is Chromium-only, so out. **The container wears `view-transition-name`
+  only during the page scene** (`html[data-vt="page"] [data-bottom-nav]`): a named element is a backdrop root, and named
+  at rest it left the pill nothing to blur but its own transparent container.
 - **The pill holds navigation only and is the same box on every page** (2026-10-23, the owner's p1 card with Phone and
   Reddit for reference; Apple HIG → Tab bars: «use a tab bar to support navigation, not to provide actions», «don't
   disable or hide tab bar buttons»). Until then Cashflow › Tracciamento's «+» sat BESIDE it and the centred group
