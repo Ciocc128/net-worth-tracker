@@ -1242,7 +1242,9 @@ export function ExpenseTrackingTab({
   );
 
   return (
-    <div className="space-y-4">
+    // In portrait below 1440 the bottom nav's «+» floats above the pill (2026-10-23): `main` reserves
+    // room for the pill alone, so the tab adds the «+»'s height and the end of the list clears it.
+    <div className="space-y-4 max-desktop:portrait:pb-16">
       {/* The stage: the verdict over the grid; on a tablet in landscape the answer on the left
           (verdict and THE tile) and the index on the right (lib/utils/tabletComposition.ts). */}
       <div className={STAGE_WRAPPER_CLASS}>
