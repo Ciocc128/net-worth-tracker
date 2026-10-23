@@ -19,8 +19,8 @@ export interface MorphRow {
 
 /**
  * The count's progress, outside React state: ONE `requestAnimationFrame` per list writes it, and
- * only the figure leaves (`MorphFigure`) subscribe — a frame re-renders the printed numbers, never
- * the list, its `motion.li` or the bars (measured 2026-10-23: a state per frame re-rendered ~1040
+ * only the figure leaves (`MorphFigure`) subscribe, writing their own text node — a frame renders
+ * nothing, neither the list, its `motion.li` and bars, nor the figures (measured 2026-10-23: a state per frame re-rendered ~1040
  * components per view switch on the Esposizione, `perf:census` › `view`).
  */
 export interface MorphFrameStore {
@@ -149,7 +149,7 @@ function settle(previous: MorphState, rows: readonly MorphRow[], onScreen: Map<s
  * The rows of a ranked list as nodes that persist across a switch of view, period or level
  * (`lib/utils/rowMorph.ts`), and their figures counting from the ones on screen with ONE
  * `requestAnimationFrame` per list (D-AN10) — never a `useCountUp` per row. The list re-renders
- * on the switch alone; each frame reaches only the `MorphFigure` leaves. The first list lands: the
+ * on the switch alone; each frame reaches only the `MorphFigure` text nodes. The first list lands: the
  * tile's entrance is the page's.
  */
 export function useRowMorph(rows: readonly MorphRow[]): RowMorph {
