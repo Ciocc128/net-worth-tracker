@@ -37,6 +37,22 @@ const PILL_STYLE = {
 };
 
 /**
+ * The «+» rises out of the pill (from its edge, below, small) and settles with a spring, its glyph
+ * turning a quarter in; it sinks back quicker, a plain ease-in, so leaving the tab never waits on it.
+ * Under reduced motion it only fades.
+ */
+const FAB_MOTION = {
+  initial: { opacity: 0, y: 20, scale: 0.5 },
+  animate: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring' as const, stiffness: 520, damping: 30 } },
+  exit: { opacity: 0, y: 16, scale: 0.6, transition: { duration: 0.16, ease: 'easeIn' as const } },
+};
+const FAB_MOTION_REDUCED = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.15 } },
+  exit: { opacity: 0, transition: { duration: 0.1 } },
+};
+
+/**
  * The «+» that adds an expense. It belongs to Cashflow › Tracciamento and nowhere else, and
  * not to the demo (`isAddExpenseFabShown`, the ONE rule — since 2026-10-12 the demo clause: the
  * shell renders before Firebase Auth resolves, so the FAB can appear for a frame and leave once
@@ -50,22 +66,29 @@ const PILL_STYLE = {
 function AddExpenseFab({ pathname }: { pathname: string }) {
   const searchParams = useSearchParams();
   const isDemo = useDemoMode();
+  const prefersReducedMotion = useReducedMotion();
   const shown = isAddExpenseFabShown({ pathname, tab: searchParams.get('tab'), isDemo });
+  const motionProps = prefersReducedMotion ? FAB_MOTION_REDUCED : FAB_MOTION;
 
   return (
-    <AnimatePresence mode="popLayout">
+    <AnimatePresence>
       {shown && (
         <motion.button
           type="button"
           aria-label="Aggiungi nuova voce"
-          initial={{ scale: 0.6, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.6, opacity: 0 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+          {...motionProps}
+          whileTap={prefersReducedMotion ? undefined : { scale: 0.92 }}
           onClick={() => window.dispatchEvent(new CustomEvent('cashflow:add-expense'))}
-          className="absolute bottom-full right-4 mb-3 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
+          className="absolute bottom-full right-4 mb-3 flex size-14 origin-bottom items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
         >
-          <Plus className="size-5" aria-hidden="true" />
+          <motion.span
+            className="flex"
+            initial={prefersReducedMotion ? false : { rotate: -90 }}
+            animate={{ rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 18, delay: 0.06 }}
+          >
+            <Plus className="size-5" aria-hidden="true" />
+          </motion.span>
         </motion.button>
       )}
     </AnimatePresence>

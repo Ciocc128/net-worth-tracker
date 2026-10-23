@@ -93,10 +93,18 @@ rules below name.
   width (it is in the prerendered shell), but `layout` on the `motion.nav` and the active pill's `layoutId` follow
   `useMediaQuery('(max-width: 1439px) and (orientation: portrait)')` — the complement of its `desktop:hidden
   max-desktop:landscape:hidden` classes, `PILL_VISIBLE_QUERY` beside them. The `motion.nav` carries a `key` on that
-  value: a `layout` turned on after mount never animates (the query is `true` only after hydration), and the pill used
-  to JUMP aside when the «+» appeared. Pinned by `e2e/motion.layout{,.mobile}.spec.ts` (0 measures at 1440, a glide at
-  390). In dev the page scene freezes rendering while the route compiles, so the glide is asserted without view
-  transitions.
+  value: a `layoutId` turned on after mount never animates (the query is `true` only after hydration). Pinned by
+  `e2e/motion.layout{,.mobile}.spec.ts` (0 measures at 1440, measures at 390).
+- **The pill holds navigation only and is the same box on every page** (2026-10-23, the owner's p1 card with Phone and
+  Reddit for reference; Apple HIG → Tab bars: «use a tab bar to support navigation, not to provide actions», «don't
+  disable or hide tab bar buttons»). Until then Cashflow › Tracciamento's «+» sat BESIDE it and the centred group
+  pill + «+» pushed the pill off centre on that tab alone; the pill no longer carries `layout`. The «+» (`AddExpenseFab`,
+  56px) floats ABOVE the pill at the right edge (`absolute bottom-full right-4 mb-3` inside the fixed container): it
+  rises out of the pill with a spring (opacity, `y` 20 → 0, scale 0.5 → 1, its glyph turning a quarter in) and sinks back
+  in 160ms; under reduced motion it only fades. `main` reserves 88px for the pill alone, so Tracciamento's root adds
+  `max-desktop:portrait:pb-16` and the end of its list clears the «+». Pinned by `e2e/motion.layout.mobile.spec.ts` (one left edge in every
+  frame from Panoramica to Tracciamento, centred, the «+» above the pill and inside the viewport). In dev the page
+  scene freezes rendering while the route compiles, so that spec runs without view transitions.
 - **A tablet in landscape has the icon rail, not the bar** (2026-10-16, the landscape redesign, which left the landscape bar below to a phone alone; DESIGN.md → Navigation):
   `components/layout/TabletRail.tsx` is the 1440 sidebar's routes as a 56px rail on the left (`primaryNav`, `analysisNav`,
   `planningNav`, the Assistente behind its flag, Impostazioni at the foot), every target 44px, the current page marked (`aria-current="page"`, `--sidebar-accent`), the same landmark «Navigazione principale» as the phone's pill and first in the DOM — a tool that means one of them selects `nav[data-nav="rail"]` or `nav[data-nav="pill"]` (the census and eight E2E files read the rail by mistake on 2026-10-16: eleven red); its last button («Account e preferenze») calls `toggleSidebar`, which below
@@ -118,7 +126,7 @@ rules below name.
   budget there (not one of the three viewports). Cashflow › Tracciamento's «Aggiungi» in the verdict's axis, the only add
   affordance in landscape (phone or tablet), is `h-11` (it was `h-9`; its container is `desktop:hidden`).
 - **Sidebar active state for `/dashboard` must be `pathname === item.href`**, never `startsWith`. **Bottom nav is
-  portrait-only**, so an in-page button duplicating the FAB must be hidden **only in portrait** — in landscape the FAB
+  portrait-only** (the «+» with it), so an in-page button duplicating the FAB must be hidden **only in portrait** — in landscape the FAB
   is gone and it is the only add affordance.
 
 ## Motion — the page scene and view transitions
