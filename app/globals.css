@@ -460,6 +460,22 @@ html[data-vt="page"]::view-transition-old(bottom-nav) {
   }
 }
 
+/* During the page scene the container is named, so a backdrop root: the pill would blur  */
+/* nothing — on Safari it went clear for the scene, on Chromium a grey box framed it. For  */
+/* those 320 ms it is a denser tint with no blur, and eases back to glass after.          */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .nav-glass {
+    transition: background-color 0.2s ease-out;
+  }
+
+  html[data-vt="page"] .nav-glass {
+    background: color-mix(in oklch, var(--sidebar) 88%, transparent);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    transition: none; /* into the scene at once; the ease is for the way back */
+  }
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .nav-glass {
     background: var(--sidebar);
