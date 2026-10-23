@@ -25,6 +25,18 @@ export interface UseCountUpOptions {
    * a chip) contradict for half a second. Later targets still settle. Default: false.
    */
   landFirstValue?: boolean;
+  /**
+   * With `fromPrevious`, where the FIRST value counts from instead of landing: the figure the same
+   * slot showed before the component was mounted again (a period read behind a skeleton,
+   * `useSettledFigure`). Null or absent: `landFirstValue` decides. Later targets ignore it.
+   */
+  seed?: number | null;
+  /**
+   * The duration of every count AFTER the first landed value (default: `duration`): the
+   * Panoramica's hero counts up in 420 ms on mount and glides to a fresh figure in 600 ms
+   * (doc/animazioni/README.md § 5.7).
+   */
+  nextDuration?: number;
 }
 
 /**
@@ -39,6 +51,8 @@ interface CountUpState {
   value: number | null;
   from: number | null;
   hasAnimated: boolean;
+  /** A value has been on screen whole (landed, or a count finished): `nextDuration` from here on. */
+  settled?: boolean;
 }
 
 const INITIAL_STATE: CountUpState = { target: null, value: null, from: null, hasAnimated: false };
@@ -58,11 +72,18 @@ function settleTarget(
   target: number | null,
   once: boolean,
   fromPrevious: boolean,
-  landFirstValue: boolean
+  landFirstValue: boolean,
+  seed: number | null = null
 ): CountUpState {
   // No value to show; the next target starts from zero again (the seeds reset with it).
   if (target === null) {
     return { target: null, value: null, from: null, hasAnimated: previous.hasAnimated };
+  }
+
+  // Nothing was shown by THIS component, but the slot showed a figure before it was mounted again:
+  // the first value settles from that one (reduced motion lands, below).
+  if (fromPrevious && previous.value === null && seed !== null && seed !== target && !prefersReducedMotion()) {
+    return { target, value: seed, from: seed, hasAnimated: previous.hasAnimated };
   }
 
   // Nothing was ever shown: the first value lands, the next ones settle from it.
@@ -106,15 +127,18 @@ export function useCountUp(
   target: number | null,
   options: UseCountUpOptions = {}
 ): number | null {
-  const { startDelay = 60, duration = 500, once = false, fromPrevious = false, landFirstValue = false } = options;
+  const { startDelay = 60, duration: firstDuration = 500, once = false, fromPrevious = false, landFirstValue = false, seed = null, nextDuration } = options;
 
   const [state, setState] = useState<CountUpState>(INITIAL_STATE);
 
   // A new target is settled on the render that brings it: React re-renders at once with the
   // new state, so the old number is never painted under the new target.
   if (!Object.is(state.target, target)) {
-    setState(settleTarget(state, target, once, fromPrevious, landFirstValue));
+    // A value that was on screen whole before this target makes every later count a `nextDuration` one.
+    const settled = state.settled || (state.value !== null && state.from === null);
+    setState({ ...settleTarget(state, target, once, fromPrevious, landFirstValue, seed), settled });
   }
+  const duration = state.settled && nextDuration !== undefined ? nextDuration : firstDuration;
 
   const { from, target: animatingTo } = state;
 

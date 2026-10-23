@@ -2,8 +2,10 @@
 
 import { cn } from '@/lib/utils';
 import { formatStripFigure, type StripFigure } from '@/lib/utils/verdictStrip';
+import type { NarrativeSegment } from '@/lib/utils/narrative';
 import { NarrativeSegments } from '@/components/ui/narrative-text';
 import { TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { useSettledFigure } from '@/components/ui/settled-figure';
 
 interface VerdictStripProps {
   /** At most four, from the page's `select<Page>Strip(summary)` — never recomputed here. */
@@ -18,6 +20,27 @@ interface VerdictStripProps {
    * comes from the controller since 2026-10-10.
    */
   eyebrows?: Readonly<Record<string, string>>;
+}
+
+/**
+ * The cell's figure, gliding from the one it showed when the page's window moves (AN2,
+ * doc/animazioni/README.md § 5.6): the frame is printed through the same formatter, in the LANDED
+ * figure's tone (a frame that crosses zero never flips the colour), and the screen reader reads the
+ * landed text. `strip:{opens}` is its slot in the page's `FigureMemory`, when the page has one.
+ */
+function StripValue({ figure, landed }: { figure: StripFigure; landed: NarrativeSegment }) {
+  const frame = useSettledFigure(figure.value, `strip:${figure.opens}`);
+  const frameText = frame === null || frame === figure.value ? landed.text : (formatStripFigure({ ...figure, value: frame })?.text ?? landed.text);
+  // The unit at `ml-[0.2em]` after the figure: `NarrativeSegments` splits it (narrative-text.tsx).
+  if (frameText === landed.text) return <NarrativeSegments segments={[landed]} />;
+  return (
+    <>
+      <span aria-hidden="true">
+        <NarrativeSegments segments={[{ ...landed, text: frameText }]} />
+      </span>
+      <span className="sr-only">{landed.text}</span>
+    </>
+  );
 }
 
 /**
@@ -62,8 +85,7 @@ export function VerdictStrip({ figures, onOpen, eyebrows }: VerdictStripProps) {
               <span className={TILE_SUB_EYEBROW_CLASS}>{figure.label}</span>
               {segment ? (
                 <span className="text-[22px] leading-none tabular-nums @max-[110px]:text-[18px]">
-                  {/* The unit at `ml-[0.2em]` after the figure: `NarrativeSegments` splits it (narrative-text.tsx). */}
-                  <NarrativeSegments segments={[segment]} />
+                  <StripValue figure={figure} landed={segment} />
                 </span>
               ) : (
                 <span className="text-[13px] leading-[1.3] text-muted-foreground">{figure.reason}</span>

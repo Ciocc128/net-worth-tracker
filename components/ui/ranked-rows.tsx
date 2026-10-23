@@ -1,8 +1,10 @@
 'use client';
 
+import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { useRovingFocus } from '@/lib/hooks/useRovingFocus';
+import { useRowMorph, type MorphRow } from '@/lib/hooks/useRowMorph';
 
 export interface RankedRow {
   key: string;
@@ -34,6 +36,13 @@ const BAR_TRACK_CLASS = 'min-w-[40px] flex-1';
  * one column that can go; the row's accessible name keeps it. A container query, not a
  * viewport one: the same list sits in a 3-column tile, a 4-column tile and a phone column.
  */
+/** The re-rank of Rendimenti › Attribuzione: the 400/35 spring (doc/animazioni/README.md § 6). */
+const RERANK_SPRING = { type: 'spring', stiffness: 400, damping: 35 } as const;
+/** A row that leaves fades in 100 ms and gives its place up at once (`popLayout`). */
+const ROW_EXIT = { opacity: 0, transition: { duration: 0.1, ease: 'easeOut' } } as const;
+/** The bar slides to its new width on the spring curve; a CSS transition, never a frame loop (D-AN9). */
+const BAR_MOTION_CLASS = 'motion-safe:transition-[width] motion-safe:duration-[400ms] motion-safe:ease-spring';
+
 const SHARE_COLUMN_CLASS = 'w-[34px] shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground @max-[250px]:hidden';
 
 interface RankedRowsProps {
@@ -71,43 +80,66 @@ export function RankedRows({ rows, color, remainders, labelClassName, onRowClick
   // ONE Tab stop for the whole list, the arrows moving inside it: six clickable rows put whatever
   // follows six presses further away, on every surface this primitive serves (2026-09-21).
   const roving = useRovingFocus(onRowClick ? rows.length : 0);
+  // A switch of view, period or level TRANSFORMS the list (DESIGN.md → The View-Transforms Rule):
+  // a row keeps its node, or takes over the node of a row that left; its figures count.
+  const morph = useRowMorph(rows.map(toMorphRow));
+  const counting = (slot: string, row: RankedRow) => morph.figuresOf(slot, { amount: row.amount, percentage: row.percentage });
 
-  const rowContent = (row: RankedRow, active: boolean) => (
+  const rowContent = (row: RankedRow, slot: string, active: boolean) => {
+    const frame = counting(slot, row);
+    const moving = frame.amount !== row.amount || frame.percentage !== row.percentage;
+    return (
     <>
       {/* The caption yields before the label: a long «12 ago · Manutenzione straordinaria» must
           never push the category name out of its own column — and it WRAPS to a second line
           instead of truncating, because «30 set · Asilo nido · in calendario» is the row's
           second fact (the day, the subcategory, the calendar) and a cut fact is no fact
           (2026-09-14; the accessible name always carried it whole). */}
-      <span className={cn('flex min-w-0 items-baseline gap-1.5 text-[13px] text-foreground @max-[420px]:flex-col @max-[420px]:gap-0.5', labelWidth, active && 'font-semibold')}>
+      <span
+        key={morph.relabelled.has(slot) ? row.label : undefined}
+        className={cn('flex min-w-0 items-baseline gap-1.5 text-[13px] text-foreground @max-[420px]:flex-col @max-[420px]:gap-0.5', labelWidth, active && 'font-semibold', morph.relabelled.has(slot) && 'row-label-in')}
+      >
         {/* A name is never cut (owner, 2026-09-15): two lines at most; in a phone's column the caption drops under it. */}
         <span className={cn('line-clamp-2 break-words', row.caption && 'max-w-[65%] shrink-0 @max-[420px]:max-w-full')}>{row.label}</span>
         {row.caption && <span className="line-clamp-2 min-w-0 break-words font-mono text-[11px] leading-[1.35] tabular-nums text-muted-foreground">{row.caption}</span>}
       </span>
       <div className={cn('h-[3px] overflow-hidden rounded-full bg-muted', BAR_TRACK_CLASS)} role="presentation">
         <div
-          className="h-full rounded-full"
+          className={cn('h-full rounded-full', morph.animate && BAR_MOTION_CLASS)}
           style={{
             width: `${maxAmount > 0 ? (row.amount / maxAmount) * 100 : 0}%`,
             background: color,
           }}
         />
       </div>
+      {/* A frame of the count is not a measurement: while it runs the printed figures are hidden
+          from the screen reader and the landed ones are read instead (The Period-Transforms Rule). */}
       <span className="w-[64px] shrink-0 text-right font-mono text-[13px] tabular-nums text-foreground">
-        {cachedFormatCurrencyEUR(row.amount, true)}
+        <span aria-hidden={moving || undefined}>{cachedFormatCurrencyEUR(frame.amount, true)}</span>
+        {moving && <span className="sr-only">{cachedFormatCurrencyEUR(row.amount, true)}</span>}
       </span>
       <span className={SHARE_COLUMN_CLASS}>
-        {Math.round(row.percentage)}%
+        <span aria-hidden={moving || undefined}>{Math.round(frame.percentage)}%</span>
+        {moving && <span className="sr-only">{Math.round(row.percentage)}%</span>}
       </span>
     </>
-  );
+    );
+  };
 
   return (
-    <ul className="@container flex flex-col divide-y divide-border" aria-label={ariaLabel} {...roving.containerProps}>
+    <ul className="@container relative flex flex-col divide-y divide-border" aria-label={ariaLabel} {...roving.containerProps}>
+      <AnimatePresence initial={false} mode="popLayout">
       {rows.map((row, index) => {
         const active = activeKey === row.key;
+        const slot = morph.slotOf(row.key);
         return (
-          <li key={row.key}>
+          <motion.li
+            key={slot}
+            layout={morph.animate ? 'position' : false}
+            transition={RERANK_SPRING}
+            exit={ROW_EXIT}
+            className={cn(morph.entered.has(slot) && 'row-enter')}
+          >
             {onRowClick ? (
               <button
                 type="button"
@@ -120,14 +152,15 @@ export function RankedRows({ rows, color, remainders, labelClassName, onRowClick
                   active && 'bg-muted/40',
                 )}
               >
-                {rowContent(row, active)}
+                {rowContent(row, slot, active)}
               </button>
             ) : (
-              <div className="flex items-center gap-3 py-[9px]">{rowContent(row, false)}</div>
+              <div className="flex items-center gap-3 py-[9px]">{rowContent(row, slot, false)}</div>
             )}
-          </li>
+          </motion.li>
         );
       })}
+      </AnimatePresence>
       {(remainders ?? [])
         .filter((remainder) => remainder.amount > 0)
         .map((remainder) => (
@@ -146,4 +179,8 @@ export function RankedRows({ rows, color, remainders, labelClassName, onRowClick
         ))}
     </ul>
   );
+}
+
+function toMorphRow(row: RankedRow): MorphRow {
+  return { key: row.key, label: row.label, figures: { amount: row.amount, percentage: row.percentage } };
 }
