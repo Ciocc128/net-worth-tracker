@@ -233,6 +233,79 @@ test('a saved expense lands in place: the counter and the table follow the write
   }
 });
 
+const MONTH_NAMES_IT = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
+
+/**
+ * «Andamento del mese» (doc/andamento-spese/README.md § 10, items 10–11): beside THE tile for a month with
+ * Risparmio dropped to a row of its own, a pill that remembers its comparison across a reload and
+ * leaves with the tile when the period is a year. Two spending rows are planted in the two closed
+ * months before this one (decoy note, removed in `finally`), so the mean and last month are both
+ * on; a year ago depends on the seed and is only held to the invariant (off = not clickable).
+ */
+test('«Andamento del mese» sits beside THE tile for a month, remembers its comparison and leaves with a year', async ({ page }) => {
+  const DECOY = 'Ornitorinco dell’andamento';
+  const now = new Date();
+  const monthsAgo = (n: number) => new Date(now.getFullYear(), now.getMonth() - n, 10, 12);
+  const { db } = await admin();
+  const { Timestamp } = await import('firebase-admin/firestore');
+  const ids = ['andamento-decoy-1', 'andamento-decoy-2'];
+  const plant = async () => {
+    for (const [i, id] of ids.entries()) {
+      const date = Timestamp.fromDate(monthsAgo(i + 1));
+      await db.collection('expenses').doc(id).set({
+        userId: UID, type: 'variable', categoryId: 'seed-cat-food', categoryName: 'Alimentari', amount: -100, currency: 'EUR', notes: DECOY, date, createdAt: date, updatedAt: date,
+      });
+    }
+  };
+  const remove = async () => {
+    for (const id of ids) await db.collection('expenses').doc(id).delete();
+  };
+
+  try {
+    await plant();
+    await page.reload();
+    await expect(page.getByRole('region', { name: 'Verdetto del periodo' })).toBeVisible({ timeout: 30_000 });
+
+    const tile = page.getByRole('region', { name: 'Andamento del mese' });
+    await expect(tile).toBeVisible();
+    const lead = page.locator('#trk-periodo');
+    const risparmio = page.getByRole('region', { name: 'Risparmio nel tempo' });
+    const [tileBox, leadBox, risparmioBox] = await Promise.all([tile.boundingBox(), lead.boundingBox(), risparmio.boundingBox()]);
+    // Beside THE tile, Risparmio a row of its own underneath and wider than the tile.
+    expect(tileBox!.x).toBeGreaterThanOrEqual(leadBox!.x + leadBox!.width - 1);
+    expect(risparmioBox!.y).toBeGreaterThanOrEqual(tileBox!.y + tileBox!.height - 1);
+    expect(risparmioBox!.width).toBeGreaterThan(tileBox!.width);
+    await expect(tile.getByRole('img', { name: /^Spesa cumulata di / })).toBeVisible();
+
+    // The mean and last month are on; the pill remembers a touch across a reload.
+    const pill = tile.getByRole('radiogroup', { name: 'Confronta con' });
+    await expect(pill.getByRole('radio', { name: /^Media \d+ mesi$/ })).toHaveAttribute('aria-checked', 'true');
+    const lastMonth = MONTH_NAMES_IT[(now.getMonth() + 11) % 12] + (now.getMonth() === 0 ? ` ${now.getFullYear() - 1}` : '');
+    await pill.getByRole('radio', { name: lastMonth, exact: true }).click();
+    await expect(pill.getByRole('radio', { name: lastMonth, exact: true })).toHaveAttribute('aria-checked', 'true');
+    await expect(tile).toContainText(/hai speso/);
+    await page.reload();
+    await expect(page.getByRole('region', { name: 'Verdetto del periodo' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('region', { name: 'Andamento del mese' }).getByRole('radio', { name: lastMonth, exact: true })).toHaveAttribute('aria-checked', 'true');
+
+    // An off comparison names its reason and cannot be chosen; the remembered choice stays.
+    const yearAgo = pill.getByRole('radio', { name: new RegExp(`^${MONTH_NAMES_IT[now.getMonth()]} ${now.getFullYear() - 1}`) });
+    if ((await yearAgo.getAttribute('aria-disabled')) === 'true') {
+      await expect(yearAgo).toHaveAttribute('title', /^Nessun movimento a /);
+      await yearAgo.click({ force: true });
+      await expect(pill.getByRole('radio', { name: lastMonth, exact: true })).toHaveAttribute('aria-checked', 'true');
+    }
+
+    // A year has no such tile, and Risparmio is beside THE tile again.
+    await pickYearByRange(page, now.getFullYear());
+    await expect(page.getByRole('region', { name: 'Andamento del mese' })).toHaveCount(0);
+    const [leadAgain, risparmioAgain] = await Promise.all([lead.boundingBox(), page.getByRole('region', { name: 'Risparmio nel tempo' }).boundingBox()]);
+    expect(risparmioAgain!.x).toBeGreaterThanOrEqual(leadAgain!.x + leadAgain!.width - 1);
+  } finally {
+    await remove().catch(() => undefined);
+  }
+});
+
 /** Type a whole year into the picker's range inputs: «Applica» normalises it to the year period. */
 async function pickYearByRange(page: Page, year: number): Promise<void> {
   await page.getByRole('combobox', { name: /Periodo selezionato/ }).filter({ visible: true }).first().click();

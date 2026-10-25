@@ -398,7 +398,7 @@ describe('the phone cut of the verdict and the scope line', () => {
 
   it('should keep the closed rows in words', () => {
     expect(Object.values(TRACKING_CLOSED_ASIDES).every((aside) => !/\d/.test(aside))).toBe(true);
-    expect(TRACKING_CLOSED_ASIDES).toEqual({ spese: 'per categoria', entrate: 'per categoria', risparmio: 'mese per mese' });
+    expect(TRACKING_CLOSED_ASIDES).toEqual({ spese: 'per categoria', entrate: 'per categoria', andamento: 'giorno per giorno', risparmio: 'mese per mese' });
   });
 });
 

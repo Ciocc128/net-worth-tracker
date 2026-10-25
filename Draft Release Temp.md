@@ -4,6 +4,8 @@
 
 ## ✨ New Features
 
+- **Cashflow › Tracciamento — Andamento del mese** — Added a tile for a month: the spending of the month accumulated day by day as a shaded area, against one dashed line you choose — the average of your closed months (up to twelve, the default), last month, or the same month a year ago. The line under the title says how much you have spent so far and how much more or less than the comparison at the same days, and where the comparison closes the month; rows still in the calendar continue the line in steps. A comparison without enough history is greyed out and says why; your choice is remembered on the device. On a phone it is a closed row after «Entrate per categoria»; with a year or a custom range the tile is not there.
+
 - Patrimonio › Strumenti: an ETF has a new switch, «Coperto dal cambio in EUR». Allocazione › Esposizione › Valute then counts that instrument as euro, and Impostazioni › Simulazioni › Copertura del cambio says, under a switch that is off, «Nel tuo portafoglio il Trend è coperto per il 60%» (when most of the class is held hedged) with an «Imposta coperto» button; nothing is changed until you press it and save.
 
 - **Cashflow › Budget — «Fuori dal budget»** — Added a checkbox on a spending row for a purchase made for someone else and refunded later: the row stays in your cashflow (Tracciamento, Analisi, Panoramica, Storico), but the month's ceiling, the category budgets, their projections and alerts and the budget emails no longer count it; a series or an instalment plan takes the flag on every occurrence, the feed and the table show a «fuori budget» chip and the row's detail a «Budget» line.

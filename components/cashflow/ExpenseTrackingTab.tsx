@@ -12,11 +12,12 @@
  *                     three — Entrate, Spese, Risparmio, the trio of THE tile lifted whole — → the
  *                     calendar's scope line → «Il perché» → Cashflow del periodo, open, its trio's
  *                     values hidden and its chart at 120px → «Il resto della pagina» → Spese,
- *                     Entrate, Risparmio nel tempo, Movimenti as closed rows (`useMobileSections`,
+ *                     Entrate, Andamento del mese (a month only), Risparmio nel tempo, Movimenti as closed rows (`useMobileSections`,
  *                     doc/guide/cashflow-tracciamento.md § Composizione mobile). The «+» saves and
  *                     opens Movimenti on the row it wrote, the focus on it.
  *   Desktop (12 col): Cashflow del periodo (5, 2 rows) | Spese (4) | Entrate (3)
- *                                                      | Risparmio nel tempo (7)
+ *                                                      | Andamento del mese (7, a month only)
+ *                     Risparmio nel tempo (12; 7 beside the lead when the period is not a month)
  *                     Movimenti (12)
  *
  * ONE period axis governs the verdict and every tile — and what the tab READS: the page hands it
@@ -104,6 +105,15 @@ import { CategoryTile } from '@/components/dashboard/overview/CategoryTile';
 import { CashflowPeriodoTile, isCashflowPeriodoLiftedBlock, type SpendingProjection } from '@/components/cashflow/tiles/CashflowPeriodoTile';
 import { RisparmioTile } from '@/components/cashflow/tiles/RisparmioTile';
 import { MovimentiTile } from '@/components/cashflow/tiles/MovimentiTile';
+import { AndamentoTile } from '@/components/cashflow/tiles/AndamentoTile';
+import {
+  TREND_STORAGE_KEY,
+  buildSpendingTrend,
+  parseTrendChoice,
+  readSpendingTrend,
+  resolveTrendComparison,
+  type TrendComparisonId,
+} from '@/lib/utils/spendingTrend';
 
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -149,6 +159,7 @@ import {
   describePreviousPeriodLabel,
   describeProjectionReference,
   describeSavingsHistory,
+  describeSpendingTrend,
   describeTrackingClosedAnswers,
   describeTrackingScope,
 } from '@/lib/utils/cashflowNarrative';
@@ -163,11 +174,15 @@ import { RowAnswers } from '@/components/ui/row-answers';
 const TRACKING_SECTIONS: readonly SectionSpec[] = [
   { id: TRACKING_SECTION_IDS.spese, eyebrow: 'Spese per categoria' },
   { id: TRACKING_SECTION_IDS.entrate, eyebrow: 'Entrate per categoria' },
+  { id: TRACKING_SECTION_IDS.andamento, eyebrow: 'Andamento del mese' },
   { id: TRACKING_SECTION_IDS.risparmio, eyebrow: 'Risparmio nel tempo' },
   { id: TRACKING_SECTION_IDS.movimenti, eyebrow: 'Movimenti' },
 ];
-/** The four rows are always on the composed tab: their DOM order is the tablet's (since 2026-10-16). */
+/** «Andamento del mese» exists for a month only (D-AM2): any other period has the four rows of before. */
+const TRACKING_SECTIONS_WITHOUT_TREND: readonly SectionSpec[] = TRACKING_SECTIONS.filter((section) => section.id !== TRACKING_SECTION_IDS.andamento);
+/** The rows are always on the composed tab: their DOM order is the tablet's (since 2026-10-16). */
 const TRACKING_ORDER = TRACKING_SECTIONS.map((section) => section.id);
+const TRACKING_ORDER_WITHOUT_TREND = TRACKING_SECTIONS_WITHOUT_TREND.map((section) => section.id);
 /** Months of the income-vs-spending chart behind a month or a custom range. */
 const FLOW_MONTHS = 6;
 /** Months of the savings-rate history. */
@@ -179,6 +194,15 @@ const SKELETON_CELLS = [
   { span: 4, lines: 5 },
   { span: 3, lines: 3 },
   { span: 7, lines: 4 },
+  { span: 12, lines: 8 },
+];
+/** The same with «Andamento del mese» beside the lead: Risparmio drops to a row of its own. */
+const SKELETON_CELLS_WITH_TREND = [
+  { span: 5, rows: 2, lines: 8 },
+  { span: 4, lines: 5 },
+  { span: 3, lines: 3 },
+  { span: 7, lines: 4 },
+  { span: 12, lines: 4 },
   { span: 12, lines: 8 },
 ];
 
@@ -299,6 +323,23 @@ function readStoredListView(): 'feed' | 'table' {
   }
 }
 
+/** The comparison of «Andamento del mese» the reader chose on this device, null when none (or no storage). */
+function readStoredTrendChoice(): TrendComparisonId | null {
+  try {
+    return typeof window === 'undefined' ? null : parseTrendChoice(window.localStorage.getItem(TREND_STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredTrendChoice(choice: TrendComparisonId): void {
+  try {
+    window.localStorage.setItem(TREND_STORAGE_KEY, choice);
+  } catch {
+    // A blocked storage loses only the memory of the choice, never the choice.
+  }
+}
+
 function writeStoredListView(view: 'feed' | 'table'): void {
   try {
     window.localStorage.setItem(LIST_VIEW_STORAGE_KEY, view);
@@ -340,10 +381,16 @@ export function ExpenseTrackingTab({
   // 2026-10-12): at 1440 every `collapse()` is `undefined` and the tab is the tab of every width.
   // The memory is per tab (`mobile-sections:cashflow:tracking`), the rest id prefixed — five
   // verdicts share one DOM.
-  const sections = useMobileSections({ route: 'cashflow', tab: 'tracking', sections: TRACKING_SECTIONS, restId: TRACKING_REST_ID });
+  const hasTrend = period.kind === 'month';
+  const sections = useMobileSections({
+    route: 'cashflow',
+    tab: 'tracking',
+    sections: hasTrend ? TRACKING_SECTIONS : TRACKING_SECTIONS_WITHOUT_TREND,
+    restId: TRACKING_REST_ID,
+  });
   // At 768 the same rows on two columns, in landscape in the index (2026-10-16, lib/utils/tabletComposition.ts).
   const stageRef = useTabletStage();
-  const tablet = useTabletComposition({ sections, order: TRACKING_ORDER });
+  const tablet = useTabletComposition({ sections, order: hasTrend ? TRACKING_ORDER : TRACKING_ORDER_WITHOUT_TREND });
 
   // The row the «+» just saved, on a phone: Movimenti opens on it and the focus lands on its
   // button (`TransactionFeed.focusRowId`, the modal's `returnFocusTo`). Forgotten by the next
@@ -385,6 +432,14 @@ export function ExpenseTrackingTab({
   const changeListView = (view: 'feed' | 'table') => {
     setDesktopListView(view);
     writeStoredListView(view);
+  };
+
+  // The comparison of «Andamento del mese»: written only when the reader touches the pill, so an
+  // off comparison never erases what they chose (doc/andamento-spese/README.md § 5.4).
+  const [trendChoice, setTrendChoice] = useState<TrendComparisonId | null>(() => readStoredTrendChoice());
+  const chooseTrend = (id: TrendComparisonId) => {
+    setTrendChoice(id);
+    writeStoredTrendChoice(id);
   };
 
   // The feed's visible window, stored WITH the filters it belongs to: when the filters change
@@ -858,12 +913,17 @@ export function ExpenseTrackingTab({
     return { projected: paced + scheduled, previousExpenses: previousTotals?.expenses ?? null, previousLabel: reference };
   }, [period, calendar, expenses, now, previousTotals]);
 
+  // «Andamento del mese»: a month only, from the rows the tab already reads (no new read, D-AM10).
+  const trend = useMemo(() => (period.kind === 'month' ? buildSpendingTrend(windowExpenses, period, now) : null), [windowExpenses, period, now]);
+  const trendChosen = useMemo(() => (trend ? resolveTrendComparison(trend, trendChoice) : null), [trend, trendChoice]);
+  const trendReading = useMemo(() => (trend ? readSpendingTrend(trend, trendChosen) : null), [trend, trendChosen]);
+
   const expenseRanking = useMemo(() => rankCategories(expenses, 'expenses'), [expenses]);
   const incomeRanking = useMemo(() => rankCategories(expenses, 'income'), [expenses]);
   // What the closed rows answer in the landscape index, from the figures the tiles already hold.
   const rowAnswers = useMemo(
-    () => describeTrackingClosedAnswers({ expenseRanking, incomeRanking, savingsHistory }),
-    [expenseRanking, incomeRanking, savingsHistory],
+    () => describeTrackingClosedAnswers({ expenseRanking, incomeRanking, savingsHistory, spendingTrend: trendReading }),
+    [expenseRanking, incomeRanking, savingsHistory, trendReading],
   );
 
   // The inventory describes what is LISTED: with a filter on, the reading counts the filtered
@@ -991,7 +1051,7 @@ export function ExpenseTrackingTab({
     return (
       <div className="space-y-4">
         {periodRows}
-        {surface === 'loading' && <TileGridSkeleton verdict={false} cells={SKELETON_CELLS} />}
+        {surface === 'loading' && <TileGridSkeleton verdict={false} cells={hasTrend ? SKELETON_CELLS_WITH_TREND : SKELETON_CELLS} />}
         {dialogs}
       </div>
     );
@@ -1300,7 +1360,20 @@ export function ExpenseTrackingTab({
           />
         </div>
 
-        <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(TRACKING_SECTION_IDS.risparmio), 'desktop:col-span-7')}>
+        {trend && trendReading && (
+          <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(TRACKING_SECTION_IDS.andamento), 'desktop:col-span-7')}>
+            <AndamentoTile
+              trend={trend}
+              chosen={trendChosen}
+              onChoose={chooseTrend}
+              reading={describeSpendingTrend(trendReading)}
+              collapse={sections.collapse(TRACKING_SECTION_IDS.andamento)}
+              asideWhenClosed={TRACKING_CLOSED_ASIDES.andamento}
+            />
+          </div>
+        )}
+
+        <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(TRACKING_SECTION_IDS.risparmio), trend ? 'desktop:col-span-12' : 'desktop:col-span-7')}>
           <RisparmioTile
             history={savingsHistory}
             aside={describeMonthWindow(savingsHistory.months, now)}

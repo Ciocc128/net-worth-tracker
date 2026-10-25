@@ -46,7 +46,7 @@ const SCHEDULED_DECOY_ID = 'e2e-exp-ornitorinco-calendario';
 const SAVED_DECOY_NOTE = 'spesa ornitorinco salvata';
 const COUPON_ID = 'e2e-dvd-ornitorinco';
 
-const TRACKING_ROWS = ['trk-spese', 'trk-entrate', 'trk-risparmio', 'trk-movimenti'] as const;
+const TRACKING_ROWS = ['trk-spese', 'trk-entrate', 'trk-andamento', 'trk-risparmio', 'trk-movimenti'] as const;
 const DIVIDEND_ROWS = ['dvd-affidabilita', 'dvd-rendimento', 'dvd-pagatori', 'dvd-per-anno', 'dvd-pagamenti'] as const;
 
 const trigger = (page: Page, id: string) => page.locator(`#${id}-trigger`);
@@ -237,7 +237,7 @@ test.describe('Cashflow › Tracciamento, composed for a phone', () => {
     expect(await bottomOf(page.locator('main h1').filter({ visible: true }).first()), 'title').toBeLessThanOrEqual(pillTop);
     for (let i = 0; i < 3; i++) expect(await bottomOf(cells.nth(i)), `cell ${i}`).toBeLessThanOrEqual(pillTop);
 
-    // Then «Il resto della pagina» and the four rows, closed, Movimenti's panel empty and inert.
+    // Then «Il resto della pagina» and the five rows, closed, Movimenti's panel empty and inert.
     await expect(page.getByRole('heading', { level: 2, name: 'Il resto della pagina' })).toBeVisible();
     await expect(page.getByRole('tabpanel', { name: 'Tracciamento' }).locator('[id$="-trigger"]')).toHaveCount(TRACKING_ROWS.length);
     for (const id of TRACKING_ROWS) {
@@ -288,7 +288,25 @@ test.describe('Cashflow › Tracciamento, composed for a phone', () => {
     await expect.poll(decoyExpenseIds).toHaveLength(1);
   });
 
-  test('«Apri tutte» opens the four rows and nothing runs off the side of main', async ({ page }) => {
+  test('«Andamento» is a closed row right after Entrate, in words; opened it holds the pill and the plot', async ({ page }) => {
+    await openTracciamento(page);
+    const ids = await page.getByRole('tabpanel', { name: 'Tracciamento' }).locator('[id$="-trigger"]').evaluateAll((els) => els.map((el) => el.id));
+    expect(ids).toEqual(TRACKING_ROWS.map((id) => `${id}-trigger`));
+    await expect(trigger(page, 'trk-andamento')).toHaveAttribute('aria-expanded', 'false');
+    await expect(trigger(page, 'trk-andamento')).toContainText('giorno per giorno');
+    // The aside is words, no figure (the closed-row rule).
+    expect(((await trigger(page, 'trk-andamento').textContent()) ?? '').replace('Andamento del mese', '')).not.toMatch(/\d/);
+
+    await trigger(page, 'trk-andamento').click();
+    const tile = panel(page, 'trk-andamento');
+    await expect(tile.getByRole('radiogroup', { name: 'Confronta con' })).toBeVisible();
+    await expect(tile.getByRole('img', { name: /^Spesa cumulata di / })).toBeVisible();
+    // Every option of the pill is a thumb's target.
+    const options = tile.getByRole('radiogroup', { name: 'Confronta con' }).getByRole('radio');
+    for (let i = 0; i < (await options.count()); i++) expect((await options.nth(i).boundingBox())!.height, `option ${i}`).toBeGreaterThanOrEqual(TOUCH_FLOOR);
+  });
+
+  test('«Apri tutte» opens the five rows and nothing runs off the side of main', async ({ page }) => {
     await openTracciamento(page);
     await page.getByRole('tabpanel', { name: 'Tracciamento' }).getByRole('button', { name: 'Apri tutte' }).click();
     for (const id of TRACKING_ROWS) await expect(trigger(page, id)).toHaveAttribute('aria-expanded', 'true');

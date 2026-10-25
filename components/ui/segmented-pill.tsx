@@ -23,6 +23,11 @@ import { cn } from '@/lib/utils';
 export interface SegmentedPillOption<T extends string> {
   value: T;
   label: string;
+  /**
+   * The option is off: it stays in the pill, cannot be chosen, and `reason` is its accessible name and
+   * its title (Andamento del mese's comparisons). Arrow keys step over it.
+   */
+  unavailable?: { reason: string };
 }
 
 interface SegmentedPillProps<T extends string> {
@@ -67,12 +72,17 @@ export function SegmentedPill<T extends string>({
   // hand-off.
   const instanceLayoutId = `${layoutId}-${useId()}`;
 
-  const focusAndSelect = (index: number) => {
+  const focusAndSelect = (index: number, direction: 1 | -1 = 1) => {
     if (disabled) return;
-    const wrapped = (index + options.length) % options.length;
-    const option = options[wrapped];
-    buttonRefs.current[wrapped]?.focus();
-    onChange(option.value);
+    // An unavailable option is stepped over (at most one lap, so an all-off pill cannot loop).
+    for (let step = 0; step < options.length; step++) {
+      const wrapped = (((index + step * direction) % options.length) + options.length) % options.length;
+      const option = options[wrapped];
+      if (option.unavailable) continue;
+      buttonRefs.current[wrapped]?.focus();
+      onChange(option.value);
+      return;
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -83,7 +93,7 @@ export function SegmentedPill<T extends string>({
         break;
       case 'ArrowLeft':
         e.preventDefault();
-        focusAndSelect(index - 1);
+        focusAndSelect(index - 1, -1);
         break;
       case 'Home':
         e.preventDefault();
@@ -91,7 +101,7 @@ export function SegmentedPill<T extends string>({
         break;
       case 'End':
         e.preventDefault();
-        focusAndSelect(options.length - 1);
+        focusAndSelect(options.length - 1, -1);
         break;
     }
   };
@@ -117,6 +127,7 @@ export function SegmentedPill<T extends string>({
         // order — on Rendimenti a custom range took the page's one axis away from the keyboard
         // (2026-09-20). Identical to before whenever a value matches, which is every other caller.
         const isTabStop = hasSelection ? isSelected : index === 0;
+        const off = option.unavailable;
         return (
           <button
             key={option.value}
@@ -125,10 +136,12 @@ export function SegmentedPill<T extends string>({
             role={semantics === 'radio' ? 'radio' : 'tab'}
             aria-selected={semantics === 'radio' ? undefined : isSelected}
             aria-checked={semantics === 'radio' ? isSelected : undefined}
-            aria-disabled={disabled || undefined}
+            aria-disabled={disabled || off ? true : undefined}
+            aria-label={off ? `${option.label}: ${off.reason}` : undefined}
+            title={off?.reason}
             tabIndex={isTabStop ? 0 : -1}
             onClick={() => {
-              if (!disabled) onChange(option.value);
+              if (!disabled && !off) onChange(option.value);
             }}
             onKeyDown={(e) => handleKeyDown(e, index)}
             className={cn(
@@ -136,7 +149,7 @@ export function SegmentedPill<T extends string>({
               // The inactive label is the foreground at 70%, not `text-muted-foreground`: that
               // token is tuned against `--background`, and on the pill's `bg-muted` surface it
               // measured 4,34:1 in light (below AA) on the Panoramica's period pill, 2026-09-13.
-              isSelected ? 'text-foreground' : 'text-foreground/70 hover:text-foreground',
+              isSelected ? 'text-foreground' : off ? 'cursor-not-allowed text-foreground/40' : 'text-foreground/70 hover:text-foreground',
               optionClassName
             )}
           >
