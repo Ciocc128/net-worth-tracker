@@ -48,6 +48,7 @@ import {
   listOwnerFilterOptions,
   matchesOwnerFilter,
 } from '@/lib/utils/movementsOwnerFilter';
+import { MOVEMENT_TYPE_ORDER, splitCategorySelection } from '@/lib/utils/movementsTypeFilter';
 import {
   getExpensesByRecurringParentId,
   getExpensesByInstallmentParentId,
@@ -424,18 +425,7 @@ export function ExpenseTrackingTab({
   // ALL categories of a type are selected (covers deleted-category edge case).
   const handleSelectCategories = (values: string[]) => {
     forgetSavedRow();
-    const ORDER: ExpenseType[] = ['income', 'fixed', 'variable', 'debt'];
-    const newTypes: ExpenseType[] = [];
-    const newCatIds: string[] = [];
-    for (const type of ORDER) {
-      const typeCats = categories.filter((c) => c.type === type);
-      if (typeCats.length === 0) continue;
-      if (typeCats.every((c) => values.includes(c.id))) {
-        newTypes.push(type);
-      } else {
-        typeCats.filter((c) => values.includes(c.id)).forEach((c) => newCatIds.push(c.id));
-      }
-    }
+    const { selectedTypes: newTypes, selectedCatIds: newCatIds } = splitCategorySelection(values, categories);
     setSelectedTypes(newTypes);
     setSelectedCatIds(newCatIds);
     setSelectedSubCategoryId('all');
@@ -665,8 +655,7 @@ export function ExpenseTrackingTab({
   // Build grouped MultiSelect options: one group per ExpenseType with real categories.
   // The MultiSelect component handles group-level select-all natively via its toggleGroup.
   const categoryMultiSelectOptions = useMemo((): MultiSelectGroup[] => {
-    const ORDER: ExpenseType[] = ['income', 'fixed', 'variable', 'debt', 'transfer'];
-    return ORDER.map((type) => {
+    return MOVEMENT_TYPE_ORDER.map((type) => {
       const cats = categories.filter((c) => c.type === type);
       if (cats.length === 0) return null;
       return {
