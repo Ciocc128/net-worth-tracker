@@ -1,6 +1,5 @@
 'use client';
 
-import { useChartColors } from '@/lib/hooks/useChartColors';
 import type { Narrative } from '@/lib/utils/narrative';
 import { narrativeToText } from '@/lib/utils/narrative';
 import type { SpendingTrend, TrendComparison, TrendComparisonId } from '@/lib/utils/spendingTrend';
@@ -34,10 +33,9 @@ interface AndamentoTileProps {
  * fine pointer a tooltip reads the day; a touch gets none — the reading says it (The Hover Reading Rule).
  */
 export function AndamentoTile({ trend, chosen, onChoose, reading, collapse, asideWhenClosed, className }: AndamentoTileProps) {
-  const colors = useChartColors();
-  // Slot 2 of the theme's palette: distinct from `--hero-series` (slot 1) in every theme, held by
-  // `__tests__/chartPaletteDistinctness.test.ts` (ΔE00 ≥ 14 between any two slots).
-  const comparisonColor = colors[1] ?? 'var(--muted-foreground)';
+  // A comparison is a baseline, not a series: the neutral grey of Capitale e mercato's invested
+  // capital and of Rendimenti's benchmark, never a palette slot.
+  const comparisonColor = 'var(--capital-invested)';
   const monthName = MONTH_NAMES[trend.month - 1];
   const showCalendar = trend.scheduledTotal > 0;
   const hasArea = trend.spent.length > 0;
