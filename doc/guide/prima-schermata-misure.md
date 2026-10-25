@@ -152,7 +152,7 @@ build e non sul dev server, i dati sono quelli di un mese dopo. Solo conteggi, n
 |---|---|---|---|
 | Panoramica | 1,77 · 1/1 · 5 / 5 | 1,17 · 8/7 · 5 / 5 | 1 · 8/8 · 12 / 12 |
 | Patrimonio | 1,77 · 1/0 · 7 / 4 | 1,15 · 7/7 · 7 / 4 | 1,01 · 7/7 · 10 / 7 |
-| Cashflow › Tracciamento | 1,7 · 1/0 · 13 / 7 | 1,2 · 5/3 · 15 / 9 | 1,15 · 5/4 · 16 / 10 |
+| Cashflow › Tracciamento | 1,86 · 1/0 · 13 / 7 | 1,33 · 5/3 · 15 / 9 | 1,15 · 6/5 · 16 / 10 |
 | Cashflow › Budget | 1,82 · 1/0 · 13 / 8 | 1,3 · 5/5 · 13 / 8 | 1,17 · 5/4 · 15 / 10 |
 | Cashflow › Centri | 1,52 · 1/0 · 10 / 7 | 1,11 · 3/3 · 10 / 7 | 1,01 · 3/3 · 10 / 7 |
 | Cashflow › Divisione | 1,68 · 1/0 · 17 / 6 | 1,26 · 3/1 · 20 / 12 | 1,2 · 4/3 · 19 / 11 |

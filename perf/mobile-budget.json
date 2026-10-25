@@ -167,34 +167,34 @@
     },
     "cashflow-tracciamento": {
       "390": {
-        "screens": 1.7,
+        "screens": 1.86,
         "tilesAboveFold": 1,
         "tilesFullyAboveFold": 0,
         "figuresAboveFold": 13,
         "figuresOutsideVerdict": 7,
         "firstClosedRowAbovePill": false,
         "overflowX": false,
-        "raisedBy": "2026-10-16: screens 1.69 → 1.7 — la testata più alta di 8 px: l'icona Impostazioni di Cashflow e «Crea snapshot» passano da 36 a 44 px, bersagli per il pollice; 2026-10-15: deriva del giorno del mese, non del codice: il confronto «sui primi N giorni» del mese scorso prendeva le righe del seed ai giorni 5, 10, 15 e 20 una alla volta — dal 15 lo stipendio porta sulla prima schermata le due frecce del trio (la seconda ristampa il ritmo del primo enunciato); valori identici sulla build di develop prima del codice nuovo (4dc553c2) misurata il 2026-10-15, due corse. Il seed mette ora ogni mese passato al giorno 5 (scripts/seedCensusE2E.mts): dal 5 al penultimo questi sono i valori di ogni giorno. Ritiro del 2026-10-15 (PAST_DAY); e la prima riga chiusa sotto la pill a 390 (registrata false con raisedBy dal 2026-10-12: LA tessera Cashflow del periodo parte a 478 ed è alta 443, la riga inizia a 990 contro la pill a 767); la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-10-25: screens 1.7 → 1.86 — la riga chiusa «Andamento del mese» (52 px) dopo Entrate (AM1); la misura di main lo stesso giorno è 1.78, già sopra il tetto per la deriva del giorno del mese, quindi la riga porta 0.08; il primo schermo non si muove (cifre 13 / 7 identiche); da confermare dal proprietario · 2026-10-16: screens 1.69 → 1.7 — la testata più alta di 8 px: l'icona Impostazioni di Cashflow e «Crea snapshot» passano da 36 a 44 px, bersagli per il pollice; 2026-10-15: deriva del giorno del mese, non del codice: il confronto «sui primi N giorni» del mese scorso prendeva le righe del seed ai giorni 5, 10, 15 e 20 una alla volta — dal 15 lo stipendio porta sulla prima schermata le due frecce del trio (la seconda ristampa il ritmo del primo enunciato); valori identici sulla build di develop prima del codice nuovo (4dc553c2) misurata il 2026-10-15, due corse. Il seed mette ora ogni mese passato al giorno 5 (scripts/seedCensusE2E.mts): dal 5 al penultimo questi sono i valori di ogni giorno. Ritiro del 2026-10-15 (PAST_DAY); e la prima riga chiusa sotto la pill a 390 (registrata false con raisedBy dal 2026-10-12: LA tessera Cashflow del periodo parte a 478 ed è alta 443, la riga inizia a 990 contro la pill a 767); la pill a 44 px dal 2026-10-10"
       },
       "768": {
-        "screens": 1.2,
+        "screens": 1.33,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 3,
         "figuresAboveFold": 15,
         "figuresOutsideVerdict": 9,
         "firstClosedRowAbovePill": false,
         "overflowX": false,
-        "raisedBy": "2026-10-16: riga null → false — la prima riga chiusa finisce 47 px sotto la pill a 947 — a 768 LA tessera sta a tutta larghezza dopo il verdetto, la curva già a 120 px (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main); 2026-10-15: deriva del giorno del mese, non del codice: il confronto «sui primi N giorni» del mese scorso prendeva le righe del seed ai giorni 5, 10, 15 e 20 una alla volta — dal 15 lo stipendio porta sulla prima schermata le due frecce del trio (la seconda ristampa il ritmo del primo enunciato); valori identici sulla build di develop prima del codice nuovo (4dc553c2) misurata il 2026-10-15, due corse. Il seed mette ora ogni mese passato al giorno 5 (scripts/seedCensusE2E.mts): dal 5 al penultimo questi sono i valori di ogni giorno. Ritiro del 2026-10-15 (PAST_DAY); la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-10-25: screens 1.2 → 1.33 — la riga chiusa «Andamento del mese» (AM1); main misura 1.26; il primo schermo non si muove (cifre 15 / 9 identiche); da confermare dal proprietario · 2026-10-16: riga null → false — la prima riga chiusa finisce 47 px sotto la pill a 947 — a 768 LA tessera sta a tutta larghezza dopo il verdetto, la curva già a 120 px (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main); 2026-10-15: deriva del giorno del mese, non del codice: il confronto «sui primi N giorni» del mese scorso prendeva le righe del seed ai giorni 5, 10, 15 e 20 una alla volta — dal 15 lo stipendio porta sulla prima schermata le due frecce del trio (la seconda ristampa il ritmo del primo enunciato); valori identici sulla build di develop prima del codice nuovo (4dc553c2) misurata il 2026-10-15, due corse. Il seed mette ora ogni mese passato al giorno 5 (scripts/seedCensusE2E.mts): dal 5 al penultimo questi sono i valori di ogni giorno. Ritiro del 2026-10-15 (PAST_DAY); la pill a 44 px dal 2026-10-10"
       },
       "1024": {
         "screens": 1.14,
-        "tilesAboveFold": 5,
-        "tilesFullyAboveFold": 4,
-        "figuresAboveFold": 15,
-        "figuresOutsideVerdict": 9,
+        "tilesAboveFold": 6,
+        "tilesFullyAboveFold": 5,
+        "figuresAboveFold": 16,
+        "figuresOutsideVerdict": 10,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-16: figuresAboveFold 13 → 15, figuresOutsideVerdict 7 → 9 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 5 → 7 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-15: deriva del giorno del mese, non del codice: il confronto «sui primi N giorni» del mese scorso prendeva le righe del seed ai giorni 5, 10, 15 e 20 una alla volta — dal 15 lo stipendio porta sulla prima schermata le due frecce del trio (la seconda ristampa il ritmo del primo enunciato); valori identici sulla build di develop prima del codice nuovo (4dc553c2) misurata il 2026-10-15, due corse. Il seed mette ora ogni mese passato al giorno 5 (scripts/seedCensusE2E.mts): dal 5 al penultimo questi sono i valori di ogni giorno. Ritiro del 2026-10-15 (PAST_DAY); la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-10-25: tilesAboveFold 5 → 6, tilesFullyAboveFold 4 → 5, figuresAboveFold 15 → 16, figuresOutsideVerdict 9 → 10 — nell'indice in orizzontale la riga «Andamento del mese» stampa la sua risposta («7 € sopra la media», AM1), una cifra che il censimento conta sopra la piega; da confermare dal proprietario · 2026-10-16: figuresAboveFold 13 → 15, figuresOutsideVerdict 7 → 9 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 5 → 7 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-15: deriva del giorno del mese, non del codice: il confronto «sui primi N giorni» del mese scorso prendeva le righe del seed ai giorni 5, 10, 15 e 20 una alla volta — dal 15 lo stipendio porta sulla prima schermata le due frecce del trio (la seconda ristampa il ritmo del primo enunciato); valori identici sulla build di develop prima del codice nuovo (4dc553c2) misurata il 2026-10-15, due corse. Il seed mette ora ogni mese passato al giorno 5 (scripts/seedCensusE2E.mts): dal 5 al penultimo questi sono i valori di ogni giorno. Ritiro del 2026-10-15 (PAST_DAY); la pill a 44 px dal 2026-10-10"
       }
     },
     "cashflow-budget": {
