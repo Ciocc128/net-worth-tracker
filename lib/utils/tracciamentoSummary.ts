@@ -34,6 +34,7 @@ export const TRACKING_SECTION_IDS = {
   periodo: 'trk-periodo',
   spese: 'trk-spese',
   entrate: 'trk-entrate',
+  andamento: 'trk-andamento',
   risparmio: 'trk-risparmio',
   movimenti: 'trk-movimenti',
 } as const;
@@ -108,7 +109,8 @@ export interface PeriodCashflowTotals {
   transferCount: number;
 }
 
-function isSpending(expense: Expense): boolean {
+/** The rows the trio's «Spese» counts: every type but income and transfer (shared with `spendingTrend.ts`). */
+export function isSpendingRow(expense: Expense): boolean {
   return expense.type !== 'income' && expense.type !== 'transfer';
 }
 
@@ -136,7 +138,7 @@ export function summarizePeriodCashflow(expenses: Expense[]): PeriodCashflowTota
     } else if (expense.type === 'income') {
       // A negative income row is a reversal of income, not spending.
       income += expense.amount;
-    } else if (isSpending(expense)) {
+    } else if (isSpendingRow(expense)) {
       // Spending is a magnitude (the convention of calculateTotalExpenses): a positive
       // spending row never turns into income.
       spending += Math.abs(expense.amount);
@@ -222,7 +224,7 @@ export function summarizeScheduled(expenses: Expense[], now: Date): ScheduledSli
     if (!isScheduledAfterDay(expense, todayIso)) continue;
     count++;
     if (expense.type === 'income') income += expense.amount;
-    else if (isSpending(expense)) spending += Math.abs(expense.amount);
+    else if (isSpendingRow(expense)) spending += Math.abs(expense.amount);
     const month = getItalyMonth(getExpenseDate(expense.date));
     if (throughMonth === null || month > throughMonth) throughMonth = month;
   }
@@ -243,7 +245,7 @@ export function splitSpendingAtDate(expenses: Expense[], now: Date): { spentToDa
   let scheduled = 0;
   const todayIso = getItalyDateIso(now);
   for (const expense of expenses) {
-    if (!isSpending(expense)) continue;
+    if (!isSpendingRow(expense)) continue;
     if (isScheduledAfterDay(expense, todayIso)) scheduled += Math.abs(expense.amount);
     else spentToDate += Math.abs(expense.amount);
   }
@@ -568,7 +570,7 @@ export interface CategoryRanking {
  * over the positive categories, so no row can read «il 120%».
  */
 export function rankCategories(expenses: Expense[], kind: 'expenses' | 'income', limit = 5): CategoryRanking {
-  const selected = expenses.filter((e) => (kind === 'income' ? e.type === 'income' : isSpending(e)));
+  const selected = expenses.filter((e) => (kind === 'income' ? e.type === 'income' : isSpendingRow(e)));
   const byKey = new Map<string, { name: string; qualifier: string; amount: number }>();
   let total = 0;
   for (const expense of selected) {

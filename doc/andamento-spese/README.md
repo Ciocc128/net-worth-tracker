@@ -3,7 +3,7 @@
 > Card Todoist «FEAT: Spending trend line this month vs mean month last 12 months» (Backlog → Spec pronta il
 > 2026-10-25). Analisi e decisioni prese con il proprietario il 2026-10-25 sullo schizzo «oggi / proposta»
 > (WORKFLOW.md regola 8): pagina pubblicata «Andamento del mese», https://claude.ai/artifact/QY4k1PDmQvxXVM5ACNrkoT.
-> Nessun codice ancora: questo dossier è la specifica della task di implementazione AM1.
+> Implementazione AM1 sul branch `claude/project-thread-6oo4tq` (2026-10-25): guida in doc/guide/cashflow-tracciamento.md § Andamento del mese; restano le misure sul Mac (§ 7 punto 5).
 
 ## 1. In breve
 

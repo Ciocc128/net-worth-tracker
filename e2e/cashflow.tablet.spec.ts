@@ -1,9 +1,9 @@
 /**
  * Cashflow › Tracciamento composed for a tablet (2026-10-16; doc/guide/cashflow-tracciamento.md
  * § Composizione mobile): one spec, two projects — `tablet` (768×1024) and `tablet-landscape`
- * (1024×768) — branching on the width, on the base account as it is (four closed rows: Spese,
- * Entrate, Risparmio nel tempo, Movimenti; in landscape all four in the index beside the verdict and
- * THE tile). The tab's own add affordances are the point of the second half: the portrait «+» of the
+ * (1024×768) — branching on the width, on the base account as it is (five closed rows: Spese,
+ * Entrate, Andamento del mese, Risparmio nel tempo, Movimenti; in landscape all five in the index
+ * beside the verdict and THE tile). The tab's own add affordances are the point of the second half: the portrait «+» of the
  * pill at 768, the axis' «Aggiungi» in landscape — the only one there, a 44px target. And the second
  * sample page at 1440: twelve columns, as a page opened there.
  *
@@ -31,8 +31,8 @@ import {
 } from './tabletLayout';
 
 const LEAD_ID = 'trk-periodo';
-/** The four rows, in DOM order. */
-const ROW_IDS = ['trk-spese', 'trk-entrate', 'trk-risparmio', 'trk-movimenti'] as const;
+/** The five rows, in DOM order (Andamento del mese belongs to a month, the period the page opens on). */
+const ROW_IDS = ['trk-spese', 'trk-entrate', 'trk-andamento', 'trk-risparmio', 'trk-movimenti'] as const;
 
 test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
@@ -58,7 +58,7 @@ test.describe('Cashflow › Tracciamento, composed for a tablet', () => {
       const [gridRect, theTile] = await Promise.all([rectOf(grid), rectOf(lead(page))]);
       expect(Math.abs(theTile.width - gridRect.width), 'THE tile across the grid').toBeLessThanOrEqual(1);
       expect(theTile.bottom, 'THE tile ends above the pill').toBeLessThanOrEqual(fold);
-      // Four closed rows pair up.
+      // Five closed rows: two pairs and the last alone, which takes the whole row.
       await expectNoHalfCells(page, grid, ROW_IDS);
     }
     const first = await rectOf(page.locator(`#${ROW_IDS[0]}`));

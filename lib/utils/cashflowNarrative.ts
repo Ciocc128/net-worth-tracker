@@ -35,6 +35,7 @@ import { MONTH_NAMES } from '@/lib/constants/months';
 import { MONTH_NAMES_SHORT } from '@/lib/utils/period';
 import { TRACKING_SECTION_IDS, comparedDaysOfPreviousMonth, isYearToDate, resolveAnchorMonth, settleTotals } from '@/lib/utils/tracciamentoSummary';
 import type { RowAnswerMap } from '@/components/ui/row-answers';
+import type { TrendReading } from '@/lib/utils/spendingTrend';
 
 /** A month saving this share of its income or more is going well (the Panoramica's bar). */
 export const GOOD_SAVINGS_RATE = 20;
@@ -305,6 +306,7 @@ export const TRACKING_REST_LABEL_CLOSING = 'dove chiude il periodo';
 export const TRACKING_CLOSED_ASIDES = {
   spese: 'per categoria',
   entrate: 'per categoria',
+  andamento: 'giorno per giorno',
   risparmio: 'mese per mese',
 } as const;
 
@@ -786,6 +788,8 @@ export interface TrackingClosedAnswersInput {
   expenseRanking: CategoryRanking;
   incomeRanking: CategoryRanking;
   savingsHistory: SavingsHistory;
+  /** «Andamento del mese»: absent when the period is not a month (the row does not exist then). */
+  spendingTrend?: TrendReading | null;
 }
 
 /**
@@ -794,11 +798,66 @@ export interface TrackingClosedAnswersInput {
  * THE tile or the verdict's first sentence. Movimenti keeps its count: an inventory's honest answer
  * is how many rows it lists, and it follows the toolbar's filters.
  */
-export function describeTrackingClosedAnswers({ expenseRanking, incomeRanking, savingsHistory }: TrackingClosedAnswersInput): RowAnswerMap {
+export function describeTrackingClosedAnswers({ expenseRanking, incomeRanking, savingsHistory, spendingTrend = null }: TrackingClosedAnswersInput): RowAnswerMap {
   return {
+    [TRACKING_SECTION_IDS.andamento]: describeSpendingTrendAnswer(spendingTrend),
     [TRACKING_SECTION_IDS.spese]: describeCategoryShareAnswer(expenseRanking, 'expenses'),
     [TRACKING_SECTION_IDS.entrate]: describeCategoryShareAnswer(incomeRanking, 'income'),
     [TRACKING_SECTION_IDS.risparmio]: describeSavingsHistoryAnswer(savingsHistory),
     [TRACKING_SECTION_IDS.movimenti]: null,
   };
+}
+
+// ─── Andamento del mese (doc/andamento-spese/README.md § 5.5) ─────────────────
+
+/** «Al 25», «All'8», «All'11», «Al 1°» — the article follows the day AS SPOKEN. */
+function dayInSentence(day: number): string {
+  if (day === 1) return 'Al 1°';
+  return day === 8 || day === 11 ? `All'${day}` : `Al ${day}`;
+}
+
+/** The sign of a spending delta: more is the loss colour, less the gain; null when it prints as zero euro. */
+function trendDeltaSign(delta: number): 'positive' | 'negative' | null {
+  if (Math.round(Math.abs(delta)) === 0) return null;
+  return delta > 0 ? 'negative' : 'positive';
+}
+
+/**
+ * The tile's reading: how much the month has cost so far and how it stands against the comparison at
+ * the same days. The difference is judged on the printed euro («0 €» says «come»), a past month is
+ * judged whole (a month that closed is judged whole, and a shorter comparison month loses none of the
+ * days the axis does not show), a month with no comparison says so instead of leaving a gap.
+ */
+export function describeSpendingTrend(reading: TrendReading): Narrative {
+  const monthName = monthInSentence(reading.month);
+  if (reading.relation === 'future') {
+    const lead = reading.scheduled > 0
+      ? [prose(`${capitalise(withPrepositionA(monthName))} ci sono già `), figure(euro(reading.scheduled)), prose(' di spese in calendario.')]
+      : [prose(`${capitalise(withPrepositionA(monthName))} non ci sono ancora spese in calendario.`)];
+    return reading.comparison ? [...lead, prose(` ${reading.comparison.comparison.phrases.closes} `), figure(euro(reading.comparison.total)), prose('.')] : lead;
+  }
+
+  const opening = reading.relation === 'current' && reading.day !== null ? `${dayInSentence(reading.day)} ${monthName}` : capitalise(withPrepositionA(monthName));
+  const spent: NarrativeSegment[] = [prose(`${opening} hai speso `), figure(euro(reading.spent))];
+  if (!reading.comparison || reading.comparison.delta === null) {
+    return [...spent, prose('. Nessun mese prima da confrontare.')];
+  }
+
+  const { comparison, delta, total } = reading.comparison;
+  const sign = trendDeltaSign(delta);
+  const tail = reading.relation === 'past' ? " sull'intero mese." : ' agli stessi giorni.';
+  const against: NarrativeSegment[] = sign
+    ? [prose(', '), signed(euro(delta), sign), prose(` ${delta > 0 ? 'in più' : 'in meno'} ${comparison.phrases.than}${tail}`)]
+    : [prose(`, come ${comparison.phrases.like}${tail}`)];
+  if (reading.relation === 'past') return [...spent, ...against];
+  return [...spent, ...against, prose(` ${comparison.phrases.closes} `), figure(euro(total)), prose('.')];
+}
+
+/** The closed row's answer in the landscape index: «7 € sopra la media», «come settembre»; null without a comparison. */
+function describeSpendingTrendAnswer(reading: TrendReading | null): Narrative | null {
+  if (!reading?.comparison || reading.comparison.delta === null) return null;
+  const { comparison, delta } = reading.comparison;
+  const sign = trendDeltaSign(delta);
+  if (!sign) return [prose(`come ${comparison.phrases.short}`)];
+  return [signed(euro(delta), sign), prose(`${delta > 0 ? 'sopra' : 'sotto'} ${comparison.phrases.short}`)];
 }
