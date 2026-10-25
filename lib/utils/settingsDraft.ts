@@ -139,7 +139,10 @@ export interface AssetClassDraft {
 
 export interface AllocazioneSlice {
   userAge: number | undefined;
+  /** The rate TYPED by the reader; `undefined` = follow the ECB estimate (the key is then deleted on «Salva»). */
   riskFreeRate: number | undefined;
+  /** The ECB estimate in force (`resolveRiskFreeEstimate`), set by the page; read only, never written, never dirty. */
+  riskFreeEstimate?: number;
   autoCalculate: boolean;
   cashUseFixedAmount: boolean;
   cashFixedAmount: number;
@@ -348,9 +351,10 @@ export function sumClassTargets(slice: AllocazioneSlice): number {
 
 /** The formula's pair for the slice, or `null` while an input is missing. */
 export function resolveFormulaSplit(slice: AllocazioneSlice): { equityPercentage: number; bondsPercentage: number } | null {
-  if (slice.userAge === undefined || slice.riskFreeRate === undefined) return null;
+  const riskFreeRate = slice.riskFreeRate ?? slice.riskFreeEstimate;
+  if (slice.userAge === undefined || riskFreeRate === undefined) return null;
   return resolveAutoEquityBondsSplit(
-    calculateFormulaEquityPercentage(slice.userAge, slice.riskFreeRate),
+    calculateFormulaEquityPercentage(slice.userAge, riskFreeRate),
     sumOtherClassTargets(slice)
   );
 }
@@ -901,6 +905,8 @@ export type SettingsDraftAction =
   | { type: 'dividendi/set'; patch: Partial<DividendiSlice> }
   | { type: 'simulazioni/set'; patch: Partial<SimulazioniSlice> }
   | { type: 'allocazione/set'; patch: Partial<Omit<AllocazioneSlice, 'classes'>> }
+  /** The ECB estimate arrived or moved: both sides take it, so it is never an edit. */
+  | { type: 'riskFreeEstimate'; value: number }
   | { type: 'allocazione/setClass'; assetClass: AssetClass; patch: Partial<AssetClassDraft> }
   | { type: 'allocazione/replace'; slice: AllocazioneSlice }
   | { type: 'allocazione/replaceTargets'; targets: AssetAllocationTarget }
@@ -922,7 +928,11 @@ export function settingsDraftReducer(state: SettingsDraft, action: SettingsDraft
   switch (action.type) {
     case 'reset': {
       // A re-read replaces BOTH sides: the form shows the saved document and nothing is dirty.
-      const slices = sliceSettings(action.document, action.fallbackTargets);
+      const fresh = sliceSettings(action.document, action.fallbackTargets);
+      // The estimate is not in the document: a re-read keeps the one the page already handed in.
+      const estimate = state.slices.allocazione.riskFreeEstimate;
+      const slices =
+        estimate === undefined ? fresh : { ...fresh, allocazione: settleAutoCalculatedPair({ ...fresh.allocazione, riskFreeEstimate: estimate }) };
       return { slices, saved: slices, loaded: true, pendingFocus: null };
     }
     case 'saved': {
@@ -942,6 +952,14 @@ export function settingsDraftReducer(state: SettingsDraft, action: SettingsDraft
       return { ...state, slices: { ...state.slices, simulazioni: { ...state.slices.simulazioni, ...action.patch } } };
     case 'allocazione/set':
       return withAllocazione(state, { ...state.slices.allocazione, ...action.patch });
+    case 'riskFreeEstimate': {
+      if (state.slices.allocazione.riskFreeEstimate === action.value && state.saved.allocazione.riskFreeEstimate === action.value) return state;
+      const withEstimate = (slices: SettingsSlices): SettingsSlices => ({
+        ...slices,
+        allocazione: settleAutoCalculatedPair({ ...slices.allocazione, riskFreeEstimate: action.value }),
+      });
+      return { ...state, slices: withEstimate(state.slices), saved: withEstimate(state.saved) };
+    }
     case 'allocazione/setClass': {
       const { classes } = state.slices.allocazione;
       return withAllocazione(state, {

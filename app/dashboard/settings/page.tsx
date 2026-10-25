@@ -72,6 +72,8 @@ import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
 import { describeTargetProblem, describeUnsavedChanges } from '@/lib/utils/settingsNarrative';
+import { useMarketAnchors } from '@/lib/hooks/useMarketAnchors';
+import { resolveRiskFreeEstimate } from '@/lib/utils/riskFreeRate';
 import { AllocazioneTab } from '@/components/settings/tabs/AllocazioneTab';
 import { AspettoTab } from '@/components/settings/tabs/AspettoTab';
 import { CondivisioneTab } from '@/components/settings/tabs/CondivisioneTab';
@@ -140,6 +142,8 @@ export default function SettingsPage() {
   // (the owner's decision of 2026-09-29, doc/guide/impostazioni.md). The skeleton is for the first
   // visit of the account only.
   const settingsQuery = useSettings(ownerId);
+  const marketAnchors = useMarketAnchors();
+  const riskFreeEstimate = resolveRiskFreeEstimate(marketAnchors);
   const settingsDocument = settingsQuery.data; // undefined = not read yet; null = no document
   const freshness = useFreshness([settingsQuery, categoriesQuery, accountsQuery]);
 
@@ -193,6 +197,11 @@ export default function SettingsPage() {
   if (seedSubject !== null && seedSubject !== seededFrom && !(draft.loaded && hasUnsavedChanges)) {
     setSeededFrom(seedSubject);
     dispatch({ type: 'reset', document: settingsDocument ?? null, fallbackTargets: getDefaultTargets() });
+  }
+  // The ECB estimate of the risk-free rate (Allocazione › Risk-free rate), handed to BOTH sides of the draft the same
+  // way, so its arrival is never an edit. Settled during render like the seed above.
+  if (draft.loaded && draft.slices.allocazione.riskFreeEstimate !== riskFreeEstimate.value) {
+    dispatch({ type: 'riskFreeEstimate', value: riskFreeEstimate.value });
   }
   // The skeleton: this owner's document not read yet and not failed (a first visit, or a switch to
   // an account never read). A failed FIRST read is not a form full of defaults (below).
@@ -433,6 +442,7 @@ export default function SettingsPage() {
           pendingFocus={draft.pendingFocus}
           onFocusConsumed={consumeFocus}
           idealAllocation={declarations.idealAllocation}
+          riskFreeEstimate={riskFreeEstimate}
         />
 
         {mountedTabs.has('spese') && (

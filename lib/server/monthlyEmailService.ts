@@ -125,6 +125,9 @@ import {
 import { narrativeToText } from '@/lib/utils/narrative';
 import type { Narrative } from '@/lib/utils/narrative';
 import { getUserSnapshotsAdmin } from '@/lib/server/assetAdminRepository';
+import { readStoredMarketAnchors } from '@/lib/server/marketAnchorsService';
+import { toMonteCarloAnchors } from '@/lib/utils/marketAnchors';
+import { resolveRiskFreeRate } from '@/lib/utils/riskFreeRate';
 import {
   calculateMonthlyRecords,
   calculateYearlyRecords,
@@ -1627,11 +1630,13 @@ async function buildEmailPortfolio(input: {
   let periodReturn: EmailPeriodReturn | null = null;
   try {
     const base = resolvePerformanceBase({ snapshots, assets, contributions, settings, trades: transactions });
+    // Typed rate, else the ECB estimate the cron stores — the page's own resolution (`resolveRiskFreeRate`).
+    const stored = await readStoredMarketAnchors().catch(() => null);
     const metrics = await calculatePerformanceForPeriod(
       userId,
       base.snapshots,
       'CUSTOM',
-      settings?.riskFreeRate ?? 2.5,
+      resolveRiskFreeRate(settings?.riskFreeRate, toMonteCarloAnchors(stored)).value,
       windowStart,
       windowEnd,
       expenses,

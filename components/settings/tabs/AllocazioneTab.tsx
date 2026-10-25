@@ -21,9 +21,10 @@ import { Switch } from '@/components/ui/switch';
 import { Tile, TILE_CELL_CLASS, TILE_FOOTER_ACTION_CLASS } from '@/components/ui/tile';
 import { TileMethodNote } from '@/components/ui/tile-method-note';
 import { cn } from '@/lib/utils';
+import type { RiskFreeResolution } from '@/lib/utils/riskFreeRate';
 import { formatNumber } from '@/lib/services/chartService';
 import { isTargetTotalValid } from '@/lib/utils/allocationTargetValidation';
-import { describeAllocationTotal, describeAutoCalc, describeClassTargets } from '@/lib/utils/settingsNarrative';
+import { describeAllocationTotal, describeAutoCalc, describeClassTargets, describeRiskFreeSource } from '@/lib/utils/settingsNarrative';
 import {
   findSliceTargetProblem,
   resolveFormulaSplit,
@@ -47,9 +48,11 @@ export interface AllocazioneTabProps {
   onFocusConsumed: () => void;
   /** The optimizer's objectives as saved, read-only here (fork, doc/pac-ottimizzatore § RV6): edited in Allocazione › Accumulo. */
   idealAllocation: IdealAllocationSettings;
+  /** The ECB estimate of the risk-free rate: what the field follows while nothing is typed (`resolveRiskFreeEstimate`). */
+  riskFreeEstimate: RiskFreeResolution;
 }
 
-export function AllocazioneTab({ slice, onChange, onClassChange, pendingFocus, onFocusConsumed, idealAllocation }: AllocazioneTabProps) {
+export function AllocazioneTab({ slice, onChange, onClassChange, pendingFocus, onFocusConsumed, idealAllocation, riskFreeEstimate }: AllocazioneTabProps) {
   const { userAge, riskFreeRate, autoCalculate, cashUseFixedAmount, cashFixedAmount, classes } = slice;
 
   // The pending focus, consumed after the commit that opened the group and showed the tab (an
@@ -69,6 +72,8 @@ export function AllocazioneTab({ slice, onChange, onClassChange, pendingFocus, o
     return () => window.cancelAnimationFrame(frame);
   }, [pendingFocus, onFocusConsumed]);
 
+  // The rate in force: what was typed, else the ECB estimate (so the formula never waits on a field).
+  const effectiveRiskFree = riskFreeRate ?? riskFreeEstimate.value;
   const total = sumClassTargets(slice);
   const isValidTotal = isTargetTotalValid(total);
   // Derived, read-only target leverage = Σtarget / 100 (mirrors deriveTargetLeverageRatio). Shown
@@ -151,7 +156,7 @@ export function AllocazioneTab({ slice, onChange, onClassChange, pendingFocus, o
           reading={describeAutoCalc({
             enabled: autoCalculate,
             userAge,
-            riskFreeRate,
+            riskFreeRate: effectiveRiskFree,
             equityPct: formulaSplit?.equityPercentage,
             bondsPct: formulaSplit?.bondsPercentage,
             otherTotal: otherClassTotal,
@@ -178,16 +183,19 @@ export function AllocazioneTab({ slice, onChange, onClassChange, pendingFocus, o
               <div className="min-w-0">
                 <Label htmlFor="riskFreeRate" className="text-[13px] font-medium">Risk-free rate</Label>
                 <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
-                  Il rendimento del{' '}
-                  <a
-                    href="https://www.investing.com/rates-bonds/italy-10-year-bond-yield"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={TILE_FOOTER_ACTION_CLASS}
-                  >
-                    BTP 10 anni
-                  </a>
-                  ; vale anche per Sharpe e Sortino
+                  {describeRiskFreeSource({ typed: riskFreeRate, estimate: riskFreeEstimate })}
+                  {riskFreeRate !== undefined && (
+                    <>
+                      {' '}
+                      <button
+                        type="button"
+                        onClick={() => onChange({ riskFreeRate: undefined })}
+                        className={TILE_FOOTER_ACTION_CLASS}
+                      >
+                        Torna alla stima
+                      </button>
+                    </>
+                  )}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
@@ -197,9 +205,9 @@ export function AllocazioneTab({ slice, onChange, onClassChange, pendingFocus, o
                   step="0.01"
                   min="0"
                   max="100"
-                  value={riskFreeRate || ''}
+                  value={riskFreeRate ?? ''}
                   onChange={(e) => onChange({ riskFreeRate: e.target.value ? parseFloat(e.target.value) : undefined })}
-                  placeholder="tasso"
+                  placeholder={riskFreeEstimate.value.toFixed(2)}
                   className={cn('w-24 text-right font-mono', INTERACTIVE_CONTROL_CLASS)}
                 />
                 <span className="text-sm text-muted-foreground">%</span>
@@ -225,7 +233,7 @@ export function AllocazioneTab({ slice, onChange, onClassChange, pendingFocus, o
                 id="autoCalculate"
                 checked={autoCalculate}
                 onCheckedChange={(checked) => onChange({ autoCalculate: checked })}
-                disabled={userAge === undefined || riskFreeRate === undefined}
+                disabled={userAge === undefined}
                 className={cn('shrink-0', INTERACTIVE_CONTROL_CLASS)}
               />
             </div>

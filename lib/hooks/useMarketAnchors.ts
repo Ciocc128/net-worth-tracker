@@ -7,18 +7,13 @@
  */
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase/config';
 import { useAuth } from '@/contexts/AuthContext';
 import type { MonteCarloAnchors } from '@/lib/constants/monteCarloMarketDefaults';
-import { toMonteCarloAnchors, type StoredMarketAnchors } from '@/lib/utils/marketAnchors';
+import { toMonteCarloAnchors } from '@/lib/utils/marketAnchors';
+import { getStoredMarketAnchors } from '@/lib/services/marketAnchorsReadService';
 
-async function getStoredMarketAnchors(): Promise<StoredMarketAnchors | null> {
-  const snap = await getDoc(doc(db, 'ecb-rate-cache', 'market-anchors'));
-  return snap.exists() ? (snap.data() as StoredMarketAnchors) : null;
-}
-
-export function useMarketAnchors(): MonteCarloAnchors {
+/** The anchors and whether the read has settled (answered or failed): a figure that must not print twice waits for it. */
+export function useMarketAnchorsState(): { anchors: MonteCarloAnchors; ready: boolean } {
   const { user } = useAuth();
   const query = useQuery({
     queryKey: ['market-anchors'],
@@ -27,5 +22,10 @@ export function useMarketAnchors(): MonteCarloAnchors {
     staleTime: 60 * 60 * 1000,
     retry: false,
   });
-  return useMemo(() => toMonteCarloAnchors(query.data), [query.data]);
+  const anchors = useMemo(() => toMonteCarloAnchors(query.data), [query.data]);
+  return { anchors, ready: !query.isPending };
+}
+
+export function useMarketAnchors(): MonteCarloAnchors {
+  return useMarketAnchorsState().anchors;
 }

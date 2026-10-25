@@ -67,8 +67,11 @@ test('età e risk-free stanno nella tessera della formula, non in un altro tab',
   await expect(autoCalc.locator('#userAge')).toHaveCount(0);
   await expect(autoCalc.getByRole('link', { name: 'FIRE › Il mio piano' })).toBeVisible();
   await expect(autoCalc.locator('#riskFreeRate')).toBeVisible();
-  // The seed has an age and no rate: the reading names the ONE missing input, here.
-  await expect(autoCalc).toContainText('manca il risk-free rate, qui sotto');
+  // The seed has an age and no typed rate: the field follows the ECB estimate and says so (no «manca»),
+  // with no way back to offer yet because nothing was typed.
+  await expect(autoCalc).toContainText('Stima: tasso AAA a 10 anni della BCE');
+  await expect(autoCalc).not.toContainText('manca il risk-free rate');
+  await expect(autoCalc.getByRole('button', { name: 'Torna alla stima' })).toHaveCount(0);
 
   await visibleTab(page, 'Preferenze').click();
   await expect(page.locator('section[aria-label="Calcolo dei rendimenti"]')).toBeVisible();

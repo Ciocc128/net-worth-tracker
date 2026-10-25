@@ -26,6 +26,9 @@ import { getSettings } from './assetAllocationService';
 import { getAllAssets } from './assetService';
 import { getPensionContributions } from './pensionContributionService';
 import { getAssetTransactions } from './assetTransactionService';
+import { readMarketAnchors } from './marketAnchorsReadService';
+import { resolveRiskFreeRate } from '@/lib/utils/riskFreeRate';
+import type { MonteCarloAnchors } from '@/lib/constants/monteCarloMarketDefaults';
 import { buildCashFlowMap, externalFlowOf, mergePensionFlows, mergePortfolioFlows, monthKey, monthKeyOf } from '@/lib/utils/cashFlowMap';
 import { removeUndefinedDeep } from '@/lib/utils/firestoreData';
 import { endOfMonthBound } from '@/lib/utils/dateHelpers';
@@ -1399,6 +1402,8 @@ export interface PerformanceInputs {
   assets: Asset[];
   contributions: PensionContribution[];
   trades: AssetTransaction[];
+  /** The ECB anchors the risk-free estimate reads when the settings hold no typed rate; absent = the frozen ones. */
+  anchors?: MonteCarloAnchors;
 }
 
 /**
@@ -1408,14 +1413,15 @@ export interface PerformanceInputs {
  * isError branch), never an empty one silently measured from the quantities alone.
  */
 async function readPerformanceInputs(userId: string): Promise<PerformanceInputs> {
-  const [snapshots, settings, assets, contributions, trades] = await Promise.all([
+  const [snapshots, settings, assets, contributions, trades, anchors] = await Promise.all([
     getUserSnapshots(userId),
     getSettings(userId),
     getAllAssets(userId),
     getPensionContributions(userId),
     getAssetTransactions(userId),
+    readMarketAnchors(),
   ]);
-  return { snapshots, settings, assets, contributions, trades };
+  return { snapshots, settings, assets, contributions, trades, anchors };
 }
 
 /** What the inputs decide before any metric is computed: the base, the two settings, the cache key. */
@@ -1445,9 +1451,9 @@ export function resolvePerformanceSetup(inputs: PerformanceInputs): PerformanceS
   const { snapshots, assets, contributions, settings, trades } = inputs;
   const base = resolvePerformanceBase({ snapshots, assets, contributions, settings, trades });
 
-  // `??`, not `||`: a deliberate 0% risk-free rate is a legitimate setting (it makes Sharpe the raw
-  // return over volatility) and must not be silently replaced by the 2.5% default.
-  const riskFreeRate = settings?.riskFreeRate ?? 2.5;
+  // A typed rate wins (a deliberate 0% included: Sharpe becomes the raw return over volatility); with none typed the
+  // rate is the ECB estimate (`resolveRiskFreeRate`, doc/guide/impostazioni.md § Risk-free rate).
+  const riskFreeRate = resolveRiskFreeRate(settings?.riskFreeRate, inputs.anchors).value;
   const dividendCategoryId = settings?.dividendIncomeCategoryId;
 
   const cacheKey = buildCacheKey({ snapshots: base.snapshots, base, riskFreeRate, dividendCategoryId });
