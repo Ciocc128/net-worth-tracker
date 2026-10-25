@@ -13,7 +13,6 @@ import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { MONTH_NAMES_SHORT } from '@/lib/utils/period';
 import type { SpendingTrend, TrendComparison } from '@/lib/utils/spendingTrend';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import { formatCurrencyCompact } from '@/lib/services/chartService';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 
@@ -32,6 +31,18 @@ const TOOLTIP_STYLE = {
   boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
   maxWidth: 260,
 } as const;
+
+/**
+ * The ordinate's tick: thousands keep one decimal when the step is not whole («0,5k €», «1,5k €»). The shared
+ * `formatCurrencyCompact` rounds to the thousand, so a month under ~3.000 € whose ticks sit at 500 € steps read
+ * «1k € · 1k € · 2k €» — repeated and wrong labels on the axis.
+ */
+export function formatTrendTick(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `${(value / 1_000_000).toLocaleString('it-IT', { maximumFractionDigits: 1 })} Mln\u00A0€`;
+  if (abs >= 1_000) return `${(value / 1_000).toLocaleString('it-IT', { maximumFractionDigits: 1 })}k\u00A0€`;
+  return `${Math.round(value)}\u00A0€`;
+}
 
 /** The days the axis names: the first, the 8th, 15th, 22nd and the last of the month. */
 export function trendAxisTicks(daysInMonth: number): number[] {
@@ -123,7 +134,7 @@ export function AndamentoChart({ trend, chosen, comparisonColor, ariaLabel }: An
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
         <XAxis dataKey="day" ticks={trendAxisTicks(trend.daysInMonth)} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} interval={0} />
-        <YAxis tickFormatter={(value: number) => formatCurrencyCompact(value)} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} width={52} domain={[0, 'auto']} />
+        <YAxis tickFormatter={formatTrendTick} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} width={52} domain={[0, 'auto']} />
         {finePointer && (
           <Tooltip
             content={<TrendTooltip monthShort={monthShort} comparisonLabel={chosen?.label ?? null} />}
