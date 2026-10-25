@@ -24,6 +24,7 @@ import { pensionContributionsQueryOptions, usePensionContributions } from '@/lib
 import { assetTransactionsQueryOptions, useAssetTransactions } from '@/lib/hooks/useAssetTransactions';
 // The Admin-SDK dividendService is server-only: a client page reads the registry through this hook's reader.
 import { dividendReceiptsQueryOptions, useDividendReceipts } from '@/lib/hooks/useDividendReceipts';
+import { useMarketAnchorsState } from '@/lib/hooks/useMarketAnchors';
 import { resolvePerformanceSetup, resolveYieldPeriods, type PerformanceInputs } from '@/lib/services/performanceService';
 import {
   buildPerformanceQueries,
@@ -71,9 +72,15 @@ export function usePerformanceData(ownerId: string | undefined) {
   const trades = tradesQuery.data;
 
   // The settings document may not exist (`null`): only `undefined` means «not read yet».
+  // The risk-free rate is the ECB estimate unless one is typed: the metrics wait for the anchors' read, or the first
+  // payload would be computed on the frozen yield and replaced a moment later (a typed rate needs no wait).
+  const { anchors, ready: anchorsReady } = useMarketAnchorsState();
   const inputs = useMemo<PerformanceInputs | null>(
-    () => (snapshots && assets && settings !== undefined && contributions && trades ? { snapshots, assets, settings, contributions, trades } : null),
-    [snapshots, assets, settings, contributions, trades],
+    () =>
+      snapshots && assets && settings !== undefined && contributions && trades && (anchorsReady || settings?.riskFreeRate !== undefined)
+        ? { snapshots, assets, settings, contributions, trades, anchors }
+        : null,
+    [snapshots, assets, settings, contributions, trades, anchors, anchorsReady],
   );
   // The SAME resolution the service runs: the base the page's charts read and the key its payload is named by.
   const setup = useMemo(() => (inputs ? resolvePerformanceSetup(inputs) : null), [inputs]);
@@ -133,6 +140,7 @@ export function usePerformanceData(ownerId: string | undefined) {
         settings: freshSettings,
         contributions: freshContributions,
         trades: freshTrades,
+        anchors,
       };
       const freshSetup = resolvePerformanceSetup(freshInputs);
       const freshPeriods = resolveYieldPeriods(freshSetup.base.snapshots, now);
@@ -150,7 +158,7 @@ export function usePerformanceData(ownerId: string | undefined) {
       setIsRefreshing(false);
       return false;
     }
-  }, [ownerId, queryClient]);
+  }, [ownerId, queryClient, anchors]);
 
   return {
     /** The pre-computed metrics with the yields merged in; `null` until both are read. */

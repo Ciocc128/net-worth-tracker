@@ -28,7 +28,9 @@ import type { AssetClass, IdealAllocationSettings, ObjectivePriority } from '@/t
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import { INDEX_PROFILES } from '@/lib/constants/instrumentProfiles';
 import type { TargetProblem } from '@/lib/utils/allocationTargetValidation';
-import { MONTE_CARLO_DEFAULTS_LAST_YEAR, type MonteCarloHedgeSwitches, type MonteCarloHedgeableClass, hedgedClassList } from '@/lib/constants/monteCarloMarketDefaults';
+import type { RiskFreeResolution } from '@/lib/utils/riskFreeRate';
+import { formatAnchorDate } from '@/lib/utils/marketAnchors';
+import { MONTE_CARLO_DEFAULTS_LAST_YEAR, MONTE_CARLO_FROZEN_ANCHORS, type MonteCarloHedgeSwitches, type MonteCarloHedgeableClass, hedgedClassList } from '@/lib/constants/monteCarloMarketDefaults';
 import { MONTE_CARLO_CLASS_LABELS } from '@/lib/constants/monteCarloClasses';
 import type { MonteCarloMarketOrigin } from '@/lib/utils/monteCarloMarket';
 
@@ -441,6 +443,19 @@ export interface AutoCalcInput {
   bondsPct?: number;
   /** Sum of every class target outside the auto-calculated pair. */
   otherTotal?: number;
+}
+
+/** The words under «Risk-free rate»: where the figure in force comes from, and what the reader can do about it. */
+export function describeRiskFreeSource(input: { typed: number | undefined; estimate: RiskFreeResolution }): string {
+  const { estimate } = input;
+  const estimateWords = (): string =>
+    estimate.source === 'ecb' && estimate.date
+      ? `tasso AAA a 10 anni della BCE, ${pctTrim(estimate.value)} del ${formatAnchorDate(estimate.date)}`
+      : `tasso AAA a 10 anni della BCE, ${pctTrim(estimate.value)} (valore dell’${MONTE_CARLO_FROZEN_ANCHORS.asOf}, in attesa del primo aggiornamento)`;
+  if (input.typed === undefined) {
+    return `Stima: ${estimateWords()}. Si aggiorna da sola; scrivi un valore per fissarlo. Vale anche per Sharpe e Sortino.`;
+  }
+  return `Impostato da te. Stima della BCE: ${estimateWords()}. Vale anche per Sharpe e Sortino.`;
 }
 
 /** Auto-calcolo — what the formula does, or would do, with the profile's inputs. */
