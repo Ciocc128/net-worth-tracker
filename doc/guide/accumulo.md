@@ -36,7 +36,7 @@ Firebase: ogni dipendenza dal portafoglio vivo è iniettata (`PlanDeps.valueOf`/
 | D1 | Feature autonoma: tile separato da Piano, fuori da `PlanMode`/`buildPlanView`/dal verdetto della pagina. | il tile (oggi `QuestoMeseTile.tsx`, dentro la scheda Accumulo) montato accanto, non dentro, `PianoTile` |
 | D2 | Target del piano PER STRUMENTO, indipendenti dai target di Impostazioni. | `PlanPosition.targetPercentage` |
 | D3 | La liquidità è sempre `excluded`: B = valore posizioni + L. | `computeTotalPurchases` |
-| D4 | L = max(0, Σconti−riserva) + vendite fuori piano + E×N; la riserva non si tocca mai. | `computeUsableLiquidity` |
+| D4 | L = max(0, Σconti−riserva) + vendite fuori piano (da fare, al controvalore di oggi: D-A9) + E×N; la riserva non si tocca mai. | `computeUsableLiquidity` |
 | D5 | Fuori piano → venduti al mese 1, ricavo in L; sovrappesate → mai vendute. | `PlanDisposal`, `computeTotalPurchases` (una posizione sopra target riceve 0 in fase deficit) |
 | D6 | Gruppi proxy: un peso, un solo `buyAssetId` compra. | `resolvePositionStates` |
 | D7 | Nuovo strumento = asset reale a quantità 0, senza operazione d'apertura. | `AssetDialog` con `createEmpty` (§8, S3) |
@@ -293,7 +293,9 @@ stessa console, ora con anche `match /modelPortfolios/{ownerId}`).
   passo Target ha «Parti da»: **Portafoglio modello** (solo se esiste) · **Pesi di oggi** (`marketWeights`, due decimali,
   Σ 100) · **Ricalcola** (il pannello Ottimizzato). I pesi sono una copia modificabile: il modello non si tocca.
 - **Vendite parziali (RP2).** `PlanDisposal.quantity?` (intero) e `monthIndex?` (assente = 1). `proceedsOfDisposal` =
-  `quantity × prezzo`; `resolvePositionStates(…, disposals)` toglie dal valore della posizione le quote ancora in vendita
+  `quantity × prezzo`; una vendita ancora da fare vale SEMPRE il controvalore di oggi (D-A9): `computeUsableLiquidity`,
+  la traiettoria e la riga del tile (`displayedProceedsOfDisposal`) non leggono `estimatedProceedsEur`, che «Rivedi il
+  piano» riscrive al valore di oggi sulle vendite aperte che tiene; quote già vendute senza collegamento contano 0; `resolvePositionStates(…, disposals)` toglie dal valore della posizione le quote ancora in vendita
   (non eseguite né saltate); `buildProjectedAssets` toglie `quantity` quote dal mese `monthIndex`. Lo schema: vendita
   totale di un membro di una posizione → `disposal_full_on_position`, quantità non intera o ≤ 0 → `disposal_quantity`;
   una vendita PARZIALE di un membro non è un `duplicate_asset`. Nel passo Target «Tieni | Vendi» ha la sua intestazione e,

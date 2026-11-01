@@ -23,7 +23,7 @@ export interface PlanDisposal {
   quantity?: number;
   /** Installment index of the sale; absent = 1. A revision (RP4) sets it to the first revised month. */
   monthIndex?: number;
-  estimatedProceedsEur: number; // quantity × price (or the whole position's value) when the plan is activated
+  estimatedProceedsEur: number; // quantity × price (or the whole position's value) when the plan is activated or revised; the plan's sums use today's proceeds while the sale is to do (D-A9)
   status: InstallmentLineStatus;
   transactionIds?: string[];    // ledger `sell` ids linked on confirmation
   executedAmountEur?: number;
