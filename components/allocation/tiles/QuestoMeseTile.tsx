@@ -25,6 +25,7 @@ import type { ModelPortfolio } from '@/types/modelPortfolio';
 import type { RebalanceBand } from '@/lib/utils/allocationUtils';
 import {
   computeUsableLiquidity,
+  displayedProceedsOfDisposal,
   summarizeReserve,
   buildRegisteredLinePatch,
   findFirstIntactInstallment,
@@ -728,7 +729,7 @@ export function QuestoMeseTile({
                         <span className="mt-0.5 block font-mono text-[11px] tabular-nums text-muted-foreground">
                           {asset && `${getAssetDisplayTicker(asset)} · `}
                           {disposal.quantity !== undefined && `${formatNumberIt(disposal.quantity, 0)} quote · `}
-                          {cachedFormatCurrencyEUR(disposal.executedAmountEur ?? disposal.estimatedProceedsEur)}
+                          {cachedFormatCurrencyEUR(displayedProceedsOfDisposal(disposal, asset, DEPS))}
                         </span>
                       </span>
                       <div className="flex shrink-0 flex-col items-end gap-1 desktop:flex-row desktop:items-center desktop:gap-3">
@@ -757,7 +758,7 @@ export function QuestoMeseTile({
                           <Button
                             variant="outline"
                             className={ROW_ACTION_CLASS}
-                            onClick={() => setManualDisposal({ assetId: disposal.assetId, amount: disposal.estimatedProceedsEur.toFixed(2) })}
+                            onClick={() => setManualDisposal({ assetId: disposal.assetId, amount: displayedProceedsOfDisposal(disposal, asset, DEPS).toFixed(2) })}
                           >
                             {ACCUMULO_ACTION_MARK_EXECUTED}
                           </Button>

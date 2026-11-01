@@ -125,6 +125,7 @@ parole, la riserva intoccabile, D9 (quote intere).
 | D-A6 | Gli obiettivi si modificano in un modale aperto dal tile «Obiettivi», con **«Prova»** (calcolo sulla bozza, nulla salvato) e **«Salva gli obiettivi»** (scrive `settings.idealAllocation`, come «Salva il piano» di FIRE H1). Impostazioni › Allocazione mostra un riassunto in sola lettura e il collegamento. | Modifica in riga nel tile (sei obiettivi con priorità, limiti e gruppi non stanno in 5 colonne); tenerli anche in Impostazioni (due posti dove cambiarli). |
 | D-A7 | La scheda si apre con `?tab=accumulo`, come Cashflow; «Bilanciamento» resta la scheda predefinita. | Ricordare l'ultima scheda (una pagina che cambia faccia da sola). |
 | D-A8 | L'entrata suggerita è il **risparmio annuo del Cashflow diviso 12** di `getAnnualCashflowData` (`lib/services/fireService.ts:944`, lo stesso dato che il Calcolatore FIRE legge), arrotondato per difetto alle decine di euro, con l'anno di riferimento. | Una media mensile nuova (un secondo modo di dire «risparmio» nell'app). |
+| D-A9 | (01/11/2026, chiesta da Giorgio: «Rivedi il piano deve tenere conto anche delle vendite non eseguite dei mesi scorsi») Una vendita **ancora da fare** (non eseguita, non saltata) vale il suo **controvalore di oggi**, `proceedsOfDisposal` (quote × prezzo attuale, o l'intera posizione per una vendita totale), ovunque si calcoli la liquidità del piano: `computeUsableLiquidity` (ricalibrazione RP3, «Rivedi il piano» RP4, box del tile e dell'editor), la traiettoria (`buildProjectedAssets`) e la cifra della riga nel tile (`displayedProceedsOfDisposal`). «Rivedi il piano» salva il controvalore di oggi sulle vendite aperte che tiene. Quote già vendute nel Registro senza collegamento lasciano l'asset e contano 0 (il loro denaro è già nei conti). Una vendita eseguita conta per l'importo registrato; Piani conclusi tiene la cifra dell'attivazione (dato storico). Esempio: 1000 € in conto, entrata 1000 €, 3 mesi restanti, VWCE a 120 €, vendita salvata a 5100 € che oggi vale 4978 € → liquidità 8978 € invece di 9100 €, ricalibrazione 24 quote invece di 25 (`__tests__/accumulationLiveDisposals.test.ts`). | Tenere l'importo congelato all'attivazione (gli acquisti vanno al prezzo di oggi e le vendite no: la proposta non si accorge di un calo o di un rialzo dello strumento da vendere); ricalcolarlo solo in «Rivedi il piano» (la ricalibrazione del tile resterebbe sulla cifra vecchia). |
 
 ## 6. Regole
 
@@ -219,7 +220,8 @@ D2 cambia così: i pesi del piano sono una copia, modificabile, del modello.
 ```
 
 - `estimatedProceedsEur` = `quantity × prezzo` all'attivazione (o alla revisione); assente `quantity`, il valore
-  dell'intera posizione come oggi.
+  dell'intera posizione come oggi. È la cifra salvata: finché la vendita è da fare, i conti usano il controvalore di
+  oggi (`proceedsOfDisposal`, D-A9).
 - `resolvePositionStates` riceve le vendite: il valore di una posizione è al netto delle quote in vendita non ancora
   eseguite o saltate (`valore − quantity × prezzo` per membro).
 - `buildProjectedAssets` toglie `quantity` quote (non azzera) dal mese `monthIndex`; senza `quantity`, azzera come oggi.

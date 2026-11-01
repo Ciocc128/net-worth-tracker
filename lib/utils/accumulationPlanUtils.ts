@@ -107,6 +107,17 @@ export function proceedsOfDisposal(disposal: PlanDisposal, asset: Asset | undefi
   return Math.min(disposal.quantity, asset.quantity) * deps.priceOf(asset);
 }
 
+/**
+ * D-A9: the figure a sale shows in the tile — the registered amount once executed, the saved estimate
+ * when skipped or when the shares already left the ledger unlinked (the plan counts 0 then, the row keeps
+ * a figure to confirm), today's proceeds while it is still to do.
+ */
+export function displayedProceedsOfDisposal(disposal: PlanDisposal, asset: Asset | undefined, deps: PlanDeps): number {
+  if (disposal.status === 'executed') return disposal.executedAmountEur ?? disposal.estimatedProceedsEur;
+  if (disposal.status === 'skipped' || !asset || asset.quantity <= 0) return disposal.estimatedProceedsEur;
+  return proceedsOfDisposal(disposal, asset, deps);
+}
+
 export function resolvePositionStates(
   positions: PlanPosition[],
   assetsById: Map<string, Asset>,
@@ -149,7 +160,7 @@ export function resolvePositionStates(
 export interface UsableLiquidity {
   sourceCashEur: number;        // Σ valueOf(source cash assets)
   availableNowEur: number;      // max(0, sourceCashEur − reserveEur)
-  disposalProceedsEur: number;  // Σ estimatedProceedsEur of disposals not yet executed/skipped
+  disposalProceedsEur: number;  // Σ proceedsOfDisposal (today's price) of disposals not yet executed/skipped (D-A9)
   inflowTotalEur: number;       // monthlyInflowEur × monthsRemaining
   L0: number;                   // availableNowEur + disposalProceedsEur
   L: number;                    // L0 + inflowTotalEur
@@ -169,9 +180,12 @@ export function computeUsableLiquidity(
     if (asset) sourceCashEur += deps.valueOf(asset);
   }
   const availableNowEur = Math.max(0, sourceCashEur - liquidity.reserveEur);
+  // D-A9: a sale still to do is worth what it would bring in TODAY, like the buys at today's price —
+  // never the figure frozen at activation. Shares already sold off the ledger without a link leave the
+  // asset, so they are not counted twice (their cash is already in the source accounts).
   const disposalProceedsEur = disposals
     .filter((d) => d.status !== 'executed' && d.status !== 'skipped')
-    .reduce((sum, d) => sum + d.estimatedProceedsEur, 0);
+    .reduce((sum, d) => sum + proceedsOfDisposal(d, assetsById.get(d.assetId), deps), 0);
   const inflowTotalEur = liquidity.monthlyInflowEur * monthsRemaining;
   const L0 = availableNowEur + disposalProceedsEur;
   const L = L0 + inflowTotalEur;
@@ -550,11 +564,14 @@ export function buildRevisedPlan(
   for (const monthIndex of Object.values(moved)) {
     if (!Number.isInteger(monthIndex) || monthIndex < k || monthIndex > months) return { ok: false, issue: 'sale_month_range' };
   }
+  // D-A9: a kept open sale is saved at today's proceeds, as the revision counts it.
   const keptDisposals = plan.disposals
     .filter((disposal) => !(isOpenSavedDisposal(disposal) && removedIds.has(disposal.assetId)))
-    .map((disposal) =>
-      isOpenSavedDisposal(disposal) && moved[disposal.assetId] !== undefined ? { ...disposal, monthIndex: moved[disposal.assetId] } : disposal
-    );
+    .map((disposal) => {
+      if (!isOpenSavedDisposal(disposal)) return disposal;
+      const refreshed = { ...disposal, estimatedProceedsEur: proceedsOfDisposal(disposal, assetsById.get(disposal.assetId), deps) };
+      return moved[disposal.assetId] !== undefined ? { ...refreshed, monthIndex: moved[disposal.assetId] } : refreshed;
+    });
 
   // One sale per instrument: the ledger matching and `setDisposal` address a sale by its asset.
   const alreadySelling = new Set(keptDisposals.map((disposal) => disposal.assetId));
@@ -791,6 +808,11 @@ function classPointFromEntries(
  * both the quantity and the cash side, same as before: its real ledger trade already moved both the
  * position and the cash account it settled from.
  */
+const PROJECTION_DEPS: PlanDeps = {
+  valueOf: (asset) => asset.quantity * unitPriceEur(asset),
+  priceOf: (asset) => unitPriceEur(asset),
+};
+
 function buildProjectedAssets(
   allAssets: Asset[],
   installments: Installment[],
@@ -817,9 +839,10 @@ function buildProjectedAssets(
     if (disposal.status === 'executed') continue;
     if (index < (disposal.monthIndex ?? 1)) continue;
     const clone = clonesById.get(disposal.assetId);
+    // D-A9: today's proceeds, read before the sale takes the shares off the clone.
+    proceedsEur += clone ? proceedsOfDisposal(disposal, clone, PROJECTION_DEPS) : disposal.estimatedProceedsEur;
     // RP2: a partial sale takes `quantity` shares away, a total one zeroes the position.
     if (clone) clone.quantity = disposal.quantity === undefined ? 0 : Math.max(0, clone.quantity - disposal.quantity);
-    proceedsEur += disposal.estimatedProceedsEur;
   }
 
   const inflowEur = liquidity.monthlyInflowEur * index;
