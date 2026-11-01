@@ -40,6 +40,7 @@
     "ai:eval": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/aiEval.mts",
     "wiki:compile": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/wikiCompile.mts",
     "vault:export": "cross-env TZ=Europe/Rome tsx --env-file-if-exists=.env.local --conditions=react-server scripts/vaultExport.mts",
+    "email:period": "cross-env TZ=Europe/Rome tsx --env-file-if-exists=.env.local --conditions=react-server scripts/periodEmail.mts",
     "perf:build": "cross-env NEXT_DIST_DIR=.next-perf NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true NEXT_PUBLIC_FIREBASE_API_KEY=demo-key NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-net-worth NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=demo-net-worth.firebaseapp.com next build",
     "perf:serve": "node scripts/perfServe.mjs",
     "perf:bench": "node scripts/perfBenchmark.mjs",
