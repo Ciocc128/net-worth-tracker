@@ -1324,6 +1324,7 @@ export function ExpenseTrackingTab({
             windowLabel={describeFlowWindow(flows, period.kind === 'year' || period.kind === 'ytd', now)}
             projection={projection}
             liftedFigures={liftedFigures}
+            onSelectMonth={({ year, month }) => onPeriodChange({ kind: 'month', year, month })}
           />
         </div>
 

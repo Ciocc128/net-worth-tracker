@@ -51,6 +51,8 @@ interface CashflowPeriodoTileProps {
    * coverage and deltas stay (The Lifted-Figure Rule). Analisi passes none.
    */
   liftedFigures?: readonly CashflowPeriodoLiftedBlock[];
+  /** A month clicked in the chart opens that month as the page's period; Analisi passes none. */
+  onSelectMonth?: (month: { year: number; month: number }) => void;
   className?: string;
 }
 
@@ -75,6 +77,7 @@ export function CashflowPeriodoTile({
   windowLabel,
   projection,
   liftedFigures = [],
+  onSelectMonth,
   className,
 }: CashflowPeriodoTileProps) {
   const projectionClass =
@@ -108,7 +111,7 @@ export function CashflowPeriodoTile({
               </span>
             </div>
           </div>
-          <FlowBarsChart flows={flows} highlightKey={highlightKey} className="mt-2.5 flex-1" />
+          <FlowBarsChart flows={flows} highlightKey={highlightKey} onSelectMonth={onSelectMonth} className="mt-2.5 flex-1" />
         </>
       )}
 
