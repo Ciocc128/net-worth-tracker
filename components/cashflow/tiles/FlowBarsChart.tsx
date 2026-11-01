@@ -1,6 +1,6 @@
 'use client';
 
-import type { CSSProperties } from 'react';
+import type { CSSProperties, MouseEvent } from 'react';
 import type { MonthFlow } from '@/lib/utils/tracciamentoSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,8 @@ interface FlowBarsChartProps {
    * (The First-Screen Rule: with THE tile tall the curve gives, never the reading).
    */
   minHeight?: number;
+  /** A click on a month's slot (or its axis label) opens that month; absent = a static chart. */
+  onSelectMonth?: (month: { year: number; month: number }) => void;
   className?: string;
 }
 
@@ -37,7 +39,7 @@ const BAR_GAP_SHARE = 0.06;
  * (`absolute inset-0` + `preserveAspectRatio="none"`, the Panoramica's sparkline technique)
  * and the labels live outside the SVG so they never stretch with it.
  */
-export function FlowBarsChart({ flows, highlightKey, minHeight = 150, className }: FlowBarsChartProps) {
+export function FlowBarsChart({ flows, highlightKey, minHeight = 150, onSelectMonth, className }: FlowBarsChartProps) {
   const max = Math.max(...flows.map((f) => Math.max(f.income, f.expenses)), 1);
   const slot = VIEW_W / flows.length;
   const barWidth = slot * BAR_SHARE;
@@ -54,11 +56,27 @@ export function FlowBarsChart({ flows, highlightKey, minHeight = 150, className 
 
   // The desktop floor travels as a custom property so the phone's 120px can be a class, not an
   // inline style the class could never beat.
+  // A click reads the slot under the pointer, like the hover: the bars and the empty space above
+  // them are one target, so a short bar is as easy to open as a tall one.
+  const onPlotClick = (event: MouseEvent<HTMLElement>) => {
+    if (!onSelectMonth) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const fraction = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
+    const flow = flows[Math.min(flows.length - 1, Math.floor(fraction * flows.length))];
+    if (flow) onSelectMonth({ year: flow.year, month: flow.month });
+  };
+
   const plotStyle = { '--flow-min-h': `${minHeight}px` } as CSSProperties;
 
   return (
     <div className={cn('flex flex-col', className)}>
-      <div className={cn('relative flex-1', PHONE_MIN_HEIGHT_CLASS)} style={plotStyle} {...(hover.enabled ? hover.handlers : {})}>
+      <div
+        className={cn('relative flex-1', PHONE_MIN_HEIGHT_CLASS, onSelectMonth && 'cursor-pointer')}
+        style={plotStyle}
+        onClick={onSelectMonth ? onPlotClick : undefined}
+        {...(hover.enabled ? hover.handlers : {})}
+      >
         <svg
           viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
           preserveAspectRatio="none"
@@ -104,19 +122,30 @@ export function FlowBarsChart({ flows, highlightKey, minHeight = 150, className 
           </ChartHoverTip>
         )}
       </div>
-      <div className="mt-1.5 grid" style={{ gridTemplateColumns: `repeat(${flows.length}, minmax(0, 1fr))` }} aria-hidden="true">
-        {flows.map((flow) => (
-          <span
-            key={flow.key}
-            className={cn(
-              'text-center font-mono text-[10px] tabular-nums',
-              flow.key === highlightKey ? CURRENT_SLOT_LABEL_CLASS : 'text-muted-foreground',
-              flow.scheduled && 'opacity-60',
-            )}
-          >
-            {flow.label}
-          </span>
-        ))}
+      <div className="mt-1.5 grid" style={{ gridTemplateColumns: `repeat(${flows.length}, minmax(0, 1fr))` }} aria-hidden={onSelectMonth ? undefined : true}>
+        {flows.map((flow) => {
+          const labelClass = cn(
+            'text-center font-mono text-[10px] tabular-nums',
+            flow.key === highlightKey ? CURRENT_SLOT_LABEL_CLASS : 'text-muted-foreground',
+            flow.scheduled && 'opacity-60',
+          );
+          // The axis labels are the keyboard's way in: the plot's click is a pointer shortcut.
+          return onSelectMonth ? (
+            <button
+              key={flow.key}
+              type="button"
+              onClick={() => onSelectMonth({ year: flow.year, month: flow.month })}
+              aria-label={`Apri ${flow.label} ${flow.year}`}
+              className={cn(labelClass, 'rounded-sm py-1 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring')}
+            >
+              {flow.label}
+            </button>
+          ) : (
+            <span key={flow.key} className={labelClass}>
+              {flow.label}
+            </span>
+          );
+        })}
       </div>
     </div>
   );
