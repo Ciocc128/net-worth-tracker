@@ -18,7 +18,7 @@ Check every change on **Lime Frost (the fork default) and Graphite, light and da
 | # | Points | Subject | State |
 | --- | --- | --- | --- |
 | 1 | A1, B4, A2 | Type and figures (+ DESIGN.md) | implemented 2026-11-02, draft PR pending |
-| 2 | A3, M5, N1, N3 | AI button, header words, curve, tile border | not started |
+| 2 | A3, M5, N1, N3 | AI button, header words, curve, tile border | asked 2026-11-02 |
 | 3 | A4, M7, N2 | Stretched tiles, FIRE head, empty Hall of Fame (Mac measurements) | not started |
 | 4 | M1, M2, M3, M6 | Number formats, text sizes, pills, Cashflow verdict | not started |
 | 5 | M4 (if wanted), B1–B3, N4, N5 | Page ground, chart weights, spacing, motion, violet, nav | not started |
@@ -82,3 +82,39 @@ the hero's issue is its size, not the weight). Two separable parts:
 ### Refused points
 
 None.
+
+## Session 2 — «Pulsante AI, testata, curva, tile»
+
+Mac collaudo (`test:e2e`, `mobile:budget`) is done once, at the end of the whole refactor (owner, 2026-11-02).
+
+### Points
+
+**A3 — «Analizza con AI» with sparkles and violet glow** (high). Where: `app/dashboard/performance/page.tsx:298–310` (header button: violet border,
+text and 14px glow on hover, sparkles icon rotating and scaling) and `:728–730` (second button with the same label and
+icon); the `--ai-accent` token in `app/globals.css:133,312` and DESIGN.md (frontmatter, *AI accent*), whose only use is that hover;
+`components/assistant/AssistantPromptRows.tsx:49` (a muted Sparkles icon). Proposal: a plain outline button like its
+neighbours, a still document icon, a label that names the result («Commento del periodo»), hover = the other buttons'
+background change; delete `--ai-accent`. Open: the label wording.
+
+**M5 — greeting and generic subtitles in the page header** (medium). Where: `lib/utils/getGreeting.ts` (Buongiorno /
+Buon pomeriggio / Buonasera + a subtitle such as «Aggiornamento pomeridiano») used by `app/dashboard/page.tsx:197`; the Cashflow
+subtitle «Traccia e analizza le tue entrate e uscite nel tempo» (`app/dashboard/cashflow/page.tsx`); FIRE «Libertà finanziaria e sostenibilità del
+piano»; the section eyebrow («Operatività», «Analisi», «Pianificazione») before the page name, which the sidebar already says. Proposal: title =
+page name, then a fact («lunedì 2 novembre 2026», «novembre 2026»), no greeting, no section eyebrow.
+
+**N1 — the net-worth curve is smoothed and invents values** (medium). Where: `components/dashboard/NetWorthSparkline.tsx:39–53`
+(`catmullRomPath`), used by the Panoramica and Patrimonio tile; `type="monotone"` in 16 more files with Recharts. Points are month-end
+snapshots: the spline draws bumps and valleys the data does not have. Proposal: straight segments through the real points
+(`linePath` as a polyline; `type="linear"` in the Recharts charts), 2px, the fade under the line stays.
+
+**N3 — border and shadow together on every tile** (low). Where: `TILE_SURFACE_CLASS` in `components/ui/tile.tsx:95`
+(`border border-border … shadow-sm`). Proposal: drop `shadow-sm`, keep the border; shadows stay for what floats (menus, popovers, dialogs).
+
+### Decisions
+
+| ID | Point | Decision | Alternatives | Reason |
+| --- | --- | --- | --- | --- |
+| D-AS5 | A3 | pending | keep; outline only without renaming | — |
+| D-AS6 | M5 | pending | greeting only; subtitle only | — |
+| D-AS7 | N1 | pending | Panoramica curve only; keep | — |
+| D-AS8 | N3 | pending | keep | — |
