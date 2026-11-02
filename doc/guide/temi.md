@@ -1,6 +1,6 @@
 # Temi colore (Color Theme System)
 
-> **When to open this guide** — whoever touches `app/globals.css` (the fourteen theme blocks: `:root` + `.dark` and the six named themes — Lime Frost the fork's sixth —, each as `[data-theme="name"]` + `.dark[data-theme="name"]`), `contexts/ColorThemeContext.tsx`, `lib/hooks/useChartColors.ts`, `lib/hooks/useActionColors.ts`, `lib/hooks/useCssColorTokens.ts` (with `lib/utils/cssColorToHex.ts`), `contexts/ChartColorsContext.tsx`, `lib/hooks/useThemePaletteReader.ts`, `lib/utils/{themePalette,colorParse}.ts`, `lib/utils/costCenterColors.ts`, `lib/constants/colors.ts`, `components/layout/ThemePicker.tsx` or the `COLOR_THEME_SWATCHES` in `app/dashboard/settings/page.tsx`. The palette itself is in `DESIGN.md` → §2 (Colors: The Zero-Chroma Foundation). `AGENTS.md` keeps the stub with the essentials plus the repo-wide token rules (`AGENTS.md § Layout and Color Tokens`, `AGENTS.md § Recharts`); here is the full rule.
+> **When to open this guide** — whoever touches `app/globals.css` (the sixteen theme blocks: `:root` + `.dark` and the seven named themes — Lime Frost and Graphite the fork's own —, each as `[data-theme="name"]` + `.dark[data-theme="name"]`), `contexts/ColorThemeContext.tsx`, `lib/hooks/useChartColors.ts`, `lib/hooks/useActionColors.ts`, `lib/hooks/useCssColorTokens.ts` (with `lib/utils/cssColorToHex.ts`), `contexts/ChartColorsContext.tsx`, `lib/hooks/useThemePaletteReader.ts`, `lib/utils/{themePalette,colorParse}.ts`, `lib/utils/costCenterColors.ts`, `lib/constants/colors.ts`, `components/layout/ThemePicker.tsx` or the `COLOR_THEME_SWATCHES` in `app/dashboard/settings/page.tsx`. The palette itself is in `DESIGN.md` → §2 (Colors: The Zero-Chroma Foundation). `AGENTS.md` keeps the stub with the essentials plus the repo-wide token rules (`AGENTS.md § Layout and Color Tokens`, `AGENTS.md § Recharts`); here is the full rule.
 
 ## Files
 
@@ -216,6 +216,39 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   without the provider, where the hook's own read runs only while enabled — `FlussoTile` passes it only while the roles
   Sankey is on screen (the setting on, «Per ruolo», from 640px), so a tile that draws nothing with them never calls
   `getComputedStyle`.
+
+## Graphite and the fork's default theme (2026-11-02, fork only)
+
+**The fork's default is Lime Frost.** `lib/constants/colorTheme.ts` splits two names that were one:
+`BASE_COLOR_THEME = 'default'` is the `:root` block (upstream's zinc, the only theme with no `data-theme` on `<html>`),
+`DEFAULT_COLOR_THEME = 'lime-frost'` is what a reader who never chose gets — nothing stored, a value that is not a
+theme, a storage that throws, the server snapshot of `ColorThemeContext`. The `<head>` script paints Lime Frost in all
+those cases; a stored «Default» still leaves `<html>` bare. `DEFAULT_THEME_COLORS` in `lib/utils/themeColor.ts` (the
+prerendered `<meta name="theme-color">`) are Lime Frost's grounds, `#ebf3e6` / `#020617`. The `:root` block is never
+edited for the fork, so a realignment does not conflict on it.
+
+**Graphite** (`[data-theme="graphite"]` + `.dark[data-theme="graphite"]`) is the owner's own clone of zinc with
+Lime Frost's functional rules mapped onto zinc's register, never onto Lime Frost's hues (the owner: «il significato è
+intra tema»). Charter and before/after: the artifact «Carta del tema Graphite»; the research on colour and judgement:
+`/mnt/project-files/tema-zinc/ricerca-colore-e-giudizio.md` (project files).
+
+- **Structure**: zinc's greys, ink for the main action (`--action`, near-black light / near-white dark), radius 1rem
+  and the quiet scrollbar (`.lime-quiet-scroll` also matches Graphite).
+- **ONE blue (hue 255)** for the main data: net worth (`--hero-series`), income (`--flow-in`), progress, COMPRA, the
+  three scenarios as three blues (Bear pale, Base = the hero, Bull deep), Necessità/Desideri; spending is the pale blue.
+- **ONE green (hue 155–158)**, which is also the positive sign: savings and Risparmi (`--role-saving`), gain bars,
+  the Switch on (`--switch-on`), a goal reached, the feed's incoming «+».
+- **Red only for a negative judgement**; no amber for costs or estimates: a cost is ink (`--cost-figure`), an estimate
+  muted grey (`--estimate-figure`).
+- **Class slots** at about 2/3 of zinc's chroma, Liquidità neutral grey; held to `chartPaletteDistinctness` in both
+  modes (minimum ΔE00 15.2 light, 17.0 dark). The other floors in `__tests__/graphiteTheme.test.ts` (same as Lime Frost's).
+
+**Two tokens added for every theme, with defaults that change nothing outside the fork's two themes:**
+`--feed-income-figure` / `--feed-expense-figure` (the amount on a movement row: `CompactExpenseRow`,
+`TransactionFeed`, `ExpenseTable`, Analisi's `FocusTransactions`; default = `--income-figure` / `--expense-figure`)
+and `--switch-on` (the checked `Switch`; default `--primary`, in `.dark` the old blue-600, so the `dark:bg-blue-600`
+class could go). Lime Frost and Graphite set the feed pair to `--positive` / `--foreground`: **the feed exception**
+to «sign = judgement only» — an incoming movement wears a green «+», an outgoing one stays ink, never red.
 
 ## The browser's chrome follows the page (2026-10-17)
 

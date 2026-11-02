@@ -129,7 +129,7 @@ export function CompactExpenseRow({
         <p className="text-[12px] text-muted-foreground truncate mt-0.5">{subtitle}</p>
       </div>
 
-      {/* Amount — the sign tokens for income and spending, muted for a net-zero transfer
+      {/* Amount — the feed figure tokens for income and spending, muted for a net-zero transfer
           and for anything that has not happened yet */}
       <span
         className={cn(
@@ -137,8 +137,8 @@ export function CompactExpenseRow({
           scheduled || isTransfer
             ? 'text-muted-foreground'
             : isIncome
-              ? 'text-income-figure'
-              : 'text-expense-figure',
+              ? 'text-feed-income-figure'
+              : 'text-feed-expense-figure',
         )}
       >
         {amountLabel}

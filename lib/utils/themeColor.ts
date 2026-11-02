@@ -21,12 +21,13 @@ import { colorToHex } from '@/lib/utils/cssColorToHex';
 export const THEME_COLOR_META_NAME = 'theme-color';
 
 /**
- * The default theme's `--background` as `#rrggbb` (`:root` is `oklch(1 0 0)`, `.dark` is
- * `oklch(0.145 0 0)` in `app/globals.css`): what the HTML declares for a reader whose stored theme
- * is the default and whose mode follows the system. `__tests__/themeColor.test.ts` holds them
+ * The fork's default theme's `--background` as `#rrggbb` — Lime Frost since 2026-11-02
+ * (`[data-theme="lime-frost"]` is `oklch(0.9550 0.0200 133.0000)`, `.dark[data-theme="lime-frost"]`
+ * is `oklch(0.1288 0.0406 264.6952)` in `app/globals.css`): what the HTML declares for a reader who
+ * never chose a theme and whose mode follows the system. `__tests__/themeColor.test.ts` holds them
  * equal to the conversion of those two tokens, so a retuned default theme fails the test.
  */
-export const DEFAULT_THEME_COLORS = { light: '#ffffff', dark: '#0a0a0a' } as const;
+export const DEFAULT_THEME_COLORS = { light: '#ebf3e6', dark: '#020617' } as const;
 
 /** The served `--background` as the meta's content; `null` when the token is unreadable (the metas keep their last value). */
 export function resolveThemeColor(background: string): string | null {

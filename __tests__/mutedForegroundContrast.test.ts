@@ -4,7 +4,7 @@
  * and a pill or chip (`--muted`). WCAG AA for body text is 4,5:1 on each.
  *
  * Reads `app/globals.css` itself, like `chartPaletteDistinctness` and `actionColorContrast`, so
- * what is measured is what ships, in all fourteen theme blocks. Written on 2026-10-08, the day the
+ * what is measured is what ships, in all sixteen theme blocks (fourteen until Graphite, 2026-11-02). Written on 2026-10-08, the day the
  * six blocks below the floor were re-pitched (CLAUDE.md § Known Issues since 2026-09-21: the default
  * light theme at 4,34:1 on `bg-muted`, retro-arcade dark at 2,01:1, midnight-bloom at 2,93:1).
  * Seen red before the token change on those six blocks.
@@ -66,11 +66,11 @@ function contrastRatio(fg: Oklch, bg: Oklch): number {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
-describe('--muted-foreground across the fourteen theme blocks', () => {
+describe('--muted-foreground across the sixteen theme blocks', () => {
   const blocks = themeBlocks();
 
-  it('reads all fourteen blocks (twelve + Lime Frost light/dark, solo fork) from globals.css', () => {
-    expect(blocks.map((b) => b.selector)).toHaveLength(14);
+  it('reads all sixteen blocks (twelve + Lime Frost and Graphite light/dark, solo fork) from globals.css', () => {
+    expect(blocks.map((b) => b.selector)).toHaveLength(16);
   });
 
   it.each(blocks)('$selector: ≥ 4,5:1 on --background, --card and --muted', ({ body }) => {

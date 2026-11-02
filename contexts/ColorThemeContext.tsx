@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useRef, useSyncExternalStore, Rea
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserPreferences, setUserPreferences } from '@/lib/services/userPreferencesService';
 import {
+  BASE_COLOR_THEME,
   COLOR_THEME_ATTRIBUTE,
   COLOR_THEME_STORAGE_KEY,
   DEFAULT_COLOR_THEME,
@@ -23,12 +24,13 @@ interface ColorThemeContextType {
 }
 
 const ColorThemeContext = createContext<ColorThemeContextType>({
-  colorTheme: 'default',
+  colorTheme: DEFAULT_COLOR_THEME,
   setColorTheme: () => {},
 });
 
 function applyThemeAttribute(theme: ColorTheme) {
-  if (theme === DEFAULT_COLOR_THEME) {
+  // Only the `:root` block (upstream's zinc) goes without the attribute — not the fork's default.
+  if (theme === BASE_COLOR_THEME) {
     document.documentElement.removeAttribute(COLOR_THEME_ATTRIBUTE);
   } else {
     document.documentElement.setAttribute(COLOR_THEME_ATTRIBUTE, theme);
@@ -38,7 +40,7 @@ function applyThemeAttribute(theme: ColorTheme) {
 // ─── The theme as an external store ──────────────────────────────────────────
 //
 // localStorage is the source of truth on the client and does not exist on the server, so the
-// theme is read through `useSyncExternalStore`: the server snapshot is 'default', the client
+// theme is read through `useSyncExternalStore`: the server snapshot is the fork's default (Lime Frost), the client
 // snapshot the stored value, and the hydration split is declared in the signature instead of
 // being restored by an effect that sets state (react-hooks/set-state-in-effect).
 

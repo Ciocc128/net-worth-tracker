@@ -289,10 +289,10 @@ function TransactionDetailModal({
             scheduled
               ? 'text-muted-foreground'
               : isIncome
-                ? 'text-income-figure'
+                ? 'text-feed-income-figure'
                 : isTransfer
                   ? 'text-foreground'
-                  : 'text-expense-figure',
+                  : 'text-feed-expense-figure',
           )}
         >
           {amountLabel}
