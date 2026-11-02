@@ -597,7 +597,7 @@ export default function AssetsPage() {
   if (loadingAssets || loadingOverview || loadingSnapshots || isLedgerMetaLoading || loadingMortgage) {
     return (
       <PageContainer>
-        <PageHeader label="Patrimonio" title="Strumenti e conti" freshness={freshness} />
+        <PageHeader title="Strumenti e conti" freshness={freshness} />
         <TileGridSkeleton cells={SKELETON_CELLS} />
       </PageContainer>
     );
@@ -606,7 +606,7 @@ export default function AssetsPage() {
   if (assetsError) {
     return (
       <PageContainer>
-        <PageHeader label="Patrimonio" title="Strumenti e conti" freshness={freshness} />
+        <PageHeader title="Strumenti e conti" freshness={freshness} />
         <ErrorNotice
           className="max-w-[920px]"
           notice={describeReadFailure({
@@ -657,7 +657,6 @@ export default function AssetsPage() {
     <PageContainer>
       <div className="space-y-4">
         <PageHeader
-          label="Patrimonio"
           title="Strumenti e conti"
           description={lastPriceUpdate ?? undefined}
           actions={headerActions}

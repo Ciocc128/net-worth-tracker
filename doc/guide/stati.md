@@ -116,7 +116,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   two-minute-old list in silence, exactly as the app always did. The page's OLDEST such figure is the one dated; the
   overview's payload dates its own content (`freshness.updatedAt`), and the older of the two wins.
 - **The line lives in the page HEADER, not under the verdict** (owner, 2026-09-29): on `desktop:` after the
-  description in the same fixed-height row («Cashflow · Traccia e analizza… · Aggiornato alle 18:42, sto
+  description in the same fixed-height row («Cashflow · Aggiornato alle 18:42, sto
   rileggendo…»), below it in the description's line, which the sentence takes while it lasts and the description gets
   back — so nothing under it moves when the sentence goes (a reserved 16px slot under every verdict, or a 16px jump
   when it emptied, were the alternatives). ONE stable `role="status" aria-live="polite" aria-atomic` node per width,

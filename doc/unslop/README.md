@@ -18,7 +18,7 @@ Check every change on **Lime Frost (the fork default) and Graphite, light and da
 | # | Points | Subject | State |
 | --- | --- | --- | --- |
 | 1 | A1, B4, A2 | Type and figures (+ DESIGN.md) | implemented 2026-11-02, draft PR pending |
-| 2 | A3, M5, N1, N3 | AI button, header words, curve, tile border | asked 2026-11-02 |
+| 2 | A3, M5, N1, N3 | AI button, header words, curve, tile border | implemented 2026-11-02 (N1 refused), PR pending |
 | 3 | A4, M7, N2 | Stretched tiles, FIRE head, empty Hall of Fame (Mac measurements) | not started |
 | 4 | M1, M2, M3, M6 | Number formats, text sizes, pills, Cashflow verdict | not started |
 | 5 | M4 (if wanted), B1–B3, N4, N5 | Page ground, chart weights, spacing, motion, violet, nav | not started |
@@ -114,7 +114,19 @@ snapshots: the spline draws bumps and valleys the data does not have. Proposal: 
 
 | ID | Point | Decision | Alternatives | Reason |
 | --- | --- | --- | --- | --- |
-| D-AS5 | A3 | pending | keep; outline only without renaming | — |
-| D-AS6 | M5 | pending | greeting only; subtitle only | — |
-| D-AS7 | N1 | pending | Panoramica curve only; keep | — |
-| D-AS8 | N3 | pending | keep | — |
+| D-AS5 | A3 | **Yes, neutral button, keep the name «Analizza con AI»** (outline, still document icon, no glow, `--ai-accent` deleted) | rename to «Commento del periodo»; keep | owner kept the label |
+| D-AS6 | M5 | **Yes, all**: no greeting, no section eyebrow, no generic subtitle | greeting and subtitle only; keep | the sidebar already says the section |
+| D-AS7 | N1 | **Refused**: the curve stays smoothed | straight segments in every line chart; in the net-worth curve only | owner's call, no reason given |
+| D-AS8 | N3 | **Yes**: no `shadow-sm` on tiles, border stays | keep | one line, reversible |
+
+### Implemented (branch `claude/unslop-s2-pulsante-ai`)
+
+- A3: `performance/page.tsx` both AI buttons (`FileText` icon, plain outline / ghost, no hover glow or rotation); `--ai-accent` removed from `app/globals.css`, DESIGN.md and `.impeccable/design.json`.
+- M5: `PageHeader` loses the `label` prop and its eyebrow (all callers updated); Panoramica title is «Panoramica» + today's date (`getGreeting.ts` and its test deleted); the generic descriptions of Cashflow, FIRE, Previdenza and Analisi are gone (no fact to state: title alone). Pages that already state a fact (Patrimonio, Rendimenti, Storico, Allocazione, Hall of Fame, Assistente) keep it.
+- N3: `TILE_SURFACE_CLASS` without `shadow-sm`.
+- DESIGN.md: **The Quiet-Header Rule**, **The Border-Not-Shadow Rule**, **The Neutral-AI Rule**; the sidecar's stale hero purpose (54px) corrected.
+- Checks: `tsc` clean; Vitest 7446 / 7447 (the same cloud-only `monteCarloDefaultsArchive` flake); screenshots in the project library `unslop/s2/`.
+
+### Refused points
+
+- **N1** (D-AS7): smoothed net-worth curve and `type="monotone"` charts stay as they are.

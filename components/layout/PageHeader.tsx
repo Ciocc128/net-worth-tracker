@@ -3,12 +3,10 @@
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
-import { TILE_EYEBROW_CLASS } from '@/components/ui/tile';
 import type { PageFreshness } from '@/lib/hooks/useFreshness';
 
 interface PageHeaderProps {
   title: React.ReactNode;
-  label?: string;
   description?: string;
   actions?: React.ReactNode;
   /**
@@ -55,13 +53,12 @@ function useFadingSentence(sentence: string | null): { text: string | null; leav
 
 /**
  * The compact page header (the default since the shell redesign, the only one since the last
- * propagation): on `desktop:` ONE line — eyebrow · title · description, actions on the right
+ * propagation): on `desktop:` ONE line — title · description, actions on the right
  * — because on a redesigned page the real headline is the verdict in the content. It draws
- * no separator: when a tab bar follows, its underline is the separation. The eyebrow is the
- * tiles' eyebrow (10px, 0.1em) so the page has a single eyebrow voice. The mobile sticky
+ * no separator: when a tab bar follows, its underline is the separation. The sidebar already names the section, so there is no eyebrow. The mobile sticky
  * navbar is one block, and its title is what the user anchors to while scrolling.
  */
-export function PageHeader({ title, label, description, actions, freshness, className }: PageHeaderProps) {
+export function PageHeader({ title, description, actions, freshness, className }: PageHeaderProps) {
   const { text: freshnessSentence, leaving } = useFadingSentence(freshness?.sentence ?? null);
   const fadeClass = cn(FRESHNESS_FADE_CLASS, leaving && 'opacity-0');
 
@@ -101,7 +98,6 @@ export function PageHeader({ title, label, description, actions, freshness, clas
 
       <div className="hidden desktop:flex tablet-landscape:flex items-center justify-between gap-4 min-h-9">
         <div className="flex items-baseline gap-3 min-w-0">
-          {label && <p className={cn(TILE_EYEBROW_CLASS, 'shrink-0')}>{label}</p>}
           <h1 className="text-sm text-muted-foreground truncate">
             <span className="font-medium text-foreground">{title}</span>
             {description && <span> · {description}</span>}

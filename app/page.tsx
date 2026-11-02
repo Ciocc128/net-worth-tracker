@@ -173,7 +173,6 @@ export default function HomePage() {
             which this page does not have. */}
         <PageContainer className="max-desktop:portrait:pb-0">
           <PageHeader
-            label="Portfolio Tracker"
             title="Panoramica"
             description="dati d’esempio"
             actions={

@@ -65,7 +65,6 @@ export function AssistantHeader({
 }: AssistantHeaderProps) {
   return (
     <PageHeader
-      label="Assistente AI"
       title="Un periodo, una risposta"
       description={description}
       actions={

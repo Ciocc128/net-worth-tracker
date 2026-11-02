@@ -558,27 +558,12 @@
      "oklch(0.8 0.049 75)",
      "oklch(0.95 0.013 75)"
     ]
-   },
-   "ai-accent": {
-    "role": "accent",
-    "displayName": "AI Accent",
-    "canonical": "oklch(0.65 0.2 305)",
-    "tonalRamp": [
-     "oklch(0.15 0.06 305)",
-     "oklch(0.25 0.1 305)",
-     "oklch(0.35 0.14 305)",
-     "oklch(0.45 0.18 305)",
-     "oklch(0.55 0.2 305)",
-     "oklch(0.65 0.2 305)",
-     "oklch(0.8 0.114 305)",
-     "oklch(0.95 0.03 305)"
-    ]
    }
   },
   "typographyMeta": {
    "display": {
     "displayName": "Display — Page Hero",
-    "purpose": "The one dominant NUMBER on the page: 54px from desktop: (1440px), 44px below it (scale.page-hero), Geist Mono 700, letter-spacing -0.03em, always tabular-nums. One instance per view maximum; it is the ramp's own top step, not a clamp."
+    "purpose": "The one dominant NUMBER on the page: 40px on every width since 2026-11-02 (scale.page-hero and page-hero-desktop are legacy steps), Geist Mono 600, letter-spacing -0.03em, always tabular-nums. One instance per view maximum; it is the ramp's own top step, not a clamp."
    },
    "headline": {
     "displayName": "Headline",

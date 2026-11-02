@@ -253,9 +253,7 @@ export default function CashflowPage() {
   return (
     <PageContainer>
       <PageHeader
-        label="Operatività"
         title="Cashflow"
-        description="Traccia e analizza le tue entrate e uscite nel tempo"
         freshness={freshness}
         actions={
           <div className="flex items-center gap-2">

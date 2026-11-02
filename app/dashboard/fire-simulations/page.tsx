@@ -127,9 +127,7 @@ function FireSimulationsContent() {
   return (
     <PageContainer>
       <PageHeader
-        label="Pianificazione"
         title="FIRE e Simulazioni"
-        description="Libertà finanziaria e sostenibilità del piano"
         freshness={freshness}
       />
 

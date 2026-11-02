@@ -17,7 +17,6 @@ import { DASHBOARD_OVERVIEW_STALE_TIME_MS, useDashboardOverview } from '@/lib/ho
 import { useFreshness } from '@/lib/hooks/useFreshness';
 import { SavingsRateBadge } from '@/components/ui/SavingsRateBadge';
 import { getItalyDate, getItalyMonthYear } from '@/lib/utils/dateHelpers';
-import { getGreeting } from '@/lib/utils/getGreeting';
 import { SparklinePeriod } from '@/components/dashboard/PeriodSelector';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
@@ -191,15 +190,8 @@ export default function DashboardPage() {
     [router],
   );
 
-  // ─── Header: greeting + today's date, both in Italian wall-clock time ─────────
-  const header = useMemo(() => {
-    const now = getItalyDate(new Date());
-    const result = getGreeting(now.getHours());
-    const firstName = user?.displayName?.split(' ')[0];
-    const title =
-      firstName && firstName.length <= 20 ? `${result.greeting} ${firstName}` : result.greeting;
-    return { title, date: ITALIAN_LONG_DATE.format(now) };
-  }, [user?.displayName]);
+  // ─── Header: the page's name + today's date, in Italian wall-clock time ─────────
+  const header = useMemo(() => ({ title: 'Panoramica', date: ITALIAN_LONG_DATE.format(getItalyDate(new Date())) }), []);
 
   const overviewQuery = useDashboardOverview(ownerId);
   const { data: overview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = overviewQuery;
@@ -395,7 +387,7 @@ export default function DashboardPage() {
   const entranceInitial = playsEntrance ? 'hidden' : false;
 
   const pageChrome = (
-    <PageHeader label="Panoramica" title={header.title} description={header.date} freshness={freshness} />
+    <PageHeader title={header.title} description={header.date} freshness={freshness} />
   );
 
   if (overviewState === 'loading') {
@@ -509,7 +501,6 @@ export default function DashboardPage() {
     <PageContainer>
       <div className="space-y-4">
         <PageHeader
-          label="Panoramica"
           title={header.title}
           description={header.date}
           actions={snapshotAction}
