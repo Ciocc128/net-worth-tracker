@@ -78,6 +78,7 @@ import {
   buildIncomeComposition,
   buildSubCategoryComposition,
   detectSpendingAnomalies,
+  nearestToAnomaly,
   type CategorySlice,
   type CompositionSlice,
   type SpendingAnomaly,
@@ -514,6 +515,11 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
     () => (singleMonth ? detectSpendingAnomalies(allExpenses, singleMonth.year, singleMonth.month, monthOf) : []),
     [allExpenses, singleMonth],
   );
+  // The reference when nothing is flagged: the category closest to its threshold (D-AS10).
+  const nearest = useMemo<SpendingAnomaly | null>(
+    () => (singleMonth && anomalies.length === 0 ? nearestToAnomaly(allExpenses, singleMonth.year, singleMonth.month, monthOf) : null),
+    [allExpenses, singleMonth, anomalies],
+  );
 
   // ─── The phone composition (2026-10-14) ───────────────────────────────────────
   // The rows present: Fuori scala on a month, the Scheda with a focus, the Flusso when something
@@ -888,6 +894,7 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
                 collapse={sections.collapse(ANALISI_SECTION_IDS.fuoriScala)}
                 asideWhenClosed={`${MONTH_NAMES[singleMonth.month - 1].toLowerCase()} ${singleMonth.year}`}
                 anomalies={anomalies}
+                nearest={nearest}
                 monthLabel={`${MONTH_NAMES[singleMonth.month - 1].toLowerCase()} ${singleMonth.year}`}
                 reading={describeAnomalies(anomalies)}
                 followsPeriod={period.month !== null}

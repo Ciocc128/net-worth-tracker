@@ -91,7 +91,8 @@ import { PageVerdict } from '@/components/ui/page-verdict';
 import { VerdictStrip } from '@/components/ui/verdict-strip';
 import { PageRest } from '@/components/ui/page-rest';
 import { RowAnswers } from '@/components/ui/row-answers';
-import { TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
+import { TILE_CELL_CLASS, TILE_ROW_CELL_CLASS, Tile } from '@/components/ui/tile';
+import Link from 'next/link';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure } from '@/lib/utils/statesNarrative';
@@ -444,6 +445,29 @@ export default function HallOfFamePage() {
           <PageVerdict verdict={verdict} ariaLabel="Verdetto sui record" />
         </div>
         <div className="grid grid-cols-2 gap-2 desktop:hidden">{headerActions(true)}</div>
+        {/* The frame of the page stays when there is nothing to rank (D-AS11): the boards drawn empty, one sentence
+            each, and the first action where the first record will appear. 1440 only: below `desktop:` the page is
+            the verdict and the two actions. */}
+        <div className="hidden gap-3 desktop:grid desktop:grid-cols-12" data-testid="hof-empty-frame">
+          <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-5')}>
+            <Tile eyebrow="Record del patrimonio" ariaLabel="In attesa: patrimonio">
+              <p className="mt-2 text-[13px] text-muted-foreground">Il mese con la crescita più alta apparirà qui, dal secondo snapshot.</p>
+              <Button asChild variant="outline" className="mt-4 h-8 w-fit px-3 text-xs">
+                <Link href="/dashboard">Vai alla Panoramica</Link>
+              </Button>
+            </Tile>
+          </div>
+          <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-3')}>
+            <Tile eyebrow="Entrate" aside="per mese" ariaLabel="In attesa: entrate">
+              <p className="mt-2 text-[13px] text-muted-foreground">Il mese con più entrate apparirà qui.</p>
+            </Tile>
+          </div>
+          <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4')}>
+            <Tile eyebrow="Risparmio" aside="entrate − spese" ariaLabel="In attesa: risparmio">
+              <p className="mt-2 text-[13px] text-muted-foreground">Il mese in cui hai risparmiato di più apparirà qui.</p>
+            </Tile>
+          </div>
+        </div>
         {dialogs}
       </PageContainer>
     );

@@ -19,7 +19,7 @@ Check every change on **Lime Frost (the fork default) and Graphite, light and da
 | --- | --- | --- | --- |
 | 1 | A1, B4, A2 | Type and figures (+ DESIGN.md) | implemented 2026-11-02, draft PR pending |
 | 2 | A3, M5, N1, N3 | AI button, header words, curve, tile border | implemented 2026-11-02 (N1 refused), PR pending |
-| 3 | A4, M7, N2 | Stretched tiles, FIRE head, empty Hall of Fame (Mac measurements) | not started |
+| 3 | A4, M7, N2 | Stretched tiles, FIRE head, empty Hall of Fame | implemented 2026-11-02, PR pending |
 | 4 | M1, M2, M3, M6 | Number formats, text sizes, pills, Cashflow verdict | not started |
 | 5 | M4 (if wanted), B1–B3, N4, N5 | Page ground, chart weights, spacing, motion, violet, nav | not started |
 
@@ -130,3 +130,35 @@ snapshots: the spline draws bumps and valleys the data does not have. Proposal: 
 ### Refused points
 
 - **N1** (D-AS7): smoothed net-worth curve and `type="monotone"` charts stay as they are.
+
+## Session 3 — «Griglia e stati vuoti»
+
+Mac collaudo (`test:e2e`, `mobile:budget`) is done once, at the end of the whole refactor (owner, 2026-11-02). Sketch «oggi / proposta»: <https://claude.ai/artifact/EP6DogWxBWsThqafei8CNu>.
+
+### Points
+
+**A4 — tiles stretched to the row height, with white gaps** (high; taste-skill corrected the report: tiles of one row at different heights are an error too, so the order is balance the content, fill the empty tile with a reference datum, stretch last). Where: `TILE_CELL_CLASS` (`[&>section]:flex-1`); seen on Patrimonio «Movimenti del mese» (one line in 270px) and Analisi «Fuori scala» (one sentence in 435px).
+
+**M7 — five bands before the FIRE verdict** (medium). Where: `FireAssumptionsRow` on the six FIRE tabs: header, «Il mio piano», tabs, «Ipotesi usate» with the capital, four mono chips, and only then the verdict at 260px from the top.
+
+**N2 — empty Hall of Fame is a blank screen** (medium). Where: `app/dashboard/hall-of-fame/page.tsx`, branch `!summary.hasRecords`: title, two lines, 700px of ground; the actions sit at the top right.
+
+### Decisions (owner, 2026-11-02: «B, B e B»)
+
+| ID | Point | Decision | Alternatives discarded | Reason |
+| --- | --- | --- | --- | --- |
+| D-AS9 | M7 | **B**: «Ipotesi usate» is the verdict's scope line («Ipotesi: Base r% reale, costi c%» + «Dettagli» popover) at every width; the row of chips is deleted | keep; keep the row without chips | the phone already does it; the title answers first |
+| D-AS10 | A4 | **B**: an empty tile shows its sentence and a labelled reference datum (Movimenti: the last three trades of the month before; Fuori scala: the category nearest to its threshold, `nearestToAnomaly`) | leave; shorten the empty tiles (ragged row bottoms) | taste-skill rejects both the white gap and the ragged row |
+| D-AS11 | N2 | **B**: at 1440 the empty page draws Record del patrimonio, Entrate and Risparmio as tiles with one sentence each and «Vai alla Panoramica» where the first record will appear | leave; the button alone under the verdict | the page keeps its frame |
+
+### Implemented (branch `claude/unslop-s3-griglia-vuoti`)
+
+- M7: `FireAssumptionsRow.tsx` keeps only `FireVerdictScope` (the row and its chips deleted); the six tabs pass `scope` at every width; the verdict cell gets `desktop:pt-4` where the row's bottom margin used to be. `e2e/fire.spec.ts` reads the line and its popover instead of the chips.
+- A4: `detectSpendingAnomalies` split into `measureSpendingCategories` + the thresholds, new `nearestToAnomaly` (test in `__tests__/cashflowComposition.test.ts`); `FuoriScalaTile` takes `nearest`; `MovimentiTile` takes `previous` (the month before's `summarizeMonthTrades`) and shows its first three rows under «Gli ultimi, di {mese}» when the month is empty and its ledger is read. The other stretched tiles are unchanged.
+- N2: the empty branch of Hall of Fame renders three tiles (regions named «In attesa: …», so no spec of the real tiles matches them) and the Panoramica link, at `desktop:` only.
+- DESIGN.md: **The Empty-Tile-Has-A-Reference Rule**, **The Frame-Stays Rule**, **The Assumptions-Under-The-Verdict Rule**.
+- Checks: `tsc` clean, eslint clean; screenshots at 1440 Lime Frost light and Graphite dark (FIRE, Patrimonio, Analisi, Hall of Fame empty). The census fixture has no trades in the month before and no expenses in the running month, so the two reference rows were not seen on screen: covered by the unit test only. Not run: Playwright and `mobile:budget` (Mac, at the end of the refactor).
+
+### Refused points
+
+None.

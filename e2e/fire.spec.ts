@@ -63,13 +63,15 @@ test('the verdict and the Traguardo render: a rule headline and a well-formed FI
   await expect(traguardo.locator('p:has-text("Numero FIRE") + span')).toHaveText(EURO_AMOUNT);
   await expect(traguardo.getByRole('progressbar', { name: 'Progresso verso il numero FIRE' })).toBeVisible();
 
-  // The «Ipotesi usate» line carries the plan's expenses and the capital (D4, D5), the same on every FIRE tab.
-  const assumptions = page.getByTestId('fire-assumptions-row');
-  await expect(assumptions.getByTestId('fire-chip-expenses')).toContainText(/^Spesa /);
-  await expect(assumptions).toContainText(/Capitale/);
-  // The four chips are declarations with a popover (RC2): Rendimenti says where the weights come from and links the settings.
-  await assumptions.getByTestId('fire-chip-returns').click();
-  await expect(page.getByRole('link', { name: 'Modifica in Impostazioni › Simulazioni' })).toBeVisible();
+  // The «Ipotesi usate» line sits under the verdict (D-AS9) and its popover carries the plan's expenses and the capital (D4, D5), the same on every FIRE tab.
+  const scope = verdict.getByTestId('fire-assumptions-scope').locator('visible=true');
+  await expect(scope).toContainText(/^Ipotesi:/);
+  await scope.getByTestId('fire-assumptions-details').click();
+  const details = page.getByTestId('fire-detail-expenses');
+  await expect(details).toContainText(/Spesa /);
+  await expect(page.getByRole('dialog')).toContainText(/Capitale/);
+  // Rendimenti says where the weights come from and links the settings (RC2).
+  await expect(page.getByTestId('fire-detail-returns').getByRole('link', { name: 'Modifica in Impostazioni › Simulazioni' })).toBeVisible();
   await page.keyboard.press('Escape');
 
   // Four tiles, one question each.

@@ -93,7 +93,7 @@ import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
-import { FireAssumptionsRow, FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
+import { FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { useMarketAnchors } from '@/lib/hooks/useMarketAnchors';
 import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
@@ -513,9 +513,8 @@ export function ProjectionTab() {
   if (!run || !summary || !base || !lastRun) {
     return (
       <div className="space-y-4">
-        <div className="pt-1">
-          <FireAssumptionsRow assumptions={assumptionsWithFlows} />
-          <PageVerdict verdict={verdict} ariaLabel="Verdetto sulla proiezione" scope={sections.compact ? <FireVerdictScope lockText={null} assumptions={assumptionsWithFlows} /> : undefined} />
+        <div className="pt-1 desktop:pt-4">
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sulla proiezione" scope={<FireVerdictScope lockText={null} assumptions={assumptionsWithFlows} />} />
         </div>
         <div className={PLAIN_GRID_CLASS}>
           <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>{parametri}</div>
@@ -531,13 +530,12 @@ export function ProjectionTab() {
           (verdict and Tappe) and the index on the right (lib/utils/tabletComposition.ts). */}
       <div className={STAGE_WRAPPER_CLASS}>
       <div ref={stageRef} className={STAGE_CLASS}>
-        <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
-          <FireAssumptionsRow assumptions={assumptionsWithFlows} />
+        <div data-stage="verdict" className={cn('pt-1 desktop:pt-4', VERDICT_CELL_CLASS)}>
           <PageVerdict
             verdict={verdict}
             ariaLabel="Verdetto sulla proiezione"
             strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={sections.eyebrows} />}
-            scope={sections.compact ? <FireVerdictScope lockText={null} assumptions={assumptionsWithFlows} /> : undefined}
+            scope={<FireVerdictScope lockText={null} assumptions={assumptionsWithFlows} />}
             restCollapse={sections.collapse(VERDICT_REST_SECTION)}
           />
         </div>

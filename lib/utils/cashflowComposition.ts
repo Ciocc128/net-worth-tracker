@@ -192,6 +192,34 @@ export function detectSpendingAnomalies(
   month: number,
   monthOf: (expense: Expense) => { year: number; month: number }
 ): SpendingAnomaly[] {
+  return measureSpendingCategories(expenses, year, month, monthOf)
+    // Only increases: spending less is good news, not an anomaly.
+    .filter((m) => m.deltaPercent > ANOMALY_DELTA_PERCENT && m.absoluteDelta > ANOMALY_DELTA_ABSOLUTE)
+    .sort((a, b) => b.deltaPercent - a.deltaPercent);
+}
+
+/**
+ * The category that ran closest to being flagged: the highest delta against its own average among those that
+ * have a baseline, whether or not it crossed the thresholds. The «Fuori scala» tile shows it when nothing is
+ * flagged, so the tile is never only an absence (D-AS10). Null when no category has a baseline.
+ */
+export function nearestToAnomaly(
+  expenses: Expense[],
+  year: number,
+  month: number,
+  monthOf: (expense: Expense) => { year: number; month: number }
+): SpendingAnomaly | null {
+  const measured = measureSpendingCategories(expenses, year, month, monthOf);
+  return measured.reduce<SpendingAnomaly | null>((best, m) => (best === null || m.deltaPercent > best.deltaPercent ? m : best), null);
+}
+
+/** Every category of the month that has a baseline (3+ of the 6 reference months with spending), with its delta. */
+function measureSpendingCategories(
+  expenses: Expense[],
+  year: number,
+  month: number,
+  monthOf: (expense: Expense) => { year: number; month: number }
+): SpendingAnomaly[] {
   const isSpending = (expense: Expense) => expense.type !== 'income' && expense.type !== 'transfer';
 
   // The months the baseline is drawn from, walking backwards across year boundaries.
@@ -264,20 +292,17 @@ export function detectSpendingAnomalies(
     const absoluteDelta = bucket.value - referenceAverage;
     const deltaPercent = (absoluteDelta / referenceAverage) * 100;
 
-    // Only increases: spending less is good news, not an anomaly.
-    if (deltaPercent > ANOMALY_DELTA_PERCENT && absoluteDelta > ANOMALY_DELTA_ABSOLUTE) {
-      anomalies.push({
-        key,
-        expenseType: bucket.expenseType,
-        categoryKey: bucket.categoryKey,
-        categoryLabel: labels.get(key) ?? bucket.name,
-        currentTotal: bucket.value,
-        referenceAverage,
-        deltaPercent,
-        absoluteDelta,
-      });
-    }
+    anomalies.push({
+      key,
+      expenseType: bucket.expenseType,
+      categoryKey: bucket.categoryKey,
+      categoryLabel: labels.get(key) ?? bucket.name,
+      currentTotal: bucket.value,
+      referenceAverage,
+      deltaPercent,
+      absoluteDelta,
+    });
   }
 
-  return anomalies.sort((a, b) => b.deltaPercent - a.deltaPercent);
+  return anomalies;
 }

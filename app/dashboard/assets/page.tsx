@@ -388,6 +388,11 @@ export default function AssetsPage() {
 
   const cashSummary = useMemo(() => summarizeCashAccounts(liquidityRows, totalValue), [liquidityRows, totalValue]);
   const tradesSummary = useMemo(() => summarizeMonthTrades(trades, today), [trades, today]);
+  // The month before, only for the empty month's reference rows (MovimentiTile).
+  const previousTradesSummary = useMemo(
+    () => summarizeMonthTrades(trades, today.month === 1 ? { month: 12, year: today.year - 1 } : { month: today.month - 1, year: today.year }),
+    [trades, today],
+  );
   const gains = useMemo(() => summarizeUnrealizedGains(instruments), [instruments]);
   const ranking = useMemo(() => rankInstrumentReturns(overview?.topAssets ?? []), [overview]);
   const performance = useMemo(() => computeAssetPerformanceDeltas(instruments, snapshots, today), [instruments, snapshots, today]);
@@ -773,6 +778,7 @@ export default function AssetsPage() {
             ) : (
               <MovimentiTile
                 summary={tradesSummary}
+                previous={previousTradesSummary}
                 month={today.month}
                 ledgerReady={ledgerReady}
                 loading={ledgerReady && loadingTrades}

@@ -6,7 +6,7 @@ import type { Asset } from '@/types/assets';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { describeMonthTrades, monthWithPrepositionA } from '@/lib/utils/patrimonioNarrative';
-import type { MonthTradesSummary } from '@/lib/utils/patrimonioSummary';
+import type { MonthTradeRow, MonthTradesSummary } from '@/lib/utils/patrimonioSummary';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { useActionColors } from '@/lib/hooks/useActionColors';
 import { ActionChip } from '@/components/allocation/ActionChip';
@@ -26,6 +26,8 @@ interface MovimentiTileProps {
   /** The ledger is still being fetched: say so instead of "Nessuna operazione". */
   loading?: boolean;
   assetsById: Map<string, Asset>;
+  /** The month before, for the empty month's reference rows (D-AS10); absent when its ledger is not read. */
+  previous?: MonthTradesSummary | null;
   /** A row opens the instrument's movements (AssetMovementsDialog). */
   onOpenMovements: (asset: Asset) => void;
   /** The row below `desktop:` (`useMobileSections().collapse(id)`); `undefined` at 1440. */
@@ -40,13 +42,45 @@ interface MovimentiTileProps {
  * first, and the net money that went into the portfolio. Adjustments and migration baselines
  * are not trades and never appear (see summarizeMonthTrades).
  */
-export function MovimentiTile({ summary, month, ledgerReady, loading = false, assetsById, onOpenMovements, collapse, asideWhenClosed, className }: MovimentiTileProps) {
+export function MovimentiTile({ summary, month, ledgerReady, loading = false, assetsById, previous = null, onOpenMovements, collapse, asideWhenClosed, className }: MovimentiTileProps) {
   // The month's trades, the latest five by default — the footer expands to all of them in place.
   const [showAll, setShowAll] = useState(false);
   const actionColors = useActionColors();
   const rows = showAll ? summary.rows : summary.rows.slice(0, MAX_ROWS);
   const monthName = MONTH_NAMES[month - 1].toLowerCase();
   const operations = summary.count === 1 ? 'operazione' : 'operazioni';
+
+  const renderRow = (row: MonthTradeRow) => {
+    const asset = assetsById.get(row.assetId);
+        const isBuy = row.type === 'buy';
+        return (
+          <button
+            key={row.id}
+            type="button"
+            onClick={() => asset && onOpenMovements(asset)}
+            disabled={!asset}
+            className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-[9px] text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:hover:bg-transparent"
+            aria-label={`${DAY_MONTH.format(row.date)}, ${asset ? getAssetDisplayTicker(asset) : 'strumento eliminato'}, ${isBuy ? 'acquisto' : 'vendita'}, ${cachedFormatCurrencyEUR(row.amountEur)}`}
+          >
+            <span className="w-[38px] shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+              {DAY_MONTH.format(row.date)}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
+              {asset ? getAssetDisplayTicker(asset) : <span className="text-muted-foreground">Strumento eliminato</span>}
+            </span>
+            {/* The same chip Allocazione gives a trade: an action, not a gain or a loss. */}
+            <ActionChip action={isBuy ? 'COMPRA' : 'VENDI'} color={isBuy ? actionColors.COMPRA : actionColors.VENDI} />
+
+            <span className="w-[84px] shrink-0 text-right font-mono text-[13px] tabular-nums text-foreground">
+              {cachedFormatCurrencyEUR(row.amountEur)}
+            </span>
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          </button>
+        );
+  };
+
+  const referenceRows = !loading && ledgerReady && summary.count === 0 && previous ? previous.rows.slice(0, 3) : [];
+  const previousName = MONTH_NAMES[(month + 10) % 12].toLowerCase();
 
   return (
     <Tile
@@ -74,34 +108,12 @@ export function MovimentiTile({ summary, month, ledgerReady, loading = false, as
         <p className="mt-3 text-[13px] text-muted-foreground">Lettura del registro…</p>
       ) : rows.length > 0 ? (
         <div className="mt-2.5 flex flex-col divide-y divide-border">
-          {rows.map((row) => {
-            const asset = assetsById.get(row.assetId);
-            const isBuy = row.type === 'buy';
-            return (
-              <button
-                key={row.id}
-                type="button"
-                onClick={() => asset && onOpenMovements(asset)}
-                disabled={!asset}
-                className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-[9px] text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:hover:bg-transparent"
-                aria-label={`${DAY_MONTH.format(row.date)}, ${asset ? getAssetDisplayTicker(asset) : 'strumento eliminato'}, ${isBuy ? 'acquisto' : 'vendita'}, ${cachedFormatCurrencyEUR(row.amountEur)}`}
-              >
-                <span className="w-[38px] shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
-                  {DAY_MONTH.format(row.date)}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
-                  {asset ? getAssetDisplayTicker(asset) : <span className="text-muted-foreground">Strumento eliminato</span>}
-                </span>
-                {/* The same chip Allocazione gives a trade: an action, not a gain or a loss. */}
-                <ActionChip action={isBuy ? 'COMPRA' : 'VENDI'} color={isBuy ? actionColors.COMPRA : actionColors.VENDI} />
-
-                <span className="w-[84px] shrink-0 text-right font-mono text-[13px] tabular-nums text-foreground">
-                  {cachedFormatCurrencyEUR(row.amountEur)}
-                </span>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-              </button>
-            );
-          })}
+          {rows.map(renderRow)}
+        </div>
+      ) : referenceRows.length > 0 ? (
+        <div className="mt-3">
+          <p className="text-[11px] text-muted-foreground">Gli ultimi, di {previousName}</p>
+          <div className="mt-1 flex flex-col divide-y divide-border">{referenceRows.map(renderRow)}</div>
         </div>
       ) : null}
       {ledgerReady && !loading && summary.count > 0 && (

@@ -59,7 +59,7 @@ import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { useWhatIfBaseline } from '@/lib/hooks/useWhatIfBaseline';
 import { goalFireEffect, goalFireNarrative } from '@/lib/utils/goalFire';
 import { assetInsideShare } from '@/lib/utils/datedFlows';
-import { FireAssumptionsRow, FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
+import { FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
 import { GOALS_SECTION_IDS, summarizeAssignments, summarizeDerivedAllocation, summarizeGoals, summarizeTrajectory, sumAssetValues, goalDateFromDate, withUncertainty } from '@/lib/utils/goalsSummary';
 import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
 import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
@@ -398,7 +398,7 @@ export function GoalBasedInvestingTab() {
   if (!isEnabled) {
     return (
       <div className="space-y-4">
-        <div className="pt-1">
+        <div className="pt-1 desktop:pt-4">
           <PageVerdict verdict={verdict} ariaLabel="Verdetto sui traguardi" />
         </div>
         <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
@@ -433,9 +433,8 @@ export function GoalBasedInvestingTab() {
   // The verdict and the grid: the stage's children, in both of its forms below.
   const stageContent = (
     <>
-      <div data-stage="verdict" className={cn('pt-1', hasGoals && VERDICT_CELL_CLASS)}>
-        <FireAssumptionsRow assumptions={assumptions} view="goals" />
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto sui traguardi" scope={sections.compact ? <FireVerdictScope lockText={null} assumptions={assumptions} view="goals" /> : undefined} />
+      <div data-stage="verdict" className={cn('pt-1 desktop:pt-4', hasGoals && VERDICT_CELL_CLASS)}>
+        <PageVerdict verdict={verdict} ariaLabel="Verdetto sui traguardi" scope={<FireVerdictScope lockText={null} assumptions={assumptions} view="goals" />} />
       </div>
 
       {/* ONE sequence, no `order-*` (The First-Screen Rule). Tablet: Obiettivi on two columns, the closed

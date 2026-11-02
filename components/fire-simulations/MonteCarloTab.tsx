@@ -129,7 +129,7 @@ import { MONTE_CARLO_TAB_SKELETON_CELLS } from './tabSkeletons';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
-import { FireAssumptionsRow, FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
+import { FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { useMarketAnchors } from '@/lib/hooks/useMarketAnchors';
 import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
@@ -592,13 +592,12 @@ export function MonteCarloTab() {
   // The verdict and the grid: the stage's children, in both of its forms below.
   const stageContent = (
     <>
-      <div data-stage="verdict" className={cn('pt-1', run && VERDICT_CELL_CLASS)}>
-        <FireAssumptionsRow assumptions={assumptionsWithFlows} />
+      <div data-stage="verdict" className={cn('pt-1 desktop:pt-4', run && VERDICT_CELL_CLASS)}>
         <PageVerdict
           verdict={verdict}
           ariaLabel="Verdetto su Dopo il FIRE"
           strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={sections.eyebrows} />}
-          scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={assumptionsWithFlows} /> : undefined}
+          scope={<FireVerdictScope lockText={lockScope} assumptions={assumptionsWithFlows} />}
           restCollapse={run ? sections.collapse(VERDICT_REST_SECTION) : undefined}
         />
       </div>

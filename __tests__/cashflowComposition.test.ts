@@ -4,6 +4,7 @@ import {
   buildIncomeComposition,
   buildSubCategoryComposition,
   detectSpendingAnomalies,
+  nearestToAnomaly,
 } from '@/lib/utils/cashflowComposition';
 import { Expense, ExpenseType, NO_SUBCATEGORY_KEY, NO_SUBCATEGORY_LABEL } from '@/types/expenses';
 
@@ -341,5 +342,33 @@ describe('detectSpendingAnomalies', () => {
 
     // Assert
     expect(anomalies).toEqual([]);
+  });
+});
+
+describe('nearestToAnomaly', () => {
+  const steady = (categoryId: string, categoryName: string): Expense[] =>
+    [1, 2, 3, 4, 5, 6].map((month) => inMonth(month, { id: `${categoryId}-${month}`, type: 'variable', amount: -100, categoryId, categoryName }));
+
+  it('should return the category with the highest delta even when nothing is flagged', () => {
+    // Arrange — Casa at 110 (+10%), Svago at 90 (-10%): both under the thresholds
+    const expenses = [
+      ...steady('cat-casa', 'Casa'),
+      ...steady('cat-svago', 'Svago'),
+      inMonth(7, { id: 'casa-7', type: 'variable', amount: -110, categoryId: 'cat-casa', categoryName: 'Casa' }),
+      inMonth(7, { id: 'svago-7', type: 'variable', amount: -90, categoryId: 'cat-svago', categoryName: 'Svago' }),
+    ];
+
+    // Act
+    const nearest = nearestToAnomaly(expenses, 2025, 7, monthOf);
+
+    // Assert
+    expect(detectSpendingAnomalies(expenses, 2025, 7, monthOf)).toEqual([]);
+    expect(nearest?.categoryLabel).toBe('Casa');
+    expect(nearest?.deltaPercent).toBeCloseTo(10, 6);
+  });
+
+  it('should be null when no category has a baseline', () => {
+    const expenses = [inMonth(7, { id: 'solo', type: 'variable', amount: -50, categoryId: 'cat-x', categoryName: 'X' })];
+    expect(nearestToAnomaly(expenses, 2025, 7, monthOf)).toBeNull();
   });
 });
