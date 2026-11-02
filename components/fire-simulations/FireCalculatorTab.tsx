@@ -160,7 +160,7 @@ import type { FlowsEffect } from '@/lib/utils/datedFlowsNarrative';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
-import { FireAssumptionsRow, FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
+import { FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { resolvePlanExpenses, type FireAssumptions } from '@/lib/utils/fireAssumptions';
 import { VerdictStrip } from '@/components/ui/verdict-strip';
@@ -835,9 +835,8 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
             (verdict and THE tile) and the index on the right (lib/utils/tabletComposition.ts). */}
         <div className={STAGE_WRAPPER_CLASS}>
         <div ref={stageRef} className={STAGE_CLASS}>
-        <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
-          <FireAssumptionsRow assumptions={assumptions} />
-          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul FIRE" scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={assumptions} /> : undefined} restCollapse={sections.collapse(VERDICT_REST_SECTION)} />
+        <div data-stage="verdict" className={cn('pt-1 desktop:pt-4', VERDICT_CELL_CLASS)}>
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul FIRE" scope={<FireVerdictScope lockText={lockScope} assumptions={assumptions} />} restCollapse={sections.collapse(VERDICT_REST_SECTION)} />
         </div>
         <div className={COMPACT_GRID_WRAPPER_CLASS}>
         <div className={COMPACT_GRID_CLASS}>
@@ -935,13 +934,12 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
           (verdict and THE tile) and the index on the right (lib/utils/tabletComposition.ts). */}
       <div className={STAGE_WRAPPER_CLASS}>
       <div ref={stageRef} className={STAGE_CLASS}>
-      <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
-        <FireAssumptionsRow assumptions={assumptions} />
+      <div data-stage="verdict" className={cn('pt-1 desktop:pt-4', VERDICT_CELL_CLASS)}>
         <PageVerdict
           verdict={verdict}
           ariaLabel="Verdetto sul FIRE"
           strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={sections.eyebrows} />}
-          scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={assumptions} /> : undefined}
+          scope={<FireVerdictScope lockText={lockScope} assumptions={assumptions} />}
           restCollapse={sections.collapse(VERDICT_REST_SECTION)}
         />
       </div>

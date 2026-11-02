@@ -115,7 +115,7 @@ import { COAST_TAB_SKELETON_CELLS } from './tabSkeletons';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
-import { FireAssumptionsRow, FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
+import { FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { VerdictStrip } from '@/components/ui/verdict-strip';
 import { PageRest } from '@/components/ui/page-rest';
@@ -378,9 +378,8 @@ export function CoastFireTab() {
             (verdict and THE tile) and the index on the right (lib/utils/tabletComposition.ts). */}
         <div className={STAGE_WRAPPER_CLASS}>
         <div ref={stageRef} className={STAGE_CLASS}>
-        <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
-          <FireAssumptionsRow assumptions={flowAssumptions} />
-          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={flowAssumptions} /> : undefined} restCollapse={sections.collapse(VERDICT_REST_SECTION)} />
+        <div data-stage="verdict" className={cn('pt-1 desktop:pt-4', VERDICT_CELL_CLASS)}>
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" scope={<FireVerdictScope lockText={lockScope} assumptions={flowAssumptions} />} restCollapse={sections.collapse(VERDICT_REST_SECTION)} />
         </div>
         <div className={COMPACT_GRID_WRAPPER_CLASS}>
         <div className={COMPACT_GRID_CLASS}>
@@ -418,13 +417,12 @@ export function CoastFireTab() {
           (verdict and THE tile) and the index on the right (lib/utils/tabletComposition.ts). */}
       <div className={STAGE_WRAPPER_CLASS}>
       <div ref={stageRef} className={STAGE_CLASS}>
-      <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
-        <FireAssumptionsRow assumptions={flowAssumptions} />
+      <div data-stage="verdict" className={cn('pt-1 desktop:pt-4', VERDICT_CELL_CLASS)}>
         <PageVerdict
           verdict={verdict}
           ariaLabel="Verdetto sul Coast FIRE"
           strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={sections.eyebrows} />}
-          scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={flowAssumptions} /> : undefined}
+          scope={<FireVerdictScope lockText={lockScope} assumptions={flowAssumptions} />}
           restCollapse={sections.collapse(VERDICT_REST_SECTION)}
         />
       </div>

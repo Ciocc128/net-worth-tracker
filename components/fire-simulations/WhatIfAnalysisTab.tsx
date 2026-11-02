@@ -90,7 +90,7 @@ import type { WhatIfEventType, WhatIfScenario } from '@/types/whatIf';
 import { WHAT_IF_TAB_SKELETON_CELLS } from './tabSkeletons';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
-import { FireAssumptionsRow, FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
+import { FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
 import { VerdictStrip } from '@/components/ui/verdict-strip';
 import { PageRest } from '@/components/ui/page-rest';
 import { TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
@@ -309,9 +309,8 @@ export function WhatIfAnalysisTab() {
   if (!hasBaseline || !impact || !event || !summary) {
     return (
       <div className="space-y-4">
-        <div className="pt-1">
-          <FireAssumptionsRow assumptions={assumptionsWithFlows} />
-          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={assumptionsWithFlows} /> : undefined} />
+        <div className="pt-1 desktop:pt-4">
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" scope={<FireVerdictScope lockText={lockScope} assumptions={assumptionsWithFlows} />} />
         </div>
       </div>
     );
@@ -329,13 +328,12 @@ export function WhatIfAnalysisTab() {
           (verdict and THE tile) and the index on the right (lib/utils/tabletComposition.ts). */}
       <div className={STAGE_WRAPPER_CLASS}>
       <div ref={stageRef} className={STAGE_CLASS}>
-      <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
-        <FireAssumptionsRow assumptions={assumptionsWithFlows} />
+      <div data-stage="verdict" className={cn('pt-1 desktop:pt-4', VERDICT_CELL_CLASS)}>
         <PageVerdict
           verdict={verdict}
           ariaLabel="Verdetto sul What If"
           strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={sections.eyebrows} />}
-          scope={sections.compact ? <FireVerdictScope lockText={lockScope} assumptions={assumptionsWithFlows} /> : undefined}
+          scope={<FireVerdictScope lockText={lockScope} assumptions={assumptionsWithFlows} />}
           restCollapse={sections.collapse(VERDICT_REST_SECTION)}
         />
       </div>

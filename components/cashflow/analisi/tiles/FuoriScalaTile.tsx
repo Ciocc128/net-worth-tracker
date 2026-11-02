@@ -7,6 +7,8 @@ import { Tile, type TileCollapse } from '@/components/ui/tile';
 
 interface FuoriScalaTileProps {
   anomalies: SpendingAnomaly[];
+  /** Nothing flagged: the category closest to its threshold, as the tile's one reference row (D-AS10). */
+  nearest?: SpendingAnomaly | null;
   /** The month the anomalies were measured on («agosto 2026») — the tile's own window, named. */
   monthLabel: string;
   reading: Narrative;
@@ -30,7 +32,7 @@ interface FuoriScalaTileProps {
  * period is (an Off-Axis tile): the aside names it, and the page omits the tile when no month
  * can be meant (a past year without a month, the history).
  */
-export function FuoriScalaTile({ anomalies, monthLabel, reading, followsPeriod, onSelect, collapse, asideWhenClosed, className }: FuoriScalaTileProps) {
+export function FuoriScalaTile({ anomalies, nearest = null, monthLabel, reading, followsPeriod, onSelect, collapse, asideWhenClosed, className }: FuoriScalaTileProps) {
   return (
     <Tile eyebrow="Fuori scala" aside={monthLabel} collapse={collapse} asideWhenClosed={asideWhenClosed} reading={reading} className={className}>
       {anomalies.length > 0 && (
@@ -54,6 +56,26 @@ export function FuoriScalaTile({ anomalies, monthLabel, reading, followsPeriod, 
             </li>
           ))}
         </ul>
+      )}
+      {anomalies.length === 0 && nearest && (
+        <div className="mt-3">
+          <p className="text-[11px] text-muted-foreground">La più vicina alla soglia</p>
+          <button
+            type="button"
+            onClick={() => onSelect(nearest)}
+            aria-label={`${nearest.categoryLabel}, ${nearest.deltaPercent >= 0 ? '+' : '−'}${formatPercentage(Math.abs(nearest.deltaPercent), 0)} sulla media: da ${cachedFormatCurrencyEUR(nearest.referenceAverage, true)} a ${cachedFormatCurrencyEUR(nearest.currentTotal, true)}`}
+            className="mt-1 flex min-h-[44px] w-full items-center gap-2.5 py-[9px] text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset desktop:-mx-2 desktop:min-h-0 desktop:w-[calc(100%+16px)] desktop:rounded-md desktop:px-2"
+          >
+            <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{nearest.categoryLabel}</span>
+            <span className="shrink-0 font-mono text-[13px] tabular-nums text-foreground">
+              {nearest.deltaPercent >= 0 ? '+' : '−'}
+              {formatPercentage(Math.abs(nearest.deltaPercent), 0)}
+            </span>
+            <span className="shrink-0 whitespace-nowrap text-right font-mono text-[11px] tabular-nums text-muted-foreground">
+              {cachedFormatCurrencyEUR(nearest.referenceAverage, true)} → {cachedFormatCurrencyEUR(nearest.currentTotal, true)}
+            </span>
+          </button>
+        </div>
       )}
       <p className="mt-auto border-t border-border pt-3.5 text-[11px] text-muted-foreground">
         Media dei 6 mesi precedenti → mese. Sopra la media di oltre il 25% e di 50 €{anomalies.length > 0 ? '; una riga apre la scheda' : ''}.
