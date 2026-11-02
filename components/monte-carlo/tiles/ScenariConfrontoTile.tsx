@@ -53,7 +53,7 @@ export function ScenariConfrontoTile({ reading, aside, rows, footer, collapse, a
                   <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: color }} aria-hidden="true" />
                   {row.label}
                 </span>
-                <span className="font-mono text-[18px] font-semibold leading-none tabular-nums text-foreground">{formatPercentage(row.successRate, decimals)}</span>
+                <span className="font-mono text-[16px] font-semibold leading-none tabular-nums text-foreground">{formatPercentage(row.successRate, decimals)}</span>
               </div>
               <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-muted" aria-hidden="true">
                 <div className="h-full rounded-full" style={{ width: `${fill}%`, background: color }} />

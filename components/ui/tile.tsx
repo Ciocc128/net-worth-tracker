@@ -179,7 +179,7 @@ export function TileRowShell({ collapse, eyebrow, ariaLabel, asideWhenClosed, as
             >
               {eyebrow}
               <span className={cn('flex min-w-0 items-center justify-end gap-2', open ? 'shrink' : 'shrink-0')}>
-                {asideText && <span className={cn('min-w-0 text-[10px] text-muted-foreground', open && 'text-right', answer && ASIDE_YIELDS_TO_ANSWER_CLASS)}>{asideText}</span>}
+                {asideText && <span className={cn('min-w-0 text-[11px] text-muted-foreground', open && 'text-right', answer && ASIDE_YIELDS_TO_ANSWER_CLASS)}>{asideText}</span>}
                 {answer && <RowAnswerText segments={answer} />}
                 <ChevronDown
                   className={cn('h-4 w-4 text-muted-foreground motion-safe:transition-transform', ROW_MOTION_CLASS, open && 'rotate-180')}
@@ -246,7 +246,7 @@ export function Tile(props: TileProps) {
         asideWhenOpen={asideText}
         className={className}
       >
-        {asideControl && <div className="mb-1 flex justify-end text-[10px] text-muted-foreground">{asideControl}</div>}
+        {asideControl && <div className="mb-1 flex justify-end text-[11px] text-muted-foreground">{asideControl}</div>}
         {reading && <NarrativeText segments={reading} className="text-[13px] leading-[1.45] text-foreground" />}
         {children}
       </TileRowShell>
@@ -262,7 +262,7 @@ export function Tile(props: TileProps) {
             verdict) to a screen reader, which navigates a long page by them. `h3` under the verdict's
             `h2`; the class carries every metric, so nothing changes on screen. */}
         <h3 className={TILE_EYEBROW_CLASS}>{eyebrow}</h3>
-        {aside && <div className="min-w-0 max-w-full shrink-0 text-[10px] text-muted-foreground">{aside}</div>}
+        {aside && <div className="min-w-0 max-w-full shrink-0 text-[11px] text-muted-foreground">{aside}</div>}
       </div>
       {reading && (
         <NarrativeText segments={reading} className="mt-2 text-[13px] leading-[1.45] text-foreground" />

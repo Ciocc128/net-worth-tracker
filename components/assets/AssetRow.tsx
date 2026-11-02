@@ -345,7 +345,7 @@ export function AssetRow({
           <span className="flex min-w-0 items-center gap-2">
             <span className="line-clamp-2 break-words text-[13px] font-medium text-foreground">{asset.name}</span>
             {zeroChip && (
-              <span className="shrink-0 rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              <span className="shrink-0 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                 {isLoanAsset(asset) ? 'Estinto' : zeroChip}
               </span>
             )}
@@ -419,7 +419,7 @@ export function AssetRow({
                     </span>
                   </div>
                 ))}
-                <p className="pt-1.5 text-[10px] leading-snug text-muted-foreground">
+                <p className="pt-1.5 text-[11px] leading-snug text-muted-foreground">
                   Variazioni di prezzo nel periodo, non G/P (che confronta col PMC).
                 </p>
               </div>

@@ -44,7 +44,7 @@ export function SintesiTile({ metrics, hasCostBasisTracking, collapse, asideWhen
               <span className="text-[13px] text-muted-foreground">{row.label}</span>
               <span className="flex items-baseline gap-2.5 whitespace-nowrap">
                 <span className="font-mono text-[14px] tabular-nums text-foreground">
-                  {cachedFormatCurrencyEUR(row.value)}
+                  {cachedFormatCurrencyEUR(row.value, true)}
                 </span>
                 <span className="w-[44px] text-right font-mono text-[11px] tabular-nums text-muted-foreground">
                   {formatPercentage((row.value / total) * 100, 1)}
@@ -63,7 +63,7 @@ export function SintesiTile({ metrics, hasCostBasisTracking, collapse, asideWhen
         <div className="mt-auto flex flex-col gap-1.5 border-t border-border pt-3.5">
           <p className={TILE_EYEBROW_CLASS}>Patrimonio netto</p>
           <p className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
-            {cachedFormatCurrencyEUR(metrics.netTotal)}
+            {cachedFormatCurrencyEUR(metrics.netTotal, true)}
           </p>
           <p className="text-[11px] text-muted-foreground">
             dopo{' '}

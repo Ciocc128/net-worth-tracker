@@ -84,7 +84,7 @@ export function VerdictStrip({ figures, onOpen, eyebrows }: VerdictStripProps) {
             >
               <span className={TILE_SUB_EYEBROW_CLASS}>{figure.label}</span>
               {segment ? (
-                <span className="text-[22px] leading-none tabular-nums @max-[110px]:text-[18px]">
+                <span className="text-[22px] leading-none tabular-nums @max-[110px]:text-[16px]">
                   <StripValue figure={figure} landed={segment} />
                 </span>
               ) : (

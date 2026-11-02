@@ -81,7 +81,7 @@ export function printedSign(value: number, decimals: number): -1 | 0 | 1 {
  * repeats (Patrimonio's G/P, Storico's twelve months, since 2026-10-14): the cell's
  * `formatStripFigure` decides the same way, so the two never disagree on a zero.
  */
-export function formatSignedEuro(value: number, compact = false): string {
+export function formatSignedEuro(value: number, compact = true): string {
   const magnitude = cachedFormatCurrencyEUR(Math.abs(value), compact);
   if (isPrintedZero(magnitude)) return magnitude;
   return `${value < 0 ? '−' : '+'}${magnitude}`;

@@ -201,7 +201,7 @@ export function ResponsiveModal({
         <DrawerContent onEscapeKeyDown={refuseEscapeWhileArmed} onCloseAutoFocus={handleCloseAutoFocus}>
           <DrawerHeader className="border-b px-4 pb-3 pt-2 text-left">
             {eyebrow && <p className={TILE_EYEBROW_CLASS}>{eyebrow}</p>}
-            <DrawerTitle className="text-[20px] font-semibold leading-[1.25] tracking-[-0.01em]">
+            <DrawerTitle className="text-[22px] font-semibold leading-[1.25] tracking-[-0.01em]">
               {title}
             </DrawerTitle>
             {resolvedReading ? (
@@ -245,7 +245,7 @@ export function ResponsiveModal({
             hairline exists because the body scrolls under it: it is a scroll edge, not a rule. */}
         <DialogHeader className="shrink-0 gap-1.5 border-b px-6 pb-4 pr-14 pt-6 text-left">
           {eyebrow && <p className={TILE_EYEBROW_CLASS}>{eyebrow}</p>}
-          <DialogTitle className="text-[20px] font-semibold leading-[1.25] tracking-[-0.01em]">
+          <DialogTitle className="text-[22px] font-semibold leading-[1.25] tracking-[-0.01em]">
             {title}
           </DialogTitle>
           {resolvedReading ? (

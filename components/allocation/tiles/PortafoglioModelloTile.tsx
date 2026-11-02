@@ -219,7 +219,7 @@ export function PortafoglioModelloTile({
                       <span className="block text-[11px] text-muted-foreground">
                         {labelOf(row.assetId)}
                         {row.candidate && (
-                          <span className="ml-1.5 rounded-full bg-muted px-2 py-0.5 text-[10.5px]">{MODEL_CANDIDATE_TAG}</span>
+                          <span className="ml-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px]">{MODEL_CANDIDATE_TAG}</span>
                         )}
                       </span>
                     </th>

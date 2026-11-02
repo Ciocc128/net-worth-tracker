@@ -280,7 +280,7 @@ export function ClassDriftChart({ points, band, height = 160, className, selecte
           })}
         </div>
       )}
-      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
         {hasMeasuredSegment && (
           <span className="inline-flex items-center gap-1">
             <i className="inline-block w-4 border-t-2 border-muted-foreground" aria-hidden="true" />

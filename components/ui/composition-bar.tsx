@@ -118,7 +118,7 @@ export function CompositionBar({ segments, ariaLabel, showLegend = true, ticks, 
               style={{ left: `${tick}%` }}
               aria-hidden="true"
             >
-              <span className="absolute left-1 top-0 font-mono text-[10.5px] text-muted-foreground">{tick}</span>
+              <span className="absolute left-1 top-0 font-mono text-[11px] text-muted-foreground">{tick}</span>
             </div>
           ))}
           {edge && (
@@ -130,8 +130,8 @@ export function CompositionBar({ segments, ariaLabel, showLegend = true, ticks, 
               <span
                 className={
                   edge.at < EDGE_LABEL_FLIP_AT
-                    ? 'absolute -bottom-4 left-1 font-mono text-[10.5px] text-destructive'
-                    : 'absolute -bottom-4 right-1 font-mono text-[10.5px] text-destructive'
+                    ? 'absolute -bottom-4 left-1 font-mono text-[11px] text-destructive'
+                    : 'absolute -bottom-4 right-1 font-mono text-[11px] text-destructive'
                 }
               >
                 {edge.label}

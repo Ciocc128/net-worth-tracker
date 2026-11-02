@@ -336,13 +336,13 @@ export function buildFondoOggiChips(today: FundTodaySummary): FondoOggiChip[] {
     const sign = today.monthEffect >= 0 ? '+' : TYPOGRAPHIC_MINUS;
     const pct = today.monthEffectPct !== null ? ` (${sign}${formatPercentage(Math.abs(today.monthEffectPct), 2)})` : '';
     chips.push({
-      value: `${sign}${cachedFormatCurrencyEUR(Math.abs(today.monthEffect))}${pct}`,
+      value: `${sign}${cachedFormatCurrencyEUR(Math.abs(today.monthEffect), true)}${pct}`,
       sign: today.monthEffect >= 0 ? 'positive' : 'negative',
       caption: 'questo mese, effetto mercato',
     });
   }
   if (today.contributionsAllTime > 0 && today.firstContributionMonth) {
-    chips.push({ value: cachedFormatCurrencyEUR(today.contributionsAllTime), caption: `versati in tutto, da ${formatMonthKey(today.firstContributionMonth)}` });
+    chips.push({ value: cachedFormatCurrencyEUR(today.contributionsAllTime, true), caption: `versati in tutto, da ${formatMonthKey(today.firstContributionMonth)}` });
   }
   return chips;
 }

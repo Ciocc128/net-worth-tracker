@@ -399,9 +399,9 @@ export function QuestoMeseTile({
       <>
         <Tile eyebrow={ACCUMULO_MONTH_TILE_DRAFT_EYEBROW}>
           <div className="mt-3 grid grid-cols-2 gap-3 tablet:grid-cols-4">
-            <DraftBox label={ACCUMULO_DRAFT_BOX_LIQUIDITY} value={cachedFormatCurrencyEUR(liquidity.availableNowEur)} />
-            <DraftBox label={ACCUMULO_DRAFT_BOX_DISPOSALS} value={cachedFormatCurrencyEUR(liquidity.disposalProceedsEur)} />
-            <DraftBox label={ACCUMULO_DRAFT_BOX_INFLOWS} value={cachedFormatCurrencyEUR(liquidity.inflowTotalEur)} />
+            <DraftBox label={ACCUMULO_DRAFT_BOX_LIQUIDITY} value={cachedFormatCurrencyEUR(liquidity.availableNowEur, true)} />
+            <DraftBox label={ACCUMULO_DRAFT_BOX_DISPOSALS} value={cachedFormatCurrencyEUR(liquidity.disposalProceedsEur, true)} />
+            <DraftBox label={ACCUMULO_DRAFT_BOX_INFLOWS} value={cachedFormatCurrencyEUR(liquidity.inflowTotalEur, true)} />
             <DraftBox label={ACCUMULO_DRAFT_BOX_POSITIONS} value={`${plan.positions.length}`} />
           </div>
           <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-3.5">
@@ -442,7 +442,7 @@ export function QuestoMeseTile({
         <Tile eyebrow={ACCUMULO_MONTH_TILE_DONE_EYEBROW}>
           <div className="mt-3 grid grid-cols-3 gap-3">
             <DraftBox label={ACCUMULO_DONE_BOX_EXECUTED} value={`${closedCount} / ${plan.months}`} />
-            <DraftBox label={ACCUMULO_DONE_BOX_RESIDUAL} value={cachedFormatCurrencyEUR(outcome.residualEur)} />
+            <DraftBox label={ACCUMULO_DONE_BOX_RESIDUAL} value={cachedFormatCurrencyEUR(outcome.residualEur, true)} />
             <DraftBox label={ACCUMULO_DONE_BOX_DRIFT} value={formatNumberIt(avgAbsDrift, 1) + ' pp'} />
           </div>
           <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-3.5">
@@ -617,7 +617,7 @@ export function QuestoMeseTile({
                       </span>
                       <span className="mt-0.5 block font-mono text-[11px] tabular-nums text-muted-foreground">
                         {asset && `${getAssetDisplayTicker(asset)} · `}
-                        {formatNumberIt(line.plannedQuantity, 0)} · {cachedFormatCurrencyEUR(line.plannedAmountEur)}
+                        {formatNumberIt(line.plannedQuantity, 0)} · {cachedFormatCurrencyEUR(line.plannedAmountEur, true)}
                       </span>
                     </span>
                     <div className="flex shrink-0 flex-col items-end gap-1 desktop:flex-row desktop:items-center desktop:gap-3">
@@ -729,7 +729,7 @@ export function QuestoMeseTile({
                         <span className="mt-0.5 block font-mono text-[11px] tabular-nums text-muted-foreground">
                           {asset && `${getAssetDisplayTicker(asset)} · `}
                           {disposal.quantity !== undefined && `${formatNumberIt(disposal.quantity, 0)} quote · `}
-                          {cachedFormatCurrencyEUR(displayedProceedsOfDisposal(disposal, asset, DEPS))}
+                          {cachedFormatCurrencyEUR(displayedProceedsOfDisposal(disposal, asset, DEPS), true)}
                         </span>
                       </span>
                       <div className="flex shrink-0 flex-col items-end gap-1 desktop:flex-row desktop:items-center desktop:gap-3">
@@ -831,7 +831,7 @@ export function QuestoMeseTile({
             );
           })}
         </div>
-        <p className="mt-1.5 font-mono text-[10px] tabular-nums text-muted-foreground">{monthsCaption}</p>
+        <p className="mt-1.5 font-mono text-[11px] tabular-nums text-muted-foreground">{monthsCaption}</p>
 
 
         <div className="mt-auto border-t border-border pt-3.5">

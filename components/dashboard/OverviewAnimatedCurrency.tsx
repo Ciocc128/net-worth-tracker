@@ -102,10 +102,10 @@ export function OverviewAnimatedCurrency({
 
   const formatted = format === 'integer'
     ? String(Math.round(displayValue))
-    : cachedFormatCurrencyEUR(displayValue);
+    : cachedFormatCurrencyEUR(displayValue, true);
 
   // A frame of the count is not a measurement: the screen reader reads the landed figure.
-  const landed = format === 'integer' ? String(Math.round(value)) : cachedFormatCurrencyEUR(value);
+  const landed = format === 'integer' ? String(Math.round(value)) : cachedFormatCurrencyEUR(value, true);
   return (
     <span className={cn('tabular-nums', className)}>
       {formatted === landed ? (

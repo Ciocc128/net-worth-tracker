@@ -158,7 +158,7 @@ export function NetWorthSparkline({
               />
               <ChartHoverTip x={hoveredXY[0] / W} label={`${MONTH_NAMES_SHORT[hoveredPoint.month - 1]} ${hoveredPoint.year}`}>
                 <span className="font-mono text-[13px] font-semibold tabular-nums text-foreground">
-                  {cachedFormatCurrencyEUR(hoveredPoint.totalNetWorth)}
+                  {cachedFormatCurrencyEUR(hoveredPoint.totalNetWorth, true)}
                 </span>
               </ChartHoverTip>
             </>
@@ -168,10 +168,10 @@ export function NetWorthSparkline({
       {/* Labels only when not filled — filled mode expects the parent to render labels outside */}
       {!filled && (
         <div className="flex justify-between mt-0.5">
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground">
             {cachedFormatCurrencyEUR(values[0], true)}
           </span>
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground">
             {cachedFormatCurrencyEUR(values[values.length - 1], true)}
           </span>
         </div>

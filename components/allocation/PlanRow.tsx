@@ -59,7 +59,7 @@ export function PlanRow({ node, depth, color, direction }: PlanRowProps) {
   const captionClass =
     depth === 0
       ? 'mt-0.5 font-mono text-[11px] tabular-nums text-muted-foreground'
-      : 'font-mono text-[10px] tabular-nums text-muted-foreground';
+      : 'font-mono text-[11px] tabular-nums text-muted-foreground';
 
   const caption = isInstrument
     ? `${direction === 'contribute' ? 'avrai' : 'restano'} ${cachedFormatCurrencyEUR(node.newValue, true)}`
@@ -75,7 +75,7 @@ export function PlanRow({ node, depth, color, direction }: PlanRowProps) {
             <p className={nameClass} title={node.label}>
               {node.label}
             </p>
-            <p className="font-mono text-[10px] tabular-nums text-muted-foreground">
+            <p className="font-mono text-[11px] tabular-nums text-muted-foreground">
               parte di un ordine da {cachedFormatCurrencyEUR(node.order.amount, true)} di {node.order.label}
             </p>
           </div>

@@ -117,7 +117,7 @@ function ThreadRow({ thread, isActive, isDeleting, isStreaming, onSelect, onDele
         >
           <div className="flex items-start gap-2">
             <p className="line-clamp-1 flex-1 text-[13px] font-medium leading-snug text-foreground">{thread.title}</p>
-            <Badge variant="outline" className="mt-px shrink-0 text-[10px] uppercase">
+            <Badge variant="outline" className="mt-px shrink-0 text-[11px] uppercase">
               {getModeBadgeLabel(thread.mode)}
             </Badge>
           </div>

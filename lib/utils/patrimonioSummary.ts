@@ -352,7 +352,6 @@ export function selectPatrimonioStrip({ gains, cash }: { gains: UnrealizedGainsS
       label: 'G/P non realizzato',
       value: gains.count > 0 ? gains.gainLoss : null,
       format: 'signed-currency',
-      decimals: 2,
       opens: PATRIMONIO_SECTION_IDS.rendimento,
       lifts: { section: PATRIMONIO_SECTION_IDS.rendimento, block: PATRIMONIO_GAIN_BLOCK },
       ...(gains.count > 0 ? {} : { reason: 'nessuna posizione con un prezzo di carico' }),
@@ -420,7 +419,7 @@ export function describePatrimonioClosedAnswers(input: PatrimonioClosedAnswersIn
   answers[PATRIMONIO_SECTION_IDS.liquidita] =
     cash.accounts.length === 0
       ? null
-      : [{ text: 'sui conti ' }, { text: withTypographicMinus(cash.total, cachedFormatCurrencyEUR(Math.abs(cash.total))), mono: true }];
+      : [{ text: 'sui conti ' }, { text: withTypographicMinus(cash.total, cachedFormatCurrencyEUR(Math.abs(cash.total), true)), mono: true }];
 
   const leadingClass = describeLeadingClass(input.classes);
   const stripTexts = new Set(input.strip.map((cell) => formatStripFigure(cell)?.text).filter(Boolean));

@@ -6,7 +6,7 @@ import type { DividendNetComparison, MonthlyNetPoint, UpcomingPayment } from '@/
 import { describeUpcomingDate, printedDelta } from '@/lib/utils/dividendiNarrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
-import { signChipClass } from '@/lib/utils/metricColors';
+import { signTextClass } from '@/lib/utils/metricColors';
 import { cn } from '@/lib/utils';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
@@ -106,9 +106,9 @@ export function IncassoNettoTile({
             <div className="flex min-w-0 flex-col gap-1.5">
               <span
                 className={cn(
-                  'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap rounded-[9px] px-[11px] py-[6px]',
-                  'font-mono text-[12px] font-semibold leading-none tracking-[-0.01em] tabular-nums',
-                  printed === 0 ? 'bg-muted text-muted-foreground' : signChipClass(deltaValue),
+                  'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap',
+                  'font-mono text-[13px] font-medium leading-none tracking-[-0.01em] tabular-nums',
+                  printed === 0 ? 'text-muted-foreground' : signTextClass(deltaValue),
                 )}
               >
                 {printed !== 0 && <Icon className="h-[13px] w-[13px] shrink-0" aria-hidden="true" />}

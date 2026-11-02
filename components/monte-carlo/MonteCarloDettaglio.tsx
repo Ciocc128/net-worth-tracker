@@ -87,7 +87,7 @@ export function MonteCarloDettaglio({ description, traiettorieReading, overlay, 
                           {column.label}
                         </th>
                       ))}
-                      <th scope="col" className={cn(TILE_SUB_EYEBROW_CLASS, 'pb-2 text-right text-[10px] font-normal')}>
+                      <th scope="col" className={cn(TILE_SUB_EYEBROW_CLASS, 'pb-2 text-right text-[11px] font-normal')}>
                         Mediana nominale
                       </th>
                     </tr>

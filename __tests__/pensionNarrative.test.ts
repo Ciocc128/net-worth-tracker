@@ -265,10 +265,10 @@ describe('Il fondo oggi', () => {
   it('builds the grouped chips: the month effect (signed, with its share) and the contributions ever recorded', () => {
     const chips = buildFondoOggiChips(TODAY);
     expect(chips).toHaveLength(2);
-    expect(plain(chips[0].value)).toBe('+300,00 € (+0,98%)');
+    expect(plain(chips[0].value)).toBe('+300 € (+0,98%)');
     expect(chips[0].sign).toBe('positive');
     expect(chips[0].caption).toBe('questo mese, effetto mercato');
-    expect(plain(chips[1].value)).toBe('2321,01 €');
+    expect(plain(chips[1].value)).toBe('2321 €');
     expect(chips[1].caption).toBe('versati in tutto, da novembre 2025');
 
     expect(buildFondoOggiChips({ ...TODAY, monthEffect: null, monthEffectPct: null })).toHaveLength(1);
@@ -535,7 +535,7 @@ describe('describePensionClosedAnswers', () => {
 
   it('answers each row with a figure the strip and THE tile do not print, in at most 22 characters', () => {
     const answers = input();
-    expect(visible(answers[PENSION_SECTION_IDS.rendimento])).toBe('perdita −1500,00 €');
+    expect(visible(answers[PENSION_SECTION_IDS.rendimento])).toBe('perdita −1500 €');
     expect(visible(answers[PENSION_SECTION_IDS.annoFiscale])).toBe('restano 7000 €');
     expect(visible(answers[PENSION_SECTION_IDS.versato])).toBe('TFR 60%');
     expect(visible(answers[PENSION_SECTION_IDS.versamenti])).toBe('ultimo il 20 settembre');
@@ -546,10 +546,10 @@ describe('describePensionClosedAnswers', () => {
     const loss = input()[PENSION_SECTION_IDS.rendimento];
     expect(loss?.find((segment) => segment.mono)?.sign).toBe('negative');
     const gain = input({ blocks: [{ ...MARIO, return: { ...RETURN, marketGain: 2_000 } }] })[PENSION_SECTION_IDS.rendimento];
-    expect(visible(gain)).toBe('guadagno +2000,00 €');
+    expect(visible(gain)).toBe('guadagno +2000 €');
     expect(gain?.find((segment) => segment.mono)?.sign).toBe('positive');
     const noise = input({ blocks: [{ ...MARIO, return: { ...RETURN, marketGain: -0.004 } }] })[PENSION_SECTION_IDS.rendimento];
-    expect(visible(noise)).toBe('guadagno 0,00 €');
+    expect(visible(noise)).toBe('guadagno 0 €');
     expect(noise?.find((segment) => segment.mono)?.sign).toBeUndefined();
   });
 

@@ -59,13 +59,13 @@ export function DividendDetailsDialog({ open, onOpenChange, date, dividends, now
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <span className="truncate text-[13px] font-medium">{dividend.assetTicker || dividend.assetName}</span>
                   <span className="flex flex-wrap items-center gap-1.5">
-                    <Badge variant="outline" className="h-4 px-1.5 py-0 text-[10px] font-normal text-muted-foreground">
+                    <Badge variant="outline" className="h-4 px-1.5 py-0 text-[11px] font-normal text-muted-foreground">
                       {dividendTypeLabels[dividend.dividendType]}
                     </Badge>
                     {isAnnounced && (
                       <Badge
                         variant="outline"
-                        className="h-4 border-warning-border px-1.5 py-0 text-[10px] font-normal text-warning-foreground"
+                        className="h-4 border-warning-border px-1.5 py-0 text-[11px] font-normal text-warning-foreground"
                       >
                         Attesa
                       </Badge>
@@ -73,7 +73,7 @@ export function DividendDetailsDialog({ open, onOpenChange, date, dividends, now
                     {dividend.isProvisional && (
                       <Badge
                         variant="outline"
-                        className="h-4 border-warning-border px-1.5 py-0 text-[10px] font-normal text-warning-foreground"
+                        className="h-4 border-warning-border px-1.5 py-0 text-[11px] font-normal text-warning-foreground"
                       >
                         Provvisoria
                       </Badge>
@@ -106,7 +106,7 @@ export function DividendDetailsDialog({ open, onOpenChange, date, dividends, now
             {received.length > 0 && (
               <div className="flex items-center justify-between gap-3">
                 <span className="text-[13px] text-muted-foreground">Incassato</span>
-                <span className="font-mono text-[15px] font-semibold tabular-nums text-positive">
+                <span className="font-mono text-[14px] font-semibold tabular-nums text-positive">
                   {formatCurrency(sum(received))}
                 </span>
               </div>
@@ -114,7 +114,7 @@ export function DividendDetailsDialog({ open, onOpenChange, date, dividends, now
             {announced.length > 0 && (
               <div className="flex items-center justify-between gap-3">
                 <span className="text-[13px] text-muted-foreground">Atteso</span>
-                <span className="font-mono text-[15px] font-semibold tabular-nums text-muted-foreground">
+                <span className="font-mono text-[14px] font-semibold tabular-nums text-muted-foreground">
                   {formatCurrency(sum(announced))}
                 </span>
               </div>

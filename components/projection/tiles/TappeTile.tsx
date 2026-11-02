@@ -89,13 +89,13 @@ export function TappeTile({ reading, rows, scenario, onScenarioChange, horizon, 
                   <td className="py-2 text-right font-mono tabular-nums text-foreground">{compact(row.p10)}</td>
                   <td className="py-2 text-right font-mono font-semibold tabular-nums text-foreground">
                     {compact(row.p50)}
-                    <span className="block text-[10px] font-normal text-muted-foreground">nominale {compact(row.p50Nominal)}</span>
+                    <span className="block text-[11px] font-normal text-muted-foreground">nominale {compact(row.p50Nominal)}</span>
                   </td>
                   <td className="py-2 text-right font-mono tabular-nums text-foreground">{compact(row.p90)}</td>
                   {hasThreshold && (
                     <td className="py-2 text-right font-mono tabular-nums text-foreground">
                       {row.probabilityAtLeast !== null ? formatPercentage(row.probabilityAtLeast, Number.isInteger(Math.round(row.probabilityAtLeast * 10) / 10) ? 0 : 1) : '—'}
-                      {showRowThreshold && row.threshold !== null && <span className="block text-[10px] font-normal text-muted-foreground">di {compact(row.threshold)}</span>}
+                      {showRowThreshold && row.threshold !== null && <span className="block text-[11px] font-normal text-muted-foreground">di {compact(row.threshold)}</span>}
                     </td>
                   )}
                 </tr>

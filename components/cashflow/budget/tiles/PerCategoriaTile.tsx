@@ -96,7 +96,7 @@ function TableRow({
         <span className="flex items-center gap-1.5">
           <span className="truncate">{row.label}</span>
           {row.pace === 'fixed' && !inverted && (
-            <span className="shrink-0 rounded-md border border-border px-1.5 text-[10px] font-semibold leading-4 text-muted-foreground">fissa</span>
+            <span className="shrink-0 rounded-md border border-border px-1.5 text-[11px] font-semibold leading-4 text-muted-foreground">fissa</span>
           )}
         </span>
         {/* While the delete is armed the row says what the second press does (the 72px column cannot). */}
@@ -251,7 +251,7 @@ function MobileRow({
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="truncate text-[13px] text-foreground">{row.label}</span>
             {row.pace === 'fixed' && !inverted && (
-              <span className="shrink-0 rounded-md border border-border px-1.5 text-[10px] font-semibold leading-4 text-muted-foreground">fissa</span>
+              <span className="shrink-0 rounded-md border border-border px-1.5 text-[11px] font-semibold leading-4 text-muted-foreground">fissa</span>
             )}
           </span>
           <span className="flex shrink-0 items-center gap-2">

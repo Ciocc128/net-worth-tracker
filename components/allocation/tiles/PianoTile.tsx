@@ -98,7 +98,7 @@ function MoveRow({ move, actionColors }: { move: RebalanceMove; actionColors: Re
           {isUntradable ? (
             <p className="text-[13px] text-muted-foreground">Non negoziabile</p>
           ) : (
-            <p className="font-mono text-[18px] font-semibold tabular-nums leading-none" style={{ color: actionColors[move.action] }}>
+            <p className="font-mono text-[16px] font-semibold tabular-nums leading-none" style={{ color: actionColors[move.action] }}>
               {isBuy ? '+' : MINUS}
               {cachedFormatCurrencyEUR(move.amount, true)}
             </p>

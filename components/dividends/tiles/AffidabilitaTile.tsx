@@ -102,7 +102,7 @@ export function AffidabilitaTile({ reliability, reading, months, footer, emptyCo
             aria-hidden="true"
           >
             {months.map((month) => (
-              <span key={month.key} className="truncate text-center font-mono text-[10px] tabular-nums text-muted-foreground">
+              <span key={month.key} className="truncate text-center font-mono text-[11px] tabular-nums text-muted-foreground">
                 {/* Three letters up to a year (twelve fit a 3-column tile at 10px mono); past
                     that one letter per month, and the accessible name above carries the rest. */}
                 {months.length <= 12 ? month.label : month.label.charAt(0)}

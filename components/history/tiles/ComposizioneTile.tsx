@@ -102,13 +102,13 @@ function CompositionTooltip({ active, payload, bands, chartColors }: Composition
   return (
     <div style={TOOLTIP_CONTENT_STYLE}>
       <p className="text-[13px] font-semibold text-card-foreground">{formatPeriodLabel(row.month as number, row.year as number)}</p>
-      <p className="mt-0.5 font-mono text-[13px] tabular-nums text-card-foreground">{formatCurrency(row.totalNetWorth as number)}</p>
+      <p className="mt-0.5 font-mono text-[13px] tabular-nums text-card-foreground">{formatCurrency(row.totalNetWorth as number, 'EUR', 0)}</p>
       <div className="mt-2 space-y-1 border-t border-border pt-2">
         {entries.map(({ band, share, value }) => (
           <div key={band.key} className="flex items-center gap-2 text-[12px]">
             <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: resolveBandColor(band, chartColors) }} />
             <span className="min-w-0 flex-1 truncate text-muted-foreground">{band.label}</span>
-            <span className="shrink-0 font-mono tabular-nums text-card-foreground">{formatCurrency(value)}</span>
+            <span className="shrink-0 font-mono tabular-nums text-card-foreground">{formatCurrency(value, 'EUR', 0)}</span>
             <span className="w-14 shrink-0 text-right font-mono tabular-nums text-muted-foreground">{formatPercentage(share, 1)}</span>
           </div>
         ))}
@@ -157,14 +157,14 @@ function BreakdownRow({ entry, chartColors }: { entry: CompositionBreakdownEntry
           <span className="shrink-0 font-mono text-[13px] tabular-nums text-foreground">{formatPercentage(entry.sharePct, 1)}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between pl-[18px]">
-          <span className="font-mono text-[12px] tabular-nums text-muted-foreground">{formatCurrency(entry.valueEur)}</span>
+          <span className="font-mono text-[12px] tabular-nums text-muted-foreground">{formatCurrency(entry.valueEur, 'EUR', 0)}</span>
           <DriftAnnotation deltaPp={entry.deltaPp} />
         </div>
       </div>
       <div className="hidden items-center gap-2.5 @[480px]:flex">
         {swatch}
         <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{entry.label}</span>
-        <span className="shrink-0 font-mono text-[13px] tabular-nums text-foreground">{formatCurrency(entry.valueEur)}</span>
+        <span className="shrink-0 font-mono text-[13px] tabular-nums text-foreground">{formatCurrency(entry.valueEur, 'EUR', 0)}</span>
         <span className="w-16 shrink-0 text-right font-mono text-[13px] tabular-nums text-muted-foreground">{formatPercentage(entry.sharePct, 1)}</span>
         <DriftAnnotation deltaPp={entry.deltaPp} />
       </div>

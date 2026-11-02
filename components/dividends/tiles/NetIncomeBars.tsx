@@ -126,7 +126,7 @@ export function NetIncomeBars({
           <span
             key={point.key}
             className={cn(
-              'text-center font-mono text-[10px] tabular-nums',
+              'text-center font-mono text-[11px] tabular-nums',
               point.key === highlightKey || point.ongoing ? CURRENT_SLOT_LABEL_CLASS : 'text-muted-foreground',
             )}
           >

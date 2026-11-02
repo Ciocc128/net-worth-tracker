@@ -5,7 +5,7 @@ import { TrendingDown, TrendingUp, Trophy } from 'lucide-react';
 import type { DashboardOverviewSparklinePoint } from '@/types/dashboardOverview';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
-import { signChipClass, signTextClass } from '@/lib/utils/metricColors';
+import { signTextClass } from '@/lib/utils/metricColors';
 import { cn } from '@/lib/utils';
 import { OverviewAnimatedCurrency } from '@/components/dashboard/OverviewAnimatedCurrency';
 import { NetWorthSparkline } from '@/components/dashboard/NetWorthSparkline';
@@ -37,10 +37,10 @@ export const PATRIMONIO_CURVE_ID_SUFFIX = '-andamento';
  * string does) — doc/guide/panoramica.md § Panoramica and Dashboard Data Isolation.
  */
 export function resolveHeroValueClass(totalValue: number): string {
-  const formattedLength = cachedFormatCurrencyEUR(totalValue).length;
+  const formattedLength = cachedFormatCurrencyEUR(totalValue, true).length;
   return cn(
     'font-mono font-semibold tracking-[-0.03em] tabular-nums',
-    formattedLength > 13 ? 'text-[32px]' : 'text-[40px]',
+    formattedLength > 13 ? 'text-[30px]' : 'text-[40px]',
   );
 }
 
@@ -113,14 +113,14 @@ export function VariationChip({
     <div className={cn('flex min-w-0 flex-col gap-1.5', className)}>
       <span
         className={cn(
-          'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap rounded-[9px] px-[11px] py-[6px]',
-          'font-mono text-[12px] font-semibold leading-none tracking-[-0.01em] tabular-nums',
-          signChipClass(value),
+          'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap',
+          'font-mono text-[13px] font-medium leading-none tracking-[-0.01em] tabular-nums',
+          signTextClass(value),
         )}
       >
         <Icon className="h-[13px] w-[13px] shrink-0" aria-hidden="true" />
         {value >= 0 ? '+' : '−'}
-        {cachedFormatCurrencyEUR(Math.abs(value))} ({percentage >= 0 ? '+' : '−'}
+        {cachedFormatCurrencyEUR(Math.abs(value), true)} ({percentage >= 0 ? '+' : '−'}
         {formatPercentage(Math.abs(percentage))})
       </span>
       <span className="text-[11px] text-muted-foreground">{caption}</span>
@@ -194,7 +194,7 @@ export function PatrimonioTile({
             />
           )}
           {isNewATH && (
-            <span className="inline-flex w-fit items-center gap-1.5 whitespace-nowrap rounded-[9px] bg-positive/10 px-[11px] py-[6px] text-[12px] font-semibold leading-none text-positive">
+            <span className="inline-flex w-fit items-center gap-1.5 whitespace-nowrap  text-[13px] font-medium leading-none text-positive">
               <Trophy className="h-[13px] w-[13px]" aria-hidden="true" />
               Massimo storico
             </span>
@@ -220,7 +220,7 @@ export function PatrimonioTile({
           <div className="relative -mx-5 mt-3 flex-1 max-desktop:min-h-[120px] desktop:min-h-[180px] [&_svg]:absolute [&_svg]:inset-0 [&_svg]:h-full [&_svg]:w-full">
             <NetWorthSparkline data={sparklineDisplay} filled={true} color="var(--hero-series)" height={180} interactive />
           </div>
-          <div className="mt-1.5 flex justify-between font-mono text-[10px] tabular-nums text-muted-foreground">
+          <div className="mt-1.5 flex justify-between font-mono text-[11px] tabular-nums text-muted-foreground">
             <span>{cachedFormatCurrencyEUR(sparklineDisplay[0].totalNetWorth, true)}</span>
             {/* The curve's last point is the hero in compact form: lifted on a phone. */}
             <span className={lifted('curve-end') ? LIFTED_FIGURE_CLASS : undefined}>

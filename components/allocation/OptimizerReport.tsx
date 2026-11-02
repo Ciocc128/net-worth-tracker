@@ -106,7 +106,7 @@ const PRIORITY_CHIP_CLASS: Record<ObjectiveReport['priority'], string> = {
 function PriorityChip({ priority }: { priority: ObjectiveReport['priority'] }) {
   const label = OBJECTIVE_PRIORITY_LABELS[priority];
   return (
-    <span className={`ml-1.5 rounded-full px-1.5 py-px text-[10px] font-medium ${PRIORITY_CHIP_CLASS[priority]}`}>
+    <span className={`ml-1.5 rounded-full px-1.5 py-px text-[11px] font-medium ${PRIORITY_CHIP_CLASS[priority]}`}>
       {label.charAt(0).toUpperCase() + label.slice(1)}
     </span>
   );

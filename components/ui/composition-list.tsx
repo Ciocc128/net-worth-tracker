@@ -54,7 +54,7 @@ interface CompositionListProps {
 
 // A module-level default, not an inline arrow: the React Compiler cannot reorder an arrow
 // function used as a parameter default.
-const formatEuro = (v: number) => cachedFormatCurrencyEUR(v);
+const formatEuro = (v: number) => cachedFormatCurrencyEUR(v, true);
 const formatShare = (v: number) => formatPercentage(v, 1);
 
 /**

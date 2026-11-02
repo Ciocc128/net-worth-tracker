@@ -29,12 +29,12 @@ export function DraftBox({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
       <p className={TILE_SUB_EYEBROW_CLASS}>{label}</p>
-      <p className="mt-1 font-mono text-[15px] font-semibold tabular-nums text-foreground">{value}</p>
+      <p className="mt-1 font-mono text-[14px] font-semibold tabular-nums text-foreground">{value}</p>
     </div>
   );
 }
 
-const CHIP_BASE = 'shrink-0 whitespace-nowrap rounded-full border border-transparent px-2 py-0.5 text-[10.5px]';
+const CHIP_BASE = 'shrink-0 whitespace-nowrap rounded-full border border-transparent px-2 py-0.5 text-[11px]';
 const CHIP_TONE: Partial<Record<LineUiState, string>> = {
   executed: 'bg-accent text-accent-foreground',
   toConfirm: 'border border-warning-border bg-warning text-warning-foreground',

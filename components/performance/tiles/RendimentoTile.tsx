@@ -4,7 +4,7 @@ import { TrendingDown, TrendingUp } from 'lucide-react';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { CompanionReturnChip, DrawdownStatus, GrowthOfHundredSeries, HeroReturn } from '@/lib/utils/performanceSummary';
 import { formatSignedPercentIt, formatSignedPoints, printedSign } from '@/lib/utils/formatters';
-import { getMetricValueColor, signChipClass } from '@/lib/utils/metricColors';
+import { getMetricValueColor, signTextClass } from '@/lib/utils/metricColors';
 import { useCountUp } from '@/lib/utils/useCountUp';
 import { cn } from '@/lib/utils';
 import { LIFTED_FIGURE_CLASS, Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
@@ -78,8 +78,8 @@ function Chip({ value, caption, className, children }: { value: number | null; c
     <div className={cn('flex min-w-0 flex-col gap-1', className)}>
       <span
         className={cn(
-          'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap rounded-[9px] px-[11px] py-[6px] font-mono text-[12px] font-semibold leading-none tracking-[-0.01em] tabular-nums',
-          sign === null || sign === 0 ? 'bg-muted text-foreground' : signChipClass(sign),
+          'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap font-mono text-[13px] font-medium leading-none tracking-[-0.01em] tabular-nums',
+          sign === null || sign === 0 ? 'text-foreground' : signTextClass(sign),
         )}
       >
         {children}

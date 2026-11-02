@@ -30,7 +30,7 @@ function GoalRow({ goal, hero }: { goal: DashboardOverviewGoalProgress; hero: bo
         <span
           className={cn(
             'shrink-0 font-mono font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground',
-            hero ? 'text-[36px]' : 'text-[18px]',
+            hero ? 'text-[40px]' : 'text-[16px]',
           )}
         >
           {Math.round(goal.progressPercentage)}%

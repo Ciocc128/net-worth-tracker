@@ -104,7 +104,7 @@ export function CashAccountDialog({
         <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
           <Wallet className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         </div>
-        <p className="font-mono text-[36px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
+        <p className="font-mono text-[40px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
           {formatCurrency(value, asset.currency)}
         </p>
       </div>

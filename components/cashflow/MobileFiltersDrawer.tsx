@@ -158,7 +158,7 @@ export function MobileFiltersDrawer({
           {activeFilterCount > 0 && (
             <span
               aria-hidden="true"
-              className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center pointer-events-none"
+              className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[11px] font-bold flex items-center justify-center pointer-events-none"
             >
               {activeFilterCount}
             </span>

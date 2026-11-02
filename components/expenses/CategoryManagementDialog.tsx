@@ -221,7 +221,7 @@ function CategoryFormBody({
           {selectedName?.trim() || 'Nuova Categoria'}
         </span>
         {selectedType && (
-          <Badge variant="secondary" className="text-[10px] font-normal px-2 py-0 h-5">
+          <Badge variant="secondary" className="text-[11px] font-normal px-2 py-0 h-5">
             {EXPENSE_TYPE_LABELS[selectedType]}
           </Badge>
         )}
@@ -397,7 +397,7 @@ function CategoryFormBody({
         <div className="flex items-center justify-between">
           <Label>Sottocategorie</Label>
           {subCategories.length > 0 && (
-            <Badge variant="outline" className="text-[10px] font-normal px-1.5 h-5 text-muted-foreground">
+            <Badge variant="outline" className="text-[11px] font-normal px-1.5 h-5 text-muted-foreground">
               {subCategories.length}
             </Badge>
           )}

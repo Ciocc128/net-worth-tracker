@@ -77,22 +77,22 @@ typography:
   # machine-readable layer must agree with the prose — otherwise tooling reads the
   # documented hero sizes as off-system values.
   scale:
-    sub-eyebrow: "9px"          # compact-cell eyebrow (section 3)
-    param-label: "9.5px"        # Muted Sub-tile Variant B's label (FireParametri, Monte Carlo's ParametriTile) — added 2026-09-06, it was documented in prose only
-    eyebrow: "10px"             # legacy step; the Eyebrow Label is 12px since 2026-11-02 (The Sentence-Case-Label Rule)
-    metadata: "11px"            # tertiary metadata, invisible at a glance
-    delta: "12px"               # Delta Annotation under a KPI value; Variation Chip inside a tile
-    row: "13px"                 # list/composition row text
-    body-px: "14px"             # the verdict sentence below desktop: (page-verdict.tsx) and the caption/row prose of the FIRE tiles — typography.body as a px step, added 2026-09-06
-    chip: "15px"                # a secondary MONO figure in a dialog or a list (DividendDetailsDialog, StoricoDettaglio, the goal card's title) and the verdict sentence from desktop:; the 15px hero chip retired with Patrimonio, tiles use 12px
-    title-px: "16px"            # typography.title as a px step (Monte Carlo's percentile figure below desktop:) — added 2026-09-06
-    navbar-title: "17px"        # the mobile sticky navbar's title (Compact Page Header, below 1440px) — added 2026-08-26, it was documented in prose only
-    compact-hero: "18px"        # secondary row value inside a tile that has its own hero
-    sub-hero: "22px"            # paired secondary values, tile KPIs
-    modal-title: "20px"         # the title of a modal — Headline, as a px step (section 5, Modal)
-    verdict: "24px"             # Verdict Headline, mobile (section 3)
-    verdict-desktop: "30px"     # Verdict Headline, desktop
-    hero-step-down: "32px"      # hero overflow guard, mobile (doc/guide/panoramica.md — `resolveHeroValueClass`)
+    sub-eyebrow: "11px"         # compact-cell eyebrow (section 3); 9px until 2026-11-02 (The Fewer-Steps Rule)
+    param-label: "11px"         # Muted Sub-tile Variant B's label (FireParametri, Monte Carlo's ParametriTile); was 9.5px
+    eyebrow: "11px"             # legacy step; the Eyebrow Label is 12px since 2026-11-02 (The Sentence-Case-Label Rule)
+    metadata: "11px"            # tertiary metadata, the floor of the scale since 2026-11-02
+    delta: "12px"               # Delta Annotation under a KPI value
+    row: "13px"                 # list/composition row text; the variation under a hero (13px, weight 500, sign colour)
+    body-px: "14px"             # the verdict sentence at every width, the caption/row prose of the FIRE tiles and a secondary MONO figure in a dialog or list (was 15px on desktop:)
+    chip: "14px"                # was 15px: folded into body-px
+    title-px: "16px"            # typography.title as a px step; the mobile navbar title and a secondary figure inside a tile that has its own hero (were 17px and 18px)
+    navbar-title: "16px"        # the mobile sticky navbar's title (Compact Page Header, below 1440px)
+    compact-hero: "16px"        # secondary row value inside a tile that has its own hero (was 18px)
+    sub-hero: "22px"            # paired secondary values, tile KPIs, the verdict headline on mobile, a modal title (was 20px and 24px)
+    modal-title: "22px"         # the title of a modal — Headline, as a px step (section 5, Modal); was 20px
+    verdict: "22px"             # Verdict Headline, mobile (section 3); was 24px
+    verdict-desktop: "30px"     # Verdict Headline, desktop; also the secondary heroes that were 28/32/34px
+    hero-step-down: "30px"      # hero overflow guard (doc/guide/panoramica.md — `resolveHeroValueClass`); was 32px
     section-hero: "36px"        # primary metric of a section or bento card
     hero-step-down-desktop: "40px"  # hero overflow guard, desktop (doc/guide/panoramica.md)
     page-hero: "44px"           # legacy step: the page hero is 40px on every width since 2026-11-02 (The Quiet-Figures Rule)
@@ -423,7 +423,7 @@ other). None is declared; a linter that flags them is right.
 
 ### Hierarchy
 
-- **Display — Page Hero** (600 weight, `40px` on every width, lh implicit, ls `-0.03em`): The single dominant number on the page — net worth total on Overview. Always `font-mono tabular-nums`. In Tailwind: `text-[40px] font-semibold font-mono tracking-[-0.03em]`; the overflow guard is `text-[32px]` (`resolveHeroValueClass`). Was 700 at 44/54px until 2026-11-02 — see **The Quiet-Figures Rule**. One instance per view maximum.
+- **Display — Page Hero** (600 weight, `40px` on every width, lh implicit, ls `-0.03em`): The single dominant number on the page — net worth total on Overview. Always `font-mono tabular-nums`. In Tailwind: `text-[40px] font-semibold font-mono tracking-[-0.03em]`; the overflow guard is `text-[30px]` (`resolveHeroValueClass`). Was 700 at 44/54px until 2026-11-02 — see **The Quiet-Figures Rule**. One instance per view maximum.
 
 **The Quiet-Header Rule** (anti-slop, 2026-11-02; `doc/unslop/README.md` M5). The page header names the page and, if there is one, a fact about it: Panoramica says «lunedì 2 novembre 2026», Patrimonio the time of its prices, Storico its span. No greeting, no section eyebrow (the sidebar already says the section), and no sentence that would fit any finance app («Traccia e analizza le tue entrate…»): a page with no fact to state has the title alone.
 
@@ -438,7 +438,7 @@ other). None is declared; a linter that flags them is right.
 **The Assumptions-Under-The-Verdict Rule** (anti-slop, 2026-11-02; `doc/unslop/README.md` M7). The FIRE tabs state their hypotheses as the verdict's scope line («Ipotesi: Base 4,8% reale, costi 0,30%» and «Dettagli») at every width, never as a row of chips above it: the title that answers the question is the first thing under the tabs.
 - **Display — Section Hero** (700 weight, `36px`, lh 1, ls `-0.03em`): Primary metric in a bento card or section hero block — e.g. TER, Annual Cost, FIRE Number. In Tailwind: `text-[36px] font-bold font-mono tabular-nums tracking-[-0.03em] leading-none`.
 - **Sub-hero Value** (700 weight, `22px`, lh 1, ls `-0.025em`): Secondary metrics that sit below the dominant number or in paired value blocks — e.g. Liquid / Illiquid amounts, Entrate / Spese figures. In Tailwind: `text-[22px] font-bold font-mono tracking-[-0.025em] tabular-nums leading-none`.
-- **Verdict Headline** (Geist Sans, 600 weight, `24px` mobile / `30px` desktop, lh 1.15, ls `-0.025em`): the page's opening sentence — the one place where prose, not a number, is the hero. In Tailwind: `text-[24px] font-semibold leading-[1.15] tracking-[-0.025em] desktop:text-[30px]`. The trailing full stop is a separate span coloured by tone (see **The Verdict-First Rule**). The sentence under it is Body at `14px`/`15px` (`desktop:`), muted, with figures as mono regular-weight spans coloured by sign (**The Quiet-Figures Rule**).
+- **Verdict Headline** (Geist Sans, 600 weight, `22px` mobile / `30px` desktop, lh 1.15, ls `-0.025em`): the page's opening sentence — the one place where prose, not a number, is the hero. In Tailwind: `text-[22px] font-semibold leading-[1.15] tracking-[-0.025em] desktop:text-[30px]`. The trailing full stop is a separate span coloured by tone (see **The Verdict-First Rule**). The sentence under it is Body at `14px`, muted, with figures as mono regular-weight spans coloured by sign (**The Quiet-Figures Rule**).
 - **Compact Hero** (700 weight, `18px`, lh 1, ls `-0.03em`): the value of a secondary row inside a tile that already has its own hero — the second and third goals under the featured one. In Tailwind: `text-[18px] font-bold font-mono leading-none tracking-[-0.03em] tabular-nums`.
 - **Headline** (600 weight, 1.25rem, lh 1.25, ls -0.01em): Section headers, dialog titles, card-level titles where data density demands authority.
 - **Title** (600 weight, 1rem, lh 1.4, ls -0.005em): Sub-section headers, table group labels, the step below Headline.
@@ -477,6 +477,14 @@ between a number and a claim.
 **The Sentence-Case-Label Rule** (anti-slop, 2026-11-02; `doc/unslop/README.md` A1, B4). A label names what follows it in sentence case at 12px, weight 500, no tracking, muted: `text-xs font-medium text-muted-foreground`. No label in the app is uppercase or letter-spaced — not a tile's eyebrow, a table head, a picker's «Anni», a dialog's section title, a chart's hover label; the print surfaces (PDF, email) keep their own tokens. A smaller step (9–11px) is for a figure's metadata, never for a label.
 
 **The Quiet-Figures Rule** (anti-slop, 2026-11-02; `doc/unslop/README.md` A2). Weight does not make a figure important: the page hero is 40px at weight 600 on every width (guard 32px), and the figures inside the verdict and the reading line are mono at regular weight — mono and, where it judges, the sign colour already set them apart. Tile asides and footers keep `font-medium` figures. One dominant number per view, and nothing else is bold to compete with it.
+
+**The One-Euro-Format Rule** (anti-slop, 2026-11-02; `doc/unslop/README.md` M1). A euro figure in a tile, a verdict, a strip cell or a chart is whole euros, with no cents: «301.955 €», «+1039 €». Cents appear only where the figure is a record to reconcile — the operations register, the accounts, the tables and the dialogs. `cachedFormatCurrencyEUR(x, true)`, `formatSignedEuro` (compact by default) and the Panoramica/Patrimonio `signedCurrency` are the one way; a strip cell repeats the verdict's figure without a `decimals` of its own. A percentage keeps its own decimals (it is a different quantity).
+
+**The Fewer-Steps Rule** (anti-slop, 2026-11-02; M2). The text scale has no step between its neighbours: 11 · 12 · 13 · 14 · 16 · 22 · 30 · 40px (plus `text-xs`/`text-sm`). 11px is the floor; a new size is a new step in the frontmatter or it is not used. Chart tick and label sizes follow (`fontSize: 11`). PDF primitives and the email keep their own scale (print tokens).
+
+**The Quiet-Pill Rule** (anti-slop, 2026-11-02; M3). A pill is a control (period selectors, toggles) or a status word inside a row beside its value: lowercase, regular-to-medium weight, no icon, no uppercase. The variation under a hero (Panoramica, Patrimonio, Storico, Rendimenti, Fondo, Incasso) and «Massimo storico» are text in the sign colour, 13px weight 500, with their caption under them, not a tinted capsule. Supersedes The Grouped Chip Rule's capsule (the grouping, the caption and the row stay).
+
+**The One-Sentence-Per-Fact Rule** (anti-slop, 2026-11-02; M6). The Cashflow verdict's second sentence says only where the calendar takes the period («Il mese chiude a +1160 € (il 23%)», «Senza entrate attese, l'anno chiude…»); the amounts still to come are said once, by the scope line under it («Nel totale ci sono ancora …»).
 
 ## 4. Elevation
 
@@ -989,7 +997,7 @@ A compact, text-only chip for contextual financial actions (buy / sell / hold si
 
 **Variants:** COMPRA / VENDI / OK, each in the action hue `useActionColors()` resolves from the theme's chart slots (3 / 5 / 2, lightness-clamped so the text stays legible on both modes), with the background and the border as `color-mix` tints of the same hue (14% / 34%). Never the sign tokens: a drift is neither a gain nor a loss (The Scope-Is-Not-An-Axis Rule). The `bg-green-500/10 … border-green-500/20` literals the chip was born with are gone.
 
-**Structure:** `inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold` with a 10px directional icon (TrendingUp / TrendingDown / Minus) before the label. Since 2026-08-25 it lives in the Piano and Per classe tiles of Allocazione, and the Bilanciamento ring takes the same three hues (≥ 92 OK · ≥ 80 COMPRA · below VENDI).
+**Structure:** `inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium` with the word in lowercase («compra», «vendi», «ok»), no icon, no bold (The Quiet-Pill Rule; was 10px bold uppercase with a directional icon until 2026-11-02). Since 2026-08-25 it lives in the Piano and Per classe tiles of Allocazione, and the Bilanciamento ring takes the same three hues (≥ 92 OK · ≥ 80 COMPRA · below VENDI).
 
 **Rules:**
 - The label is the signal; the ONE 10px directional icon before it (`h-2.5 w-2.5`, `aria-hidden`) is the sign a reader takes in before the word, never a second signal and never larger. (The «text only» rule this section carried until 2026-09-06 contradicted its own structure line.)

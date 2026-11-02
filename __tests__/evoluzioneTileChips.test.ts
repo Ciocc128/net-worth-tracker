@@ -80,7 +80,7 @@ describe('EvoluzioneTile — the twelve months chip', () => {
   it('prints a twelve months that rounds to zero unsigned, euro and percentage alike', () => {
     const html = render({ pace: { ...PACE, trailingDelta: 0.3, trailingPct: 0.001 } });
     const text = html.replace(/<[^>]+>/g, '').replace(/[  ]/g, ' ');
-    expect(text).toContain('0 € (0,0%)');
+    expect(text).toContain('0 €(0,0%)');
     expect(text).not.toContain('+0,0%');
   });
 });

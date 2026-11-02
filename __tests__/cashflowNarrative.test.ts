@@ -173,7 +173,7 @@ describe('buildCashflowVerdict', () => {
     const both = buildCashflowVerdict({ ...INPUT, scheduled: { count: 3, expenses: 1850, income: 500, throughMonth: 12 } });
     expect(both.headline).toBe('Agosto sta andando bene.');
     expect(plain(both.sentence)).toBe(
-      'Ad agosto finora hai messo da parte il 76% (3290 €): entrate 4350 €, spese 1060 €, in calo del 6,4% sui primi 22 giorni di luglio. Con 1850 € di spese e 500 € di entrate già in calendario da qui a fine mese, il mese chiude a +1940 € (il 40%).',
+      'Ad agosto finora hai messo da parte il 76% (3290 €): entrate 4350 €, spese 1060 €, in calo del 6,4% sui primi 22 giorni di luglio. Il mese chiude a +1940 € (il 40%).',
     );
 
     // A slice with a count but no amounts (transfers only) is no calendar: one sentence.
@@ -197,7 +197,7 @@ describe('buildCashflowVerdict', () => {
     expect(verdict.headline).toBe('A settembre hai speso più di quanto è entrato.');
     expect(verdict.tone).toBe('negative');
     expect(plain(verdict.sentence)).toBe(
-      'A settembre finora le spese superano le entrate di 354 €: entrate 302 €, spese 656 €. Con 1297 € di spese e 2456 € di entrate già in calendario da qui a fine mese, il mese chiude a +805 € (il 29%).',
+      'A settembre finora le spese superano le entrate di 354 €: entrate 302 €, spese 656 €. Il mese chiude a +805 € (il 29%).',
     );
   });
 
@@ -215,7 +215,7 @@ describe('buildCashflowVerdict', () => {
     });
     // The lived part: 41.531 − 2456 in, 39.868 − 3806 out.
     expect(plain(verdict.sentence)).toContain("Nel 2026 finora hai messo da parte l'8% (3013 €): entrate 39.075 €, spese 36.062 €, in aumento del 34,4% su gen–set 2025.");
-    expect(plain(verdict.sentence)).toContain("Con 3806 € di spese e 2456 € di entrate già in calendario da qui a fine anno, l'anno chiude a +1663 € (il 4%).");
+    expect(plain(verdict.sentence)).toContain("L'anno chiude a +1663 € (il 4%).");
 
     const noIncomeAhead = buildCashflowVerdict({
       period: year,
@@ -224,9 +224,9 @@ describe('buildCashflowVerdict', () => {
       delta: null,
       scheduled: { count: 9, expenses: 3806, income: 0, throughMonth: 12 },
     });
-    expect(plain(noIncomeAhead.sentence)).toContain("Con 3806 € di spese già in calendario da qui a fine anno e nessuna entrata attesa, l'anno chiude a +1663 € (il 4%).");
+    expect(plain(noIncomeAhead.sentence)).toContain("Senza entrate attese, l'anno chiude a +1663 € (il 4%).");
     const noSpendingAhead = buildCashflowVerdict({ ...INPUT, scheduled: { count: 1, expenses: 0, income: 500, throughMonth: 8 } });
-    expect(plain(noSpendingAhead.sentence)).toContain('Con 500 € di entrate già in calendario da qui a fine mese e nessuna spesa attesa, il mese chiude a +1940 € (il 40%).');
+    expect(plain(noSpendingAhead.sentence)).toContain('Senza spese attese, il mese chiude a +1940 € (il 40%).');
   });
 
   it('should say «not yet» for a period nothing has happened in, and close on what the calendar holds', () => {
@@ -240,7 +240,7 @@ describe('buildCashflowVerdict', () => {
     });
     expect(verdict.headline).toBe('Nessun movimento ancora nel 2043.');
     expect(verdict.tone).toBe('neutral');
-    expect(plain(verdict.sentence)).toBe("Con 229 € di spese già in calendario da qui a fine 2043 e nessuna entrata attesa, l'anno chiude con 229 € di spese e nessuna entrata.");
+    expect(plain(verdict.sentence)).toBe("Senza entrate attese, l'anno chiude con 229 € di spese e nessuna entrata.");
 
     // A deficit the calendar does not repair keeps its sign.
     const deficit = buildCashflowVerdict({
@@ -362,7 +362,7 @@ describe('the phone cut of the verdict and the scope line', () => {
       totals: { income: 1850, expenses: 1850, net: 0, savingsRate: 0, coverageRatio: 1, transferCount: 0 },
       scheduled: { count: 2, expenses: 1850, income: 1850, throughMonth: 8 },
     });
-    expect(plain(verdict.sentence)).toMatch(/^Con /);
+    expect(plain(verdict.sentence)).toMatch(/^Il mese chiude /);
     expect(verdict.leadLength).toBe(0);
     expect(verdict.restLabel).toBe(TRACKING_REST_LABEL_FIGURES);
   });
@@ -371,7 +371,7 @@ describe('the phone cut of the verdict and the scope line', () => {
     const verdict = buildCashflowVerdict({ ...INPUT, scheduled: CALENDAR });
     const split = splitVerdict(verdict);
     expect(plain(split.lead)).toBe('Ad agosto finora hai messo da parte il 76% (3290 €): entrate 4350 €, spese 1060 €, in calo del 6,4% sui primi 22 giorni di luglio.');
-    expect(plain(split.rest)).toBe(' Con 1850 € di spese e 500 € di entrate già in calendario da qui a fine mese, il mese chiude a +1940 € (il 40%).');
+    expect(plain(split.rest)).toBe(' Il mese chiude a +1940 € (il 40%).');
     expect(split.restLabel).toBe(TRACKING_REST_LABEL_CLOSING);
     // The cut falls on the sentence boundary: the lead ends with the full stop, the rest opens the next sentence.
     expect(verdict.sentence[verdict.leadLength! - 1].text).toBe('.');

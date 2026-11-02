@@ -595,7 +595,7 @@
    },
    "param-label": {
     "displayName": "Param Label",
-    "purpose": "9.5px — Muted Sub-tile Variant B's label (FireParametri, Monte Carlo's ParametriTile) — added 2026-09-06, it was documented in prose only"
+    "purpose": "11px (9.5px until 2026-11-02) — Muted Sub-tile Variant B's label (FireParametri, Monte Carlo's ParametriTile) — added 2026-09-06, it was documented in prose only"
    },
    "eyebrow": {
     "displayName": "Eyebrow",

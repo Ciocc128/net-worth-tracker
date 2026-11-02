@@ -77,10 +77,10 @@ function CandidateRow({ candidate, checked, onToggle }: { candidate: LinkCandida
           <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="text-[13px] text-foreground">{title}</span>
             {candidate.series && (
-              <span className="rounded-md border border-border px-1.5 text-[10px] font-medium leading-4 text-muted-foreground">{describeLinkSeries(candidate.series)}</span>
+              <span className="rounded-md border border-border px-1.5 text-[11px] font-medium leading-4 text-muted-foreground">{describeLinkSeries(candidate.series)}</span>
             )}
             {candidate.leaves.length > 0 && (
-              <span className="rounded-md border border-border px-1.5 text-[10px] font-medium leading-4 text-warning-foreground">{describeLinkLeaves(candidate.leaves)}</span>
+              <span className="rounded-md border border-border px-1.5 text-[11px] font-medium leading-4 text-warning-foreground">{describeLinkLeaves(candidate.leaves)}</span>
             )}
           </span>
           <span className="text-[11px] text-muted-foreground">

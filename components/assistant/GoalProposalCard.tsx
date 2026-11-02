@@ -89,7 +89,7 @@ export function GoalProposalCard({ proposal }: GoalProposalCardProps) {
             <Target className="h-3 w-3" aria-hidden="true" />
             Proposta di obiettivo
           </p>
-          <p className="mt-1 text-[15px] font-semibold leading-snug text-foreground">{proposal.name}</p>
+          <p className="mt-1 text-[14px] font-semibold leading-snug text-foreground">{proposal.name}</p>
         </div>
         <span
           className={cn(

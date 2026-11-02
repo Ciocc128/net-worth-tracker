@@ -153,12 +153,12 @@ export function GrowthOfHundredChart({ series, benchmarkName, minHeight = 160, m
       {/* The y gutter: HTML like the x labels, so the figures keep their size while the SVG stretches. */}
       <div className="relative shrink-0" aria-hidden="true">
         {/* Sizes the gutter: the ticks themselves are absolute and give it no width. */}
-        <span className="invisible block font-mono text-[10px] tabular-nums">{widestTick}</span>
+        <span className="invisible block font-mono text-[11px] tabular-nums">{widestTick}</span>
         <div className="absolute inset-x-0 top-0" style={{ bottom: X_AXIS_ROW_PX }}>
           {yTicks.map((tick) => (
             <span
               key={tick.key}
-              className="absolute right-0 -translate-y-1/2 whitespace-nowrap font-mono text-[10px] leading-none tabular-nums text-muted-foreground"
+              className="absolute right-0 -translate-y-1/2 whitespace-nowrap font-mono text-[11px] leading-none tabular-nums text-muted-foreground"
               style={{ top: `${tick.at * 100}%` }}
             >
               {formatNumber(tick.value, 1)}
@@ -225,7 +225,7 @@ export function GrowthOfHundredChart({ series, benchmarkName, minHeight = 160, m
             return (
               <span
                 key={i}
-                className="absolute top-0 whitespace-nowrap font-mono text-[10px] tabular-nums text-muted-foreground"
+                className="absolute top-0 whitespace-nowrap font-mono text-[11px] tabular-nums text-muted-foreground"
                 style={{ left: `${x}%`, transform: i === 0 ? 'none' : i === points.length - 1 ? 'translateX(-100%)' : 'translateX(-50%)' }}
               >
                 {monthLabel(p.year, p.month, withYear)}

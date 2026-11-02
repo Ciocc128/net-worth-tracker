@@ -65,7 +65,7 @@ const TONE_DOT_CLASS: Record<VerdictTone, string> = {
 /** The curve of a row's opening, the same as `TileRowShell`'s (components/ui/tile.tsx). */
 const ROW_MOTION_CLASS = 'motion-safe:duration-300 motion-safe:ease-spring';
 
-const SENTENCE_CLASS = 'text-[14px] leading-[1.6] text-muted-foreground desktop:text-[15px]';
+const SENTENCE_CLASS = 'text-[14px] leading-[1.6] text-muted-foreground';
 
 /**
  * The verdict, in ONE DOM in reading order on every width — no `order-*`, no `contents`
@@ -105,7 +105,7 @@ export function PageVerdict({ verdict, ariaLabel, axis, strip, scope, restCollap
     // `page-verdict` is the region a page scene morphs into the next page's verdict (globals.css →
     // Page scene); the loading skeleton reserves the same name so the morph has a target on landing.
     <section aria-label={ariaLabel} className="flex max-w-[920px] flex-col gap-2" style={{ viewTransitionName: 'page-verdict' }}>
-      <h2 className="text-[24px] font-semibold leading-[1.15] tracking-[-0.025em] text-foreground desktop:text-[30px]">
+      <h2 className="text-[22px] font-semibold leading-[1.15] tracking-[-0.025em] text-foreground desktop:text-[30px]">
         {headline}
         <span className={TONE_DOT_CLASS[verdict.tone]} aria-hidden="true">
           .

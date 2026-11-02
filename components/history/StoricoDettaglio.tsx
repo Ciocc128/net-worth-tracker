@@ -273,7 +273,7 @@ function LaborRow({ label, caption, value, tone = 'flow' }: { label: string; cap
         <span className={cn('block text-[13px] text-foreground', tone === 'total' && 'font-semibold')}>{label}</span>
         <span className="block text-[11px] text-muted-foreground">{caption}</span>
       </span>
-      <span className={cn('shrink-0 font-mono text-[15px] tabular-nums', tone === 'total' ? 'font-bold' : 'font-semibold', laborValueClass(tone, value))}>{signedOrZero(value)}</span>
+      <span className={cn('shrink-0 font-mono text-[14px] tabular-nums', tone === 'total' ? 'font-bold' : 'font-semibold', laborValueClass(tone, value))}>{signedOrZero(value)}</span>
     </div>
   );
 }

@@ -61,7 +61,7 @@ export function PeriodoTile({ eyebrow, aside, reading, totals, pacing, missingBa
   return (
     <Tile
       eyebrow={eyebrow}
-      aside={aside ? <NarrativeText segments={aside} className="text-[10px]" figureClassName="font-medium" /> : undefined}
+      aside={aside ? <NarrativeText segments={aside} className="text-[11px]" figureClassName="font-medium" /> : undefined}
       reading={reading}
       id={id}
       className={className}

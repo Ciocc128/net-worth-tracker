@@ -408,7 +408,7 @@ describe('resolveLastPriceUpdate', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('hasCostBasis — a PMC on a hand-valued holding is not a PMC', () => {
-  it('refuses the structural «+0,00 €» of a private-equity stake and of a property kept at price 1', () => {
+  it('refuses the structural «+0 €» of a private-equity stake and of a property kept at price 1', () => {
     // Academia Private Equity on the owner's account: value 4.000 in quantity, price 1, averageCost 1.
     const privateEquity = makeAsset({ type: 'stock', assetClass: 'equity', subCategory: 'Private Equity', quantity: 4000, currentPrice: 1, averageCost: 1 });
     expect(hasCostBasis(privateEquity)).toBe(false);
@@ -556,7 +556,7 @@ describe('describePatrimonioClosedAnswers (the landscape index)', () => {
     const answers = describePatrimonioClosedAnswers(input());
     expect(Object.fromEntries(Object.entries(answers).map(([id, answer]) => [id, text(answer)]))).toEqual({
       [PATRIMONIO_SECTION_IDS.movimenti]: 'netto +1700 €',
-      [PATRIMONIO_SECTION_IDS.liquidita]: 'sui conti 8000,00 €',
+      [PATRIMONIO_SECTION_IDS.liquidita]: 'sui conti 8000 €',
       [PATRIMONIO_SECTION_IDS.classi]: 'Immobili 80,0%',
       [PATRIMONIO_SECTION_IDS.rendimento]: 'sul costo +20,0%',
       [PATRIMONIO_SECTION_IDS.mutuo]: null,
@@ -625,7 +625,7 @@ describe('describePatrimonioClosedAnswers (the landscape index)', () => {
 
   it('should print a negative balance with the typographic minus and say nothing without an account', () => {
     const debt = input({ cash: { ...CASH, total: -1234 } });
-    expect(text(describePatrimonioClosedAnswers(debt)[PATRIMONIO_SECTION_IDS.liquidita])).toBe('sui conti −1234,00 €');
+    expect(text(describePatrimonioClosedAnswers(debt)[PATRIMONIO_SECTION_IDS.liquidita])).toBe('sui conti −1234 €');
     const none = input({ cash: { accounts: [], total: 0, shareOfTotal: 0, largest: null } });
     expect(describePatrimonioClosedAnswers(none)[PATRIMONIO_SECTION_IDS.liquidita]).toBeNull();
   });

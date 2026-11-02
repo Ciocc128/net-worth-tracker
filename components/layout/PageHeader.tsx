@@ -81,7 +81,7 @@ export function PageHeader({ title, description, actions, freshness, className }
           fill with a blur let their words ghost through behind the title. */}
       <div className="-mx-4 px-4 pt-1 pb-2 flex flex-col bg-background desktop:hidden tablet-landscape:hidden">
         <div className="flex items-center justify-between">
-          <h1 className="text-[17px] font-semibold tracking-tight truncate min-w-0">{title}</h1>
+          <h1 className="text-[16px] font-semibold tracking-tight truncate min-w-0">{title}</h1>
           {actions && (
             <div className="flex shrink-0 items-center gap-1.5 ml-2">{actions}</div>
           )}

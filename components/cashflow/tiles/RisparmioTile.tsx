@@ -119,7 +119,7 @@ function SavingsRateBars({ history, highlightKey }: { history: SavingsHistory; h
         {history.months.map((month) => (
           <span
             key={month.key}
-            className={cn('text-center font-mono text-[10px] tabular-nums', month.key === highlightKey ? CURRENT_SLOT_LABEL_CLASS : 'text-muted-foreground')}
+            className={cn('text-center font-mono text-[11px] tabular-nums', month.key === highlightKey ? CURRENT_SLOT_LABEL_CLASS : 'text-muted-foreground')}
           >
             {month.label}
           </span>

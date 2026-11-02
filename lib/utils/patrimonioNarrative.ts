@@ -89,7 +89,7 @@ function signed(value: number, unsigned: string): NarrativeSegment {
 }
 
 /** Signed euro figure with a typographic minus, coloured by sign; a printed zero unsigned. */
-function signedCurrency(value: number, compact = false): NarrativeSegment {
+function signedCurrency(value: number, compact = true): NarrativeSegment {
   return signed(value, cachedFormatCurrencyEUR(Math.abs(value), compact));
 }
 
@@ -263,7 +263,7 @@ export function formatHoldingCounts(instrumentCount: number, accountCount: numbe
  */
 export function buildPatrimonioVerdict(input: PatrimonioVerdictInput): PatrimonioVerdict {
   const { headline, tone } = resolveHeadline(input);
-  const sentence: Narrative = [prose('Il portafoglio vale '), figure(cachedFormatCurrencyEUR(input.totalValue))];
+  const sentence: Narrative = [prose('Il portafoglio vale '), figure(cachedFormatCurrencyEUR(input.totalValue, true))];
 
   if (input.monthlyVariation) {
     sentence.push(
@@ -554,9 +554,9 @@ export function describeMortgage(summary: MortgageSummary): Narrative {
   if (summary.yearInstalments > 0) {
     return [
       prose(`Nel ${summary.year} hai pagato `),
-      figure(cachedFormatCurrencyEUR(summary.yearInterest)),
+      figure(cachedFormatCurrencyEUR(summary.yearInterest, true)),
       prose(' di interessi e rimborsato '),
-      figure(cachedFormatCurrencyEUR(summary.yearPrincipal)),
+      figure(cachedFormatCurrencyEUR(summary.yearPrincipal, true)),
       prose(` di capitale, in ${summary.yearInstalments === 1 ? '1 rata' : `${summary.yearInstalments} rate`}`),
       ...closing,
     ];
@@ -567,9 +567,9 @@ export function describeMortgage(summary: MortgageSummary): Narrative {
       prose(lead),
       figure(dayMonthOf(summary.next.date)),
       prose(', rimborserà '),
-      figure(cachedFormatCurrencyEUR(summary.next.principal)),
+      figure(cachedFormatCurrencyEUR(summary.next.principal, true)),
       prose(' di capitale; '),
-      figure(cachedFormatCurrencyEUR(summary.next.interest)),
+      figure(cachedFormatCurrencyEUR(summary.next.interest, true)),
       prose(' saranno interessi'),
       ...closing,
     ];

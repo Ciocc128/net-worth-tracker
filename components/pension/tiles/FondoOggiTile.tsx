@@ -27,7 +27,7 @@ import type { PensionValuePoint } from '@/lib/utils/pensionReturn';
 import type { FondoOggiChip } from '@/lib/utils/pensionNarrative';
 import type { DashboardOverviewSparklinePoint } from '@/types/dashboardOverview';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import { signChipClass } from '@/lib/utils/metricColors';
+import { signTextClass } from '@/lib/utils/metricColors';
 import { cn } from '@/lib/utils';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { OverviewAnimatedCurrency } from '@/components/dashboard/OverviewAnimatedCurrency';
@@ -64,16 +64,16 @@ export interface FondoOggiTileProps {
  * total stays on the muted surface.
  */
 function FondoChip({ chip }: { chip: FondoOggiChip }) {
-  // `signChipClass` reads a number, the chip carries a sign: the figure is already a string,
+  // `signTextClass` reads a number, the chip carries a sign: the figure is already a string,
   // so the sign is mapped to ±1 to keep the one source of the chip tokens.
   const Icon = chip.sign === 'negative' ? TrendingDown : TrendingUp;
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <span
         className={cn(
-          'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap rounded-[9px] px-[11px] py-[6px]',
-          'font-mono text-[12px] font-semibold leading-none tracking-[-0.01em] tabular-nums',
-          chip.sign ? signChipClass(chip.sign === 'positive' ? 1 : -1) : 'bg-muted text-foreground',
+          'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap',
+          'font-mono text-[13px] font-medium leading-none tracking-[-0.01em] tabular-nums',
+          chip.sign ? signTextClass(chip.sign === 'positive' ? 1 : -1) : 'text-foreground',
         )}
       >
         {chip.sign && <Icon className="h-[13px] w-[13px] shrink-0" aria-hidden="true" />}
@@ -132,7 +132,7 @@ export function FondoOggiTile({
               longer of the two, and a `shrink-0` on it would push it past the tile's edge. */}
           <div className="mt-5 flex items-center justify-between gap-3">
             <p className={cn('shrink-0', TILE_SUB_EYEBROW_CLASS)}>Andamento</p>
-            <span className="min-w-0 text-right font-mono text-[10px] tabular-nums text-muted-foreground">{seriesAside}</span>
+            <span className="min-w-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground">{seriesAside}</span>
           </div>
           {/* Edge-to-edge (the -mx matches the tile padding). The SVG is absolutely positioned
               so its 100% height resolves against the flex-sized box instead of its own viewBox
@@ -144,7 +144,7 @@ export function FondoOggiTile({
           <div className="relative -mx-5 mt-3 flex-1 max-desktop:min-h-[120px] desktop:min-h-[180px] [&_svg]:absolute [&_svg]:inset-0 [&_svg]:h-full [&_svg]:w-full">
             <NetWorthSparkline data={sparklineData} filled={true} color="var(--hero-series)" height={180} interactive />
           </div>
-          <div className="mt-1.5 flex justify-between font-mono text-[10px] tabular-nums text-muted-foreground">
+          <div className="mt-1.5 flex justify-between font-mono text-[11px] tabular-nums text-muted-foreground">
             <span>{cachedFormatCurrencyEUR(series[0].value, true)}</span>
             <span>{cachedFormatCurrencyEUR(series[series.length - 1].value, true)}</span>
           </div>

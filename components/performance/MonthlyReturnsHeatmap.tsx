@@ -148,11 +148,11 @@ export function MonthlyReturnsHeatmap({ data, className }: MonthlyReturnsHeatmap
       <table className="w-full table-fixed border-separate border-spacing-0" aria-describedby={hintId}>
         <thead>
           <tr>
-            <th scope="col" className="w-8 text-left font-mono text-[10px] font-normal text-muted-foreground">
+            <th scope="col" className="w-8 text-left font-mono text-[11px] font-normal text-muted-foreground">
               <span className="sr-only">Anno</span>
             </th>
             {MONTH_LETTERS.map((letter, i) => (
-              <th key={i} scope="col" className="pl-[3px] text-center font-mono text-[10px] font-normal text-muted-foreground" aria-label={MONTH_NAMES[i]}>
+              <th key={i} scope="col" className="pl-[3px] text-center font-mono text-[11px] font-normal text-muted-foreground" aria-label={MONTH_NAMES[i]}>
                 {letter}
               </th>
             ))}
