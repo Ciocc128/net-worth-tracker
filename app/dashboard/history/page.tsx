@@ -476,7 +476,6 @@ export default function HistoryPage() {
 
   const header = (
     <PageHeader
-      label="Analisi"
       title="Storico"
       description={describeStoricoHeader(growth)}
       freshness={freshness}

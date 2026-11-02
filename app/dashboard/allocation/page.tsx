@@ -489,7 +489,6 @@ export default function AllocationPage() {
 
   const header = (
     <PageHeader
-      label="Pianificazione"
       title="Allocazione"
       description={headerDescription}
       freshness={freshness}

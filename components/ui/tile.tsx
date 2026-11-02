@@ -92,7 +92,7 @@ export const TILE_ROW_CELL_CLASS = `${TILE_CELL_CLASS} max-desktop:self-start`;
 export const LIFTED_FIGURE_CLASS = 'max-desktop:hidden';
 
 /** The card every tile and every error notice is made of. */
-export const TILE_SURFACE_CLASS = 'flex min-w-0 flex-col rounded-2xl border border-border bg-card shadow-sm';
+export const TILE_SURFACE_CLASS = 'flex min-w-0 flex-col rounded-2xl border border-border bg-card';
 
 /**
  * A closed row's answer, in the landscape index only (`CLOSED_ANSWER_CLASS`): the words shrink and end

@@ -43,7 +43,7 @@
 
 import { useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { CalendarDays, RefreshCw, Sparkles } from 'lucide-react';
+import { CalendarDays, FileText, RefreshCw } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -300,13 +300,10 @@ function HeaderActions({
           variant="outline"
           onClick={onAI}
           disabled={aiDisabled}
-          className={cn(
-            'group gap-1.5 transition-[border-color,color,box-shadow] duration-200 hover:border-[var(--ai-accent)] hover:text-[var(--ai-accent)] hover:shadow-[0_0_14px_color-mix(in_oklch,var(--ai-accent)_40%,transparent)]',
-            size,
-          )}
+          className={cn('gap-1.5', size)}
           aria-label={isDemo ? `${AI_LABEL}${DEMO_SUFFIX}` : AI_LABEL}
         >
-          <Sparkles className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-12 group-hover:scale-110" aria-hidden="true" />
+          <FileText className="h-3.5 w-3.5" aria-hidden="true" />
           Analizza con AI
         </Button>
       )}
@@ -704,7 +701,6 @@ export default function PerformancePage() {
 
   const header = (
     <PageHeader
-      label="Analisi"
       title="Rendimenti"
       description={describeHeaderWindow(metrics)}
       freshness={freshness}
@@ -727,7 +723,7 @@ export default function PerformancePage() {
               className="h-11 w-11 text-muted-foreground desktop:hidden"
               aria-label={isDemo ? `${AI_LABEL}${DEMO_SUFFIX}` : AI_LABEL}
             >
-              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              <FileText className="h-4 w-4" aria-hidden="true" />
             </Button>
           )}
           <Button

@@ -69,7 +69,6 @@ colors:
   # place: the hover of the AI analysis button on Rendimenti (`app/dashboard/performance/page.tsx:220`,
   # border, text and a 14px glow). Declared here on 2026-09-06 so it is a token and not a stray;
   # it is not a licence — the Zero-Chroma Rule still says the chrome has no hue.
-  ai-accent: "oklch(0.65 0.2 305)"
 typography:
   # The enumerated Trade Republic ramp. The named roles below describe the generic
   # Geist Sans/Mono hierarchy; this scale is the project's actual step ladder, spelled
@@ -289,7 +288,7 @@ This system explicitly rejects four aesthetic modes: Bloomberg terminal coldness
 - Verdict first: every page opens with one rule-generated sentence that answers its question before any number is read — the prose is the hero, the figures inside it are mono and sign-coloured
 - One tile, one question: a page is a 12-column grid of tiles, each naming its question (eyebrow), answering it in words (reading line), then showing the figures — no tile repeats another tile's rows
 - Honest narratives: a sentence never claims what the data cannot support; a missing input drops its clause, it never prints a placeholder
-- One eyebrow voice: the 12px sentence-case eyebrow names a tile's question, a page's section in the compact header, and a navigation group in the sidebar and the phone drawer — the frame and the content share one label register
+- One eyebrow voice: the 12px sentence-case eyebrow names a tile's question, and a navigation group in the sidebar and the phone drawer (the compact header has no eyebrow since 2026-11-02) — the frame and the content share one label register
 
 ### How this file is read by tooling
 
@@ -348,7 +347,6 @@ Slots 6-8 differ from the first five in one way, and it is deliberate: each hold
 - **Destructive Flame** (`oklch(0.577 0.245 27.325)`): Destructive actions **and** the negative half of every sign colour. Saturated enough to demand attention without being an emergency siren. The named themes each declare their own; seven of the twelve declarations of that date were raised or lowered on 2026-08-13 to clear 4.5:1 as text against their own `--card` — the default theme already did and was left untouched.
 - **Positive Jade** (`oklch(0.482 0.194 149.214)` light / `oklch(0.740 0.156 148.655)` dark): the positive half of every sign colour. **One named theme overrides it: Lime Frost light** (`oklch(0.50 0.15 138)`, 2026-09-14, so gains sit in the same green family as its income series; its dark block takes the default back) — every other combination is served by this one pair. The light value was darkened from `0.627` on 2026-08-13: at that lightness it measured 2.62–3.22:1 across the light themes, so the reassuring half of every verdict read fainter than the alarming half — an asymmetry in what the interface was emphasising, not just a contrast number.
 - **Warning surface** (`--warning` `oklch(0.986 0.022 90)` light / `oklch(0.260 0.038 78)` dark, `--warning-border` `oklch(0.855 0.062 85)` / `oklch(0.460 0.085 75)`, with `--warning-foreground` `oklch(0.468 0.098 75)` / `oklch(0.854 0.090 82)` as the text and the tone): the third tone of the verdict's full stop, the Budget Track's fill from 90%, the toast's rule, the «I risultati sopra usano i parametri dell'ultima esecuzione» line. A near-white fill with a faint hue, never a chart slot — declared in the frontmatter on 2026-09-06 after two propagations had used it undeclared.
-- **AI accent** (`--ai-accent` `oklch(0.65 0.2 305)`, both modes): the one accent still declared in the chrome. It was the violet of the assistant banner; the banner went with the shell redesign and the token survives in exactly one place — the hover of the AI analysis button on Rendimenti (`app/dashboard/performance/page.tsx:220`: border, text and a 14px `color-mix` glow). Declared, not endorsed: the Zero-Chroma Rule is unchanged, and the next surface that wants a hue for «AI» does not get one.
 
 ### Named Rules
 
@@ -426,6 +424,12 @@ other). None is declared; a linter that flags them is right.
 ### Hierarchy
 
 - **Display — Page Hero** (600 weight, `40px` on every width, lh implicit, ls `-0.03em`): The single dominant number on the page — net worth total on Overview. Always `font-mono tabular-nums`. In Tailwind: `text-[40px] font-semibold font-mono tracking-[-0.03em]`; the overflow guard is `text-[32px]` (`resolveHeroValueClass`). Was 700 at 44/54px until 2026-11-02 — see **The Quiet-Figures Rule**. One instance per view maximum.
+
+**The Quiet-Header Rule** (anti-slop, 2026-11-02; `doc/unslop/README.md` M5). The page header names the page and, if there is one, a fact about it: Panoramica says «lunedì 2 novembre 2026», Patrimonio the time of its prices, Storico its span. No greeting, no section eyebrow (the sidebar already says the section), and no sentence that would fit any finance app («Traccia e analizza le tue entrate…»): a page with no fact to state has the title alone.
+
+**The Border-Not-Shadow Rule** (anti-slop, 2026-11-02; `doc/unslop/README.md` N3). A tile is separated from the page by its border and its background step, never by a shadow. Shadows stay for what leaves the document flow (menus, popovers, dialogs: **The Float Threshold**).
+
+**The Neutral-AI Rule** (anti-slop, 2026-11-02; `doc/unslop/README.md` A3). An action that calls a model is an ordinary outline button: no violet, no glow, no sparkle icon, no animation on hover. The icon says what comes out (a document), the label stays a plain verb phrase. `--ai-accent` is deleted.
 - **Display — Section Hero** (700 weight, `36px`, lh 1, ls `-0.03em`): Primary metric in a bento card or section hero block — e.g. TER, Annual Cost, FIRE Number. In Tailwind: `text-[36px] font-bold font-mono tabular-nums tracking-[-0.03em] leading-none`.
 - **Sub-hero Value** (700 weight, `22px`, lh 1, ls `-0.025em`): Secondary metrics that sit below the dominant number or in paired value blocks — e.g. Liquid / Illiquid amounts, Entrate / Spese figures. In Tailwind: `text-[22px] font-bold font-mono tracking-[-0.025em] tabular-nums leading-none`.
 - **Verdict Headline** (Geist Sans, 600 weight, `24px` mobile / `30px` desktop, lh 1.15, ls `-0.025em`): the page's opening sentence — the one place where prose, not a number, is the hero. In Tailwind: `text-[24px] font-semibold leading-[1.15] tracking-[-0.025em] desktop:text-[30px]`. The trailing full stop is a separate span coloured by tone (see **The Verdict-First Rule**). The sentence under it is Body at `14px`/`15px` (`desktop:`), muted, with figures as mono regular-weight spans coloured by sign (**The Quiet-Figures Rule**).
@@ -462,7 +466,7 @@ between a number and a claim.
 
 **The Comma Rule.** Every percentage the user reads is formatted for `it-IT` — `+1,01%`, `72,8%` — through chartService's `formatPercentage`, never `toFixed` (which prints `1.01%`, a dot the rest of the screen never uses). Currency comes from `cachedFormatCurrencyEUR`, which puts a no-break space before `€` and leaves four-digit amounts ungrouped (`4120,18 €`): tests flatten the nbsp and expect the real output. Signs are typographic: `+` and the true minus `−` (U+2212), never a hyphen. Rendimenti retired the last `toFixed` chips on 2026-08-25 (Patrimonio and Tracciamento theirs on 2026-08-22; a ratio such as «1,67×» or a Sharpe «1,08» goes through `formatNumber`, with the true minus swapped in). A sign is decided on the PRINTED figure: `−0,04%` prints as `0,0%`, unsigned and uncoloured, and a gap under a tenth of a point is «in linea». So is the ARTICLE in front of it: Italian takes «allo 0,1%», «all'8,5%», «al 12%» from the figure as printed and never from the underlying value, so the article is resolved by the shared helpers in the pure layer and never written by hand — «carry al 0,1%» reached the Panoramica because one sentence wrote «al » itself.
 
-**The One-Eyebrow Rule.** The app has one eyebrow — `text-xs font-medium` in sentence case since 2026-11-02 (it was `text-[10px] font-semibold uppercase tracking-[0.1em]`) — and it is the same element whether it names a tile's question, the section a compact page header belongs to ("Panoramica", "Operatività") or a navigation group ("Analisi", "Pianificazione") in the sidebar and the phone drawer. The 12px `tracking-widest` eyebrow of the legacy header and the 12px group labels the sidebar used to have were three sizes for one job; when the frame and the content use the same label, the frame stops reading as a second voice and the verdict is what the eye lands on.
+**The One-Eyebrow Rule.** The app has one eyebrow — `text-xs font-medium` in sentence case since 2026-11-02 (it was `text-[10px] font-semibold uppercase tracking-[0.1em]`) — and it is the same element whether it names a tile's question or a navigation group ("Analisi", "Pianificazione"); the compact page header has none since 2026-11-02 in the sidebar and the phone drawer. The 12px `tracking-widest` eyebrow of the legacy header and the 12px group labels the sidebar used to have were three sizes for one job; when the frame and the content use the same label, the frame stops reading as a second voice and the verdict is what the eye lands on.
 
 **The Sentence-Case-Label Rule** (anti-slop, 2026-11-02; `doc/unslop/README.md` A1, B4). A label names what follows it in sentence case at 12px, weight 500, no tracking, muted: `text-xs font-medium text-muted-foreground`. No label in the app is uppercase or letter-spaced — not a tile's eyebrow, a table head, a picker's «Anni», a dialog's section title, a chart's hover label; the print surfaces (PDF, email) keep their own tokens. A smaller step (9–11px) is for a figure's metadata, never for a label.
 
@@ -477,7 +481,7 @@ Surfaces build depth first through background-value steps (Deep Void → Charcoa
 ### Shadow Vocabulary
 
 - **Whisper** (`box-shadow: 0 1px 2px rgba(0,0,0,0.05)`): Inputs, form fields. Barely perceptible — gives a field its "inset" quality without adding visual weight.
-- **Lift** (`box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)`): Cards, contained data panels. Separates a surface from the page without announcing itself.
+- **Lift** (`box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)`): contained data panels that are not tiles. A tile has no shadow since 2026-11-02 (**The Border-Not-Shadow Rule**).
 - **Float** (`box-shadow: 0 4px 24px rgba(0,0,0,0.28)`): Floating elements that leave document flow — the mobile nav pill, dropdown menus, detached popovers. The one shadow that is large and felt. Reserved for elements that genuinely hover above the page.
 
 ### Named Rules
@@ -514,7 +518,7 @@ The unit of every redesigned page: `Tile` in `components/ui/tile.tsx` (the Panor
 
 **Structure:**
 ```tsx
-<section className="flex min-w-0 flex-col rounded-2xl border border-border bg-card p-5 shadow-sm">
+<section className="flex min-w-0 flex-col rounded-2xl border border-border bg-card p-5">
   <div className="flex items-baseline justify-between gap-3">
     {/* an <h3> under the verdict's <h2>: the class carries every metric */}
     <h3 className="text-xs font-medium text-muted-foreground">{eyebrow}</h3>
@@ -632,7 +636,7 @@ an `AlertDialog` on purpose because it interrupts.
 
 ### Compact Page Header
 
-`PageHeader` — the compact header is the component, not a variant: the `variant` prop was deleted on 2026-08-26 (below). The one prop the compact form had no use for, `separator` — a no-op since the same date (`!separator && '-mb-0'`), still passed as `separator={false}` by eighteen callers that predated the deletion — was removed on 2026-09-06, from the interface and from every caller; the header has no separator prop, and nothing to pass. On `desktop:` one line — eyebrow (`TILE_EYEBROW_CLASS`, 10px/0.1em, the same as the tiles) · title (`text-sm font-medium`) · description (`text-sm text-muted-foreground`, joined with `·`) — actions right, `min-h-9`, no separator. Below `desktop:` the sticky navbar is unchanged (title 17px, description under it). The page's real headline is its verdict, so the header is a breadcrumb, not a title.
+`PageHeader` — the compact header is the component, not a variant: the `variant` prop was deleted on 2026-08-26 (below). The one prop the compact form had no use for, `separator` — a no-op since the same date (`!separator && '-mb-0'`), still passed as `separator={false}` by eighteen callers that predated the deletion — was removed on 2026-09-06, from the interface and from every caller; the header has no separator prop, and nothing to pass. On `desktop:` one line — (until 2026-11-02 an eyebrow came first; it is gone) title (`text-sm font-medium`) · description (`text-sm text-muted-foreground`, joined with `·`) — actions right, `min-h-9`, no separator. Below `desktop:` the sticky navbar is unchanged (title 17px, description under it). The page's real headline is its verdict, so the header is a breadcrumb, not a title.
 
 `variant="legacy"` — **superseded, and deleted on 2026-08-26 with Previdenza, the last page that declared it**: `PageHeader` has one variant. The pre-redesign desktop header (2xl/3xl title, description under it, optional `border-b`) survives only in `git log`.
 
@@ -1364,8 +1368,8 @@ useEffect(() => {
 - **Do** run a route change as a page scene (`SceneLink`, The Page Scene) with exactly three named regions — `page-main`, `page-header`, `page-verdict` — and keep every `::view-transition-*` rule scoped by `html[data-vt=…]`.
 - **Don't** let a plotted series drive the other tiles of an axis-less page under the pointer (the retired Scrub Rule): a hover reads the chart it is on, and the page's figures stay today's.
 - **Do** stretch an edge-to-edge chart with the SVG positioned `absolute inset-0` inside a `relative flex-1 min-h-[…]` box (`preserveAspectRatio="none"`). An in-flow `<svg>` with `height: 100%` in an auto-height parent takes its height from its own viewBox ratio — hundreds of pixels — and explodes the grid row.
-- **Do** let `PageHeader` be the compact header on every page: eyebrow · title · description on one line, actions right, no separator, the verdict as the real headline (the `legacy` variant was deleted on 2026-08-26 with the last page that used it). The mobile sticky navbar is unchanged.
-- **Do** use one eyebrow for the frame and the content (The One-Eyebrow Rule): `TILE_EYEBROW_CLASS` names a tile's question, the compact header's section and a navigation group alike.
+- **Do** let `PageHeader` be the compact header on every page: title · description on one line, actions right, no separator, the verdict as the real headline (the `legacy` variant was deleted on 2026-08-26 with the last page that used it). The mobile sticky navbar is unchanged.
+- **Do** use one eyebrow for the frame and the content (The One-Eyebrow Rule): `TILE_EYEBROW_CLASS` names a tile's question and a navigation group alike.
 - **Do** load a redesigned page with `TileGridSkeleton` and its own `cells` — one skeleton component for every page, the verdict lines plus the grid, nothing else.
 - **Do** name an absence: nothing recorded, a measured zero, or a failed read — three different sentences, three different forms, and never a zero standing in for the other two (**The Absence-Has-Three-Names Rule**).
 - **Do** guard every pulse with `motion-safe:` and mark every skeleton placeholder `aria-hidden`; the wait is announced once, by the block.
