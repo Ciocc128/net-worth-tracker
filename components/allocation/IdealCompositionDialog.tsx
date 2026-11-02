@@ -98,7 +98,7 @@ const MODE_OPTIONS = [
   { value: 'reachable' as const, label: OPTIMIZER_MODE_LABELS.reachable },
 ];
 
-const HEAD_CLASS = 'py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground';
+const HEAD_CLASS = 'py-1.5 pr-2 text-xs font-medium text-muted-foreground';
 const NUM_CELL_CLASS = 'py-1.5 pr-2 text-right font-mono tabular-nums';
 /** In «Con vendite mirate» the € difference yields its width to «Tasse» on a phone: six columns
  *  measured 393px in a 356px dialog body at 390 (collaudo, 2026-09-27). */
@@ -396,7 +396,7 @@ export function IdealCompositionDialog({
     <ResponsiveModal open={open} onClose={onClose} width="xl" title={IDEAL_COMPOSITION_TITLE}>
       <div className="space-y-4">
         <div className="rounded-lg bg-muted p-3">
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
             {OPTIMIZER_OBJECTIVES_TITLE}
           </p>
           <NarrativeText segments={describeIdealComposition(readingInput)} className="text-[13px] text-foreground" />

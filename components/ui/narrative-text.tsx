@@ -13,7 +13,7 @@ interface NarrativeTextProps {
  * the numeric face and coloured by sign through the theme tokens, so one sentence can mix
  * words and numbers without the numbers losing their financial authority.
  */
-export function NarrativeText({ segments, className, figureClassName = 'font-semibold' }: NarrativeTextProps) {
+export function NarrativeText({ segments, className, figureClassName = 'font-normal' }: NarrativeTextProps) {
   return (
     <p className={cn('m-0', className)}>
       <NarrativeSegments segments={segments} figureClassName={figureClassName} />
@@ -45,7 +45,7 @@ export const FIGURE_UNIT_CLASS = 'ml-[0.2em]';
  */
 export function NarrativeSegments({
   segments,
-  figureClassName = 'font-semibold',
+  figureClassName = 'font-normal',
 }: Omit<NarrativeTextProps, 'className'>) {
   return (
     <>

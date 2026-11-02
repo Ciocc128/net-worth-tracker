@@ -150,7 +150,7 @@ function EvolutionTooltip({ active, payload, headFollows = false }: EvolutionToo
   if (headFollows && !point.note) return null;
   return (
     <div style={TOOLTIP_STYLE} className="flex flex-col gap-1 text-[11px]">
-      <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{formatPeriodMonth(point)}</span>
+      <span className="font-mono text-xs font-medium text-muted-foreground">{formatPeriodMonth(point)}</span>
       {!headFollows && (
         <>
           <span className="font-mono text-[13px] font-semibold tabular-nums text-card-foreground">{cachedFormatCurrencyEUR(point.totalNetWorth)}</span>

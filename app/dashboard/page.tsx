@@ -272,7 +272,7 @@ export default function DashboardPage() {
     return filterSparklineByPeriod(overview.sparklineData, sparklinePeriod);
   }, [overview, sparklinePeriod]);
 
-  // Overflow guard for the hero number: a 7-8 figure total at 44/54px would wrap in the tile.
+  // Overflow guard for the hero number: a 7-8 figure total at 40px would wrap in the tile.
   const heroValueClass = useMemo(() => resolveHeroValueClass(totalValue), [totalValue]);
 
   // Composition remapped by ASSET_CLASS_CHART_INDEX so a class is the same hue as on

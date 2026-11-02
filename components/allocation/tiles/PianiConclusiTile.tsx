@@ -30,7 +30,7 @@ import {
 } from '@/lib/utils/accumulationNarrative';
 import { Tile, type TileCollapse } from '@/components/ui/tile';
 
-const HEAD_CLASS = 'py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground';
+const HEAD_CLASS = 'py-1.5 pr-2 text-xs font-medium text-muted-foreground';
 const CELL_CLASS = 'whitespace-nowrap py-1.5 pr-2 text-right font-mono text-[12px] tabular-nums text-muted-foreground';
 
 interface PianiConclusiTileProps {

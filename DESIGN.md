@@ -80,7 +80,7 @@ typography:
   scale:
     sub-eyebrow: "9px"          # compact-cell eyebrow (section 3)
     param-label: "9.5px"        # Muted Sub-tile Variant B's label (FireParametri, Monte Carlo's ParametriTile) — added 2026-09-06, it was documented in prose only
-    eyebrow: "10px"             # Eyebrow Label above a dominant number
+    eyebrow: "10px"             # legacy step; the Eyebrow Label is 12px since 2026-11-02 (The Sentence-Case-Label Rule)
     metadata: "11px"            # tertiary metadata, invisible at a glance
     delta: "12px"               # Delta Annotation under a KPI value; Variation Chip inside a tile
     row: "13px"                 # list/composition row text
@@ -96,16 +96,16 @@ typography:
     hero-step-down: "32px"      # hero overflow guard, mobile (doc/guide/panoramica.md — `resolveHeroValueClass`)
     section-hero: "36px"        # primary metric of a section or bento card
     hero-step-down-desktop: "40px"  # hero overflow guard, desktop (doc/guide/panoramica.md)
-    page-hero: "44px"           # the single dominant number, mobile
-    page-hero-desktop: "54px"   # the single dominant number, desktop
+    page-hero: "44px"           # legacy step: the page hero is 40px on every width since 2026-11-02 (The Quiet-Figures Rule)
+    page-hero-desktop: "54px"   # legacy step, retired with the 40px hero
   display:
-    # The page hero — the one dominant NUMBER (section 3, Display — Page Hero): 54px from
-    # desktop:, 44px below it (scale.page-hero). Until 2026-09-06 this role said
+    # The page hero — the one dominant NUMBER (section 3, Display — Page Hero): 40px on every width
+    # since 2026-11-02 (it was 54px from desktop: and 44px below it). Until 2026-09-06 this role said
     # `clamp(1.75rem, 3vw, 2.5rem)`, a value no element ever wore, which made every documented
     # hero size read as off-system; it is now the ramp's own top step, set in the mono face.
     fontFamily: "Geist Mono, ui-monospace, monospace"
-    fontSize: "54px"
-    fontWeight: 700
+    fontSize: "40px"
+    fontWeight: 600
     lineHeight: 1
     letterSpacing: "-0.03em"
   headline:
@@ -289,7 +289,7 @@ This system explicitly rejects four aesthetic modes: Bloomberg terminal coldness
 - Verdict first: every page opens with one rule-generated sentence that answers its question before any number is read — the prose is the hero, the figures inside it are mono and sign-coloured
 - One tile, one question: a page is a 12-column grid of tiles, each naming its question (eyebrow), answering it in words (reading line), then showing the figures — no tile repeats another tile's rows
 - Honest narratives: a sentence never claims what the data cannot support; a missing input drops its clause, it never prints a placeholder
-- One eyebrow voice: the 10px/0.1em eyebrow names a tile's question, a page's section in the compact header, and a navigation group in the sidebar and the phone drawer — the frame and the content share one label register
+- One eyebrow voice: the 12px sentence-case eyebrow names a tile's question, a page's section in the compact header, and a navigation group in the sidebar and the phone drawer — the frame and the content share one label register
 
 ### How this file is read by tooling
 
@@ -425,17 +425,17 @@ other). None is declared; a linter that flags them is right.
 
 ### Hierarchy
 
-- **Display — Page Hero** (700 weight, `44px` mobile / `54px` desktop, lh implicit, ls `-0.03em`): The single dominant number on the page — net worth total on Overview. Always `font-mono tabular-nums`. In Tailwind: `text-[44px] font-bold font-mono tracking-[-0.03em] desktop:text-[54px]`. One instance per view maximum.
+- **Display — Page Hero** (600 weight, `40px` on every width, lh implicit, ls `-0.03em`): The single dominant number on the page — net worth total on Overview. Always `font-mono tabular-nums`. In Tailwind: `text-[40px] font-semibold font-mono tracking-[-0.03em]`; the overflow guard is `text-[32px]` (`resolveHeroValueClass`). Was 700 at 44/54px until 2026-11-02 — see **The Quiet-Figures Rule**. One instance per view maximum.
 - **Display — Section Hero** (700 weight, `36px`, lh 1, ls `-0.03em`): Primary metric in a bento card or section hero block — e.g. TER, Annual Cost, FIRE Number. In Tailwind: `text-[36px] font-bold font-mono tabular-nums tracking-[-0.03em] leading-none`.
 - **Sub-hero Value** (700 weight, `22px`, lh 1, ls `-0.025em`): Secondary metrics that sit below the dominant number or in paired value blocks — e.g. Liquid / Illiquid amounts, Entrate / Spese figures. In Tailwind: `text-[22px] font-bold font-mono tracking-[-0.025em] tabular-nums leading-none`.
-- **Verdict Headline** (Geist Sans, 600 weight, `24px` mobile / `30px` desktop, lh 1.15, ls `-0.025em`): the page's opening sentence — the one place where prose, not a number, is the hero. In Tailwind: `text-[24px] font-semibold leading-[1.15] tracking-[-0.025em] desktop:text-[30px]`. The trailing full stop is a separate span coloured by tone (see **The Verdict-First Rule**). The sentence under it is Body at `14px`/`15px` (`desktop:`), muted, with figures as mono `font-semibold` spans coloured by sign.
+- **Verdict Headline** (Geist Sans, 600 weight, `24px` mobile / `30px` desktop, lh 1.15, ls `-0.025em`): the page's opening sentence — the one place where prose, not a number, is the hero. In Tailwind: `text-[24px] font-semibold leading-[1.15] tracking-[-0.025em] desktop:text-[30px]`. The trailing full stop is a separate span coloured by tone (see **The Verdict-First Rule**). The sentence under it is Body at `14px`/`15px` (`desktop:`), muted, with figures as mono regular-weight spans coloured by sign (**The Quiet-Figures Rule**).
 - **Compact Hero** (700 weight, `18px`, lh 1, ls `-0.03em`): the value of a secondary row inside a tile that already has its own hero — the second and third goals under the featured one. In Tailwind: `text-[18px] font-bold font-mono leading-none tracking-[-0.03em] tabular-nums`.
 - **Headline** (600 weight, 1.25rem, lh 1.25, ls -0.01em): Section headers, dialog titles, card-level titles where data density demands authority.
 - **Title** (600 weight, 1rem, lh 1.4, ls -0.005em): Sub-section headers, table group labels, the step below Headline.
 - **Body** (400 weight, 0.875rem, lh 1.6): All prose, descriptions, note content. Max line length 65ch.
-- **Reading Line** (Geist Sans, 400 weight, `13px`, lh 1.45): the one-line answer under a tile's eyebrow, before the figures. Figures inside it are `font-mono font-semibold tabular-nums` and take the sign colour; the prose stays `text-foreground`. Rendered by `NarrativeText` from a `Narrative` (segments with `mono`/`sign`), never assembled in JSX.
+- **Reading Line** (Geist Sans, 400 weight, `13px`, lh 1.45): the one-line answer under a tile's eyebrow, before the figures. Figures inside it are `font-mono font-normal tabular-nums` (`NarrativeText`'s default since 2026-11-02) and take the sign colour; the prose stays `text-foreground`. Rendered by `NarrativeText` from a `Narrative` (segments with `mono`/`sign`), never assembled in JSX.
 - **Label** (500 weight, 0.75rem, lh 1.4, ls +0.01em): Input labels, tags, stat captions, tab text. Slightly tracked for legibility at small sizes.
-- **Eyebrow Label** (600 weight, `10px`, uppercase, ls `0.1em`, muted): Section eyebrow — the small all-caps label placed above a dominant number. In Tailwind: `text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground`. Never competes with the number it names. It is also the compact page header's eyebrow and the group label of the sidebar and the phone drawer (`TILE_EYEBROW_CLASS` in `components/ui/tile.tsx`; on the sidebar surface its colour is `text-sidebar-foreground/60`) — see **The One-Eyebrow Rule**. Use 9px / `tracking-[0.08em]` for sub-eyebrows inside compact cells. Context can be appended with a centered-dot separator: `Cashflow · MAGGIO 2026` — the `·` joins without adding another label.
+- **Eyebrow Label** (500 weight, `12px`, sentence case, no tracking, muted): Section eyebrow — the small label placed above a dominant number. In Tailwind: `text-xs font-medium text-muted-foreground` (2026-11-02, **The Sentence-Case-Label Rule**; it was 600 weight, 10px, uppercase, ls `0.1em`). Never competes with the number it names. It is also the compact page header's eyebrow and the group label of the sidebar and the phone drawer (`TILE_EYEBROW_CLASS` in `components/ui/tile.tsx`; on the sidebar surface its colour is `text-sidebar-foreground/60`) — see **The One-Eyebrow Rule**. Sub-eyebrows inside compact cells (`TILE_SUB_EYEBROW_CLASS`) are the same 12px label. Context can be appended with a centered-dot separator: `Cashflow · MAGGIO 2026` — the `·` joins without adding another label.
 - **Delta Annotation** (Geist Mono, 400 weight, `12px`, ls 0): The small trend line that appears directly below a sub-hero value — under a figure of a tile's KPI trio (`CashflowKpiTrio`), under a run-rate figure of the Scheda; the KPI chip it was born in is superseded (Muted Sub-tile, Variant A) — e.g. `+5,2% vs mese scorso`. Always `font-mono`. Color follows sign semantics via the theme tokens (see **The Sign-Color Token Rule**): `text-positive` for positive, `text-destructive` for negative — never raw `text-green-*`/`text-red-*`. **Inverted semantics for expense metrics**: a positive delta on Spese is bad; parameter the color via `positiveGood: boolean`. In Tailwind: `text-[12px] font-mono mt-1.5 text-positive` (or `text-destructive`); prefer `getMetricValueColor()`. A neutral subline (non-trend) uses `text-[12px] text-muted-foreground mt-1.5`.
 - **Numeric** (Geist Mono, 400 weight, 0.875rem, lh 1.4, `font-feature-settings: "tnum" 1`): All monetary values, percentages, dates, quantities in financial contexts. Tabular figures always enabled.
 
@@ -462,7 +462,11 @@ between a number and a claim.
 
 **The Comma Rule.** Every percentage the user reads is formatted for `it-IT` — `+1,01%`, `72,8%` — through chartService's `formatPercentage`, never `toFixed` (which prints `1.01%`, a dot the rest of the screen never uses). Currency comes from `cachedFormatCurrencyEUR`, which puts a no-break space before `€` and leaves four-digit amounts ungrouped (`4120,18 €`): tests flatten the nbsp and expect the real output. Signs are typographic: `+` and the true minus `−` (U+2212), never a hyphen. Rendimenti retired the last `toFixed` chips on 2026-08-25 (Patrimonio and Tracciamento theirs on 2026-08-22; a ratio such as «1,67×» or a Sharpe «1,08» goes through `formatNumber`, with the true minus swapped in). A sign is decided on the PRINTED figure: `−0,04%` prints as `0,0%`, unsigned and uncoloured, and a gap under a tenth of a point is «in linea». So is the ARTICLE in front of it: Italian takes «allo 0,1%», «all'8,5%», «al 12%» from the figure as printed and never from the underlying value, so the article is resolved by the shared helpers in the pure layer and never written by hand — «carry al 0,1%» reached the Panoramica because one sentence wrote «al » itself.
 
-**The One-Eyebrow Rule.** The app has one eyebrow — `text-[10px] font-semibold uppercase tracking-[0.1em]` — and it is the same element whether it names a tile's question, the section a compact page header belongs to ("PANORAMICA", "OPERATIVITÀ") or a navigation group ("ANALISI", "PIANIFICAZIONE") in the sidebar and the phone drawer. The 12px `tracking-widest` eyebrow of the legacy header and the 12px group labels the sidebar used to have were three sizes for one job; when the frame and the content use the same label, the frame stops reading as a second voice and the verdict is what the eye lands on.
+**The One-Eyebrow Rule.** The app has one eyebrow — `text-xs font-medium` in sentence case since 2026-11-02 (it was `text-[10px] font-semibold uppercase tracking-[0.1em]`) — and it is the same element whether it names a tile's question, the section a compact page header belongs to ("Panoramica", "Operatività") or a navigation group ("Analisi", "Pianificazione") in the sidebar and the phone drawer. The 12px `tracking-widest` eyebrow of the legacy header and the 12px group labels the sidebar used to have were three sizes for one job; when the frame and the content use the same label, the frame stops reading as a second voice and the verdict is what the eye lands on.
+
+**The Sentence-Case-Label Rule** (anti-slop, 2026-11-02; `doc/unslop/README.md` A1, B4). A label names what follows it in sentence case at 12px, weight 500, no tracking, muted: `text-xs font-medium text-muted-foreground`. No label in the app is uppercase or letter-spaced — not a tile's eyebrow, a table head, a picker's «Anni», a dialog's section title, a chart's hover label; the print surfaces (PDF, email) keep their own tokens. A smaller step (9–11px) is for a figure's metadata, never for a label.
+
+**The Quiet-Figures Rule** (anti-slop, 2026-11-02; `doc/unslop/README.md` A2). Weight does not make a figure important: the page hero is 40px at weight 600 on every width (guard 32px), and the figures inside the verdict and the reading line are mono at regular weight — mono and, where it judges, the sign colour already set them apart. Tile asides and footers keep `font-medium` figures. One dominant number per view, and nothing else is bold to compete with it.
 
 ## 4. Elevation
 
@@ -513,7 +517,7 @@ The unit of every redesigned page: `Tile` in `components/ui/tile.tsx` (the Panor
 <section className="flex min-w-0 flex-col rounded-2xl border border-border bg-card p-5 shadow-sm">
   <div className="flex items-baseline justify-between gap-3">
     {/* an <h3> under the verdict's <h2>: the class carries every metric */}
-    <h3 className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{eyebrow}</h3>
+    <h3 className="text-xs font-medium text-muted-foreground">{eyebrow}</h3>
     <div className="shrink-0 text-[10px] text-muted-foreground">{aside}</div>
   </div>
   <NarrativeText segments={reading} className="mt-2 text-[13px] leading-[1.45] text-foreground" />
@@ -523,7 +527,7 @@ The unit of every redesigned page: `Tile` in `components/ui/tile.tsx` (the Panor
 ```
 
 **Rules:**
-- Eyebrow = the question; aside = its scope (a period, a count, "stima annua"); reading = the answer in words; figures after. Sub-labels inside the tile use the 9px sub-eyebrow.
+- Eyebrow = the question; aside = its scope (a period, a count, "stima annua"); reading = the answer in words; figures after. Sub-labels inside the tile use the same 12px label.
 - `p-5` (20px) and `gap-3` (12px) between tiles — tighter than the 22/16 of the previous bento; tiles are many and small.
 - The dominant tile (net worth) spans two rows and lets its chart stretch (`relative flex-1 min-h-[180px]` with the SVG `absolute inset-0`); numbers and chips keep their size.
 - No tile repeats another tile's rows (The One-Tile-One-Question Rule).

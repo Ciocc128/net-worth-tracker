@@ -90,7 +90,7 @@ export function CalendarDayCell({
           >
             {cachedFormatCurrencyEUR(totalNet, true)}
           </span>
-          {announced && <span className="text-[9px] font-medium uppercase tracking-[0.08em] text-warning-foreground">attesa</span>}
+          {announced && <span className="text-xs font-medium text-warning-foreground">attesa</span>}
         </span>
       )}
     </button>

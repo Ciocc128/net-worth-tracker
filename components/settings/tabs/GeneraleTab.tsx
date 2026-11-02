@@ -815,7 +815,7 @@ export function GeneraleTab({
         <div className="mt-6 border-t border-border pt-6 space-y-4 tablet:col-span-2 desktop:col-span-12">
           <div className="flex items-center gap-2">
             <FlaskConical className="h-4 w-4 text-orange-500" />
-            <p className="text-xs uppercase tracking-widest text-orange-500">Strumenti di sviluppo</p>
+            <p className="text-xs text-orange-500">Strumenti di sviluppo</p>
           </div>
           <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/10 dark:border-orange-900">
             <CardContent className="p-4 sm:p-6 space-y-4">

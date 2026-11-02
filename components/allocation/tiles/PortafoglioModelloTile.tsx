@@ -82,7 +82,7 @@ interface PortafoglioModelloTileProps {
 
 type View = 'closed' | 'composition' | 'pac' | 'edit' | 'candidate';
 
-const HEAD_CLASS = 'py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground';
+const HEAD_CLASS = 'py-1.5 pr-2 text-xs font-medium text-muted-foreground';
 const NUM_CELL_CLASS = 'py-1.5 pr-2 text-right font-mono tabular-nums';
 
 function signedEur(value: number): string {

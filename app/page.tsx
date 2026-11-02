@@ -335,7 +335,7 @@ export default function HomePage() {
           <NarrativeText
             segments={describeProjectFacts()}
             className="text-[11px] text-muted-foreground"
-            figureClassName="font-semibold"
+            figureClassName="font-normal"
           />
         </div>
       </footer>

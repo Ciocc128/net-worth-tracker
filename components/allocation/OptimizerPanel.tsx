@@ -182,7 +182,7 @@ export function OptimizerPanel({
   return (
     <div className="space-y-4">
       <div className="rounded-lg bg-muted p-3">
-        <p className={'mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground'}>
+        <p className={'mb-1.5 text-xs font-medium text-muted-foreground'}>
           {OPTIMIZER_OBJECTIVES_TITLE}
         </p>
         <NarrativeText segments={describeIdealAllocation(readingInput)} className="text-[13px] text-foreground" />

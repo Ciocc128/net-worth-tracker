@@ -32,15 +32,15 @@ export function isPatrimonioLiftedBlock(block: string): block is PatrimonioLifte
 export const PATRIMONIO_CURVE_ID_SUFFIX = '-andamento';
 
 /**
- * The hero number's size class. A 7-8 figure total at 44/54px would wrap inside the tile, so
+ * The hero number's size class. A 7-8 figure total at 40px would wrap inside the tile, so
  * the step-down keys off the formatted string's length (the tile's width does not vary; the
  * string does) — doc/guide/panoramica.md § Panoramica and Dashboard Data Isolation.
  */
 export function resolveHeroValueClass(totalValue: number): string {
   const formattedLength = cachedFormatCurrencyEUR(totalValue).length;
   return cn(
-    'font-mono font-bold tracking-[-0.035em] tabular-nums',
-    formattedLength > 13 ? 'text-[32px] desktop:text-[40px]' : 'text-[44px] desktop:text-[54px]',
+    'font-mono font-semibold tracking-[-0.03em] tabular-nums',
+    formattedLength > 13 ? 'text-[32px]' : 'text-[40px]',
   );
 }
 

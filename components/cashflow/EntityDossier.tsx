@@ -146,7 +146,7 @@ function SubCategoryDeltaRow({ row, isIncome }: { row: EntitySubCategoryDeltaRow
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="truncate text-[13px] text-muted-foreground">{row.label}</span>
           {row.status !== 'ongoing' && (
-            <span className="shrink-0 rounded border border-border px-1 py-px text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <span className="shrink-0 rounded border border-border px-1 py-px text-xs font-medium text-muted-foreground">
               {row.status === 'new' ? 'Nuova' : 'Cessata'}
             </span>
           )}
@@ -233,7 +233,7 @@ function YearRow({
         )}
         <span className="font-mono text-[13px] font-medium tabular-nums text-foreground">{row.year}</span>
         {row.isPartial && (
-          <span className="rounded border border-border px-1 py-px text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">YTD</span>
+          <span className="rounded border border-border px-1 py-px text-xs font-medium text-muted-foreground">YTD</span>
         )}
       </span>
       <span className="min-w-0 text-right">
