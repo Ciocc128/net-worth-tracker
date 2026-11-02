@@ -17,7 +17,7 @@ Check every change on **Lime Frost (the fork default) and Graphite, light and da
 
 | # | Points | Subject | State |
 | --- | --- | --- | --- |
-| 1 | A1, B4, A2 | Type and figures (+ DESIGN.md) | asked 2026-11-02 |
+| 1 | A1, B4, A2 | Type and figures (+ DESIGN.md) | implemented 2026-11-02, draft PR pending |
 | 2 | A3, M5, N1, N3 | AI button, header words, curve, tile border | not started |
 | 3 | A4, M7, N2 | Stretched tiles, FIRE head, empty Hall of Fame (Mac measurements) | not started |
 | 4 | M1, M2, M3, M6 | Number formats, text sizes, pills, Cashflow verdict | not started |
@@ -51,15 +51,34 @@ the hero's issue is its size, not the weight). Two separable parts:
   *Reading Line* («figures are `font-mono font-semibold` and take the sign colour»), «the figures inside it are
   mono and sign-coloured».
 
-### Decisions
+### Decisions (owner, 2026-11-02)
 
-| ID | Point | Decision | Alternatives | Reason |
+| ID | Point | Decision | Alternatives discarded | Reason |
 | --- | --- | --- | --- | --- |
-| D-AS1 | A1 | pending | keep as is; 11px; sentence case but keep 600 | — |
-| D-AS2 | B4 | pending | leave the residual labels | — |
-| D-AS3 | A2a | pending | keep 54px; 48px | — |
-| D-AS4 | A2b | pending | keep; colour only, keep bold | — |
+| D-AS1 | A1 | **Yes, as proposed**: eyebrow and sub-eyebrow 12px, weight 500, sentence case, no tracking | keep; 11px | confirmed by both checklists; 9–10px caps was the least legible text on the page |
+| D-AS2 | B4 | **Yes, all** residual uppercase labels (picker, hover labels, table heads, dialogs, «Strumenti di sviluppo») | leave tables; leave all | one label style, no second register |
+| D-AS3 | A2a | **40px, weight 600** (hero and its overflow guard 32px) | 48px; keep 54px | taste-skill: in a work screen no figure exceeds 40px |
+| D-AS4 | A2b | **Only drop the bold** of the figures in the verdict / reading line (`NarrativeText` default `font-semibold` → `font-normal`); sign colours stay | full proposal (colour only the key figure, variations as text); keep | owner kept the colours, wanted less weight |
+
+### Implemented (branch `claude/unslop-s1-tipografia`)
+
+- `components/ui/tile.tsx`: `TILE_EYEBROW_CLASS` and `TILE_SUB_EYEBROW_CLASS` → `text-xs font-medium text-muted-foreground`.
+- B4: every `uppercase` label in `app/` and `components/` outside the PDF primitives (print tokens stay): period picker,
+  chart hover labels, Strumenti sort heads, Optimizer report, PAC dialog, model/ideal-composition/objectives dialogs,
+  Piani conclusi, EntityDossier, calendar cell, cashflow andamento chart, assistant preferences, category and expense
+  dialogs, `GeneraleTab` dev tools. Left: the `Badge` in `AssistantThreadList` (a badge, not a label).
+- A2a: `resolveHeroValueClass` (Patrimonio, Costo, Totale, Fondo oggi), `RendimentoTile`, `ProbabilitaTile`,
+  `TettoTile`: 40px / 600 on every width (the mobile 44px was dropped too, a phone hero larger than the desktop one
+  made no sense; the mobile report will revisit phone sizes), guard 32px.
+- A2b: `NarrativeText`/`NarrativeSegments` default and the landing's explicit `font-semibold` → `font-normal`. Asides
+  and footers that pass `font-medium` keep it; sub-labels such as the Cashflow window label (`font-semibold` figure
+  inside a label) are not touched.
+- DESIGN.md: **The Sentence-Case-Label Rule**, **The Quiet-Figures Rule**; Eyebrow Label, Page Hero, Reading Line, One-Eyebrow Rule, tile anatomy and the frontmatter hero rewritten.
+
+### Checks
+
+`npx tsc --noEmit` clean; `TZ=Europe/Rome npx vitest run`: 7463 / 7464 (the one red is `monteCarloDefaultsArchive`, the known cloud-only flake, unrelated). Screenshots before/after at 1440, Lime Frost light and dark, Graphite light and dark (Panoramica; Cashflow and Rendimenti in Lime Frost light and Graphite dark), in the project library `unslop/s1/`. Not run: Playwright suite and `mobile:budget` (Mac).
 
 ### Refused points
 
-None yet.
+None.
