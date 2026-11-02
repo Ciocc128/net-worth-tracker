@@ -101,6 +101,17 @@ const COLOR_THEME_SWATCHES = [
     swatchPrimaryDark: 'oklch(0.8871 0.2122 128.5041)',
     swatchAccent: 'oklch(0.3717 0.0392 257.2870)',
   },
+  {
+    // Fork only (2026-11-02): zinc made minimal, one blue accent and one green (doc/guide/temi.md § Graphite).
+    id: 'graphite' as ColorTheme,
+    name: 'Graphite',
+    description: 'Grafite, blu e verde',
+    swatchBg: 'oklch(0.9550 0 0)',
+    swatchBgDark: 'oklch(0.1000 0 0)',
+    swatchPrimary: 'oklch(0.2050 0 0)',
+    swatchPrimaryDark: 'oklch(0.9220 0 0)',
+    swatchAccent: 'oklch(0.5200 0.1500 255.0000)',
+  },
 ] as const;
 
 export function AspettoTab() {

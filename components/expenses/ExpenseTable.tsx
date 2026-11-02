@@ -192,11 +192,11 @@ function ExpenseTableRow({ expense, scheduled, ownerLabel, singleType, categoryM
       </TableCell>
       <TableCell className="text-sm text-muted-foreground">{expense.subCategoryName || '-'}</TableCell>
       <TableCell className={cn('text-right', FIGURE_CLASS)}>
-        {/* The figure tokens (--income-figure / --expense-figure) carry the theme's rule on flows; a scheduled row is muted. */}
+        {/* The feed figure tokens (--feed-income-figure / --feed-expense-figure) carry the theme's rule on movements; a scheduled row is muted. */}
         <div
           className={cn(
             'flex items-center justify-end gap-1 font-medium',
-            scheduled ? 'text-muted-foreground' : expense.type === 'income' ? 'text-income-figure' : 'text-expense-figure',
+            scheduled ? 'text-muted-foreground' : expense.type === 'income' ? 'text-feed-income-figure' : 'text-feed-expense-figure',
           )}
         >
           {expense.type === 'income' ? <TrendingUp className="h-4 w-4" aria-hidden="true" /> : <TrendingDown className="h-4 w-4" aria-hidden="true" />}

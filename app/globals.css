@@ -69,6 +69,9 @@
   /* An income or spending FIGURE (a KPI, a row amount, a hover value): the sign ink unless a theme
      keeps the sign for judgements only and ties the figure to its series with a dot instead. */
   --color-income-figure: var(--income-figure);
+  --color-feed-income-figure: var(--feed-income-figure);
+  --color-feed-expense-figure: var(--feed-expense-figure);
+  --color-switch-on: var(--switch-on);
   --color-expense-figure: var(--expense-figure);
   /* The period's savings (a residual, so a judgement): neutral unless a theme signs it. */
   --color-net-gain-figure: var(--net-gain-figure);
@@ -213,6 +216,13 @@
   --milestone-near: var(--foreground);
   --income-figure: var(--positive);
   --expense-figure: var(--destructive);
+  /* The same two figures in a list of movements (the Tracciamento feed, its detail, the Spese table,
+     Analisi's Scheda): the figures above unless a theme names its own (Lime Frost and Graphite: the
+     incoming «+» in the gain green, an outgoing amount in ink — the feed exception, 2026-11-02). */
+  --feed-income-figure: var(--income-figure);
+  --feed-expense-figure: var(--expense-figure);
+  /* A Switch when on: the primary fill in light (the `.dark` block keeps the blue it always had). */
+  --switch-on: var(--primary);
   --net-gain-figure: var(--foreground);
   --net-loss-figure: var(--foreground);
   /* The series dot beside a figure (components/ui/series-dot.tsx): hidden unless a theme turns it on. */
@@ -293,6 +303,9 @@
   --destructive-surface: color-mix(in oklab, var(--input) 30%, transparent);
   --destructive-surface-hover: color-mix(in oklab, var(--input) 50%, transparent);
   --destructive-outline: var(--input);
+  /* The Switch's checked fill in the dark: the blue-600 it carried as a `dark:` class, moved here so
+     a theme's dark block can name its own (Graphite). */
+  --switch-on: oklch(0.546 0.245 262.881);
   /* Lighter green for dark mode — matches the luminance contrast patterns of other
      dark-mode semantic tokens (e.g. --destructive shifts from 0.577 to 0.704). */
   --positive: oklch(0.740 0.156 148.655);
@@ -1025,6 +1038,10 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
      dot in --flow-in / --flow-out. The sign stays on deltas, residuals and budget overruns. */
   --income-figure: var(--foreground);
   --expense-figure: var(--foreground);
+  /* The feed exception (owner, 2026-11-02): in a list of movements an incoming «+» takes the gain
+     green, an outgoing amount stays ink — never red; the summaries above keep ink and the dot. */
+  --feed-income-figure: var(--positive);
+  --feed-expense-figure: var(--foreground);
   --series-dot: inline-block;
   /* …while the savings, which IS a judgement, takes the sign: the income hue's text step when kept,
      red when the period spends more than it earns. */
@@ -1169,6 +1186,8 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --estimate-figure: var(--warning-foreground);
   --income-figure: var(--foreground);
   --expense-figure: var(--foreground);
+  --feed-income-figure: var(--positive);
+  --feed-expense-figure: var(--foreground);
   --series-dot: inline-block;
   --net-gain-figure: var(--positive);
   --net-loss-figure: var(--destructive);
@@ -1217,6 +1236,235 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --sidebar-accent-foreground: oklch(0.9842 0.0034 247.8575);
   --sidebar-border: oklch(0.2795 0.0368 260.0310);
   --sidebar-ring: oklch(0.8871 0.2122 128.5041);
+}
+
+/*
+ * Graphite (fork only, 2026-11-02) — the default zinc made minimal, after Apple, Revolut and Trade
+ * Republic, carrying Lime Frost's FUNCTIONAL rules (doc/guide/fork-scelte-ui.md § 2) in zinc's own
+ * palette, never Lime Frost's hues. The owner's register («Carta del nuovo zinc», thread of
+ * 2026-11-02; research in doc/guide/temi.md § Graphite):
+ *   · greys for the structure and every reference series (invested capital, drawdown, OK, Liquidità,
+ *     category icons, hovers); ink for the main action;
+ *   · ONE accent, blue 255, on what is read first: net worth, income (spending a paler blue), the
+ *     progress bars, the three scenarios as three blues, COMPRA, Necessità / Desideri;
+ *   · ONE green, 155–158, which is also the gain sign, for money kept or growing: the savings, the
+ *     Risparmi role, gain bars, the Switch when on, a goal reached; the feed's incoming «+»;
+ *   · red only for negative judgements; NO amber for costs or estimates (a cost is ink, an estimate
+ *     the secondary grey) — the warning amber stays for warnings;
+ *   · the class slots are zinc's hues at two thirds of their chroma, Liquidità a zinc grey;
+ *   · Lime Frost's shapes: --radius 1rem, quiet inner scrollbars.
+ * Measured by graphiteTheme.test.ts (the floors of limeFrostTheme.test.ts) and
+ * chartPaletteDistinctness.test.ts; the dark block takes back every token the light block names.
+ */
+[data-theme="graphite"] {
+  --radius: 1rem;
+  --background: oklch(0.9550 0 0);
+  --foreground: oklch(0.1450 0 0);
+  --card: oklch(1.0000 0 0);
+  --card-foreground: oklch(0.1450 0 0);
+  --popover: oklch(1.0000 0 0);
+  --popover-foreground: oklch(0.1450 0 0);
+  --primary: oklch(0.2050 0 0);
+  --primary-foreground: oklch(0.9850 0 0);
+  --secondary: oklch(0.9700 0 0);
+  --secondary-foreground: oklch(0.2050 0 0);
+  --muted: oklch(0.9650 0 0);
+  --muted-foreground: oklch(0.5200 0 0);
+  --accent: oklch(0.9300 0 0);
+  --accent-foreground: oklch(0.2050 0 0);
+  --destructive: oklch(0.5400 0.2100 27.3250);
+  --positive: oklch(0.5000 0.1300 155.0000);
+  --destructive-foreground: oklch(1.0000 0 0);
+  --warning: oklch(0.986 0.022 90);
+  --warning-foreground: oklch(0.468 0.098 75);
+  --warning-border: oklch(0.855 0.062 85);
+  --border: oklch(0.9000 0 0);
+  --input: oklch(0.9000 0 0);
+  --ring: oklch(0.2050 0 0);
+  --outline-surface: oklch(0.9850 0 0);
+  --destructive-surface: oklch(0.9700 0 0);
+  --destructive-surface-hover: oklch(0.9250 0 0);
+  --destructive-outline: oklch(0.8900 0 0);
+  --hero-series: oklch(0.5200 0.1500 255.0000);
+  --segment-active: oklch(1.0000 0 0);
+  --ghost-hover: oklch(0.9300 0 0);
+  --ghost-hover-foreground: oklch(0.2050 0 0);
+  --ghost-destructive-hover: oklch(0.9500 0.0300 27.3000);
+  --manual-row: oklch(0.5200 0.1500 255.0000);
+  --action: oklch(0.2050 0 0);
+  --action-foreground: oklch(0.9850 0 0);
+  --action-hover: oklch(0.3000 0 0);
+  --toggle-on: oklch(0.9200 0 0);
+  --toggle-on-foreground: oklch(0.1450 0 0);
+  --toggle-on-hover: oklch(0.8900 0 0);
+  --aside-toggle-on: var(--toggle-on);
+  --aside-toggle-on-foreground: var(--toggle-on-foreground);
+  --switch-on: oklch(0.6200 0.1500 155.0000);
+  --trade-buy: oklch(0.5200 0.1500 255.0000);
+  --trade-sell: oklch(0.2050 0 0);
+  --trade-ok: oklch(0.5500 0 0);
+  --scenario-bear: oklch(0.6600 0.0800 255.0000);
+  --scenario-base: var(--hero-series);
+  --scenario-bull: oklch(0.3800 0.1400 258.0000);
+  --progress-fill: oklch(0.5200 0.1500 255.0000);
+  --milestone-far: oklch(0.8800 0.0300 255.0000);
+  --milestone-near: var(--hero-series);
+  --allocation-row-bar: initial;
+  --exposure-bar: oklch(0.6600 0.0800 255.0000);
+  --sign-chart-gain: oklch(0.6200 0.1300 158.0000);
+  --sign-chart-loss: oklch(0.6200 0.1600 27.0000);
+  --cost-figure: var(--foreground);
+  --estimate-figure: var(--muted-foreground);
+  --income-figure: var(--foreground);
+  --expense-figure: var(--foreground);
+  --feed-income-figure: var(--positive);
+  --feed-expense-figure: var(--foreground);
+  --series-dot: inline-block;
+  --net-gain-figure: var(--positive);
+  --net-loss-figure: var(--destructive);
+  --category-icon: var(--muted-foreground);
+  --category-icon-bg: var(--muted);
+  --capital-networth: var(--hero-series);
+  --capital-invested: oklch(0.8000 0 0);
+  --sharpe-series: oklch(0.3800 0 0);
+  --drawdown: oklch(0.4500 0 0);
+  --chart-1: oklch(0.5000 0.1330 262.0000);
+  --chart-2: oklch(0.6000 0.0830 172.0000);
+  --chart-3: oklch(0.6600 0.1000 72.0000);
+  --chart-4: oklch(0.4800 0.1400 298.0000);
+  --chart-5: oklch(0.5500 0 0);
+  --chart-6: oklch(0.5800 0.0850 108.0000);
+  --chart-7: oklch(0.5500 0.0610 215.0000);
+  --chart-8: oklch(0.5600 0.1370 340.0000);
+  --chart-9: oklch(0.6000 0.1200 42.0000);
+  --flow-in: oklch(0.5200 0.1500 255.0000);
+  --flow-out: oklch(0.6600 0.0800 255.0000);
+  --role-need: oklch(0.4000 0.1500 255.0000);
+  --role-want: oklch(0.5200 0.1300 255.0000);
+  --role-saving: oklch(0.6200 0.1300 158.0000);
+  --type-flow-income: var(--flow-in);
+  --type-flow-budget: var(--muted-foreground);
+  --type-flow-savings: var(--role-saving);
+  --type-flow-fixed: var(--role-need);
+  --type-flow-variable: var(--role-want);
+  --type-flow-debt: oklch(0.3800 0 0);
+  --role-income: var(--flow-in);
+  --role-budget: var(--muted-foreground);
+  --role-unclassified: var(--chart-5);
+  --role-deficit: var(--destructive);
+  --sidebar: oklch(1.0000 0 0);
+  --sidebar-foreground: oklch(0.1450 0 0);
+  --sidebar-primary: oklch(0.2050 0 0);
+  --sidebar-primary-foreground: oklch(0.9850 0 0);
+  --sidebar-accent: oklch(0.9400 0 0);
+  --sidebar-accent-foreground: oklch(0.2050 0 0);
+  --sidebar-border: oklch(0.9000 0 0);
+  --sidebar-ring: oklch(0.2050 0 0);
+}
+
+.dark[data-theme="graphite"] {
+  --background: oklch(0.1000 0 0);
+  --foreground: oklch(0.9850 0 0);
+  --card: oklch(0.2050 0 0);
+  --card-foreground: oklch(0.9850 0 0);
+  --popover: oklch(0.2050 0 0);
+  --popover-foreground: oklch(0.9850 0 0);
+  --primary: oklch(0.9220 0 0);
+  --primary-foreground: oklch(0.2050 0 0);
+  --secondary: oklch(0.2690 0 0);
+  --secondary-foreground: oklch(0.9850 0 0);
+  --muted: oklch(0.2690 0 0);
+  --muted-foreground: oklch(0.7080 0 0);
+  --accent: oklch(0.2690 0 0);
+  --accent-foreground: oklch(0.9850 0 0);
+  --destructive: oklch(0.7040 0.1910 22.2160);
+  --positive: oklch(0.7800 0.1500 155.0000);
+  --destructive-foreground: oklch(1.0000 0 0);
+  --warning: oklch(0.260 0.038 78);
+  --warning-foreground: oklch(0.854 0.090 82);
+  --warning-border: oklch(0.460 0.085 75);
+  --border: oklch(0.3000 0 0);
+  --input: oklch(0.3000 0 0);
+  --ring: oklch(0.9220 0 0);
+  --outline-surface: oklch(0.2050 0 0);
+  --destructive-surface: oklch(0.2600 0.0400 25.0000);
+  --destructive-surface-hover: oklch(0.3000 0.0550 25.0000);
+  --destructive-outline: oklch(0.3800 0.0800 25.0000);
+  --hero-series: oklch(0.7000 0.1300 255.0000);
+  --segment-active: oklch(0.3700 0 0);
+  --ghost-hover: oklch(0.3000 0 0);
+  --ghost-hover-foreground: oklch(0.9850 0 0);
+  --ghost-destructive-hover: oklch(0.3000 0.0600 25.0000);
+  --manual-row: oklch(0.7000 0.1300 255.0000);
+  --action: oklch(0.9220 0 0);
+  --action-foreground: oklch(0.2050 0 0);
+  --action-hover: oklch(0.9700 0 0);
+  --toggle-on: oklch(0.3200 0 0);
+  --toggle-on-foreground: oklch(0.9850 0 0);
+  --toggle-on-hover: oklch(0.3700 0 0);
+  --aside-toggle-on: var(--toggle-on);
+  --aside-toggle-on-foreground: var(--toggle-on-foreground);
+  --switch-on: oklch(0.6800 0.1500 155.0000);
+  --trade-buy: oklch(0.7000 0.1300 255.0000);
+  --trade-sell: oklch(0.9850 0 0);
+  --trade-ok: oklch(0.6600 0 0);
+  --scenario-bear: oklch(0.5500 0.0800 255.0000);
+  --scenario-base: var(--hero-series);
+  --scenario-bull: oklch(0.8400 0.0800 255.0000);
+  --progress-fill: oklch(0.7000 0.1300 255.0000);
+  --milestone-far: oklch(0.3500 0.0400 255.0000);
+  --milestone-near: var(--hero-series);
+  --allocation-row-bar: initial;
+  --exposure-bar: oklch(0.6000 0.0700 255.0000);
+  --sign-chart-gain: oklch(0.7000 0.1100 158.0000);
+  --sign-chart-loss: oklch(0.6400 0.1400 27.3000);
+  --cost-figure: var(--foreground);
+  --estimate-figure: var(--muted-foreground);
+  --income-figure: var(--foreground);
+  --expense-figure: var(--foreground);
+  --feed-income-figure: var(--positive);
+  --feed-expense-figure: var(--foreground);
+  --series-dot: inline-block;
+  --net-gain-figure: var(--positive);
+  --net-loss-figure: var(--destructive);
+  --category-icon: var(--muted-foreground);
+  --category-icon-bg: var(--muted);
+  --capital-networth: var(--hero-series);
+  --capital-invested: oklch(0.4500 0 0);
+  --sharpe-series: oklch(0.8500 0 0);
+  --drawdown: oklch(0.6200 0 0);
+  --chart-1: oklch(0.6000 0.1330 264.4000);
+  --chart-2: oklch(0.6960 0.1130 162.5000);
+  --chart-3: oklch(0.7690 0.1250 70.1000);
+  --chart-4: oklch(0.6270 0.1770 303.9000);
+  --chart-5: oklch(0.6500 0 0);
+  --chart-6: oklch(0.6600 0.0900 100.0000);
+  --chart-7: oklch(0.7200 0.0770 215.0000);
+  --chart-8: oklch(0.7000 0.1270 340.0000);
+  --chart-9: oklch(0.6000 0.1200 42.0000);
+  --flow-in: oklch(0.7000 0.1300 255.0000);
+  --flow-out: oklch(0.5500 0.0800 255.0000);
+  --role-need: oklch(0.6200 0.1300 255.0000);
+  --role-want: oklch(0.7400 0.1100 255.0000);
+  --role-saving: oklch(0.7600 0.1400 158.0000);
+  --type-flow-income: var(--flow-in);
+  --type-flow-budget: var(--muted-foreground);
+  --type-flow-savings: var(--role-saving);
+  --type-flow-fixed: var(--role-need);
+  --type-flow-variable: var(--role-want);
+  --type-flow-debt: oklch(0.8500 0 0);
+  --role-income: var(--flow-in);
+  --role-budget: var(--muted-foreground);
+  --role-unclassified: var(--chart-5);
+  --role-deficit: var(--destructive);
+  --sidebar: oklch(0.1000 0 0);
+  --sidebar-foreground: oklch(0.9850 0 0);
+  --sidebar-primary: oklch(0.9220 0 0);
+  --sidebar-primary-foreground: oklch(0.2050 0 0);
+  --sidebar-accent: oklch(0.2690 0 0);
+  --sidebar-accent-foreground: oklch(0.9850 0 0);
+  --sidebar-border: oklch(0.3000 0 0);
+  --sidebar-ring: oklch(0.9220 0 0);
 }
 
 /* Tab panel (AN1, doc/animazioni/README.md § 5.2): once the reader has changed tab, the panel that
@@ -1312,12 +1560,14 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   }
 }
 
-/* Lime Frost only (owner's tour, 2026-09-26): a tile's inner scroll box shows no scrollbar, in
- * light and dark; it still scrolls by wheel and touch. Other themes keep the native bar. */
-[data-theme="lime-frost"] .lime-quiet-scroll {
+/* Lime Frost and Graphite only (owner's tour, 2026-09-26; Graphite 2026-11-02): a tile's inner scroll box
+ * shows no scrollbar, in light and dark; it still scrolls by wheel and touch. Other themes keep the native bar. */
+[data-theme="lime-frost"] .lime-quiet-scroll,
+[data-theme="graphite"] .lime-quiet-scroll {
   scrollbar-width: none;
 }
-[data-theme="lime-frost"] .lime-quiet-scroll::-webkit-scrollbar {
+[data-theme="lime-frost"] .lime-quiet-scroll::-webkit-scrollbar,
+[data-theme="graphite"] .lime-quiet-scroll::-webkit-scrollbar {
   display: none;
 }
 

@@ -6,6 +6,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { runInNewContext } from 'node:vm';
 import {
+  BASE_COLOR_THEME,
   COLOR_THEMES,
   COLOR_THEME_ATTRIBUTE,
   COLOR_THEME_INIT_SCRIPT,
@@ -33,6 +34,13 @@ describe('colour theme constants', () => {
     expect(isColorTheme('sepia')).toBe(false);
     expect(isColorTheme(null)).toBe(false);
     expect(COLOR_THEMES).toContain(DEFAULT_COLOR_THEME);
+    expect(COLOR_THEMES).toContain(BASE_COLOR_THEME);
+  });
+
+  it('should make Lime Frost the fork default and leave «Default» as the :root block (2026-11-02)', () => {
+    expect(DEFAULT_COLOR_THEME).toBe('lime-frost');
+    expect(BASE_COLOR_THEME).toBe('default');
+    expect(COLOR_THEMES).toContain('graphite');
   });
 });
 
@@ -43,17 +51,17 @@ describe('COLOR_THEME_INIT_SCRIPT', () => {
     expect(setAttribute).toHaveBeenCalledWith(COLOR_THEME_ATTRIBUTE, 'cyberpunk');
   });
 
-  it('should set nothing for the default theme, which is the :root block', () => {
-    expect(runInitScript(DEFAULT_COLOR_THEME).setAttribute).not.toHaveBeenCalled();
+  it('should set nothing for a stored «Default», which is the :root block', () => {
+    expect(runInitScript(BASE_COLOR_THEME).setAttribute).not.toHaveBeenCalled();
   });
 
-  it('should set nothing when nothing is stored', () => {
-    expect(runInitScript(null).setAttribute).not.toHaveBeenCalled();
+  it('should put the fork default on the root element when nothing is stored', () => {
+    expect(runInitScript(null).setAttribute).toHaveBeenCalledWith(COLOR_THEME_ATTRIBUTE, DEFAULT_COLOR_THEME);
   });
 
-  it('should refuse a stored value that is not a theme name', () => {
-    expect(runInitScript('sepia').setAttribute).not.toHaveBeenCalled();
-    expect(runInitScript('cyberpunk;x').setAttribute).not.toHaveBeenCalled();
+  it('should refuse a stored value that is not a theme name, and paint the fork default instead', () => {
+    expect(runInitScript('sepia').setAttribute).toHaveBeenCalledWith(COLOR_THEME_ATTRIBUTE, DEFAULT_COLOR_THEME);
+    expect(runInitScript('cyberpunk;x').setAttribute).toHaveBeenCalledWith(COLOR_THEME_ATTRIBUTE, DEFAULT_COLOR_THEME);
   });
 
   it('should read its own key only', () => {
@@ -69,5 +77,6 @@ describe('COLOR_THEME_INIT_SCRIPT', () => {
     };
 
     expect(() => runInitScript(throwing)).not.toThrow();
+    expect(runInitScript(throwing).setAttribute).toHaveBeenCalledWith(COLOR_THEME_ATTRIBUTE, DEFAULT_COLOR_THEME);
   });
 });

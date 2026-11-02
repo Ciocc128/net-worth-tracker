@@ -142,9 +142,9 @@ function closestPair(slots: Oklch[]): { a: string; b: string; deltaE: number } {
 /**
  * `null` = the default theme (`:root` / `.dark`); the named ones are `[data-theme]` blocks.
  * Fork only: `lime-frost` joined on 2026-09-25 — light first (Liquidità re-pitched), then dark once
- * its slots took the light hues (roadmap step 4, doc/guide/fork-scelte-ui.md § 3).
+ * its slots took the light hues (roadmap step 4, doc/guide/fork-scelte-ui.md § 3); `graphite` on 2026-11-02.
  */
-const THEMES = [null, 'retro-arcade', 'cyberpunk', 'solar-dusk', 'elegant-luxury', 'midnight-bloom', 'lime-frost'] as const;
+const THEMES = [null, 'retro-arcade', 'cyberpunk', 'solar-dusk', 'elegant-luxury', 'midnight-bloom', 'lime-frost', 'graphite'] as const;
 type ThemeName = (typeof THEMES)[number];
 
 const lightSelector = (theme: ThemeName) => (theme ? `[data-theme="${theme}"]` : ':root');
