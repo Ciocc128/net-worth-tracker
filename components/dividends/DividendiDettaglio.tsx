@@ -196,7 +196,7 @@ export function DividendiDettaglio({ stats, now }: DividendiDettaglioProps) {
                           {asset.isClosed && (
                             <Badge
                               variant="outline"
-                              className="h-4 shrink-0 px-1.5 py-0 text-[10px] font-normal text-muted-foreground"
+                              className="h-4 shrink-0 px-1.5 py-0 text-[11px] font-normal text-muted-foreground"
                             >
                               Chiusa
                             </Badge>

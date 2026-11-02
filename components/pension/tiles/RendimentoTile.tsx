@@ -143,7 +143,7 @@ function MeasuredBlock({ block, result, named, first }: MeasuredEntry & { named:
         {result.contributions.employer > 0 && (
           <Row label="Contributo datoriale" hint="retribuzione, non rendimento" muted>
             <span className={cn(ROW_VALUE_CLASS, 'text-muted-foreground')}>
-              {cachedFormatCurrencyEUR(result.contributions.employer)}
+              {cachedFormatCurrencyEUR(result.contributions.employer, true)}
             </span>
           </Row>
         )}

@@ -262,7 +262,7 @@ export function ExpenseSplitTab({ familyMembers, availableYears, active }: Expen
                 message="Nessuna spesa in comune in questo periodo: ogni voce registrata è intestata a una persona."
               />
             ) : (
-              <p className="mt-3 font-mono text-[32px] leading-none tracking-tight desktop:text-[40px]">
+              <p className="mt-3 font-mono text-[30px] leading-none tracking-tight desktop:text-[40px]">
                 {cachedFormatCurrencyEUR(summary.common.total, true)}
               </p>
             )}
@@ -355,7 +355,7 @@ export function ExpenseSplitTab({ familyMembers, availableYears, active }: Expen
                 >
                   <p
                     className={cn(
-                      'mt-3 font-mono text-[32px] leading-none tracking-tight',
+                      'mt-3 font-mono text-[30px] leading-none tracking-tight',
                       // The sign tokens mean money gained and lost, and a residual is exactly
                       // that — but only of money that has MOVED, so the colour follows the
                       // booked figure, as the strip's cell does (`residualTone`: none on a

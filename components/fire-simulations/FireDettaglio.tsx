@@ -176,7 +176,7 @@ export function FireDettaglio({ description, loading, runwayData, runwaySummary,
                               stroke="var(--muted-foreground)"
                               strokeWidth={1.5}
                               strokeDasharray="6 4"
-                              label={{ value: `Obiettivo ${oneDecimal(runwaySummary.targetYearsOfExpenses)} anni`, position: 'insideTopRight', fill: 'var(--muted-foreground)', fontSize: 10 }}
+                              label={{ value: `Obiettivo ${oneDecimal(runwaySummary.targetYearsOfExpenses)} anni`, position: 'insideTopRight', fill: 'var(--muted-foreground)', fontSize: 11 }}
                             />
                           )}
                           <Line {...chartMotion} type="monotone" dataKey="yearsOfExpenses" stroke={chartColors[0]} strokeWidth={2} name="Totale" dot={false} connectNulls={false} />

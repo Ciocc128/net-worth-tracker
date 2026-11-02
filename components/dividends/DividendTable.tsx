@@ -67,7 +67,7 @@ type SortColumn = 'exDate' | 'paymentDate' | 'totalNet';
 
 const CELL = 'py-2.5 text-[13px]';
 const NUM = 'text-right font-mono tabular-nums';
-const STATE_BADGE_CLASS = 'h-4 shrink-0 border-warning-border px-1.5 py-0 text-[10px] font-normal text-warning-foreground';
+const STATE_BADGE_CLASS = 'h-4 shrink-0 border-warning-border px-1.5 py-0 text-[11px] font-normal text-warning-foreground';
 
 /**
  * Throws the route's refusal as an Error. Outside the component: the React Compiler does not

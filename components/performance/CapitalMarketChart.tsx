@@ -142,7 +142,7 @@ export function CapitalMarketChart({ data, minHeight = 150, className }: Capital
           return (
             <span
               key={i}
-              className="absolute top-0 whitespace-nowrap font-mono text-[10px] tabular-nums text-muted-foreground"
+              className="absolute top-0 whitespace-nowrap font-mono text-[11px] tabular-nums text-muted-foreground"
               style={{ left: `${x}%`, transform: i === 0 ? 'none' : i === data.length - 1 ? 'translateX(-100%)' : 'translateX(-50%)' }}
             >
               {shortLabel(data[i].date, withYear)}

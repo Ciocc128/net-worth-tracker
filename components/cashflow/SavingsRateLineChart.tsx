@@ -76,7 +76,7 @@ export function SavingsRateLineChart({
           label={{
             value: `${SAVINGS_TARGET}% obiettivo`,
             position: 'insideTopRight',
-            fontSize: 10,
+            fontSize: 11,
             fill: 'var(--positive)',
           }}
         />

@@ -57,7 +57,7 @@ function kindChip(expense: Expense, scheduled: boolean): string | null {
 }
 
 function Chip({ label }: { label: string }) {
-  return <span className="shrink-0 rounded-md border border-border px-1.5 text-[10px] font-medium leading-4 text-muted-foreground">{label}</span>;
+  return <span className="shrink-0 rounded-md border border-border px-1.5 text-[11px] font-medium leading-4 text-muted-foreground">{label}</span>;
 }
 
 const rowLabel = (expense: Expense) => `${expense.categoryName} del ${formatDate(toDate(expense.date))}`;

@@ -139,7 +139,7 @@ function signed(value: number, unsigned: string): NarrativeSegment {
 }
 
 /** Signed euro figure with a typographic minus, coloured by sign; a printed zero unsigned. */
-function signedCurrency(value: number, compact = false): NarrativeSegment {
+function signedCurrency(value: number, compact = true): NarrativeSegment {
   return signed(value, cachedFormatCurrencyEUR(Math.abs(value), compact));
 }
 
@@ -323,7 +323,7 @@ function buildDriverClause(topMover: { assetClass: string; delta: number }, lead
  */
 export function buildOverviewVerdict(input: OverviewVerdictInput): OverviewVerdict {
   const { headline, tone, taxIsTheStory } = resolveHeadline(input);
-  const sentence: Narrative = [prose('Il patrimonio vale '), figure(cachedFormatCurrencyEUR(input.totalValue))];
+  const sentence: Narrative = [prose('Il patrimonio vale '), figure(cachedFormatCurrencyEUR(input.totalValue, true))];
 
   if (input.monthlyVariation) {
     sentence.push(

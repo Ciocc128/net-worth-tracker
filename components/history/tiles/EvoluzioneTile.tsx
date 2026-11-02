@@ -30,7 +30,7 @@ import { cachedFormatCurrencyEUR, formatSignedEuro, formatSignedPercentIt, print
 import { useCountUp } from '@/lib/utils/useCountUp';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { formatCurrencyCompact, formatPercentage } from '@/lib/services/chartService';
-import { signChipClass, signTextClass } from '@/lib/utils/metricColors';
+import { signTextClass } from '@/lib/utils/metricColors';
 import { cn } from '@/lib/utils';
 import { LIFTED_FIGURE_CLASS, Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
@@ -90,8 +90,8 @@ function Chip({ value, caption, className, children }: { value: number | null; c
     <div className={cn('flex w-fit min-w-0 flex-col gap-1.5', className)}>
       <span
         className={cn(
-          'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap rounded-[9px] px-[11px] py-[6px] font-mono text-[12px] font-semibold leading-none tracking-[-0.01em] tabular-nums',
-          value === null ? 'bg-muted text-foreground' : signChipClass(value),
+          'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap font-mono text-[13px] font-medium leading-none tracking-[-0.01em] tabular-nums',
+          value === null ? 'text-foreground' : signTextClass(value),
         )}
       >
         {children}
@@ -153,7 +153,7 @@ function EvolutionTooltip({ active, payload, headFollows = false }: EvolutionToo
       <span className="font-mono text-xs font-medium text-muted-foreground">{formatPeriodMonth(point)}</span>
       {!headFollows && (
         <>
-          <span className="font-mono text-[13px] font-semibold tabular-nums text-card-foreground">{cachedFormatCurrencyEUR(point.totalNetWorth)}</span>
+          <span className="font-mono text-[13px] font-semibold tabular-nums text-card-foreground">{cachedFormatCurrencyEUR(point.totalNetWorth, true)}</span>
           {point.delta !== null && (
             <span className="text-muted-foreground">
               sul mese prima <span className={cn('font-mono font-semibold tabular-nums', signTextClass(point.delta))}>{signed(point.delta)}</span>
@@ -184,8 +184,8 @@ function activeIndexOf(state: MouseHandlerDataParam): number | null {
 function HeadValue({ value }: { value: number }) {
   const animated = useCountUp(value, { fromPrevious: true, duration: SCRUB_SETTLE_MS, startDelay: 0 });
   return (
-    <span className="mt-2.5 block font-mono text-[32px] font-bold leading-none tracking-[-0.03em] tabular-nums desktop:text-[36px]">
-      {cachedFormatCurrencyEUR(animated ?? value)}
+    <span className="mt-2.5 block font-mono text-[30px] font-bold leading-none tracking-[-0.03em] tabular-nums desktop:text-[40px]">
+      {cachedFormatCurrencyEUR(animated ?? value, true)}
     </span>
   );
 }
@@ -283,12 +283,8 @@ export function EvoluzioneTile({ aside, reading, growth, pace, points, noteCount
           // every width since 2026-10-14, the percentage beside it since 2026-10-15 — it read
           // «0 € (+0,0%)»); lifted on a phone, where the percentage stays alone.
           <Chip value={printedSign(pace.trailingDelta, 0) === 0 ? null : pace.trailingDelta} caption="ultimi 12 mesi" className={trailingChipLifted ? LIFTED_FIGURE_CLASS : undefined}>
-            <span className={lifted('trailing') ? LIFTED_FIGURE_CLASS : undefined}>
-              {formatSignedEuro(pace.trailingDelta, true)}
-              {pace.trailingPct !== null && ' ('}
-            </span>
-            {pace.trailingPct !== null && formatSignedPercentIt(pace.trailingPct, 1)}
-            {pace.trailingPct !== null && <span className={lifted('trailing') ? LIFTED_FIGURE_CLASS : undefined}>)</span>}
+            <span className={lifted('trailing') ? LIFTED_FIGURE_CLASS : undefined}>{formatSignedEuro(pace.trailingDelta, true)}</span>
+            {pace.trailingPct !== null && <span>({formatSignedPercentIt(pace.trailingPct, 1)})</span>}
           </Chip>
         )}
       </div>
@@ -300,7 +296,7 @@ export function EvoluzioneTile({ aside, reading, growth, pace, points, noteCount
               Andamento · <span className="font-mono tabular-nums">{growth.snapshotCount}</span> rilevazioni
             </p>
             {noteCount > 0 && (
-              <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground" aria-hidden="true">
+              <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground" aria-hidden="true">
                 <span className="inline-block h-2 w-2 rounded-full" style={{ background: 'var(--warning-foreground)' }} />
                 con nota
               </span>

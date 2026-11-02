@@ -120,7 +120,7 @@ export function TraiettoriaTile({ reading, name, hero, chips, notes, uncertainty
       {hero && (
         <>
           <p className={cn(TILE_SUB_EYEBROW_CLASS, 'mt-3.5')}>{hero.label}</p>
-          <p className="mt-1.5 font-mono text-[36px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">{hero.value}</p>
+          <p className="mt-1.5 font-mono text-[40px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">{hero.value}</p>
         </>
       )}
 

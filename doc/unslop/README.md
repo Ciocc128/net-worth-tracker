@@ -20,7 +20,7 @@ Check every change on **Lime Frost (the fork default) and Graphite, light and da
 | 1 | A1, B4, A2 | Type and figures (+ DESIGN.md) | implemented 2026-11-02, draft PR pending |
 | 2 | A3, M5, N1, N3 | AI button, header words, curve, tile border | implemented 2026-11-02 (N1 refused), PR pending |
 | 3 | A4, M7, N2 | Stretched tiles, FIRE head, empty Hall of Fame | implemented 2026-11-02, PR pending |
-| 4 | M1, M2, M3, M6 | Number formats, text sizes, pills, Cashflow verdict | not started |
+| 4 | M1, M2, M3, M6 | Number formats, text sizes, pills, Cashflow verdict | implemented 2026-11-02, PR pending |
 | 5 | M4 (if wanted), B1–B3, N4, N5 | Page ground, chart weights, spacing, motion, violet, nav | not started |
 
 ## Session 1 — «Tipografia e cifre»
@@ -158,6 +158,39 @@ Mac collaudo (`test:e2e`, `mobile:budget`) is done once, at the end of the whole
 - N2: the empty branch of Hall of Fame renders three tiles (regions named «In attesa: …», so no spec of the real tiles matches them) and the Panoramica link, at `desktop:` only.
 - DESIGN.md: **The Empty-Tile-Has-A-Reference Rule**, **The Frame-Stays Rule**, **The Assumptions-Under-The-Verdict Rule**.
 - Checks: `tsc` clean, eslint clean; screenshots at 1440 Lime Frost light and Graphite dark (FIRE, Patrimonio, Analisi, Hall of Fame empty). The census fixture has no trades in the month before and no expenses in the running month, so the two reference rows were not seen on screen: covered by the unit test only. Not run: Playwright and `mobile:budget` (Mac, at the end of the refactor).
+
+### Refused points
+
+None.
+
+## Session 4 — «Formati, scala, pillole, verdetto di Cashflow»
+
+Mac collaudo (`test:e2e`, `mobile:budget`) is done once, at the end of the whole refactor (owner, 2026-11-02).
+
+### Points
+
+**M1 — mixed number formats** (medium). Panoramica: hero «301.955,00 €», «8000,00 €» in Sintesi, «8000 €» in Composizione, «+1039,00 €» beside «−2760 €» in the verdict; Storico «+7320 € ( +2,5% )».
+**M2 — 20 fixed text sizes**, 548 uses of 11px and 86 below it (9 · 9,5 · 10 · 10,5px).
+**M3 — pills everywhere**: the green variation capsule under every hero, «Massimo storico», «↗ COMPRA» in uppercase with icon and bold in Allocazione.
+**M6 — Cashflow verdict says the calendar twice**: the paragraph («Con 3840 € di spese e 5000 € di entrate già in calendario…») and the scope line under it («Nel totale ci sono ancora…»).
+
+### Decisions (owner, 2026-11-02)
+
+| ID | Point | Decision | Alternatives discarded | Reason |
+| --- | --- | --- | --- | --- |
+| D-AS12 | M1 | **Whole euros in tiles, verdicts, strips and charts**; cents only in the register, accounts, tables and dialogs | only the same-view inconsistencies; leave | one rule in `formatters.ts` |
+| D-AS13 | M2 | **Drop only the intermediate steps**: 9 · 9,5 · 10 · 10,5 → 11; 15 → 14; 17 · 18 → 16; 20 · 24 → 22; 28 · 32 · 34 → 30; 36 · 42 → 40; 11px stays the floor | scale of 7 steps with a 12px floor (550 uses, mobile risk); leave | low risk; the 11 → 12 step can be a later session |
+| D-AS14 | M3 | **Quieter pill**: «compra / vendi / ok» lowercase, 11px, no icon, no bold; the variation under a hero and «Massimo storico» become text in the sign colour | words without a pill; leave | an in-row status word is fine, a capsule under every number is not |
+| D-AS15 | M6 | **Shorten the paragraph**: «Il mese chiude a +1160 € (il 23%).» / «Senza entrate attese, l'anno chiude…»; the scope line stays | drop the scope line; leave | the scope line keeps the strip's totals bound to the calendar at every width |
+
+### Implemented (branch `claude/unslop-s4-formati`)
+
+- M1: `formatSignedEuro` compact by default; `signedCurrency` of `overviewNarrative` and `patrimonioNarrative` compact by default; every `cachedFormatCurrencyEUR(x)` of the Panoramica, Patrimonio, Mutuo, Storico, Previdenza and Allocazione tiles, the narratives and `composition-list` now `…, true`; Storico/FIRE/Labor chart tooltips and the Sankey at 0 decimals; the two strip cells with `decimals: 2` on a euro lost it. Storico's chip no longer prints «( +2,5%)» (the flex gap sat inside the parenthesis).
+- M2: 122 `text-[Npx]` classes snapped to the ladder above (no class left in 9–10,5, 15, 17, 18, 20, 24, 28, 32, 34, 36, 42); chart `fontSize: 10` → 11 in five charts; redundant `desktop:` twins removed. The ladder is now 11 · 12 · 13 · 14 · 16 · 22 · 30 · 40px.
+- M3: the five hero variation capsules (`VariationChip`, Storico, Rendimenti, Fondo oggi, Incasso netto) and «Massimo storico» are text; `ActionChip` lowercase, no icon.
+- M6: `calendarSentence` no longer repeats the amounts.
+- DESIGN.md: **The One-Euro-Format Rule**, **The Fewer-Steps Rule**, **The Quiet-Pill Rule**, **The One-Sentence-Per-Fact Rule**; the scale in the frontmatter, the Verdict Headline (22px mobile), ActionChip and the hero guard (30px) updated.
+- Checks: `tsc` clean, eslint clean, Vitest 7449 / 7449 (35 expectations rewritten to whole euros and the new Cashflow sentence); screenshots before / after at 1440 Lime Frost light and Graphite dark in `unslop/s4/`. Not run: Playwright (specs that read «COMPRA» or cents may need updating on the Mac) and `mobile:budget` (text sizes changed on phones too).
 
 ### Refused points
 

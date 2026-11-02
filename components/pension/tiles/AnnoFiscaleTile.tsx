@@ -102,7 +102,7 @@ function MemberBlock({ block, tax, named }: { block: PensionMemberBlock; tax: Pe
           <span className="min-w-0 text-foreground">
             Deducibili<span className={HINT_CLASS}>volontario + datoriale</span>
           </span>
-          <span className={VALUE_CLASS}>{cachedFormatCurrencyEUR(tax.deductible)}</span>
+          <span className={VALUE_CLASS}>{cachedFormatCurrencyEUR(tax.deductible, true)}</span>
         </div>
         {tax.showPlafond && (
           <div className={ROW_CLASS}>
@@ -112,13 +112,13 @@ function MemberBlock({ block, tax, named }: { block: PensionMemberBlock; tax: Pe
                 plafond residuo <span className="font-mono tabular-nums">{cachedFormatCurrencyEUR(tax.plafondResidual, true)}</span>
               </span>
             </span>
-            <span className={VALUE_CLASS}>{cachedFormatCurrencyEUR(tax.extraAvailable)}</span>
+            <span className={VALUE_CLASS}>{cachedFormatCurrencyEUR(tax.extraAvailable, true)}</span>
           </div>
         )}
         {tax.showPlafond && tax.isAccrualYear && (
           <div className={ROW_CLASS}>
             <span className="min-w-0 text-foreground">{"Plafond creato quest'anno"}</span>
-            <span className={VALUE_CLASS}>{cachedFormatCurrencyEUR(tax.plafondCreatedThisYear)}</span>
+            <span className={VALUE_CLASS}>{cachedFormatCurrencyEUR(tax.plafondCreatedThisYear, true)}</span>
           </div>
         )}
       </div>

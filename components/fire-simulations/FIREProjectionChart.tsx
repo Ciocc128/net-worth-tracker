@@ -312,7 +312,7 @@ export function FIREProjectionChart({
                 stroke={marker.color}
                 strokeWidth={1.5}
                 strokeDasharray="4 3"
-                label={{ value: marker.label, position: 'insideTopLeft', fill: 'var(--muted-foreground)', fontSize: 10 }}
+                label={{ value: marker.label, position: 'insideTopLeft', fill: 'var(--muted-foreground)', fontSize: 11 }}
               />
             ))}
           </LineChart>

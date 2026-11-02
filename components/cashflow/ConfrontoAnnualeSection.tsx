@@ -115,7 +115,7 @@ function CategoryDeltaList({
               <span className="flex min-w-0 items-center gap-1.5">
                 <span className="truncate text-[13px]">{row.label}</span>
                 {row.status !== 'ongoing' && (
-                  <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px]">
+                  <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[11px]">
                     {row.status === 'new' ? 'Nuova' : 'Cessata'}
                   </Badge>
                 )}

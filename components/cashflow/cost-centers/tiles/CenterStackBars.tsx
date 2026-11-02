@@ -102,7 +102,7 @@ export function CenterStackBars({ stack, palette, minHeight = 120, legend = true
         {months.map((month) => (
           <span
             key={month.key}
-            className={cn('text-center font-mono text-[10px] tabular-nums', month.ongoing ? 'font-semibold text-foreground' : 'text-muted-foreground')}
+            className={cn('text-center font-mono text-[11px] tabular-nums', month.ongoing ? 'font-semibold text-foreground' : 'text-muted-foreground')}
           >
             {month.label}
           </span>

@@ -51,7 +51,7 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
           <div className="mt-3.5 flex flex-col gap-1.5">
             <p className={TILE_SUB_EYEBROW_CLASS}>Sui conti</p>
             <p className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
-              {cachedFormatCurrencyEUR(summary.total)}
+              {cachedFormatCurrencyEUR(summary.total, true)}
             </p>
           </div>
           {/* The -mx-2/px-2 pair keeps the rows' hover wash inside the scroll box, which clips on both axes. */}
@@ -64,11 +64,11 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
                   type="button"
                   onClick={(event) => asset && onSelect(asset, event.currentTarget)}
                   className="-mx-2 flex items-center gap-3 rounded-md px-2 py-[9px] text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label={`${account.name}, ${cachedFormatCurrencyEUR(account.balance)}${account.shareOfCash === null ? ', debito' : ''}`}
+                  aria-label={`${account.name}, ${cachedFormatCurrencyEUR(account.balance, true)}${account.shareOfCash === null ? ', debito' : ''}`}
                 >
                   <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{account.name}</span>
                   <span className="shrink-0 font-mono text-[13px] tabular-nums text-foreground">
-                    {cachedFormatCurrencyEUR(account.balance)}
+                    {cachedFormatCurrencyEUR(account.balance, true)}
                   </span>
                   <span className="w-[42px] shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground">
                     {account.shareOfCash === null ? 'debito' : `${Math.round(account.shareOfCash)}%`}

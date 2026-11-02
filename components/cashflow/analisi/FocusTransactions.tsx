@@ -55,7 +55,7 @@ export function FocusTransactions({ expenses, isIncome, periodLabel }: FocusTran
     <div>
       <div className="flex items-baseline justify-between gap-3">
         <p className={TILE_SUB_EYEBROW_CLASS}>Transazioni · {periodLabel}</p>
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-[11px] text-muted-foreground">
           <span className="font-mono tabular-nums">{expenses.length}</span> {expenses.length === 1 ? 'voce' : 'voci'}
         </span>
       </div>

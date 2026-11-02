@@ -78,7 +78,7 @@ export function MonteCarloCorrelationsTile({ reading, correlations, onChange, he
               <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 py-2 text-left text-[13px] font-medium" aria-label={`${MONTE_CARLO_CLASS_LABELS[cls]} con…`}>
                 <span>
                   {MONTE_CARLO_CLASS_LABELS[cls]} con…
-                  {held && <span className="ml-2 text-[10.5px] font-normal text-muted-foreground">in portafoglio</span>}
+                  {held && <span className="ml-2 text-[11px] font-normal text-muted-foreground">in portafoglio</span>}
                 </span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" aria-hidden="true" />
               </CollapsibleTrigger>

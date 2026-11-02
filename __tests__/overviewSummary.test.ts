@@ -145,7 +145,7 @@ describe('selectOverviewStrip', () => {
 
   it('prints every cell EXACTLY as the verdict prints it (two decimals for the euro and the percentage, the rate whole)', () => {
     const sentence = plain(narrativeToText(buildOverviewVerdict(verdictInput(overview)).sentence));
-    expect(cellText(strip[0])).toBe('+3000,00 €');
+    expect(cellText(strip[0])).toBe('+3000 €');
     expect(cellText(strip[1])).toBe('+15,00%');
     // 4000 − 1650 lived = 2350 → 58,75% → «59%» in both.
     expect(cellText(strip[2])).toBe('59%');
@@ -162,7 +162,7 @@ describe('selectOverviewStrip', () => {
     const sentence = plain(narrativeToText(buildOverviewVerdict(verdictInput(overspent)).sentence));
     expect(cellText(strip[2])).toBe('−12%');
     expect(sentence).toContain('il −12% delle entrate');
-    expect(cellText(strip[0])).toBe('0,00 €');
+    expect(cellText(strip[0])).toBe('0 €');
     expect(cellText(strip[1])).toBe('0,00%');
     for (const figure of strip) expect(sentence).toContain(cellText(figure));
   });

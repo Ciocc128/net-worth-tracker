@@ -11,7 +11,7 @@ export function CenterChip({ chip, className }: { chip: CenterChipModel; classNa
   return (
     <span
       className={cn(
-        'shrink-0 whitespace-nowrap rounded-md border border-border px-1.5 text-[10px] font-medium leading-4 text-muted-foreground',
+        'shrink-0 whitespace-nowrap rounded-md border border-border px-1.5 text-[11px] font-medium leading-4 text-muted-foreground',
         chip.tone === 'warning' && 'border-warning-foreground/40 text-warning-foreground',
         chip.tone === 'negative' && 'border-destructive/40 text-destructive',
         className,

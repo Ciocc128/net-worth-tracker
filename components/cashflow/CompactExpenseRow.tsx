@@ -101,27 +101,27 @@ export function CompactExpenseRow({
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="line-clamp-2 min-w-0 break-words text-[14px] font-medium text-foreground">{title}</span>
           {expense.isInstallment && expense.installmentNumber && expense.installmentTotal && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0 font-mono tabular-nums">
+            <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-4 flex-shrink-0 font-mono tabular-nums">
               {expense.installmentNumber}/{expense.installmentTotal}
             </Badge>
           )}
           {expense.isRecurring && !expense.isInstallment && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0">
+            <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-4 flex-shrink-0">
               Ric.
             </Badge>
           )}
           {scheduled && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0 text-muted-foreground">
+            <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-4 flex-shrink-0 text-muted-foreground">
               In calendario
             </Badge>
           )}
           {ownerLabel && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0 text-muted-foreground">
+            <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-4 flex-shrink-0 text-muted-foreground">
               {ownerLabel}
             </Badge>
           )}
           {expense.excludeFromBudget && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0 text-muted-foreground">
+            <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-4 flex-shrink-0 text-muted-foreground">
               {EXPENSE_BUDGET_EXCLUSION_CHIP}
             </Badge>
           )}

@@ -117,7 +117,7 @@ export function HistogramBars({ bars, ariaLabel, minHeight = 120, className }: H
             className={cn(
               // No clipping: a five-character label («oltre», «1,3M») is wider than a phone's
               // 26px cell, and once its neighbours step aside it may spill into their room.
-              'whitespace-nowrap text-center font-mono text-[10px] tabular-nums',
+              'whitespace-nowrap text-center font-mono text-[11px] tabular-nums',
               bar.outlined ? 'font-semibold text-foreground' : 'text-muted-foreground',
               crowded && !keepNarrow(index) && 'invisible @[400px]:visible',
             )}

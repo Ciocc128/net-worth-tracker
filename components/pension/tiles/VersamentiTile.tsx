@@ -228,7 +228,7 @@ export function VersamentiTile({ taxYear, reading, aside, footer, rows, showFund
                         <ArmedConsequence row={row} armed={armedRowId === row.id} />
                         {rowHints(row, { fund: false, competence: taxYear, notes: true }).join(' · ')}
                       </td>
-                      <td className={cn(CELL_CLASS, 'text-right font-mono tabular-nums text-foreground')}>{cachedFormatCurrencyEUR(row.amount)}</td>
+                      <td className={cn(CELL_CLASS, 'text-right font-mono tabular-nums text-foreground')}>{cachedFormatCurrencyEUR(row.amount, true)}</td>
                       <td className={cn(CELL_CLASS, 'pr-0 text-right')}>
                         <DeleteButton row={row} onDelete={onDelete} disabled={isDemo} announce={setAnnouncement} onArmedChange={handleArmedChange} />
                       </td>
@@ -259,7 +259,7 @@ export function VersamentiTile({ taxYear, reading, aside, footer, rows, showFund
                       )}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <span className="font-mono text-[13px] tabular-nums text-foreground">{cachedFormatCurrencyEUR(row.amount)}</span>
+                      <span className="font-mono text-[13px] tabular-nums text-foreground">{cachedFormatCurrencyEUR(row.amount, true)}</span>
                       <DeleteButton row={row} onDelete={onDelete} disabled={isDemo} announce={setAnnouncement} onArmedChange={handleArmedChange} />
                     </div>
                   </li>

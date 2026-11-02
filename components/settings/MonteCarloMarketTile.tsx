@@ -246,7 +246,7 @@ export function MonteCarloMarketTile({
       ) : null}
 
       <div className="mt-4 flex flex-col" role="group" aria-label="Ipotesi di mercato per classe">
-        <div className="grid grid-cols-[minmax(0,1.8fr)_1fr_1fr_1fr_28px] items-end gap-2 pb-1.5 text-[10px] text-muted-foreground">
+        <div className="grid grid-cols-[minmax(0,1.8fr)_1fr_1fr_1fr_28px] items-end gap-2 pb-1.5 text-[11px] text-muted-foreground">
           <span className={TILE_SUB_EYEBROW_CLASS}>Classe</span>
           <span className="text-center">CAGR reale</span>
           <span className="text-center">Volatilità</span>
@@ -272,11 +272,11 @@ export function MonteCarloMarketTile({
             >
               <div className="min-w-0">
                 <p className="truncate text-[13px] font-medium">{label}</p>
-                <p className="truncate text-[10.5px] leading-[1.35] text-muted-foreground" title={`${source.series}, ${source.period}${source.note ? `. ${source.note}` : ''}`}>
+                <p className="truncate text-[11px] leading-[1.35] text-muted-foreground" title={`${source.series}, ${source.period}${source.note ? `. ${source.note}` : ''}`}>
                   {source.series} · {source.period}
                 </p>
                 {sub ? (
-                  <p className="text-[10.5px] leading-[1.35] text-muted-foreground">
+                  <p className="text-[11px] leading-[1.35] text-muted-foreground">
                     {sub}
                     {canUseAnchor ? (
                       <button type="button" className="ml-1.5 underline underline-offset-2" onClick={() => resetField(cls, 'cagr')} disabled={disabled}>
@@ -288,7 +288,7 @@ export function MonteCarloMarketTile({
               </div>
               {premiumClass ? (
                 <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-[10px] leading-none text-muted-foreground">premio</span>
+                  <span className="text-[11px] leading-none text-muted-foreground">premio</span>
                   <div className="flex w-full items-center justify-center gap-0.5">
                     <span className="font-mono text-[12px] text-muted-foreground" aria-hidden="true">
                       +
@@ -301,7 +301,7 @@ export function MonteCarloMarketTile({
                       written={written?.premium !== undefined}
                     />
                   </div>
-                  <span className="font-mono text-[10.5px] leading-none tabular-nums text-muted-foreground" data-testid={`mc-market-resulting-cagr-${cls}`}>
+                  <span className="font-mono text-[11px] leading-none tabular-nums text-muted-foreground" data-testid={`mc-market-resulting-cagr-${cls}`}>
                     = {fmt2(entry.cagr)}%
                   </span>
                 </div>
@@ -330,7 +330,7 @@ export function MonteCarloMarketTile({
         <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
           <div className="min-w-0">
             <span className="text-[13px] font-medium">Inflazione attesa %</span>
-            <p className="text-[10.5px] leading-[1.35] text-muted-foreground">
+            <p className="text-[11px] leading-[1.35] text-muted-foreground">
               {numbers.inflationOrigin === 'anchor' ? anchorLines.inflation : 'scritta a mano'}
               {numbers.inflationOrigin === 'saved' ? (
                 <button type="button" className="ml-1.5 underline underline-offset-2" onClick={() => setOverrides({ ...draft.overrides, inflationRate: undefined })} disabled={disabled}>

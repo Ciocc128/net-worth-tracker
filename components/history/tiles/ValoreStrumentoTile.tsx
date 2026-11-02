@@ -104,7 +104,7 @@ function TrendTooltip({ active, payload }: TrendTooltipProps) {
   return (
     <div style={TOOLTIP_CONTENT_STYLE} className="flex flex-col gap-1 text-[11px]">
       <span className="font-mono text-xs font-medium text-muted-foreground">{point.label}</span>
-      <span className="font-mono text-[13px] font-semibold tabular-nums text-card-foreground">{formatCurrency(point.total)}</span>
+      <span className="font-mono text-[13px] font-semibold tabular-nums text-card-foreground">{formatCurrency(point.total, 'EUR', 0)}</span>
       {point.delta !== null && (
         <div className="flex flex-col gap-0.5 border-t border-border pt-1 text-muted-foreground">
           <span>
@@ -157,7 +157,7 @@ function TableRow({ row, ticker, selected, onToggle, roving }: RowProps) {
       </th>
       <td className={cn(CELL_CLASS, 'hidden text-[13px] text-muted-foreground @[760px]:table-cell')}>{formatNumber(row.quantity)}</td>
       <td className={cn(CELL_CLASS, 'text-[13px] text-foreground')}>
-        {formatCurrency(row.totalValue)}
+        {formatCurrency(row.totalValue, 'EUR', 0)}
         <span className="block text-[11px] text-muted-foreground @[760px]:hidden">{formatPercentage(row.sharePct, 1)}</span>
       </td>
       <td className={cn(CELL_CLASS, 'hidden text-[11px] text-muted-foreground @[760px]:table-cell')}>{formatPercentage(row.sharePct, 1)}</td>
@@ -192,7 +192,7 @@ function FlatRow({ row, ticker, selected, onToggle, roving }: RowProps) {
         )}
       </div>
       <div className="shrink-0 text-right">
-        <span className="block font-mono text-[13px] tabular-nums text-foreground">{formatCurrency(row.totalValue)}</span>
+        <span className="block font-mono text-[13px] tabular-nums text-foreground">{formatCurrency(row.totalValue, 'EUR', 0)}</span>
         <span className="block font-mono text-[11px] tabular-nums">
           {row.delta !== null && (
             <>
@@ -323,7 +323,7 @@ export function ValoreStrumentoTile({
       </p>
       {selection && selection.count > 0 ? (
         <>
-          <p className="mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[-0.025em] tabular-nums text-foreground">{formatCurrency(selection.value)}</p>
+          <p className="mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[-0.025em] tabular-nums text-foreground">{formatCurrency(selection.value, 'EUR', 0)}</p>
           <p className="mt-1.5 text-[11px] leading-[1.4] text-muted-foreground">
             {articleForPercent(selection.sharePct, 1)}
             <span className="font-mono tabular-nums">{formatPercentage(selection.sharePct, 1)}</span> del patrimonio di {breakdown?.month.label.toLowerCase()}

@@ -28,7 +28,7 @@ export function LogoutDialog({ open, onOpenChange, onConfirm }: LogoutDialogProp
       <AlertDialogContent>
         <AlertDialogHeader className="gap-1.5 text-left">
           <p className={TILE_EYEBROW_CLASS}>Account</p>
-          <AlertDialogTitle className="text-[20px] font-semibold leading-[1.25] tracking-[-0.01em]">
+          <AlertDialogTitle className="text-[22px] font-semibold leading-[1.25] tracking-[-0.01em]">
             Esci dall&apos;account?
           </AlertDialogTitle>
           <AlertDialogDescription className="mt-1 text-[13px] leading-[1.45] text-foreground">

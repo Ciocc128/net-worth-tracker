@@ -68,7 +68,7 @@ export function ClassiDelPianoTile({ plan, trajectory, currentIndex, band, colla
       {classStrip.length > 0 && (
         <div className="mt-4 min-w-0 border-t border-border pt-3.5">
           <p className={TILE_SUB_EYEBROW_CLASS}>Oggi e a fine piano</p>
-          <p className="mt-0.5 text-[10px] text-muted-foreground">{ACCUMULO_CLASS_STRIP_LEGEND}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{ACCUMULO_CLASS_STRIP_LEGEND}</p>
           <ul className="mt-2.5 space-y-3">
             {classStrip.map(({ row, item }) => (
               <li key={row.assetClass}>
@@ -86,7 +86,7 @@ export function ClassiDelPianoTile({ plan, trajectory, currentIndex, band, colla
                   targetPercentage={row.targetPct}
                   projectedPercentage={row.finalPct}
                 />
-                <p className={`mt-0.5 font-mono text-[10px] tabular-nums ${item.outOfBandNow ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
+                <p className={`mt-0.5 font-mono text-[11px] tabular-nums ${item.outOfBandNow ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
                   {item.secondary}
                   {item.note && <span className="font-sans"> · {item.note}</span>}
                 </p>

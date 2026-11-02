@@ -79,7 +79,7 @@ export function GoalsDettaglio({ description, goals, progressList }: GoalsDettag
                         <span className="flex min-w-0 items-center gap-2">
                           <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: slice.color }} aria-hidden="true" />
                           <span className="truncate text-[13px] text-foreground">{slice.goalName}</span>
-                          <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium', PRIORITY_META[slice.priority].chipClass)}>{PRIORITY_META[slice.priority].label}</span>
+                          <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium', PRIORITY_META[slice.priority].chipClass)}>{PRIORITY_META[slice.priority].label}</span>
                         </span>
                         <span className="flex shrink-0 flex-col items-end font-mono tabular-nums leading-[1.3]">
                           <span className="text-[13px] font-semibold text-foreground">+{cachedFormatCurrencyEUR(slice.add, true)}</span>

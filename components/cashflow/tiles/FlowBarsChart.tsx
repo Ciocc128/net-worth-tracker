@@ -125,7 +125,7 @@ export function FlowBarsChart({ flows, highlightKey, minHeight = 150, onSelectMo
       <div className="mt-1.5 grid" style={{ gridTemplateColumns: `repeat(${flows.length}, minmax(0, 1fr))` }} aria-hidden={onSelectMonth ? undefined : true}>
         {flows.map((flow) => {
           const labelClass = cn(
-            'text-center font-mono text-[10px] tabular-nums',
+            'text-center font-mono text-[11px] tabular-nums',
             flow.key === highlightKey ? CURRENT_SLOT_LABEL_CLASS : 'text-muted-foreground',
             flow.scheduled && 'opacity-60',
           );

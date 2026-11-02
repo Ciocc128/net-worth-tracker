@@ -34,7 +34,7 @@ function CountDot({ count, isFloor = false }: { count: number; isFloor?: boolean
   return (
     <span
       aria-hidden="true"
-      className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-medium text-primary-foreground"
+      className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[11px] font-medium text-primary-foreground"
     >
       {count > 99 || isFloor ? `${Math.min(count, 99)}+` : count}
     </span>

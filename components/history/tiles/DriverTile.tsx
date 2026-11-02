@@ -259,7 +259,7 @@ function DriverBars({ months, scrubIndex = null, className }: { months: MonthlyD
       </div>
       <div className="mt-1.5 grid" style={{ gridTemplateColumns: `repeat(${months.length}, minmax(0, 1fr))` }} aria-hidden="true">
         {months.map((m, i) => (
-          <span key={`${m.year}-${m.month}`} className={cn('text-center font-mono text-[10px] tabular-nums', i === months.length - 1 ? CURRENT_SLOT_LABEL_CLASS : i === litIndex ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
+          <span key={`${m.year}-${m.month}`} className={cn('text-center font-mono text-[11px] tabular-nums', i === months.length - 1 ? CURRENT_SLOT_LABEL_CLASS : i === litIndex ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
             {MONTH_NAMES_SHORT[m.month - 1].toLowerCase()}
           </span>
         ))}

@@ -63,7 +63,7 @@ export default function LaborMetricsChart({ data, isMobile }: LaborMetricsChartP
             <XAxis dataKey="tick" tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={isMobile ? 40 : 24} />
             <YAxis tickFormatter={(v: number) => formatCurrencyCompact(v)} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} width={52} />
             <Tooltip
-              formatter={(value) => (typeof value === 'number' ? formatCurrency(value) : '—')}
+              formatter={(value) => (typeof value === 'number' ? formatCurrency(value, 'EUR', 0) : '—')}
               labelFormatter={(_, payload) => payload?.[0]?.payload?.period ?? ''}
               contentStyle={TOOLTIP_CONTENT_STYLE}
               labelStyle={TOOLTIP_LABEL_STYLE}

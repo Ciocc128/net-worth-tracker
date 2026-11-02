@@ -148,7 +148,7 @@ function ExpenseTableRow({ expense, scheduled, ownerLabel, singleType, categoryM
           {format(getExpenseDate(expense.date), 'dd/MM/yyyy', { locale: it })}
           {expense.isRecurring && <Calendar className="h-3 w-3 text-muted-foreground" aria-label="Voce ricorrente" />}
           {scheduled && (
-            <Badge variant="outline" className="flex-shrink-0 font-sans text-[10px] font-normal text-muted-foreground">
+            <Badge variant="outline" className="flex-shrink-0 font-sans text-[11px] font-normal text-muted-foreground">
               In calendario
             </Badge>
           )}
@@ -179,12 +179,12 @@ function ExpenseTableRow({ expense, scheduled, ownerLabel, singleType, categoryM
           ) : null}
           {expense.categoryName}
           {ownerLabel && (
-            <Badge variant="outline" className="flex-shrink-0 text-[10px] font-normal text-muted-foreground">
+            <Badge variant="outline" className="flex-shrink-0 text-[11px] font-normal text-muted-foreground">
               {ownerLabel}
             </Badge>
           )}
           {expense.excludeFromBudget && (
-            <Badge variant="outline" className="flex-shrink-0 text-[10px] font-normal text-muted-foreground">
+            <Badge variant="outline" className="flex-shrink-0 text-[11px] font-normal text-muted-foreground">
               {EXPENSE_BUDGET_EXCLUSION_CHIP}
             </Badge>
           )}

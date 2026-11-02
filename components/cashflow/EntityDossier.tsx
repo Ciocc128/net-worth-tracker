@@ -125,7 +125,7 @@ function DossierChip({ label, value, caption }: { label: string; value: number; 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <p className={TILE_SUB_EYEBROW_CLASS}>{label}</p>
-      <p className="font-mono text-[18px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">{cachedFormatCurrencyEUR(value, true)}</p>
+      <p className="font-mono text-[16px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">{cachedFormatCurrencyEUR(value, true)}</p>
       {caption && <p className="text-[11px] text-muted-foreground">{caption}</p>}
     </div>
   );

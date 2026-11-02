@@ -110,7 +110,7 @@ export function AllocazioneTab({ slice, onChange, onClassChange, pendingFocus, o
           <div className="mt-3.5 flex items-end gap-3">
             <p
               className={cn(
-                'font-mono text-[36px] font-bold leading-none tracking-[-0.03em] tabular-nums',
+                'font-mono text-[40px] font-bold leading-none tracking-[-0.03em] tabular-nums',
                 isValidTotal ? 'text-foreground' : 'text-destructive'
               )}
             >

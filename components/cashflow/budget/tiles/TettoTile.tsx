@@ -49,7 +49,7 @@ interface TettoTileProps {
  * 2026-10-16 — and the shrink below guards the widths where they are drawn: at 1440, and a KPI
  * that is not lifted on a narrow tile). A figure is never truncated: it shrinks until it fits.
  */
-const KPI_VALUE_CLASS = 'font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums @max-[120px]:text-[18px] @max-[104px]:text-[16px]';
+const KPI_VALUE_CLASS = 'font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums @max-[120px]:text-[16px] @max-[104px]:text-[16px]';
 
 function Kpi({ label, value, valueClass, caption, className }: { label: string; value: string; valueClass?: string; caption: Narrative; className?: string }) {
   return (

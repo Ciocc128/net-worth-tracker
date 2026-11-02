@@ -17,7 +17,7 @@ export interface SeriesLegendItem {
  */
 export function SeriesLegend({ items, className }: Readonly<{ items: readonly SeriesLegendItem[]; className?: string }>) {
   return (
-    <div className={cn('flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground', className)} aria-hidden="true">
+    <div className={cn('flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground', className)} aria-hidden="true">
       {items.map((item) => (
         <span key={item.label} className="flex items-center gap-1.5">
           <span className="flex gap-0.5">

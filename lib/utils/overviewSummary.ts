@@ -99,7 +99,6 @@ export function selectOverviewStrip(overview: DashboardOverviewPayload): StripFi
       label: 'Questo mese',
       value: monthly ? monthly.value : null,
       format: 'signed-currency',
-      decimals: 2,
       opens: VERDICT_REST_SECTION,
       lifts: { section: OVERVIEW_PATRIMONIO_ID, block: 'monthly' },
       ...(monthly ? {} : { reason: 'nessuno snapshot prima di questo mese' }),

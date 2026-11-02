@@ -109,7 +109,7 @@ export function SpendingBarsChart({ months, minHeight = 110, className }: Spendi
         {months.map((month) => (
           <span
             key={month.key}
-            className={cn('text-center font-mono text-[10px] tabular-nums', month.ongoing ? CURRENT_SLOT_LABEL_CLASS : 'text-muted-foreground')}
+            className={cn('text-center font-mono text-[11px] tabular-nums', month.ongoing ? CURRENT_SLOT_LABEL_CLASS : 'text-muted-foreground')}
           >
             {month.label}
           </span>

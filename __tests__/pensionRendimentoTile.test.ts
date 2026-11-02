@@ -84,14 +84,14 @@ describe('RendimentoTile — a printed zero has no sign (2026-10-16)', () => {
 
   it('prints a market gain that rounds to zero cents unsigned and untoned', () => {
     const html = render(makeResult({ twr: 5, marketGain: -0.004 }));
-    expect(html).not.toContain('−0,00 €');
-    expect(html).not.toContain('+0,00 €');
-    expect(html).toMatch(/text-foreground">0,00 €<\/span>/);
+    expect(html).not.toContain('−0 €');
+    expect(html).not.toContain('+0 €');
+    expect(html).toMatch(/text-foreground">0 €<\/span>/);
   });
 
   it('keeps the sign and the tone of a figure that prints as non-zero', () => {
     const html = render(makeResult({ twr: -2.4, annualizedTwr: -2.4, marketGain: -700 }));
     expect(html).toMatch(/text-destructive">−2,40%<\/p>/);
-    expect(html).toMatch(/text-destructive">−700,00 €<\/span>/);
+    expect(html).toMatch(/text-destructive">−700 €<\/span>/);
   });
 });

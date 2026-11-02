@@ -37,7 +37,7 @@ function YearKpi({ label, year, beyondLabel }: { label: string; year: number | n
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <p className={TILE_SUB_EYEBROW_CLASS}>{label}</p>
-      <span className={cn('font-mono text-[16px] font-semibold leading-none desktop:text-[18px]', year === null ? 'text-muted-foreground' : 'tabular-nums text-foreground')}>
+      <span className={cn('font-mono text-[16px] font-semibold leading-none', year === null ? 'text-muted-foreground' : 'tabular-nums text-foreground')}>
         {year === null ? beyondLabel : year}
       </span>
     </div>

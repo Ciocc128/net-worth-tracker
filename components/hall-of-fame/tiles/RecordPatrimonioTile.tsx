@@ -71,7 +71,7 @@ export function RecordPatrimonioTile({
               <div className="mt-[18px] flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 {/* «I 12 record più grandi» says that the chart is a cut of the twenty, not all of them. */}
                 <p className={TILE_SUB_EYEBROW_CLASS}>{describeTimelineCaption(timeline.length, board.total)} nel tempo</p>
-                <span className="text-[10px] text-muted-foreground">in ordine cronologico</span>
+                <span className="text-[11px] text-muted-foreground">in ordine cronologico</span>
               </div>
               {/* It stretches with the tile's free height, but not past a ceiling: with five
                   podium rows above it, a 450px plot reads as the tile's subject rather than its

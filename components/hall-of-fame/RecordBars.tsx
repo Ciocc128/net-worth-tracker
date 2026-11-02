@@ -101,7 +101,7 @@ export function RecordBars({ points, ariaLabel, plotClassName = 'min-h-[130px]',
           <span
             key={point.key}
             className={cn(
-              'text-center font-mono text-[10px] tabular-nums',
+              'text-center font-mono text-[11px] tabular-nums',
               point.isCurrent ? CURRENT_SLOT_LABEL_CLASS : 'text-muted-foreground',
             )}
           >
@@ -112,7 +112,7 @@ export function RecordBars({ points, ariaLabel, plotClassName = 'min-h-[130px]',
           <span
             key={`${point.key}-year`}
             className={cn(
-              'overflow-visible whitespace-nowrap text-left font-mono text-[10px] tabular-nums',
+              'overflow-visible whitespace-nowrap text-left font-mono text-[11px] tabular-nums',
               point.yearLabel ? 'text-foreground' : 'invisible',
             )}
             aria-hidden={point.yearLabel ? undefined : true}

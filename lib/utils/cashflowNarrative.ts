@@ -378,33 +378,25 @@ function closingSubject(period: Period): string {
 }
 
 /**
- * "Con 1297 € di spese e 2456 € di entrate già in calendario da qui a fine mese, il mese chiude
- * a +805 € (il 29%)." — the second sentence of a verdict whose period reaches past today: where
- * the calendar takes the figures the first sentence has just judged.
+ * "Il mese chiude a +805 € (il 29%)." — the second sentence of a verdict whose period reaches
+ * past today: where the calendar takes the figures the first sentence has just judged. The
+ * amounts still to come are NOT repeated here: the scope line under the verdict says them
+ * («Nel totale ci sono ancora 1297 € di spese e 2456 € di entrate già in calendario…»).
  *
- * Both sides are ALWAYS named, an empty one as «nessuna entrata attesa» / «nessuna spesa
- * attesa»: the two are materialised differently (an instalment plan writes its future rows, a
- * salary is not recurring — `canTypeRecur`), so a running year holds three months of instalments
- * and no income, and a sentence naming only the side that exists would let the 4% it produces
- * pass for a measure. The outcome is the PERIOD's total, the figure the tiles print, so the two
- * sentences meet on the same number.
+ * An empty side is named, «Senza entrate attese, il mese chiude…» / «Senza spese attese, …»: the
+ * two are materialised differently (an instalment plan writes its future rows, a salary is not
+ * recurring — `canTypeRecur`), so a running year holds three months of instalments and no
+ * income, and a sentence silent on it would let the 4% it produces pass for a measure. The
+ * outcome is the PERIOD's total, the figure the tiles print, so the two sentences meet on the
+ * same number.
  */
-function calendarSentence(period: Period, now: Date, totals: PeriodCashflowTotals, scheduled: ScheduledSlice): Narrative {
-  const horizon = describeScheduledHorizon(period, now);
-  const sides: Narrative[] = [];
-  if (scheduled.expenses > 0) sides.push([figure(euro(scheduled.expenses)), prose(' di spese')]);
-  if (scheduled.income > 0) sides.push([figure(euro(scheduled.income)), prose(' di entrate')]);
-  const missing = scheduled.expenses > 0 && scheduled.income <= 0 ? 'nessuna entrata attesa' : scheduled.income > 0 && scheduled.expenses <= 0 ? 'nessuna spesa attesa' : null;
-
-  const sentence: Narrative = [prose(' Con ')];
-  sides.forEach((side, index) => {
-    if (index > 0) sentence.push(prose(' e '));
-    sentence.push(...side);
-  });
-  sentence.push(prose(' già in calendario'));
-  if (horizon) sentence.push(prose(` da qui ${horizon}`));
-  if (missing) sentence.push(prose(` e ${missing}`));
-  sentence.push(prose(`, ${closingSubject(period)} chiude `));
+function calendarSentence(period: Period, totals: PeriodCashflowTotals, scheduled: ScheduledSlice): Narrative {
+  // The amounts in the calendar are the scope line's («Nel totale ci sono ancora …», under the
+  // verdict): this sentence says only where the calendar takes the period, so the two never repeat
+  // each other. An empty side stays named, as «Senza entrate attese» / «Senza spese attese».
+  const missing = scheduled.expenses > 0 && scheduled.income <= 0 ? 'Senza entrate attese, ' : scheduled.income > 0 && scheduled.expenses <= 0 ? 'Senza spese attese, ' : null;
+  const subject = closingSubject(period);
+  const sentence: Narrative = [prose(missing ? ` ${missing}${subject} chiude ` : ` ${capitalise(subject)} chiude `)];
 
   if (totals.income <= 0) {
     sentence.push(prose('con '), figure(euro(totals.expenses)), prose(' di spese e nessuna entrata.'));
@@ -467,7 +459,7 @@ export function buildCashflowVerdict(input: CashflowVerdictInput): PageVerdictMo
   const settled = settleTotals(totals, scheduled);
   const headline = resolveHeadline(subject, settled, true);
   const tone = resolveTone(settled.savingsRate, settled.expenses);
-  const calendar = calendarSentence(input.period, input.now, totals, scheduled);
+  const calendar = calendarSentence(input.period, totals, scheduled);
 
   if (settled.income <= 0 && settled.expenses <= 0) {
     // Nothing lived yet: the calendar sentence stands alone (its leading space trimmed).

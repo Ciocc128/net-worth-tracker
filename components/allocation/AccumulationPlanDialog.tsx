@@ -955,7 +955,7 @@ export function AccumulationPlanDialog({
             {liquidity && (
               <div className="rounded-lg bg-muted p-4">
                 <p className="text-xs font-medium text-muted-foreground">{ACCUMULO_STEP1_L_HEADLINE}</p>
-                <p className="mt-1 font-mono text-[28px] font-bold tabular-nums text-foreground">{cachedFormatCurrencyEUR(liquidity.L)}</p>
+                <p className="mt-1 font-mono text-[30px] font-bold tabular-nums text-foreground">{cachedFormatCurrencyEUR(liquidity.L)}</p>
                 <dl className="mt-3 space-y-1.5 text-[12px]">
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">{ACCUMULO_STEP1_L_SOURCE}</dt>
@@ -1475,7 +1475,7 @@ export function AccumulationPlanDialog({
                       {draft.positions.map((position) => {
                         const asset = assetsById.get(position.buyAssetId);
                         return (
-                          <th key={position.id} scope="col" title={position.label} className="px-2 py-1.5 text-right text-[10px] font-semibold tracking-[0.04em] text-muted-foreground">
+                          <th key={position.id} scope="col" title={position.label} className="px-2 py-1.5 text-right text-[11px] font-semibold tracking-[0.04em] text-muted-foreground">
                             {asset ? getAssetDisplayTicker(asset) : position.label}
                           </th>
                         );

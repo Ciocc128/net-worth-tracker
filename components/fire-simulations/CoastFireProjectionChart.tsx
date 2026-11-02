@@ -268,7 +268,7 @@ export function CoastFireProjectionChart({
                 stroke={baseColor}
                 strokeWidth={1.5}
                 strokeDasharray="4 3"
-                label={{ value: 'Coast FIRE al ritmo attuale', position: 'insideTopLeft', fill: 'var(--muted-foreground)', fontSize: 10 }}
+                label={{ value: 'Coast FIRE al ritmo attuale', position: 'insideTopLeft', fill: 'var(--muted-foreground)', fontSize: 11 }}
               />
             )}
           </LineChart>

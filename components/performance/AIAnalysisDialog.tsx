@@ -370,7 +370,7 @@ export function AIAnalysisDialog({
         <div>
           <div className="flex items-baseline justify-between gap-3">
             <p className={TILE_EYEBROW_CLASS}>Il report</p>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-[11px] text-muted-foreground">
               scritto dall&apos;assistente, non da una regola
             </span>
           </div>

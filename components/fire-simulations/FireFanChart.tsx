@@ -87,27 +87,27 @@ function FanChartTooltip({ active, payload, label }: FanChartTooltipProps) {
       <div className="mt-2 space-y-1 font-mono text-xs tabular-nums text-muted-foreground">
         <p>
           90° percentile:{' '}
-          <span className="font-medium text-foreground">{formatCurrency(row.p90)}</span>
+          <span className="font-medium text-foreground">{formatCurrency(row.p90, 'EUR', 0)}</span>
         </p>
         <p>
           75° percentile:{' '}
-          <span className="font-medium text-foreground">{formatCurrency(row.p75)}</span>
+          <span className="font-medium text-foreground">{formatCurrency(row.p75, 'EUR', 0)}</span>
         </p>
         <p>
           Mediana:{' '}
-          <span className="font-semibold text-foreground">{formatCurrency(row.p50)}</span>
+          <span className="font-semibold text-foreground">{formatCurrency(row.p50, 'EUR', 0)}</span>
         </p>
         <p>
           25° percentile:{' '}
-          <span className="font-medium text-foreground">{formatCurrency(row.p25)}</span>
+          <span className="font-medium text-foreground">{formatCurrency(row.p25, 'EUR', 0)}</span>
         </p>
         <p>
           10° percentile:{' '}
-          <span className="font-medium text-foreground">{formatCurrency(row.p10)}</span>
+          <span className="font-medium text-foreground">{formatCurrency(row.p10, 'EUR', 0)}</span>
         </p>
         <p className="border-t border-border/60 pt-1">
           Target FIRE:{' '}
-          <span className="font-medium text-foreground">{formatCurrency(row.fireTarget)}</span>
+          <span className="font-medium text-foreground">{formatCurrency(row.fireTarget, 'EUR', 0)}</span>
         </p>
         <p>
           Probabilità di FIRE raggiunto:{' '}
