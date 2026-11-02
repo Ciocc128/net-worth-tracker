@@ -25,7 +25,7 @@ export interface TileCollapse {
 }
 
 interface TileBaseProps {
-  /** The tile's question, as the small uppercase label. */
+  /** The tile's question, as the small sentence-case label. */
   eyebrow: string;
   /** Short context on the right of the eyebrow (a period, a count, a scope). */
   aside?: ReactNode;
@@ -60,11 +60,11 @@ export const TILE_FOOTER_ACTION_CLASS =
 
 /** The eyebrow every tile, every hero and the compact page header share. */
 export const TILE_EYEBROW_CLASS =
-  'text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground';
+  'text-xs font-medium text-muted-foreground';
 
 /** A smaller eyebrow for labels INSIDE a tile (a KPI name, a list title). */
 export const TILE_SUB_EYEBROW_CLASS =
-  'text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground';
+  'text-xs font-medium text-muted-foreground';
 
 /**
  * Grid-cell wrapper for a tile: the tile stretches to the row height so `mt-auto` footers

@@ -49,7 +49,7 @@ export function ProbabilitaTile({ reading, aside, run, chart, footer, className 
   return (
     <Tile eyebrow="Probabilità" aside={aside} reading={reading} ariaLabel="Probabilità di successo" className={className}>
       <p className={cn(TILE_SUB_EYEBROW_CLASS, 'mt-3.5')}>Probabilità di successo · scenario base</p>
-      <SettledPercentageValue value={run.successRate} decimals={rateDecimals} className="mt-1.5 block font-mono text-[44px] font-bold leading-none tracking-[-0.035em] tabular-nums desktop:text-[54px]" />
+      <SettledPercentageValue value={run.successRate} decimals={rateDecimals} className="mt-1.5 block font-mono text-[40px] font-semibold leading-none tracking-[-0.03em] tabular-nums" />
 
       <div className="mt-3 flex flex-col items-start gap-2 tablet:flex-row tablet:flex-wrap tablet:gap-x-2.5 tablet:gap-y-2">
         <Chip value={run.failureCount.toLocaleString('it-IT')} words="fallite" caption={`su ${run.simulations.toLocaleString('it-IT')} simulazioni`} />

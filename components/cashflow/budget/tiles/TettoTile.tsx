@@ -97,7 +97,7 @@ export function TettoTile({ id, summary, aside, reading, history, historyCaption
         <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
           <p
             className={cn(
-              'font-mono text-[44px] font-bold leading-none tracking-[-0.03em] tabular-nums',
+              'font-mono text-[40px] font-semibold leading-none tracking-[-0.03em] tabular-nums',
               summary.exceeded ? 'text-destructive' : 'text-foreground',
             )}
           >

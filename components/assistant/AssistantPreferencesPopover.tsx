@@ -52,7 +52,7 @@ export function AssistantPreferencesPopover({
 
         {/* Response style */}
         <div className="mb-3 space-y-1.5">
-          <label className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+          <label className="text-xs font-medium text-muted-foreground">
             Stile di risposta
           </label>
           <Select

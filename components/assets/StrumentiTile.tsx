@@ -164,7 +164,7 @@ function SortHead({ column, children, align = 'right', sortState, onSort, classN
         type="button"
         onClick={() => onSort(column)}
         className={cn(
-          'inline-flex items-center gap-1 rounded-sm uppercase tracking-[0.08em] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'inline-flex items-center gap-1 rounded-sm hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           isActive && 'text-foreground',
         )}
       >

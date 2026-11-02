@@ -81,7 +81,7 @@ export function FireAssumptionsRow({ assumptions, view = 'default' }: { assumpti
   return (
     <div className="mb-3 space-y-1.5" data-testid="fire-assumptions-row">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-muted-foreground">
-        <span className="text-[9.5px] font-semibold uppercase tracking-[0.08em]">Ipotesi usate</span>
+        <span className="text-[9.5px] font-medium">Ipotesi usate</span>
         {capital ? (
           <>
             <span className="text-[13px]">
@@ -132,7 +132,7 @@ function AssumptionsScopeLine({ assumptions, view }: { assumptions: FireAssumpti
           </button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[min(20rem,calc(100vw-2rem))] space-y-3 text-[13px] leading-[1.45]">
-          <p className="text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Ipotesi usate</p>
+          <p className="text-[9.5px] font-medium text-muted-foreground">Ipotesi usate</p>
           {capital ? (
             <div>
               <p>

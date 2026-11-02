@@ -338,7 +338,7 @@ function CategoryFormBody({
 
       {/* ---- Aspetto: Icona + Colore ---- */}
       <div className="space-y-4 rounded-xl border border-border/60 bg-muted/30 p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">Aspetto</p>
+        <p className="text-xs font-medium text-muted-foreground">Aspetto</p>
 
         {/* Icona */}
         <div className="flex items-center justify-between">

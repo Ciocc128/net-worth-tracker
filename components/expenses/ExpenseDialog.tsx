@@ -1155,7 +1155,7 @@ function ExpenseFormBody({
 
                     {watchedInstallmentTotalAmount && (watchedInstallmentCount ?? 0) > 1 && (
                       <div className="p-3 rounded-lg bg-primary/5 border border-primary/10">
-                        <p className="text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
+                        <p className="text-xs font-medium text-muted-foreground mb-1.5">
                           Divisione
                         </p>
                         <InstallmentPreview

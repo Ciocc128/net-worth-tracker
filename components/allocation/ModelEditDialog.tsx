@@ -128,10 +128,10 @@ export function ModelEditDialog({ open, onClose, ownerId, model, allAssets, labe
       <table className="w-full text-[13px]">
         <thead>
           <tr className="border-b border-border text-left">
-            <th scope="col" className="py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <th scope="col" className="py-1.5 pr-2 text-xs font-medium text-muted-foreground">
               {MODEL_COL_INSTRUMENT}
             </th>
-            <th scope="col" className="py-1.5 pr-0 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <th scope="col" className="py-1.5 pr-0 text-right text-xs font-medium text-muted-foreground">
               {MODEL_COL_MODEL} (%)
             </th>
             <th scope="col" className="w-0 py-1.5" />

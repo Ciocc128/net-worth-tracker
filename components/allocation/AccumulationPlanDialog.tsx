@@ -834,7 +834,7 @@ export function AccumulationPlanDialog({
               </label>
               <div>
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP1_SOURCE_ACCOUNTS}</p>
+                  <p className="text-xs font-medium text-muted-foreground">{ACCUMULO_STEP1_SOURCE_ACCOUNTS}</p>
                   {cashAccounts.length > 1 && (() => {
                     const allSelected = cashAccounts.every((account) => draft.liquidity.sourceCashAssetIds.includes(account.id));
                     return (
@@ -954,7 +954,7 @@ export function AccumulationPlanDialog({
 
             {liquidity && (
               <div className="rounded-lg bg-muted p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP1_L_HEADLINE}</p>
+                <p className="text-xs font-medium text-muted-foreground">{ACCUMULO_STEP1_L_HEADLINE}</p>
                 <p className="mt-1 font-mono text-[28px] font-bold tabular-nums text-foreground">{cachedFormatCurrencyEUR(liquidity.L)}</p>
                 <dl className="mt-3 space-y-1.5 text-[12px]">
                   <div className="flex justify-between">
@@ -992,7 +992,7 @@ export function AccumulationPlanDialog({
           <div className="grid gap-4 desktop:grid-cols-[minmax(0,1fr)_320px]">
           <div className="min-w-0 space-y-4">
             <div>
-              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_FROM_LABEL}</p>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">{ACCUMULO_STEP2_FROM_LABEL}</p>
               <SegmentedPill
                 options={[
                   ...(planBase ? [{ value: 'plan' as const, label: ACCUMULO_STEP2_FROM_PLAN }] : []),
@@ -1040,12 +1040,12 @@ export function AccumulationPlanDialog({
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="border-b border-border text-left">
-                    <th scope="col" className="py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_INSTRUMENT}</th>
-                    <th scope="col" className="py-1.5 pr-2 text-center text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_KEEP_OR_SELL}</th>
-                    <th scope="col" className="py-1.5 pr-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_CURRENT_WEIGHT}</th>
-                    <th scope="col" className="py-1.5 pr-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_TARGET}</th>
-                    <th scope="col" className="py-1.5 pr-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP2_COL_TO_BUY}</th>
-                    <th scope="col" className="hidden py-1.5 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground sm:table-cell">{ACCUMULO_STEP2_COL_PER_MONTH}</th>
+                    <th scope="col" className="py-1.5 pr-2 text-xs font-medium text-muted-foreground">{ACCUMULO_STEP2_COL_INSTRUMENT}</th>
+                    <th scope="col" className="py-1.5 pr-2 text-center text-xs font-medium text-muted-foreground">{ACCUMULO_STEP2_COL_KEEP_OR_SELL}</th>
+                    <th scope="col" className="py-1.5 pr-2 text-right text-xs font-medium text-muted-foreground">{ACCUMULO_STEP2_COL_CURRENT_WEIGHT}</th>
+                    <th scope="col" className="py-1.5 pr-2 text-right text-xs font-medium text-muted-foreground">{ACCUMULO_STEP2_COL_TARGET}</th>
+                    <th scope="col" className="py-1.5 pr-2 text-right text-xs font-medium text-muted-foreground">{ACCUMULO_STEP2_COL_TO_BUY}</th>
+                    <th scope="col" className="hidden py-1.5 text-right text-xs font-medium text-muted-foreground sm:table-cell">{ACCUMULO_STEP2_COL_PER_MONTH}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1409,7 +1409,7 @@ export function AccumulationPlanDialog({
             )}
 
             <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_SECTION_WEIGHTS}</p>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">{ACCUMULO_STEP3_SECTION_WEIGHTS}</p>
               <div className="overflow-x-auto">
                 <table className="w-full text-[13px]">
                   <thead>
@@ -1418,7 +1418,7 @@ export function AccumulationPlanDialog({
                         <th
                           key={column}
                           scope="col"
-                          className={`py-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground ${index === 0 ? 'pr-3' : 'px-2 text-right'}`}
+                          className={`py-1.5 text-xs font-medium text-muted-foreground ${index === 0 ? 'pr-3' : 'px-2 text-right'}`}
                         >
                           {column}
                         </th>
@@ -1466,12 +1466,12 @@ export function AccumulationPlanDialog({
             </div>
 
             <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Calendario</p>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Calendario</p>
               <div className="overflow-x-auto">
                 <table className="w-full text-[13px]">
                   <thead>
                     <tr className="border-b border-border text-left">
-                      <th scope="col" className="py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_COL_MONTH}</th>
+                      <th scope="col" className="py-1.5 pr-2 text-xs font-medium text-muted-foreground">{ACCUMULO_STEP3_COL_MONTH}</th>
                       {draft.positions.map((position) => {
                         const asset = assetsById.get(position.buyAssetId);
                         return (
@@ -1480,7 +1480,7 @@ export function AccumulationPlanDialog({
                           </th>
                         );
                       })}
-                      <th scope="col" className="py-1.5 pl-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_COL_TOTAL}</th>
+                      <th scope="col" className="py-1.5 pl-2 text-right text-xs font-medium text-muted-foreground">{ACCUMULO_STEP3_COL_TOTAL}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1524,19 +1524,19 @@ export function AccumulationPlanDialog({
                 is active, in «Classi del piano» — here it would only scale badly. Weight on top,
                 drift in pp under it, amber out of band; classes with no weight nor target left out. */}
             <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_SECTION_CLASSES}</p>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">{ACCUMULO_STEP3_SECTION_CLASSES}</p>
               <div className="overflow-x-auto">
                 <table className="w-full text-[13px]">
                   <thead>
                     <tr className="border-b border-border text-left">
-                      <th scope="col" className="py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_COL_MONTH}</th>
+                      <th scope="col" className="py-1.5 pr-2 text-xs font-medium text-muted-foreground">{ACCUMULO_STEP3_COL_MONTH}</th>
                       {stepThreeClasses.map((assetClass) => {
                         const idx = ASSET_CLASS_CHART_INDEX[assetClass] ?? 0;
                         return (
                           <th
                             key={assetClass}
                             scope="col"
-                            className="py-1.5 pl-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em]"
+                            className="py-1.5 pl-2 text-right text-xs font-medium"
                             style={{ color: chartColors[idx] ?? CHART_COLORS[idx] ?? CHART_COLORS[0] }}
                           >
                             {ASSET_CLASS_LABELS[assetClass] ?? assetClass}

@@ -54,7 +54,7 @@ export function ChartHoverTip({ x, label, children }: ChartHoverTipProps) {
       style={{ left: `${x * 100}%` }}
       role="status"
     >
-      <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</span>
+      <span className="font-mono text-xs font-medium text-muted-foreground">{label}</span>
       {children}
     </div>
   );

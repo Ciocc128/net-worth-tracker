@@ -89,7 +89,7 @@ export function PeriodPicker({ value, onChange, availableYears = [], className, 
 
   const presets = (
     <div className="flex flex-col gap-1">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1 px-1">
+      <p className="text-xs font-medium text-muted-foreground mb-1 px-1">
         Scorciatoie
       </p>
       <PresetButton label="Questo mese" active={isCurrentMonthActive} onClick={() => handlePreset(currentMonthPeriod())} />
@@ -109,7 +109,7 @@ export function PeriodPicker({ value, onChange, availableYears = [], className, 
       {last3Years.length > 0 && (
         <>
           <div className="border-t border-border my-1" />
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1 px-1">Anni</p>
+          <p className="text-xs font-medium text-muted-foreground mb-1 px-1">Anni</p>
           {last3Years.map(year => (
             <PresetButton
               key={year}
@@ -122,7 +122,7 @@ export function PeriodPicker({ value, onChange, availableYears = [], className, 
       )}
 
       <div className="border-t border-border my-1" />
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1 px-1">Mesi</p>
+      <p className="text-xs font-medium text-muted-foreground mb-1 px-1">Mesi</p>
       {recentMonths.map(({ year, month }) => (
         <PresetButton
           key={`${year}-${month}`}
@@ -139,7 +139,7 @@ export function PeriodPicker({ value, onChange, availableYears = [], className, 
   const mobilePresets = (
     <div className="flex flex-col gap-4">
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">
+        <p className="text-xs font-medium text-muted-foreground mb-2">
           Scorciatoie
         </p>
         <div className="flex flex-wrap gap-2">
@@ -159,7 +159,7 @@ export function PeriodPicker({ value, onChange, availableYears = [], className, 
 
       {last3Years.length > 0 && (
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Anni</p>
+          <p className="text-xs font-medium text-muted-foreground mb-2">Anni</p>
           <div className="flex flex-wrap gap-2">
             {last3Years.map(year => (
               <Chip
@@ -174,7 +174,7 @@ export function PeriodPicker({ value, onChange, availableYears = [], className, 
       )}
 
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Mesi</p>
+        <p className="text-xs font-medium text-muted-foreground mb-2">Mesi</p>
         <div className="flex flex-wrap gap-2">
           {recentMonths.map(({ year, month }) => (
             <Chip
@@ -197,7 +197,7 @@ export function PeriodPicker({ value, onChange, availableYears = [], className, 
       <div className="flex flex-col">
         <div className="flex items-end gap-2 px-3 pt-3 pb-2">
           <div className="flex flex-col gap-1 flex-1">
-            <label htmlFor="period-picker-from" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Da</label>
+            <label htmlFor="period-picker-from" className="text-xs font-medium text-muted-foreground">Da</label>
             <input
               id="period-picker-from"
               type="text"
@@ -209,7 +209,7 @@ export function PeriodPicker({ value, onChange, availableYears = [], className, 
           </div>
           <span className="pb-1.5 text-sm text-muted-foreground">–</span>
           <div className="flex flex-col gap-1 flex-1">
-            <label htmlFor="period-picker-to" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">A</label>
+            <label htmlFor="period-picker-to" className="text-xs font-medium text-muted-foreground">A</label>
             <input
               id="period-picker-to"
               type="text"
@@ -294,7 +294,7 @@ export function PeriodPicker({ value, onChange, availableYears = [], className, 
               <div className="flex-1 border-t border-border" />
             </div>
 
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2 px-1">
+            <p className="text-xs font-medium text-muted-foreground mb-2 px-1">
               Intervallo personalizzato
             </p>
             <div className="border border-border rounded-lg overflow-hidden">

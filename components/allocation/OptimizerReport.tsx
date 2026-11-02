@@ -147,14 +147,14 @@ export function OptimizerObjectivesReport({ result, labelOf }: OptimizerObjectiv
     <>
       {result.objectives.length > 0 && (
         <div>
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{OPTIMIZER_REPORT_TITLE}</p>
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">{OPTIMIZER_REPORT_TITLE}</p>
           <ObjectiveBars objectives={result.objectives} />
         </div>
       )}
 
       {result.conflicts.length > 0 && (
         <div>
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{OPTIMIZER_CONFLICTS_TITLE}</p>
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">{OPTIMIZER_CONFLICTS_TITLE}</p>
           <ul className="space-y-1 text-[12px] text-muted-foreground">
             {result.conflicts.map((conflict) => (
               <li key={conflict.removedObjectiveId}>{describeConflict(conflict, result.objectives)}</li>
@@ -165,7 +165,7 @@ export function OptimizerObjectivesReport({ result, labelOf }: OptimizerObjectiv
 
       {result.warnings.length > 0 && (
         <div>
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{OPTIMIZER_WARNINGS_TITLE}</p>
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">{OPTIMIZER_WARNINGS_TITLE}</p>
           <ul className="space-y-1 text-[12px] text-warning-foreground">
             {result.warnings.map((warning, i) => (
               <li key={i}>{describeOptimizerWarning(warning, labelOf)}</li>
@@ -208,13 +208,13 @@ export function OptimizerReport({
       <table className="w-full text-[13px]">
         <thead>
           <tr className="border-b border-border text-left">
-            <th scope="col" className="py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <th scope="col" className="py-1.5 pr-2 text-xs font-medium text-muted-foreground">
               {OPTIMIZER_COL_INSTRUMENT}
             </th>
-            <th scope="col" className="py-1.5 pr-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <th scope="col" className="py-1.5 pr-2 text-right text-xs font-medium text-muted-foreground">
               {OPTIMIZER_COL_CURRENT}
             </th>
-            <th scope="col" className="py-1.5 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <th scope="col" className="py-1.5 text-right text-xs font-medium text-muted-foreground">
               {OPTIMIZER_COL_PROPOSED}
             </th>
           </tr>

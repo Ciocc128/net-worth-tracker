@@ -81,7 +81,7 @@ function TrendTooltip({ active, payload, monthShort, comparisonLabel }: TrendToo
   const mine = point.spent ?? point.calendar;
   return (
     <div style={TOOLTIP_STYLE} className="flex flex-col gap-1 text-[11px]">
-      <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+      <span className="font-mono text-xs font-medium text-muted-foreground">
         {point.day} {monthShort}
       </span>
       {mine !== null && (

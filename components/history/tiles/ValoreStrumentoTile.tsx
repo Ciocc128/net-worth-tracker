@@ -103,7 +103,7 @@ function TrendTooltip({ active, payload }: TrendTooltipProps) {
   if (!active || !point) return null;
   return (
     <div style={TOOLTIP_CONTENT_STYLE} className="flex flex-col gap-1 text-[11px]">
-      <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{point.label}</span>
+      <span className="font-mono text-xs font-medium text-muted-foreground">{point.label}</span>
       <span className="font-mono text-[13px] font-semibold tabular-nums text-card-foreground">{formatCurrency(point.total)}</span>
       {point.delta !== null && (
         <div className="flex flex-col gap-0.5 border-t border-border pt-1 text-muted-foreground">
@@ -225,7 +225,7 @@ function SortHead({ label, sortKey, sort, onSort, className }: { label: string; 
       <button
         type="button"
         onClick={() => onSort(sortKey)}
-        className={cn('inline-flex h-8 items-center gap-1 rounded-sm uppercase tracking-[inherit] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', active && 'text-foreground')}
+        className={cn('inline-flex h-8 items-center gap-1 rounded-sm hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', active && 'text-foreground')}
       >
         {label}
         {active && <Arrow className="h-2.5 w-2.5" aria-hidden="true" />}
