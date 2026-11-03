@@ -16,7 +16,7 @@ interface CashflowContestoTileProps {
 /** A flat `divide-y` row: label left, mono value right — no box per row inside the tile. */
 function Row({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-[9px]">
+    <div className="flex items-center justify-between gap-3 py-2">
       <span className="text-[13px] text-muted-foreground">{label}</span>
       <span className={cn('font-mono text-[13px] font-semibold tabular-nums text-foreground', className)}>{value}</span>
     </div>

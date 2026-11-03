@@ -353,7 +353,7 @@ export function PerCategoriaTile({ rows, calendarPct, aside, reading, footer, is
           <div className="mt-3.5 hidden desktop:block">
             {rows.expense.length > 0 && <BudgetTable rows={rows.expense} calendarPct={calendarPct} caption="Budget mensili di spesa" {...listProps} />}
             {rows.income.length > 0 && (
-              <div className={cn(rows.expense.length > 0 && 'mt-[18px]')}>
+              <div className={cn(rows.expense.length > 0 && 'mt-5')}>
                 <p className={cn(TILE_SUB_EYEBROW_CLASS, 'mb-1.5')}>Entrate previste</p>
                 <BudgetTable rows={rows.income} calendarPct={null} caption="Obiettivi di entrata del mese" {...listProps} />
               </div>

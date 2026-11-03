@@ -26,6 +26,10 @@ interface FlowBarsChartProps {
 /** The plot's floor below `desktop:` (the Panoramica's curve has the same, 2026-10-11). */
 const PHONE_MIN_HEIGHT_CLASS = 'min-h-[120px] desktop:min-h-[var(--flow-min-h)]';
 
+/** The months that are not the page's: income a light grey, spending a darker one (D-AS21). */
+const PAST_INCOME_FILL = 'color-mix(in oklab, var(--muted-foreground) 40%, var(--card))';
+const PAST_EXPENSES_FILL = 'color-mix(in oklab, var(--muted-foreground) 75%, var(--card))';
+
 const VIEW_W = 600;
 const VIEW_H = 180;
 /** Share of a month's slot taken by each of its two bars, and the gap between them. */
@@ -93,16 +97,21 @@ export function FlowBarsChart({ flows, highlightKey, minHeight = 150, onSelectMo
             const x = i * slot + (slot - pairWidth) / 2;
             const incomeHeight = (flow.income / max) * (VIEW_H - 8);
             const expensesHeight = (flow.expenses / max) * (VIEW_H - 8);
-            // The month the page is about gets a band and a pill (CurrentSlotBand), never the others
-            // dimmed: a dimmed slot falls under the 3:1 floor for graphical objects on the light card.
+            // The month the page is about gets a band, a pill (CurrentSlotBand) and the two series colours;
+            // every other month is a pair of greys (income lighter, spending darker), so the chart has ONE
+            // accent, on the month that answers (D-AS21). The greys are mixed from `--muted-foreground`, not
+            // dimmed from the series colours, so the pair keeps its 3:1 against the card in every theme.
+            const current = highlightKey === null || flow.key === highlightKey;
+            const incomeFill = current ? CASHFLOW_SERIES_COLOR.income : PAST_INCOME_FILL;
+            const expensesFill = current ? CASHFLOW_SERIES_COLOR.expenses : PAST_EXPENSES_FILL;
             // A month that has not started holds only what is already in the calendar: drawn
             // lighter, so a recurring-only bar is never read as a month that was lived.
             const opacity = flow.scheduled ? 0.45 : 1;
             return (
               <g key={flow.key}>
                 <title>{`${flow.label}: entrate ${cachedFormatCurrencyEUR(flow.income, true)}, spese ${cachedFormatCurrencyEUR(flow.expenses, true)}${flow.scheduled ? ' (in calendario)' : ''}`}</title>
-                <rect x={x} y={VIEW_H - incomeHeight} width={barWidth} height={incomeHeight} fill={CASHFLOW_SERIES_COLOR.income} fillOpacity={opacity} />
-                <rect x={x + barWidth + gap} y={VIEW_H - expensesHeight} width={barWidth} height={expensesHeight} fill={CASHFLOW_SERIES_COLOR.expenses} fillOpacity={opacity} />
+                <rect x={x} y={VIEW_H - incomeHeight} width={barWidth} height={incomeHeight} fill={incomeFill} fillOpacity={opacity} />
+                <rect x={x + barWidth + gap} y={VIEW_H - expensesHeight} width={barWidth} height={expensesHeight} fill={expensesFill} fillOpacity={opacity} />
               </g>
             );
           })}

@@ -40,7 +40,7 @@ export function SintesiTile({ metrics, hasCostBasisTracking, collapse, asideWhen
       {total > 0 ? (
         <div className="mt-2.5 flex flex-col divide-y divide-border">
           {rows.map((row) => (
-            <div key={row.label} className="flex items-center justify-between gap-3 py-[9px]">
+            <div key={row.label} className="flex items-center justify-between gap-3 py-2">
               <span className="text-[13px] text-muted-foreground">{row.label}</span>
               <span className="flex items-baseline gap-2.5 whitespace-nowrap">
                 <span className="font-mono text-[14px] tabular-nums text-foreground">

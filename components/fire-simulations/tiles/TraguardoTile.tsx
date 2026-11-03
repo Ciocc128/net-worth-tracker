@@ -83,7 +83,7 @@ export function TraguardoTile({ reading, target, caption, view, onViewChange, fa
             their own gap instead of a space that would never paint. */}
         {/* «verso FI» is a direction; past the target it is «del numero FIRE» — a reader at 252%
             has nothing left to go towards (2026-09-22). */}
-        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-[9px] bg-muted px-[11px] py-[6px] font-mono text-[12px] font-semibold leading-none tabular-nums text-foreground">
+        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-[9px] bg-muted px-3 py-[6px] font-mono text-[12px] font-semibold leading-none tabular-nums text-foreground">
           <SettledPercentageValue value={target.progressPct} />
           <span>{target.reached ? 'del numero FIRE' : 'verso FI'}</span>
         </span>

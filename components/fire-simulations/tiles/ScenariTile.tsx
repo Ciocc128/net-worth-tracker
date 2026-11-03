@@ -63,7 +63,7 @@ export function ScenariTile({ reading, rows, horizonYears, chart, footer, collap
         {rows.map((row) => {
           const isBase = row.key === 'base';
           return (
-            <li key={row.key} className="flex items-center justify-between gap-3 py-[9px]">
+            <li key={row.key} className="flex items-center justify-between gap-3 py-2">
               <span className="flex min-w-0 items-center gap-2.5">
                 <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: SCENARIO_COLOR[row.key] }} aria-hidden="true" />
                 <span className="min-w-0">

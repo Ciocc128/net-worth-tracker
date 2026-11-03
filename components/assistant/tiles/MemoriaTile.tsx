@@ -25,7 +25,7 @@ const PROGRESS_CLASS: Record<GoalProgressReading['kind'], string> = {
 function GoalRow({ goal }: { goal: AssistantMemoryItem }) {
   const progress = describeGoalProgress(goal.lastEvaluationResult);
   return (
-    <li className="flex items-center justify-between gap-3 py-[9px]">
+    <li className="flex items-center justify-between gap-3 py-2">
       <span className="min-w-0 flex-1 truncate text-[13px] text-foreground" title={goal.text}>
         {goal.text}
       </span>

@@ -50,7 +50,7 @@ export function AvvisiTile({ rows, enabled, aside, reading, footer, collapse, as
             // Two lines: the name against its share, then the figures against the calendar clause —
             // side by side the clause («soglia 50% · anno al 70%») wrapped the figures in a 3/12 tile.
             return (
-              <li key={alert.key} className="flex flex-col gap-0.5 py-[9px]">
+              <li key={alert.key} className="flex flex-col gap-0.5 py-2">
                 <div className="flex items-baseline justify-between gap-3">
                   <p className="min-w-0 flex-1 truncate text-[13px] text-foreground">{alert.label}</p>
                   <span className={cn('shrink-0 font-mono text-[13px] font-semibold tabular-nums', usedShareClass(alert))}>

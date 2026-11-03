@@ -35,7 +35,7 @@ function ratio(value: number): string {
 
 function Row({ label, sub, children }: { label: string; sub?: string; children: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-[9px]">
+    <div className="flex items-center justify-between gap-3 py-2">
       <span className="min-w-0 text-[13px] text-foreground">
         {label}
         {sub && <span className="ml-1.5 text-[11px] text-muted-foreground">{sub}</span>}

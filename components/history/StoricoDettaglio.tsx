@@ -268,7 +268,7 @@ function laborValueClass(tone: LaborRowTone, value: number): string {
  */
 function LaborRow({ label, caption, value, tone = 'flow' }: { label: string; caption: React.ReactNode; value: number; tone?: LaborRowTone }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-[9px]">
+    <div className="flex items-center justify-between gap-3 py-2">
       <span className="min-w-0">
         <span className={cn('block text-[13px] text-foreground', tone === 'total' && 'font-semibold')}>{label}</span>
         <span className="block text-[11px] text-muted-foreground">{caption}</span>

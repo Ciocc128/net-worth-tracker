@@ -245,7 +245,7 @@ export function CostCenterDialog({
                       'grid h-8 w-8 place-items-center rounded-full border-2 transition-transform duration-100 motion-reduce:transition-none',
                       color === key
                         ? 'border-foreground scale-110'
-                        : 'border-transparent group-hover:scale-105'
+                        : 'border-transparent'
                     )}
                     style={{ backgroundColor: resolveCostCenterColor(key, key, chartColors) }}
                   >

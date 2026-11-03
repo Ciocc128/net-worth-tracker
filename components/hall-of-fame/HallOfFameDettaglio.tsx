@@ -210,11 +210,11 @@ export function HallOfFameDettaglio({ summary, notes, onNoteClick, onAddNote }: 
                           <tr key={row.key} className="group border-t border-border">
                             <th
                               scope="row"
-                              className="py-[9px] text-left font-mono text-[13px] font-normal tabular-nums text-muted-foreground"
+                              className="py-2 text-left font-mono text-[13px] font-normal tabular-nums text-muted-foreground"
                             >
                               {index + 1}
                             </th>
-                            <td className="py-[9px] text-[13px] text-foreground">
+                            <td className="py-2 text-[13px] text-foreground">
                               <span className="flex items-center gap-2 whitespace-nowrap">
                                 {row.longLabel}
                                 {row.isCurrent && <span className={TILE_SUB_EYEBROW_CLASS}>ora</span>}
@@ -225,7 +225,7 @@ export function HallOfFameDettaglio({ summary, notes, onNoteClick, onAddNote }: 
                             </td>
                             <td
                               className={cn(
-                                'py-[9px] text-right font-mono text-[13px] tabular-nums',
+                                'py-2 text-right font-mono text-[13px] tabular-nums',
                                 signedValue ? signTextClass(row.value) : 'text-foreground',
                               )}
                             >
@@ -233,7 +233,7 @@ export function HallOfFameDettaglio({ summary, notes, onNoteClick, onAddNote }: 
                               {cachedFormatCurrencyEUR(Math.abs(row.value), true)}
                             </td>
                             {showPercentage && (
-                              <td className="py-[9px] text-right font-mono text-[13px] tabular-nums text-muted-foreground">
+                              <td className="py-2 text-right font-mono text-[13px] tabular-nums text-muted-foreground">
                                 {row.percentage === null ? (
                                   '—'
                                 ) : (
@@ -245,7 +245,7 @@ export function HallOfFameDettaglio({ summary, notes, onNoteClick, onAddNote }: 
                               </td>
                             )}
                             {showBase && (
-                              <td className="py-[9px] text-right font-mono text-[13px] tabular-nums text-muted-foreground">
+                              <td className="py-2 text-right font-mono text-[13px] tabular-nums text-muted-foreground">
                                 {row.base === null ? '—' : cachedFormatCurrencyEUR(row.base, true)}
                               </td>
                             )}

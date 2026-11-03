@@ -98,13 +98,13 @@ export function MutuoTile({ summary, showPropertyName, collapse, asideWhenClosed
                 const scope = describeMortgageYearScope(entry, summary.year);
                 return (
                   <tr key={entry.year}>
-                    <th scope="row" className="py-[7px] text-left font-normal">
+                    <th scope="row" className="py-2 text-left font-normal">
                       <span className="font-mono tabular-nums text-foreground">{entry.year}</span>
                       {scope && <span className="ml-1.5 text-[11px] text-muted-foreground">{scope}</span>}
                     </th>
-                    <td className="py-[7px] text-right font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(entry.interest, true)}</td>
-                    <td className="py-[7px] text-right font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(entry.principal, true)}</td>
-                    <td className="py-[7px] pl-3 text-right font-mono tabular-nums text-muted-foreground">{entry.instalments}</td>
+                    <td className="py-2 text-right font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(entry.interest, true)}</td>
+                    <td className="py-2 text-right font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(entry.principal, true)}</td>
+                    <td className="py-2 pl-3 text-right font-mono tabular-nums text-muted-foreground">{entry.instalments}</td>
                   </tr>
                 );
               })}

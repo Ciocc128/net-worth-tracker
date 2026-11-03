@@ -95,7 +95,7 @@ export function RecordRows({
       {shown.map((row, index) => {
         const partial = describePartialYearChip(row);
         return (
-          <li key={row.key} className="group flex items-center gap-2.5 py-[9px]">
+          <li key={row.key} className="group flex items-center gap-2.5 py-2">
             <span className="w-[14px] shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
               {index + 1}
             </span>

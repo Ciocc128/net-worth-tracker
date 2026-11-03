@@ -375,10 +375,10 @@ function CategoryFormBody({
                   aria-label={`${c.label}${isSelected ? ' (selezionato)' : ''}`}
                   onClick={() => setValue('color', c.value)}
                   className={cn(
-                    'w-8 h-8 rounded-full border-2 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    'w-8 h-8 rounded-full border-2 transition-[border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                     isSelected
                       ? 'border-foreground scale-110 shadow-md'
-                      : 'border-transparent hover:scale-105'
+                      : 'border-transparent'
                   )}
                   style={{ backgroundColor: c.value }}
                 >

@@ -70,7 +70,7 @@ export function CostoTile({ id, summary, stack, stackCaption, aside, reading, fo
       </div>
 
       {budget && (
-        <div className="mt-[18px] flex flex-col gap-2.5">
+        <div className="mt-5 flex flex-col gap-2.5">
           <div className="flex items-baseline justify-between gap-3">
             <p className={TILE_SUB_EYEBROW_CLASS}>{describeBudgetLabel(budget, now)}</p>
             <NarrativeText segments={describeBudgetUsed(budget)} className="text-[11px] text-muted-foreground" figureClassName={cn('font-semibold', progressTextClass(ratio))} />
@@ -83,7 +83,7 @@ export function CostoTile({ id, summary, stack, stackCaption, aside, reading, fo
         </div>
       )}
 
-      <div className="mt-[18px] grid grid-cols-3 gap-3.5">
+      <div className="mt-5 grid grid-cols-3 gap-3.5">
         <Kpi label="Questo mese" reading={kpis.month} />
         <Kpi label="Quest'anno" reading={kpis.year} />
         <Kpi label="Al mese" reading={kpis.average} />

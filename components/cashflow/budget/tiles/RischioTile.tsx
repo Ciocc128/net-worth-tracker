@@ -35,7 +35,7 @@ export function RischioTile({ risk, aside, reading, footer, id, collapse, asideW
       {risk.atRisk.length > 0 && (
         <ul className="mt-2 flex flex-col divide-y divide-border">
           {risk.atRisk.map((row) => (
-            <li key={row.key} className="flex items-center justify-between gap-3 py-[9px]">
+            <li key={row.key} className="flex items-center justify-between gap-3 py-2">
               <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{row.label}</span>
               <span className="shrink-0 font-mono text-[12px] tabular-nums text-muted-foreground">
                 ~{cachedFormatCurrencyEUR(row.projectedTotal, true)} su {cachedFormatCurrencyEUR(row.budgetAmount, true)}

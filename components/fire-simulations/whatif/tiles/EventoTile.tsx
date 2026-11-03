@@ -113,7 +113,7 @@ function IncomeSourcePicker({ sources, selected, onToggleLeaf, onToggleCategory,
           const categoryState = selectedCount === 0 ? false : selectedCount === leafKeys.length ? true : 'indeterminate';
           const isSingleLeaf = category.subCategories.length === 1 && category.subCategories[0].subCategoryId === NO_SUBCATEGORY_ID;
           return (
-            <li key={category.categoryId} className="py-[7px]">
+            <li key={category.categoryId} className="py-2">
               <label className="flex min-h-[30px] cursor-pointer items-center justify-between gap-3">
                 <span className="flex min-w-0 items-center gap-2.5">
                   <Checkbox checked={categoryState} onCheckedChange={() => onToggleCategory(category)} />

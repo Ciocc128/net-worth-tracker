@@ -73,7 +73,7 @@ function euroClass(value: number): string {
   return Math.abs(Math.round(value)) < 1 ? 'text-foreground' : signTextClass(value);
 }
 
-const ATTRIBUTION_CELL_CLASS = 'py-[9px] pl-3 text-right font-mono text-[13px] tabular-nums';
+const ATTRIBUTION_CELL_CLASS = 'py-2 pl-3 text-right font-mono text-[13px] tabular-nums';
 const ATTRIBUTION_HEAD_CLASS = cn(TILE_SUB_EYEBROW_CLASS, 'py-2 pl-3 text-right font-semibold');
 // `@[560px]` is the container width from which Prezzo and Dividendi are columns of their own; below
 // it they fold under the instrument's name. Class names written out in full: Tailwind reads them as text.
@@ -106,7 +106,7 @@ function AttributionTable({ attribution }: { attribution: ReturnAttribution }) {
         <tbody>
           {attribution.rows.map((row) => (
             <tr key={row.assetId} className="border-b border-border">
-              <th scope="row" className="py-[9px] text-left text-[13px] font-normal text-foreground">
+              <th scope="row" className="py-2 text-left text-[13px] font-normal text-foreground">
                 <span className="line-clamp-2 break-words leading-[1.35]">{row.name}</span>
                 {row.isPensionFund && <span className="block text-[11px] text-muted-foreground">fondo pensione, al netto dei versamenti</span>}
                 {row.dividends !== 0 && (
@@ -124,14 +124,14 @@ function AttributionTable({ attribution }: { attribution: ReturnAttribution }) {
         </tbody>
         <tfoot>
           <tr className="border-b border-border">
-            <th scope="row" className="py-[9px] text-left text-[13px] font-normal text-muted-foreground">Non attribuito</th>
+            <th scope="row" className="py-2 text-left text-[13px] font-normal text-muted-foreground">Non attribuito</th>
             <td className={ATTRIBUTION_CELL_CLASS} />
             <td className={cn(ATTRIBUTION_CELL_CLASS, FOLDED_COLUMN_CLASS)} />
             <td className={cn(ATTRIBUTION_CELL_CLASS, FOLDED_COLUMN_CLASS)} />
             <td className={cn(ATTRIBUTION_CELL_CLASS, 'text-muted-foreground')}>{signedEuro(attribution.unattributed)}</td>
           </tr>
           <tr>
-            <th scope="row" className="py-[9px] text-left text-[13px] font-semibold text-foreground">Mercato</th>
+            <th scope="row" className="py-2 text-left text-[13px] font-semibold text-foreground">Mercato</th>
             <td className={cn(ATTRIBUTION_CELL_CLASS, 'text-muted-foreground')}>{attribution.coverage.attributedMonths}</td>
             <td className={cn(ATTRIBUTION_CELL_CLASS, FOLDED_COLUMN_CLASS)} />
             <td className={cn(ATTRIBUTION_CELL_CLASS, FOLDED_COLUMN_CLASS)} />
@@ -171,7 +171,7 @@ function Help({ label, children }: { label: string; children: ReactNode }) {
 
 function Row({ label, sub, help, value, valueClass }: { label: string; sub?: string; help?: ReactNode; value: string | null; valueClass?: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-[9px]">
+    <div className="flex items-center justify-between gap-3 py-2">
       <span className="min-w-0 text-[13px] text-foreground">
         <span className="inline-flex items-center">
           {label}

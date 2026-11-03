@@ -38,7 +38,7 @@ export function AssistantPromptRows({ rows, onSelect, disabled, ariaLabel }: Ass
             onClick={() => onSelect(row)}
             disabled={disabled}
             className={cn(
-              'flex min-h-11 w-full items-center gap-2.5 py-[9px] text-left text-[13px] text-foreground transition-colors',
+              'flex min-h-11 w-full items-center gap-2.5 py-2 text-left text-[13px] text-foreground transition-colors',
               'hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
               'disabled:pointer-events-none disabled:opacity-50',
               'desktop:-mx-2 desktop:min-h-0 desktop:w-[calc(100%+16px)] desktop:rounded-md desktop:px-2',

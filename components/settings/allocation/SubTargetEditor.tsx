@@ -25,7 +25,7 @@ const roundToTwoDecimals = (value: number): number => Math.round(value * 100) / 
 
 /** The Collapsible's classes: fade in and out, nothing painted while closed. */
 export const COLLAPSIBLE_CONTENT_CLASS = cn(
-  'overflow-hidden motion-safe:transition-all motion-safe:duration-200 motion-reduce:transition-none',
+  'overflow-hidden motion-safe:transition-[opacity,height] motion-safe:duration-200 motion-reduce:transition-none',
   'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
   'data-[state=closed]:hidden'
 );

@@ -32,7 +32,7 @@ interface RedditoPassivoTileProps {
 
 function Row({ label, caption, value, valueClass }: { label: string; caption?: string; value: ReactNode; valueClass?: string }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-[9px]">
+    <div className="flex items-start justify-between gap-3 py-2">
       <span className="min-w-0">
         <span className="block text-[13px] text-muted-foreground">{label}</span>
         {caption && <span className="block text-[11px] leading-[1.4] text-muted-foreground">{caption}</span>}

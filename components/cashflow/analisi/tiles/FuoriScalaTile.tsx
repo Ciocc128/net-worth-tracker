@@ -43,7 +43,7 @@ export function FuoriScalaTile({ anomalies, nearest = null, monthLabel, reading,
                 type="button"
                 onClick={() => onSelect(anomaly)}
                 aria-label={`${anomaly.categoryLabel}, ${articleForPercent(anomaly.deltaPercent, 0)}${formatPercentage(anomaly.deltaPercent, 0)} sopra la media: da ${cachedFormatCurrencyEUR(anomaly.referenceAverage, true)} a ${cachedFormatCurrencyEUR(anomaly.currentTotal, true)}`}
-                className="flex min-h-[44px] w-full items-center gap-2.5 py-[9px] text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset desktop:-mx-2 desktop:min-h-0 desktop:w-[calc(100%+16px)] desktop:rounded-md desktop:px-2"
+                className="flex min-h-[44px] w-full items-center gap-2.5 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset desktop:-mx-2 desktop:min-h-0 desktop:w-[calc(100%+16px)] desktop:rounded-md desktop:px-2"
               >
                 <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{anomaly.categoryLabel}</span>
                 <span className="shrink-0 font-mono text-[13px] font-semibold tabular-nums text-destructive">
@@ -64,7 +64,7 @@ export function FuoriScalaTile({ anomalies, nearest = null, monthLabel, reading,
             type="button"
             onClick={() => onSelect(nearest)}
             aria-label={`${nearest.categoryLabel}, ${nearest.deltaPercent >= 0 ? '+' : '−'}${formatPercentage(Math.abs(nearest.deltaPercent), 0)} sulla media: da ${cachedFormatCurrencyEUR(nearest.referenceAverage, true)} a ${cachedFormatCurrencyEUR(nearest.currentTotal, true)}`}
-            className="mt-1 flex min-h-[44px] w-full items-center gap-2.5 py-[9px] text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset desktop:-mx-2 desktop:min-h-0 desktop:w-[calc(100%+16px)] desktop:rounded-md desktop:px-2"
+            className="mt-1 flex min-h-[44px] w-full items-center gap-2.5 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset desktop:-mx-2 desktop:min-h-0 desktop:w-[calc(100%+16px)] desktop:rounded-md desktop:px-2"
           >
             <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{nearest.categoryLabel}</span>
             <span className="shrink-0 font-mono text-[13px] tabular-nums text-foreground">
