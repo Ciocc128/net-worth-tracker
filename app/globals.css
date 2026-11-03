@@ -1079,6 +1079,10 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
      not red: spending is not an error (owner's call, 2026-09-14). */
   --flow-in: oklch(0.6450 0.1400 138.0000);
   --flow-out: oklch(0.6450 0.1200 232.0000);
+  /* Cashflow's past months (D-AS22, D-AS25): the slate of the theme's neutrals; spending at 65% so its grey stays
+     under the month's colours (2.8:1 against 3.1–3.2:1 on white). */
+  --flow-past-in: color-mix(in oklab, var(--muted-foreground) 40%, var(--card));
+  --flow-past-out: color-mix(in oklab, var(--muted-foreground) 65%, var(--card));
   /* The 50/30/20 triad in the same L family as the flows (owner's call, 2026-09-15, from a swatch
      preview): Necessità the spending ice blue, Desideri the theme's frost lavender, Risparmi a
      green-teal at 175 — ΔE_ok 0.084 from --flow-in (165 read as the income green, 0.064) and 0.110
@@ -1209,6 +1213,8 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --chart-9: oklch(0.7300 0.1500 40.0000);
   --flow-in: oklch(0.7450 0.1400 138.0000);
   --flow-out: oklch(0.7450 0.1200 232.0000);
+  --flow-past-in: color-mix(in oklab, var(--muted-foreground) 40%, var(--card));
+  --flow-past-out: color-mix(in oklab, var(--muted-foreground) 75%, var(--card));
   /* The Sankey's family a step lighter than the bars' flows (owner's tour, 2026-09-26): the ribbons
      sit at 62% on the night ground, so at the bars' L 0.745 every hue sank toward the blue. Same
      hues, +0.085 in L; chroma cut where sRGB ends (ice 0.12 → 0.103, lavender 0.12 → 0.094). Also
@@ -1337,6 +1343,9 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --chart-9: oklch(0.6000 0.1200 42.0000);
   --flow-in: oklch(0.5200 0.1500 255.0000);
   --flow-out: oklch(0.6600 0.0800 255.0000);
+  /* Cashflow's past months (D-AS24): income the strong blue in the month, so its grey is the heavier one. */
+  --flow-past-in: color-mix(in oklab, var(--muted-foreground) 75%, var(--card));
+  --flow-past-out: color-mix(in oklab, var(--muted-foreground) 40%, var(--card));
   --role-need: oklch(0.4000 0.1500 255.0000);
   --role-want: oklch(0.5200 0.1300 255.0000);
   --role-saving: oklch(0.6200 0.1300 158.0000);
@@ -1442,6 +1451,8 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --chart-9: oklch(0.6000 0.1200 42.0000);
   --flow-in: oklch(0.7000 0.1300 255.0000);
   --flow-out: oklch(0.5500 0.0800 255.0000);
+  --flow-past-in: color-mix(in oklab, var(--muted-foreground) 75%, var(--card));
+  --flow-past-out: color-mix(in oklab, var(--muted-foreground) 40%, var(--card));
   --role-need: oklch(0.6200 0.1300 255.0000);
   --role-want: oklch(0.7400 0.1100 255.0000);
   --role-saving: oklch(0.7600 0.1400 158.0000);

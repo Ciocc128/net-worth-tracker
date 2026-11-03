@@ -26,9 +26,15 @@ interface FlowBarsChartProps {
 /** The plot's floor below `desktop:` (the Panoramica's curve has the same, 2026-10-11). */
 const PHONE_MIN_HEIGHT_CLASS = 'min-h-[120px] desktop:min-h-[var(--flow-min-h)]';
 
-/** The months that are not the page's: income a light grey, spending a darker one (D-AS21). */
-const PAST_INCOME_FILL = 'color-mix(in oklab, var(--muted-foreground) 40%, var(--card))';
-const PAST_EXPENSES_FILL = 'color-mix(in oklab, var(--muted-foreground) 75%, var(--card))';
+/**
+ * The months that are not the page's: two greys mixed from `--muted-foreground` into the tile (D-AS17). A fork
+ * theme sets its own pair (`--flow-past-in` / `--flow-past-out`, D-AS24–D-AS25) so each grey weighs as its series does
+ * in the current month; every other theme keeps the default, income the grey nearer the tile, spending the farther.
+ * Reference data by choice: the income grey sits under 3:1 on the tile (≈1.8–2.0:1), the month's figures stay in
+ * the slot's tooltip, and only the current month must read as the accent.
+ */
+const PAST_INCOME_FILL = 'var(--flow-past-in, color-mix(in oklab, var(--muted-foreground) 40%, var(--card)))';
+const PAST_EXPENSES_FILL = 'var(--flow-past-out, color-mix(in oklab, var(--muted-foreground) 75%, var(--card)))';
 
 const VIEW_W = 600;
 const VIEW_H = 180;
@@ -98,9 +104,8 @@ export function FlowBarsChart({ flows, highlightKey, minHeight = 150, onSelectMo
             const incomeHeight = (flow.income / max) * (VIEW_H - 8);
             const expensesHeight = (flow.expenses / max) * (VIEW_H - 8);
             // The month the page is about gets a band, a pill (CurrentSlotBand) and the two series colours;
-            // every other month is a pair of greys (income lighter, spending darker), so the chart has ONE
-            // accent, on the month that answers (D-AS21). The greys are mixed from `--muted-foreground`, not
-            // dimmed from the series colours, so the pair keeps its 3:1 against the card in every theme.
+            // every other month is a pair of greys, so the chart has ONE accent, on the month that answers
+            // (D-AS17, D-AS24). The greys are mixed from `--muted-foreground`, never dimmed from the series colours.
             const current = highlightKey === null || flow.key === highlightKey;
             const incomeFill = current ? CASHFLOW_SERIES_COLOR.income : PAST_INCOME_FILL;
             const expensesFill = current ? CASHFLOW_SERIES_COLOR.expenses : PAST_EXPENSES_FILL;

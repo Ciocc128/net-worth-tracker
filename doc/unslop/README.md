@@ -236,3 +236,29 @@ Sketch page (today · proposal, real screenshots): <https://claude.ai/artifact/Q
 ### Refused points
 
 - M4's dark ground: kept night blue by the owner's choice after four dark variants side by side (D-AS16).
+
+## Follow-up — the past months' greys (2026-11-03)
+
+The owner's four iPhone screenshots of Cashflow › Tracciamento after session 5 (Lime Frost and Graphite, light and dark), measured pixel by pixel against the tokens of main `7eb161d` (they match): the greys of B1 were one formula for every theme (income 40%, spending 75% of `--muted-foreground` into the tile). Sketch page (today · proposal, the real tokens): <https://claude.ai/artifact/7eyrBfMuiVWmtjLhxv8NL8>.
+
+| Theme | Past income | Past spending | Month's income | Month's spending |
+| --- | --- | --- | --- | --- |
+| Lime Frost light | 1.81:1, slate 257 | 3.37:1 | 3.14:1 | 3.24:1 |
+| Lime Frost dark | 2.00:1 | 4.22:1 | 8.26:1 | 8.05:1 |
+| Graphite light | 1.82:1, C 0 | 3.36:1 | 5.58:1 | 3.13:1 |
+| Graphite dark | 1.99:1 | 4.24:1 | 6.65:1 | 3.67:1 |
+
+### Decisions (owner, 2026-11-03)
+
+| ID | Decision | Alternatives discarded | Reason |
+| --- | --- | --- | --- |
+| D-AS22 | **Lime Frost's greys stay slate** | pure grey (C 0); a green-tinted grey | slate is every neutral of the theme (text, borders, pill); a green grey would read as a faded income |
+| D-AS23 | **The weight, not the lightness, is the rule**: income the grey nearer the tile, spending the farther, so in dark income is the darker one; DESIGN.md said «income lighter» | fixed lightness (income always lighter) | the pair weighs the same in both modes |
+| D-AS24 | **Graphite swaps the pair** (income 75%, spending 40%) | leave | in Graphite income is the strong blue of the month; the past spending grey outweighed November's spending bar |
+| D-AS25 | **Lime Frost light spending grey 75% → 65%** (2.79:1); dark unchanged | leave | the grey outweighed the month's colours (3.1–3.2:1) |
+| D-AS26 | **The greys are reference data under 3:1 by choice**; the code comment that claimed 3:1 corrected | both greys to ≥ 3:1 (spending ≈ 4.5:1) | at 3:1 the past months would outweigh the one accent |
+
+### Implemented (branch `claude/project-thread-cbbht8`)
+
+- `--flow-past-in` / `--flow-past-out` in the four blocks of Lime Frost and Graphite; `FlowBarsChart` reads them, with today's formula as the fallback for every other theme.
+- DESIGN.md → The One-Accent-Per-Chart Rule rewritten on the weight.
