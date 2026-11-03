@@ -101,7 +101,7 @@ test.describe('Analisi, composed for a phone', () => {
         .filter((el) => el.checkVisibility())
         .map((el) => ({ name: el.getAttribute('aria-label'), top: Math.round(el.getBoundingClientRect().top) })),
     );
-    expect(order.map((s) => s.name)).toEqual(['Periodo', 'Fuori scala', 'Spese maggiori', 'Spese per categoria', 'Entrate per categoria', 'Flusso']);
+    expect(order.map((s) => s.name)).toEqual(['Periodo', 'Fuori scala', 'Spese maggiori', 'Spese per categoria', 'Entrate per categoria', 'Calendario delle spese', 'Flusso']);
     expect(order.every((s, i) => i === 0 || s.top >= order[i - 1].top - 1), JSON.stringify(order)).toBe(true);
     expect(
       await page.evaluate(() => [...document.querySelector('main')!.querySelectorAll('*')].flatMap((el) => [...el.classList]).filter((name) => /^(?:[a-z-]+:)*order-/.test(name))),

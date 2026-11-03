@@ -31,6 +31,7 @@ import type { RowAnswerMap } from '@/components/ui/row-answers';
 import { formatStripFigure, type StripFigure } from '@/lib/utils/verdictStrip';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { MONTH_NAMES_SHORT } from '@/lib/utils/period';
+import type { CalendarStats, SpendingCalendar, SpendingCalendarFilter } from '@/lib/utils/spendingCalendar';
 
 // ─── Segment helpers ──────────────────────────────────────────────────────────
 
@@ -376,6 +377,7 @@ export const ANALISI_CLOSED_ASIDES = {
   maggiori: 'per importo',
   spese: 'per categoria',
   entrate: 'per categoria',
+  calendario: 'giorno per giorno',
   flussoRoles: 'per ruolo',
   flussoTypes: 'per tipo',
 } as const;
@@ -862,6 +864,8 @@ export interface AnalisiClosedAnswersInput {
   flow: FlowSummary;
   /** The 50/30/20 totals; null with the setting off (the Flusso has its type view only). */
   spendingRoles: SpendingRolesSummary | null;
+  /** The Calendario's calendar and figures; null where the row is absent (the history, no spending). */
+  calendar?: { calendar: SpendingCalendar; stats: CalendarStats } | null;
 }
 
 /**
@@ -883,6 +887,7 @@ export function describeAnalisiClosedAnswers(input: AnalisiClosedAnswersInput): 
     [ANALISI_SECTION_IDS.maggiori]: input.topExpenses.rows[0] ? [prose('la più grande'), figure(euro(input.topExpenses.rows[0].amount))] : null,
     [ANALISI_SECTION_IDS.spese]: describeCategoryShareAnswer(input.expenseRanking, 'expenses'),
     [ANALISI_SECTION_IDS.entrate]: describeCategoryShareAnswer(input.incomeRanking, 'income'),
+    [ANALISI_SECTION_IDS.calendario]: input.calendar ? describeCalendarAnswer(input.calendar.calendar, input.calendar.stats) : null,
     [ANALISI_SECTION_IDS.scheda]: null,
     [ANALISI_SECTION_IDS.flusso]: input.spendingRoles ? describeRolesFlowAnswer(input.spendingRoles) : describeTypesFlowAnswer(input.flow),
   };
@@ -913,4 +918,108 @@ function describeRolesFlowAnswer(summary: SpendingRolesSummary): Narrative | nul
   const largest = largestPrinted(roleShares.shares, (share) => share.percentage);
   if (!largest) return null;
   return [prose(largest.label), figure(formatPercentage(largest.percentage, 0))];
+}
+
+// ─── Calendario delle spese (2026-11-03; doc/calendario-spese/README.md § 5.5) ─────
+
+const WEEKDAY_NAMES = ['lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato', 'domenica'] as const;
+/** «il sabato» / «la domenica»: the article follows the day's gender. */
+const WEEKDAY_ARTICLED = WEEKDAY_NAMES.map((name) => `${name === 'domenica' ? 'la' : 'il'} ${name}`);
+
+/** A real spending, with its cents (the owner's figures rule of 2026-11-03: cents on real values, whole euros on estimates). */
+const euroCents = (value: number): string => cachedFormatCurrencyEUR(Math.abs(value));
+
+/** «sabato» for the popover's title and the cell's name. */
+export function weekdayName(weekday: number): string {
+  return WEEKDAY_NAMES[weekday];
+}
+
+/** «14 marzo». */
+export function calendarDayLabel(day: number, month: number): string {
+  return `${day} ${MONTH_NAMES[month - 1].toLowerCase()}`;
+}
+
+/**
+ * The tile's reading (D-CS7): the days with spending and the weekday that weighs most, then the
+ * costliest day. No colour — it does not judge. The means are estimates (whole euros), the
+ * costliest day and the month's sums are spent money (cents).
+ */
+export function describeSpendingCalendar(
+  calendar: SpendingCalendar,
+  stats: CalendarStats,
+  filter: SpendingCalendarFilter,
+  today: { year: number; month: number; day: number },
+): Narrative {
+  const kind = filter === 'variable' ? 'spese variabili' : 'spese';
+  const top = stats.topDay;
+  if (calendar.kind === 'year') {
+    const year = String(calendar.year);
+    if (!top || stats.heaviestWeekday === null) {
+      return [prose(`Nel ${year} nessuna ${filter === 'variable' ? 'spesa variabile' : 'spesa'}.`)];
+    }
+    const verb = filter === 'variable' ? 'hai fatto spese variabili in' : 'hai speso in';
+    const days = pluralize(stats.spendingDays, 'giorno', 'giorni');
+    const narrative: Narrative = [
+      prose(`Nel ${year} ${verb} `),
+      figure(String(stats.spendingDays)),
+      prose(` ${days} su `),
+      figure(String(stats.pastDays)),
+    ];
+    const heavy = euro(stats.heaviestMean);
+    const others = euro(stats.othersMean);
+    if (heavy !== others) {
+      narrative.push(prose(`; ${WEEKDAY_ARTICLED[stats.heaviestWeekday]} è il giorno più caro, in media `), figure(heavy), prose(' contro '), figure(others), prose(' degli altri giorni'));
+    }
+    narrative.push(prose('. Il giorno più caro è stato il '), figure(calendarDayLabel(top.day, top.month)), prose(', '), figure(euroCents(top.total)), prose('.'));
+    return narrative;
+  }
+
+  const month = calendar.month as number;
+  const monthName = MONTH_NAMES[month - 1].toLowerCase();
+  const isFutureMonth = stats.pastDays === 0;
+  if (isFutureMonth) {
+    return stats.planned > 0
+      ? [prose(`${capitalise(monthWithPrepositionA(month))} ci sono già `), figure(euroCents(stats.planned)), prose(' di spese in calendario.')]
+      : [prose(`${capitalise(monthWithPrepositionA(month))} non ci sono ${kind} in calendario.`)];
+  }
+  const isCurrent = calendar.year === today.year && month === today.month;
+  if (isCurrent) {
+    const narrative: Narrative = [
+      prose(`Al ${today.day} ${monthName} ${filter === 'variable' ? 'hai fatto spese variabili per' : 'hai speso'} `),
+      figure(euroCents(stats.total)),
+      prose(' in '),
+      figure(String(stats.spendingDays)),
+      prose(` ${pluralize(stats.spendingDays, 'giorno', 'giorni')}`),
+    ];
+    if (stats.planned > 0) narrative.push(prose('; in calendario ci sono ancora '), figure(euroCents(stats.planned)));
+    narrative.push(prose('.'));
+    return narrative;
+  }
+  if (!top) return [prose(`${capitalise(monthWithPrepositionA(month))} nessuna ${filter === 'variable' ? 'spesa variabile' : 'spesa'}.`)];
+  return [
+    prose(`${capitalise(monthWithPrepositionA(month))} ${filter === 'variable' ? 'hai fatto spese variabili in' : 'hai speso in'} `),
+    figure(String(stats.spendingDays)),
+    prose(` ${pluralize(stats.spendingDays, 'giorno', 'giorni')} su `),
+    figure(String(stats.pastDays)),
+    prose('; il più caro è il '),
+    figure(String(top.day)),
+    prose(', '),
+    figure(euroCents(top.total)),
+    prose('.'),
+  ];
+}
+
+/** The closed row's answer in the landscape index: the weekday that weighs most; none when the sentence stops at the days or on a month. */
+export function describeCalendarAnswer(calendar: SpendingCalendar, stats: CalendarStats): Narrative | null {
+  if (calendar.kind !== 'year' || stats.heaviestWeekday === null) return null;
+  if (euro(stats.heaviestMean) === euro(stats.othersMean)) return null;
+  return [prose(WEEKDAY_ARTICLED[stats.heaviestWeekday])];
+}
+
+/** The popover's header and the cell's accessible name, built from the same figures. */
+export function describeCalendarCell(day: { day: number; month: number; weekday: number; total: number; planned: number }): string {
+  const date = calendarDayLabel(day.day, day.month);
+  if (day.planned > 0) return `${date}: in calendario ${euroCents(day.planned)}`;
+  if (day.total > 0) return `${date}: ${euroCents(day.total)}`;
+  return `${date}: nessuna spesa`;
 }

@@ -87,6 +87,13 @@ import { getCategoryKey, getSubCategoryKey, getSubCategoryLabel, selectExpensesF
 import { buildCategoryComparison, computeTotalsPacing, resolveComparisonScope } from '@/lib/utils/comparisonDeltas';
 import { buildEntityYearRows, computeEntityRunRate, type EntityScope } from '@/lib/utils/expenseEntityStats';
 import { type EntitySearchTarget } from '@/lib/utils/entitySearch';
+import {
+  CALENDAR_FILTER_STORAGE_KEY,
+  buildSpendingCalendar,
+  parseCalendarFilter,
+  summarizeSpendingCalendar,
+  type SpendingCalendarFilter,
+} from '@/lib/utils/spendingCalendar';
 import { isScheduledRow, summarizePeriodCashflow, summarizeScheduled } from '@/lib/utils/tracciamentoSummary';
 import {
   buildMonthlySpending,
@@ -122,6 +129,7 @@ import {
   describeSpendingChartFooter,
   describeTopExpenses,
   describeAnalisiClosedAnswers,
+  describeSpendingCalendar,
 } from '@/lib/utils/analisiNarrative';
 import { RowAnswers } from '@/components/ui/row-answers';
 import { describeCategoryShare, describePeriodCashflow } from '@/lib/utils/cashflowNarrative';
@@ -147,6 +155,7 @@ import { SpeseMaggioriTile } from '@/components/cashflow/analisi/tiles/SpeseMagg
 import { CategorieTile } from '@/components/cashflow/analisi/tiles/CategorieTile';
 import { FlussoTile, isFlussoLiftedBlock } from '@/components/cashflow/analisi/tiles/FlussoTile';
 import { summarizeSpendingRoles } from '@/lib/utils/spendingRoles';
+import { CalendarioTile } from '@/components/cashflow/analisi/tiles/CalendarioTile';
 import { SchedaTile, type SchedaFocus } from '@/components/cashflow/analisi/tiles/SchedaTile';
 import { ENTITY_DOSSIER_LAZY_CHARTS } from '@/components/cashflow/EntityDossier';
 import { usePreloadWhenIdle } from '@/components/ui/lazy-component';
@@ -181,14 +190,16 @@ const ANALISI_SECTIONS: readonly SectionSpec[] = [
   { id: ANALISI_SECTION_IDS.maggiori, eyebrow: 'Spese maggiori' },
   { id: ANALISI_SECTION_IDS.spese, eyebrow: 'Spese per categoria' },
   { id: ANALISI_SECTION_IDS.entrate, eyebrow: 'Entrate per categoria' },
+  { id: ANALISI_SECTION_IDS.calendario, eyebrow: 'Calendario delle spese' },
   { id: ANALISI_SECTION_IDS.scheda, eyebrow: 'Scheda' },
   { id: ANALISI_SECTION_IDS.flusso, eyebrow: 'Flusso' },
 ];
 
 /** The rows the period renders — one `SectionSpec` per tile present, the DOM's order kept. */
-function resolveAnalisiSections(present: { fuoriScala: boolean; scheda: boolean; flusso: boolean }): readonly SectionSpec[] {
+function resolveAnalisiSections(present: { fuoriScala: boolean; calendario: boolean; scheda: boolean; flusso: boolean }): readonly SectionSpec[] {
   return ANALISI_SECTIONS.filter((section) => {
     if (section.id === ANALISI_SECTION_IDS.fuoriScala) return present.fuoriScala;
+    if (section.id === ANALISI_SECTION_IDS.calendario) return present.calendario;
     if (section.id === ANALISI_SECTION_IDS.scheda) return present.scheda;
     if (section.id === ANALISI_SECTION_IDS.flusso) return present.flusso;
     return true;
@@ -320,6 +331,23 @@ function resolvePeriodLabel(period: AnalisiPeriod): string {
   if (period.year === null) return 'Storico completo';
   if (period.month !== null) return `${MONTH_NAMES[period.month - 1]} ${period.year}`;
   return String(period.year);
+}
+
+/** The pill's choice on this device; 'all' without one or without storage (the try/catch lives outside the component, for the compiler). */
+function readStoredCalendarFilter(): SpendingCalendarFilter {
+  try {
+    return typeof window === 'undefined' ? 'all' : parseCalendarFilter(window.localStorage.getItem(CALENDAR_FILTER_STORAGE_KEY)) ?? 'all';
+  } catch {
+    return 'all';
+  }
+}
+
+function writeStoredCalendarFilter(filter: SpendingCalendarFilter): void {
+  try {
+    window.localStorage.setItem(CALENDAR_FILTER_STORAGE_KEY, filter);
+  } catch {
+    // A blocked storage loses only the memory of the choice, never the choice.
+  }
 }
 
 export function AnalisiTab({ allExpenses, categories, loading, loadFailed, historyStartYear = 2024, spendingRolesEnabled = false, freshness }: AnalisiTabProps) {
@@ -521,6 +549,22 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
     [allExpenses, singleMonth, anomalies],
   );
 
+  // ─── Calendario delle spese (2026-11-03): the days of the period, from the whole collection ─────
+  // The pill's choice is remembered on the device (try/catch: a blocked storage loses only the memory).
+  const [calendarFilter, setCalendarFilter] = useState<SpendingCalendarFilter>(readStoredCalendarFilter);
+  const handleCalendarFilter = useCallback((next: SpendingCalendarFilter) => {
+    setCalendarFilter(next);
+    writeStoredCalendarFilter(next);
+  }, []);
+  const spendingCalendar = useMemo(
+    () => buildSpendingCalendar(allExpenses, period, nowDate, calendarFilter),
+    [allExpenses, period, nowDate, calendarFilter],
+  );
+  const calendarStats = useMemo(() => (spendingCalendar ? summarizeSpendingCalendar(spendingCalendar) : null), [spendingCalendar]);
+  // No tile in the history, nor in a period with no spending row at all (whatever the pill says).
+  const hasCalendar = spendingCalendar !== null && spendingCalendar.hasAnyRows;
+  const todayDay = useMemo(() => ({ ...today, day: getItalyDate().getDate() }), [today]);
+
   // ─── The phone composition (2026-10-14) ───────────────────────────────────────
   // The rows present: Fuori scala on a month, the Scheda with a focus, the Flusso when something
   // flowed. Here, before every handler that lands on the Scheda: `sections.reveal` closes over
@@ -528,8 +572,8 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
   const hasFlow = flow.incomeTotal > 0 || flow.expensesTotal > 0;
   const hasScheda = drillDown.level !== 'category' && drillDown.selectedCategory !== null && drillDown.chartType !== null;
   const sectionSpecs = useMemo(
-    () => resolveAnalisiSections({ fuoriScala: singleMonth !== null, scheda: hasScheda, flusso: hasFlow }),
-    [singleMonth, hasScheda, hasFlow],
+    () => resolveAnalisiSections({ fuoriScala: singleMonth !== null, calendario: hasCalendar, scheda: hasScheda, flusso: hasFlow }),
+    [singleMonth, hasCalendar, hasScheda, hasFlow],
   );
   const sections = useMobileSections({ route: 'analisi', sections: sectionSpecs });
   const stageRef = useTabletStage();
@@ -836,6 +880,7 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
     incomeRanking: toRanking(incomeSlices),
     flow,
     spendingRoles: spendingRolesFlow?.summary ?? null,
+    calendar: hasCalendar && spendingCalendar && calendarStats ? { calendar: spendingCalendar, stats: calendarStats } : null,
   });
 
   return (
@@ -946,6 +991,20 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
               labelClassName="min-w-[72px]"
             />
           </div>
+
+          {hasCalendar && spendingCalendar && calendarStats && (
+            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(ANALISI_SECTION_IDS.calendario), 'desktop:col-span-12')}>
+              <CalendarioTile
+                calendar={spendingCalendar}
+                filter={calendarFilter}
+                onFilterChange={handleCalendarFilter}
+                reading={describeSpendingCalendar(spendingCalendar, calendarStats, calendarFilter, todayDay)}
+                today={todayDay}
+                collapse={sections.collapse(ANALISI_SECTION_IDS.calendario)}
+                asideWhenClosed={ANALISI_CLOSED_ASIDES.calendario}
+              />
+            </div>
+          )}
 
           {focus && focusScope && focusReading && (
             <div
