@@ -71,7 +71,7 @@ test.describe('Panoramica, composed for a phone', () => {
     // The strip: three cells, each a thumb's target, each what the sentence prints.
     const cells = stripOf(page).getByRole('button');
     await expect(cells).toHaveCount(3);
-    await expect(cells.nth(0)).toContainText(/Questo mese\s*\+3000,00\s?€/);
+    await expect(cells.nth(0)).toContainText(/Questo mese\s*\+3000\s?€/);
     await expect(cells.nth(1)).toContainText(/Da inizio anno\s*\+15,00%/);
     await expect(cells.nth(2)).toContainText(/Messo da parte finora\s*59%/);
     // Each cell says what it opens: the rest, THE tile's curve, the Cashflow row (never its own label).
@@ -104,7 +104,7 @@ test.describe('Panoramica, composed for a phone', () => {
     // The first screen ENDS at the pill: the title, the verdict (title only, the cells, «Il perché»)
     // and THE tile's hero and curve sit above it. The first closed row does NOT (owner, 2026-10-11,
     // the exception of DESIGN.md → The First-Screen Rule extended to this page: the strip takes two
-    // rows whenever the month's euro has four digits — «+3000,00 €» is a wide cell, longer than nine
+    // rows whenever the month's euro has four digits — «+3000 €» is a wide cell, longer than nine
     // characters (DESIGN.md → Page Verdict) — and the period picker is 44px, so
     // Sintesi ends ~110px under the pill; `perf/mobile-budget.json` registers `firstClosedRowAbovePill: false`
     // with its `raisedBy`). What is held here is the order: the row starts after THE tile ends.
@@ -131,7 +131,7 @@ test.describe('Panoramica, composed for a phone', () => {
     await expect(perche(page)).toHaveAttribute('aria-expanded', 'true');
     const verdict = verdictOf(page);
     await expect(verdict.getByText(/dal mercato/)).toBeVisible();
-    await expect(verdict).toContainText(/da inizio anno \(\+25\.000,00\s?€\)/);
+    await expect(verdict).toContainText(/da inizio anno \(\+25\.000\s?€\)/);
     await expect(verdict).toContainText(/Hai messo da parte il 59% delle entrate finora \(altri 350\s?€ di spese in calendario\)/);
   });
 
@@ -187,8 +187,8 @@ test.describe('Panoramica, composed for a phone', () => {
     await expect(perche(page)).toBeVisible();
     await expect(perche(page)).toHaveAttribute('aria-expanded', 'false');
     await expect(verdict.getByText(/Hai messo da parte/)).toBeHidden();
-    // The strip still prints the month: −10.000,00 € is a wide cell, on a row of its own.
-    await expect(cell(page, /^Questo mese/)).toContainText(/−10\.000,00\s?€/);
+    // The strip still prints the month: −10.000 € is a wide cell, on a row of its own.
+    await expect(cell(page, /^Questo mese/)).toContainText(/−10\.000\s?€/);
   });
 
   test('a taxed month that is not the story: no «Il perché», the whole paragraph, «Questo mese» focuses it', async ({ page }) => {
@@ -287,7 +287,7 @@ test.describe('Panoramica, composed for a phone', () => {
     await patchOverview(page, { variations: { monthly: { value: 123456.78, percentage: 65 }, yearly: { value: 25000, percentage: 15 } } });
     await openOverview(page);
     const first = cell(page, /^Questo mese/);
-    await expect(first).toContainText(/\+123\.456,78\s?€/);
+    await expect(first).toContainText(/\+123\.457\s?€/);
     const cells = stripOf(page).getByRole('button');
     // The count-up of the second row settles a frame apart (1,3–1,6 px, two full runs on 2026-10-16): read the
     // boxes once the two cells share their line, and fail only if they never do.

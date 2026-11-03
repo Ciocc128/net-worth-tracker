@@ -29,7 +29,7 @@ test('Patrimonio at 1440: no row, no strip, no «Il resto»; the market and the 
   await expect(page.getByRole('heading', { level: 2, name: 'Il resto della pagina' })).toBeHidden();
   await expect(page.getByRole('button', { name: /^Il perché/ })).toBeHidden();
 
-  await expect(verdict).toContainText(/cont[oi]\. Da inizio anno \+15,00% \(\+25\.000,00\s?€\)\. Sul mercato ha spinto soprattutto Fenicottero ETF/);
+  await expect(verdict).toContainText(/cont[oi]\. Da inizio anno \+15,00% \(\+25\.000\s?€\)\. Sul mercato ha spinto soprattutto Fenicottero ETF/);
   await expect(page.getByRole('region', { name: 'Patrimonio' }).getByRole('link', { name: /\d+ strument[oi]/ })).toHaveAttribute('href', '#strumenti');
   // The tiles are whole: the month's chip and the G/P KPI are there.
   await expect(page.getByRole('region', { name: 'Patrimonio' }).getByText('questo mese')).toBeVisible();

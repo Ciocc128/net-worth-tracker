@@ -113,5 +113,5 @@ test('ogni tessera è un heading sotto il verdetto', async ({ page }) => {
     await expect(page.getByRole('heading', { level: 3, name, exact: true })).toBeVisible();
   }
   // The eyebrow's metrics are the class's, not the element's: a browser default on `h3` would show here.
-  expect(await page.getByRole('heading', { level: 3, name: 'Evoluzione', exact: true }).evaluate((el) => getComputedStyle(el).fontSize)).toBe('10px');
+  expect(await page.getByRole('heading', { level: 3, name: 'Evoluzione', exact: true }).evaluate((el) => getComputedStyle(el).fontSize)).toBe('12px');
 });

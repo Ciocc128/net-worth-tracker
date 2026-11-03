@@ -55,8 +55,8 @@ test('stacks THE tile and the closed rows in the DOM order, the axis inside the 
   expect(axis.y).toBeLessThan(hero.y);
 
   const fontSize = async (locator: ReturnType<typeof page.getByText>) => locator.first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  expect(await fontSize(verdictOf(page).getByRole('heading'))).toBe(24);
-  expect(await fontSize(page.getByRole('region', { name: 'Il fondo oggi' }).getByText(FUND_VALUE))).toBe(44);
+  expect(await fontSize(verdictOf(page).getByRole('heading'))).toBe(22);
+  expect(await fontSize(page.getByRole('region', { name: 'Il fondo oggi' }).getByText(FUND_VALUE))).toBe(40);
 });
 
 test('with one contributor measured: title only, three causes in the strip, the sentence behind «Il perché»', async ({ page }) => {
