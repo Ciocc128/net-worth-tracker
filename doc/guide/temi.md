@@ -270,6 +270,10 @@ to «sign = judgement only» — an incoming movement wears a green «+», an ou
   that form. The bars themselves are outside the page — the owner looks at them on the phone; the dark branch runs
   only on a stored dark mode, which no fixture holds.
 
+## The Calendario's four steps (2026-11-03, fork only)
+
+Cashflow › Analisi › Calendario delle spese fills a day with `--flow-out` at 35/55/75/100% over `--card` (`SPENDING_CALENDAR_STEPS`); a quiet day is `--muted`. Measured contrast in the four fork blocks (Lime Frost light/dark, Graphite light/dark): step 1 against `--muted` 1,22–1,57; adjacent steps 1,25–1,68 (the first pass, 22/45/70/100, left step 1 at 1,04–1,18 from the quiet day); the day number of the month calendar reads at 4,5:1 at least through `calendarDayInkClass` — `--foreground` on steps 1–2, a dark ink on step 3 in Lime Frost dark and on step 4 in Lime Frost and Graphite light and Lime Frost dark, white on step 4 in Graphite dark. A change of `--flow-out`, `--card` or `--muted` in those blocks re-opens the table (the throwaway page that measured it renders the four blocks and reads the pixels).
+
 ## Per-page blind spots
 
 - **Retro-arcade dark prints its `--foreground` on a pill at 4,02:1** (2026-10-08): the theme's foreground is a light

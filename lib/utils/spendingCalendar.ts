@@ -22,12 +22,14 @@ export type SpendingCalendarFilter = 'all' | 'variable';
 /**
  * The four steps of the scale — the ONE source of the intensities, read by the cell fill and the
  * legend swatch (as `HEATMAP_STEPS` is for the returns heatmap). `intensity` is the percent of
- * `--flow-out` mixed into the card.
+ * `--flow-out` mixed into the card. Measured on 2026-11-03 in the four fork blocks (Lime Frost and Graphite,
+ * light and dark): step 1 against `--muted` 1,22–1,57, adjacent steps 1,25–1,68; the ink of the day number is
+ * the tile's (`calendarDayInkClass`), 4,5:1 at least on every step in those four blocks.
  */
 export const SPENDING_CALENDAR_STEPS = [
-  { step: 1, intensity: 22 },
-  { step: 2, intensity: 45 },
-  { step: 3, intensity: 70 },
+  { step: 1, intensity: 35 },
+  { step: 2, intensity: 55 },
+  { step: 3, intensity: 75 },
   { step: 4, intensity: 100 },
 ] as const;
 

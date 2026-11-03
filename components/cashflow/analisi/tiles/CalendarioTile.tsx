@@ -61,6 +61,20 @@ export function calendarCellStyle(day: Pick<CalendarDay, 'step' | 'isFuture' | '
   return { backgroundColor: `color-mix(in oklab, var(--flow-out) ${intensity}%, var(--card))` };
 }
 
+/**
+ * The ink of the day number on a step, measured (2026-11-03) in the four fork blocks so it reads at
+ * 4,5:1 at least: `--foreground` on steps 1–2 everywhere; on step 3 a dark ink in Lime Frost dark;
+ * on step 4 a dark ink in Lime Frost and Graphite light and in Lime Frost dark, white in Graphite
+ * dark. Another theme keeps `--card` on step 4 (the page's own inversion).
+ */
+export function calendarDayInkClass(step: SpendingStep): string {
+  if (step === 3) return '[[data-theme=lime-frost].dark_&]:text-[#0b1220]';
+  if (step === 4) {
+    return 'text-card [[data-theme=lime-frost]_&]:text-[#0b1220] [[data-theme=graphite]_&]:text-[#0b1220] [[data-theme=graphite].dark_&]:text-[#ffffff]';
+  }
+  return '';
+}
+
 function stepSwatchStyle(step: SpendingStep): CSSProperties {
   return calendarCellStyle({ step, isFuture: false, planned: 0 });
 }
@@ -327,7 +341,7 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
                 day,
                 monthMode ? 'flex min-h-11 items-start justify-start p-1 text-left font-mono text-[11px] tabular-nums' : '',
                 monthMode ? (
-                  <span aria-hidden="true" className={cn(day.step === 4 && 'text-card')}>
+                  <span aria-hidden="true" className={calendarDayInkClass(day.step)}>
                     {day.day}
                   </span>
                 ) : undefined,
