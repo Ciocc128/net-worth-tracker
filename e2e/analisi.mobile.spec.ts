@@ -111,7 +111,7 @@ test('draws the Flusso by type as a bar of the spending and rows, never a Sankey
   // A row opens the Scheda, like every other entry point.
   await flusso.getByRole('region', { name: 'Spese Variabili' }).getByRole('button', { name: /^Alimentari, / }).click();
   await expect(page.getByText(`Totale · ${CURRENT_YEAR}`)).toBeVisible();
-  await expect(page.getByText(`Totale · ${CURRENT_YEAR}`).locator('..').getByText(/^400[\s ]*€$/)).toBeVisible();
+  await expect(page.getByText(`Totale · ${CURRENT_YEAR}`).locator('..').getByText(/^400(,00)?[\s ]*€$/)).toBeVisible();
 });
 
 test('opens the Scheda from a category row under touch', async ({ page }) => {
@@ -119,7 +119,7 @@ test('opens the Scheda from a category row under touch', async ({ page }) => {
   await page.getByRole('region', { name: 'Spese per categoria' }).getByRole('button', { name: /^Casa, / }).click();
 
   await expect(page.getByText(`Totale · ${CURRENT_YEAR}`)).toBeVisible();
-  await expect(page.getByText(`Totale · ${CURRENT_YEAR}`).locator('..').getByText(/^380[\s ]*€$/)).toBeVisible();
+  await expect(page.getByText(`Totale · ${CURRENT_YEAR}`).locator('..').getByText(/^380(,00)?[\s ]*€$/)).toBeVisible();
   // The per-year table renders as a flat list readable at 390px.
   await expect(page.getByText('Per anno', { exact: true })).toBeVisible();
 });

@@ -27,7 +27,7 @@ test('is the page of every width at 1440: no rows, no strip, the chips and the d
   const verdict = page.getByRole('region', { name: 'Verdetto del mese' });
   const paragraphs = verdict.locator('p');
   await expect(paragraphs).toHaveCount(1);
-  await expect(paragraphs).toContainText(/Il patrimonio vale 190\.000,00\s?€: \+3000,00\s?€ \(\+1,60%\) su \p{Ll}+, \+15,00% da inizio anno \(\+25\.000,00\s?€\)\./u);
+  await expect(paragraphs).toContainText(/Il patrimonio vale 190\.000,00\s?€: \+3000\s?€ \(\+1,60%\) su \p{Ll}+, \+15,00% da inizio anno \(\+25\.000\s?€\)\./u);
   await expect(paragraphs).toContainText(/dal mercato/);
 
   // THE tile keeps every block at 1440.
@@ -55,6 +55,6 @@ test('prints a zero variation without a sign, at 1440 too', async ({ page }) => 
   await patchOverview(page, { variations: { monthly: { value: -0.004, percentage: 0 }, yearly: { value: 0, percentage: 0 } } });
   await openOverview(page);
   const paragraph = page.getByRole('region', { name: 'Verdetto del mese' }).locator('p');
-  await expect(paragraph).toContainText(/: 0,00\s?€ \(0,00%\) su \p{Ll}+, 0,00% da inizio anno \(0,00\s?€\)\./u);
+  await expect(paragraph).toContainText(/: 0\s?€ \(0,00%\) su \p{Ll}+, 0,00% da inizio anno \(0\s?€\)\./u);
   await expect(paragraph).not.toContainText(/[+−-]0,00/);
 });

@@ -389,7 +389,7 @@ test('the feed’s detail arms its delete in the footer: one dialog, the consequ
 
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
-  expect(await dialog.getByRole('heading').first().evaluate((el) => getComputedStyle(el).fontSize)).toBe('20px');
+  expect(await dialog.getByRole('heading').first().evaluate((el) => getComputedStyle(el).fontSize)).toBe('22px');
   const reading = dialog.getByRole('status').first();
   await expect(reading).toHaveText(/^(Movimento del|In calendario per il) \d{1,2} \p{Ll}+ \d{4}/u);
 

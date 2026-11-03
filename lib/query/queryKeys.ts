@@ -30,6 +30,13 @@ export const queryKeys = {
     all: (userId: string) => ['dividend-receipts', userId] as const,
   },
 
+  // The ECB anchors (`ecb-rate-cache/market-anchors`): global data, but keyed by the reader's uid so the
+  // persister can carry them (lib/constants/persistCache.ts) — Rendimenti's metrics wait for them when no
+  // risk-free rate is typed, and a reload with them missing painted the skeleton (2026-11-03).
+  marketAnchors: {
+    all: (userId: string) => ['market-anchors', userId] as const,
+  },
+
   // Rendimenti — the pre-computed metrics, named by the service's own cache key (every input they
   // depend on: a changed snapshot, base or setting is a new key), and the dividend yields, named by
   // the windows asked. Both persisted (lib/constants/persistCache.ts): a reload paints the last

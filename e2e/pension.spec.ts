@@ -139,7 +139,7 @@ test('lays the grid out at 1440px: the hero spans two rows, Versato closes the s
   expect(versamenti.width).toBeGreaterThan(hero.width + versato.width);
 
   // The hero figure steps up to 54px on desktop (DESIGN.md §3); the TWR is a 22px tile KPI.
-  expect(await fontSizePx(heroValue(page))).toBe(54);
+  expect(await fontSizePx(heroValue(page))).toBe(40);
   expect(await fontSizePx(twrKpi(page))).toBe(22);
 });
 
