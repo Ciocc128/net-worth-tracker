@@ -20,7 +20,7 @@ interface CicloTileProps {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-[9px]">
+    <div className="flex items-center justify-between gap-3 py-2">
       <dt className="text-[13px] text-muted-foreground">{label}</dt>
       <dd className="m-0 font-mono text-[13px] tabular-nums text-foreground">{value}</dd>
     </div>

@@ -324,7 +324,7 @@ export function GoalFormDialog({
                   key={c}
                   type="button"
                   onClick={() => setColor(c)}
-                  className="w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all"
+                  className="w-7 h-7 rounded-full border-2 flex items-center justify-center transition-[border-color]"
                   style={{
                     backgroundColor: c,
                     // var(--foreground) adapts to theme; transparent when not active

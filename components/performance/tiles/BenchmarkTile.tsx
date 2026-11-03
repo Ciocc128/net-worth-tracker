@@ -58,7 +58,7 @@ function sameMonth(a: { year: number; month: number }, b: { year: number; month:
 }
 
 const HEAD_CLASS = cn(TILE_SUB_EYEBROW_CLASS, 'pb-1.5 font-semibold');
-const CELL_CLASS = 'py-[7px] text-[13px]';
+const CELL_CLASS = 'py-2 text-[13px]';
 
 /**
  * «Rispetto a cosa?» — the six model portfolios annualised over the same window as the TWR, each

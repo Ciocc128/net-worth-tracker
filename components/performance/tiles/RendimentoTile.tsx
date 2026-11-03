@@ -176,12 +176,15 @@ export function RendimentoTile({
         <>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
             <p className={TILE_SUB_EYEBROW_CLASS}>Crescita di 100</p>
-            <SeriesLegend
-              items={[
-                { label: 'Portafoglio', colors: ['var(--hero-series)'] },
-                ...(series.benchmarkEnd !== null ? [{ label: benchmarkName, colors: ['var(--muted-foreground)'] }] : []),
-              ]}
-            />
+            {/* A legend names a series among others: with the portfolio alone there is nothing to tell apart (D-AS22). */}
+            {series.benchmarkEnd !== null && (
+              <SeriesLegend
+                items={[
+                  { label: 'Portafoglio', colors: ['var(--hero-series)'] },
+                  { label: benchmarkName, colors: ['var(--muted-foreground)'] },
+                ]}
+              />
+            )}
           </div>
           {/* The curve yields on a phone (120px below `desktop:`, 160 from it), never the reading (The First-Screen Rule). */}
           <GrowthOfHundredChart series={series} benchmarkName={benchmarkName} minHeight={160} className="mt-2 flex-1 [--growth-min-h:120px] desktop:[--growth-min-h:160px]" />

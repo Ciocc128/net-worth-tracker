@@ -45,7 +45,7 @@ export function AssistantComeFunziona() {
             <Tile eyebrow="Periodi di analisi" reading={[{ text: 'Un periodo per domanda: il verdetto e le tessere leggono lo stesso.' }]}>
               <dl className="mt-3 divide-y divide-border">
                 {PERIODS.map(({ label, description }) => (
-                  <div key={label} className="flex gap-3 py-[9px]">
+                  <div key={label} className="flex gap-3 py-2">
                     <dt className="w-14 shrink-0 text-[13px] font-medium text-foreground">{label}</dt>
                     <dd className="text-[13px] leading-[1.45] text-muted-foreground">{description}</dd>
                   </div>

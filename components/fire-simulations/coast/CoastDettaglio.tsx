@@ -46,7 +46,7 @@ const compact = (value: number) => cachedFormatCurrencyEUR(Math.round(value), tr
 
 function Row({ label, value, emphasis = false }: { label: string; value: string; emphasis?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-[9px]">
+    <div className="flex items-center justify-between gap-3 py-2">
       <span className="text-[13px] text-muted-foreground">{label}</span>
       <span className={cn('shrink-0 font-mono text-[14px] tabular-nums text-foreground', emphasis && 'font-semibold')}>{value}</span>
     </div>
@@ -87,7 +87,7 @@ export function CoastDettaglio({
             <Tile eyebrow="Fasi di copertura" aside="scenario base" reading={coverageReading} ariaLabel="Fasi di copertura">
               <ol className="mt-2.5 flex flex-col divide-y divide-border">
                 {coverageSteps.map((step, index) => (
-                  <li key={step.id} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 py-[9px]">
+                  <li key={step.id} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 py-2">
                     <span className="flex min-w-0 items-start gap-3">
                       <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-[11px] font-semibold tabular-nums text-foreground">{index + 1}</span>
                       <span className="min-w-0">
@@ -176,18 +176,18 @@ export function CoastDettaglio({
                     <tbody>
                       {sortedPensionBreakdown.map((pension) => (
                         <tr key={pension.id} className="border-b border-border last:border-b-0">
-                          <th scope="row" className="py-[9px] pr-3 text-left font-medium text-foreground">
+                          <th scope="row" className="py-2 pr-3 text-left font-medium text-foreground">
                             {pension.label}
                             <span className="ml-2 rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
                               {pension.isActiveAtRetirement ? 'Già attiva al target' : `Parte a ${formatAgeYears(pension.startAge)}`}
                             </span>
                           </th>
-                          <td className="whitespace-nowrap py-[9px] pr-3 font-mono tabular-nums text-muted-foreground">
+                          <td className="whitespace-nowrap py-2 pr-3 font-mono tabular-nums text-muted-foreground">
                             {pension.startDate ? formatDate(toDate(pension.startDate)) : 'non disponibile'} · tra {formatYearCount(Math.ceil(pension.yearsUntilStart))}
                           </td>
-                          <td className="whitespace-nowrap py-[9px] pl-3 text-right font-mono tabular-nums text-foreground">{compact(pension.grossAnnualFutureNominal)}</td>
-                          <td className="whitespace-nowrap py-[9px] pl-3 text-right font-mono tabular-nums text-foreground">{compact(pension.grossAnnualRealAtStart)}</td>
-                          <td className="whitespace-nowrap py-[9px] pl-3 text-right font-mono font-semibold tabular-nums text-foreground">{compact(pension.netAnnualRealAtStart)}</td>
+                          <td className="whitespace-nowrap py-2 pl-3 text-right font-mono tabular-nums text-foreground">{compact(pension.grossAnnualFutureNominal)}</td>
+                          <td className="whitespace-nowrap py-2 pl-3 text-right font-mono tabular-nums text-foreground">{compact(pension.grossAnnualRealAtStart)}</td>
+                          <td className="whitespace-nowrap py-2 pl-3 text-right font-mono font-semibold tabular-nums text-foreground">{compact(pension.netAnnualRealAtStart)}</td>
                         </tr>
                       ))}
                     </tbody>

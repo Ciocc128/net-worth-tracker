@@ -45,7 +45,7 @@ export function AssetPrincipaliTile({ topAssets, assetCount, collapse, asideWhen
       ) : (
         <div className="mt-2 flex flex-col divide-y divide-border">
           {rows.map((asset) => (
-            <div key={asset.id} className="flex items-center gap-3 py-[9px]">
+            <div key={asset.id} className="flex items-center gap-3 py-2">
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-[13px] text-foreground">{asset.name}</span>
                 {/* A property net of its mortgage says so (owner, 2026-10-17): the figure beside it is the equity, not the house. */}

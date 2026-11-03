@@ -59,7 +59,7 @@ export function MovimentiTile({ summary, month, ledgerReady, loading = false, as
             type="button"
             onClick={() => asset && onOpenMovements(asset)}
             disabled={!asset}
-            className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-[9px] text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:hover:bg-transparent"
+            className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:hover:bg-transparent"
             aria-label={`${DAY_MONTH.format(row.date)}, ${asset ? getAssetDisplayTicker(asset) : 'strumento eliminato'}, ${isBuy ? 'acquisto' : 'vendita'}, ${cachedFormatCurrencyEUR(row.amountEur)}`}
           >
             <span className="w-[38px] shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">

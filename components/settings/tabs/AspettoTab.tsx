@@ -167,7 +167,7 @@ export function AspettoTab() {
                   aria-label={`Colore ${index + 1} di ${COLOR_THEME_SWATCHES.length}: ${swatch.name}`}
                   aria-pressed={isActive}
                   className={cn(
-                    'relative flex flex-col rounded-[10px] border-2 p-2.5 text-left transition-all hover:border-primary/60',
+                    'relative flex flex-col rounded-[10px] border-2 p-2.5 text-left transition-[border-color] hover:border-primary/60',
                     isActive ? 'border-primary shadow-sm' : 'border-border'
                   )}
                 >

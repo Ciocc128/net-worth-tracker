@@ -38,7 +38,7 @@ interface BaseDiCalcoloTileProps {
 
 function Row({ label, caption, value, strong }: { label: string; caption?: ReactNode; value: ReactNode; strong?: boolean }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-[9px]">
+    <div className="flex items-start justify-between gap-3 py-2">
       <span className="min-w-0">
         <span className={cn('block text-[13px]', strong ? 'font-semibold text-foreground' : 'text-muted-foreground')}>{label}</span>
         {/* A caption is a fact (the window, the rule), so it takes the full muted ink: at /70 it

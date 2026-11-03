@@ -127,7 +127,7 @@ export function IncassoNettoTile({
           )}
           {upcomingNet > 0 && (
             <div className="flex min-w-0 flex-col gap-1.5">
-              <span className="inline-flex w-fit items-center whitespace-nowrap rounded-[9px] bg-muted px-[11px] py-[6px] font-mono text-[12px] font-semibold leading-none tabular-nums text-foreground">
+              <span className="inline-flex w-fit items-center whitespace-nowrap rounded-[9px] bg-muted px-3 py-[6px] font-mono text-[12px] font-semibold leading-none tabular-nums text-foreground">
                 {cachedFormatCurrencyEUR(upcomingNet, true)}
               </span>
               <span className="text-[11px] text-muted-foreground">già annunciati</span>

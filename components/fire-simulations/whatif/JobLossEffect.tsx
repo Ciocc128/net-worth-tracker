@@ -17,7 +17,7 @@ export function JobLossEffect({ hit, months, annualSavings, lostAnnualIncome }: 
     <div className="mt-4">
       <p className={TILE_SUB_EYEBROW_CLASS}>Effetto sul patrimonio</p>
       <dl className="mt-1 flex flex-col divide-y divide-border">
-        <div className="flex items-start justify-between gap-3 py-[9px]">
+        <div className="flex items-start justify-between gap-3 py-2">
           <dt className="min-w-0">
             <span className="block text-[13px] text-muted-foreground">Mancati risparmi</span>
             <span className="block font-mono text-[11px] leading-[1.4] tabular-nums text-muted-foreground/70">
@@ -26,7 +26,7 @@ export function JobLossEffect({ hit, months, annualSavings, lostAnnualIncome }: 
           </dt>
           <dd className="shrink-0 font-mono text-[13px] tabular-nums text-destructive">−{compact(hit.forgoneSavings)}</dd>
         </div>
-        <div className="flex items-start justify-between gap-3 py-[9px]">
+        <div className="flex items-start justify-between gap-3 py-2">
           <dt className="min-w-0">
             <span className="block text-[13px] text-muted-foreground">Spese dal portafoglio</span>
             <span className="block font-mono text-[11px] leading-[1.4] tabular-nums text-muted-foreground/70">
@@ -35,7 +35,7 @@ export function JobLossEffect({ hit, months, annualSavings, lostAnnualIncome }: 
           </dt>
           <dd className="shrink-0 font-mono text-[13px] tabular-nums text-destructive">−{compact(hit.drawnExpenses)}</dd>
         </div>
-        <div className="flex items-center justify-between gap-3 py-[9px]">
+        <div className="flex items-center justify-between gap-3 py-2">
           <dt className="text-[13px] font-medium text-foreground">Impatto sul patrimonio</dt>
           <dd className="shrink-0 font-mono text-[13px] font-semibold tabular-nums text-foreground">−{compact(hit.total)}</dd>
         </div>

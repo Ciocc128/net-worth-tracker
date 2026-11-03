@@ -99,7 +99,7 @@ function canRenderFormula(source: ExposureRowSource): source is ExposureRowSourc
 /** Mirrors the geometry of a `RankedRows` row, so nothing shifts when the data lands. */
 function SkeletonRow() {
   return (
-    <div className="flex items-center gap-3 py-[9px]">
+    <div className="flex items-center gap-3 py-2">
       <Skeleton className="h-3 w-[128px] shrink-0" />
       <Skeleton className="h-[3px] flex-1 rounded-full" />
       <Skeleton className="h-3 w-[64px] shrink-0" />

@@ -293,3 +293,9 @@ to «sign = judgement only» — an incoming movement wears a green «+», an ou
 ## Fix 2026-10-09: Lime Frost light outlines, default `--muted-foreground`
 - **Lime Frost light `--border` / `--input` / `--sidebar-border`** went from the ground's green (hue 133, C 0.032) to a neutral slate (hue 257, C 0.008), same L 0.89: on white dialogs and tiles the green hairline tinted every field. The ground, `--accent`, `--outline-surface` stay green.
 - **Default light `--muted-foreground`** L 0.556 → 0.54 (`#737373` → `#6f6f6f`, 4.73 → 5.06:1 on white); `printTokens.ts` and its test follow. The 4,46:1 once logged was not reproducible from the tokens (every theme's `--muted-foreground` clears 4.5:1 on its `--background`; the lowest is solar-dusk 4.64:1), so it was a browser/display measurement; the token now has margin.
+
+## Anti-slop session 5 (2026-11-03, fork)
+
+- **Immobili is brown, not violet**, in Lime Frost and Graphite (`--chart-4`, hue 55; doc/unslop/README.md D-AS20). Storico's «Tasse sulle vendite» reads the same slot. A teal try collided with Trend Following under `chartPaletteDistinctness`.
+- **Lime Frost light: the sidebar's active row is neutral** (`--sidebar-accent` 0.94 0.004 257, D-AS21).
+- **Lime Frost dark: the sidebar is the tiles' surface** (`--sidebar` = `--card`, slate 0.2077 0.0398 265.8) on the night-blue ground, the mirror of light's white sidebar and tiles on the green ground (D-AS16). The ground itself stays night blue.

@@ -63,7 +63,7 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
                   key={account.id}
                   type="button"
                   onClick={(event) => asset && onSelect(asset, event.currentTarget)}
-                  className="-mx-2 flex items-center gap-3 rounded-md px-2 py-[9px] text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="-mx-2 flex items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label={`${account.name}, ${cachedFormatCurrencyEUR(account.balance, true)}${account.shareOfCash === null ? ', debito' : ''}`}
                 >
                   <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{account.name}</span>

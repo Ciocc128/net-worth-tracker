@@ -145,7 +145,7 @@ function PeriodRow({ model, open, onToggle }: { model: PeriodRowModel; open: boo
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={panelId}
-        className="flex min-h-11 w-full items-center gap-3 rounded-sm py-[9px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring desktop:min-h-9"
+        className="flex min-h-11 w-full items-center gap-3 rounded-sm py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring desktop:min-h-9"
       >
         <ChevronDown className={cn('h-3 w-3 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none', !open && '-rotate-90')} aria-hidden="true" />
         <span className="shrink-0 whitespace-nowrap text-[13px] text-foreground">

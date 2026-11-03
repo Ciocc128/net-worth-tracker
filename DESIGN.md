@@ -486,6 +486,16 @@ between a number and a claim.
 
 **The One-Sentence-Per-Fact Rule** (anti-slop, 2026-11-02; M6). The Cashflow verdict's second sentence says only where the calendar takes the period («Il mese chiude a +1160 € (il 23%)», «Senza entrate attese, l'anno chiude…»); the amounts still to come are said once, by the scope line under it («Nel totale ci sono ancora …»).
 
+**The One-Accent-Per-Chart Rule** (anti-slop, 2026-11-03; B1). A chart lights only the slot that answers the page's question: in Cashflow › Tracciamento's «Ultimi 6 mesi» the month the page is about keeps the income and spending colours, every other month is a pair of greys mixed from `--muted-foreground` (income lighter, spending darker), never the series colours dimmed (`FlowBarsChart`). A legend names series that must be told apart: a chart with one series has none (Rendimenti › Crescita di 100 shows its legend only with a benchmark).
+
+**The Four-Pixel Rule** (anti-slop, 2026-11-03; B2). Padding and margins sit on the 4px grid: no `py-[9px]`, `py-[7px]`, `px-[11px]`, `mt-[18px]` (became `py-2`, `px-3`, `mt-5`). Icons drawn at 13px stay as they are.
+
+**The Named-Transition Rule** (anti-slop, 2026-11-03; B3). A transition names the properties it animates (`transition-[color,background-color,border-color,box-shadow,opacity]` on `Button`, `transition-colors`, `transition-transform`); `transition-all` is not used. Nothing grows on hover: no `hover:scale-*` (colour dots of the category and cost-centre dialogs, the multi-select badge, which lifts 2px), no `animate-pulse` on hover.
+
+**The No-Violet-Data Rule** (anti-slop, 2026-11-03; N4). In the fork's two themes no asset class wears violet: Immobili (chart slot 4) is a muted brown, hue 55 (Lime Frost L 0.52 / 0.58 dark, Graphite L 0.42 / 0.52 dark), held at ΔE00 ≥ 14 from every other slot by `chartPaletteDistinctness.test.ts`. The other themes keep their slot 4.
+
+**The Neutral-Frame Rule** (anti-slop, 2026-11-03; N5, M4). The frame carries no accent: the sidebar's active row is a neutral grey in Lime Frost light (`--sidebar-accent` hue 257, C 0.004), never the ground's green. In Lime Frost dark the sidebar is the same surface as the tiles (`--sidebar` = `--card`, slate 0.21), on the night-blue ground — the mirror of the light theme, where sidebar and tiles are both white on the green ground. The dark ground stays night blue by the owner's choice (D-AS16).
+
 ## 4. Elevation
 
 This system uses ambient depth: tonal background stepping combined with a consistent, low-opacity shadow vocabulary. Neither approach alone; both together.

@@ -37,7 +37,7 @@ const RERANK_SPRING = { type: 'spring', stiffness: 400, damping: 35 } as const;
  * already carries direction and size, so the bar leaves and the name takes its room; the name
  * wraps on two lines and is never cut short of that (AGENTS.md → Hierarchy, Density and Disclosure).
  */
-const ROW_GRID_CLASS = 'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-[9px] @[420px]:grid-cols-[minmax(0,1fr)_72px_96px]';
+const ROW_GRID_CLASS = 'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2 @[420px]:grid-cols-[minmax(0,1fr)_72px_96px]';
 /** The bar's cell, and the empty cell the closing rows keep in its place. */
 const BAR_CELL_CLASS = 'hidden @[420px]:block';
 

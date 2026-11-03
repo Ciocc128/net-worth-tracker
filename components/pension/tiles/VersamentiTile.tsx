@@ -71,7 +71,7 @@ const DESKTOP_QUERY = '(min-width: 1440px)';
 // The head and the cells share the same right padding: a right-aligned «Importo» header without
 // it would end 16px past the amounts under it (border-collapse aligns edges, not text).
 const HEAD_CLASS = cn(TILE_SUB_EYEBROW_CLASS, 'border-b border-border pb-2 pr-4 text-left align-bottom');
-const CELL_CLASS = 'border-b border-border py-[9px] pr-4 text-[13px] align-middle';
+const CELL_CLASS = 'border-b border-border py-2 pr-4 text-[13px] align-middle';
 
 function formatDay(date: Date): string {
   return date.toLocaleDateString('it-IT');

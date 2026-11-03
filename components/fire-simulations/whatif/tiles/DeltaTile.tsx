@@ -42,7 +42,7 @@ function RowList({ rows, ariaLabel }: { rows: DeltaRow[]; ariaLabel: string }) {
           3-column tile) they drop to a second line, right-aligned, instead of splitting the label
           in three (the Per classe row's rule). */}
       {rows.map((row) => (
-        <li key={row.key} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-[9px]">
+        <li key={row.key} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2">
           <span className="min-w-0 text-[13px] text-muted-foreground">{row.label}</span>
           <span className="ml-auto flex shrink-0 flex-col items-end">
             <span className="font-mono text-[13px] tabular-nums">

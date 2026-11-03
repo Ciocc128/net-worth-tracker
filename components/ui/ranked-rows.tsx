@@ -141,14 +141,14 @@ export function RankedRows({ rows, color, remainders, labelClassName, onRowClick
                 aria-label={`${row.label}${row.caption ? ` · ${row.caption}` : ''}, ${cachedFormatCurrencyEUR(row.amount, true)}, ${Math.round(row.percentage)}%`}
                 aria-current={active ? 'true' : undefined}
                 className={cn(
-                  'flex min-h-[44px] w-full items-center gap-3 py-[9px] text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset desktop:-mx-2 desktop:min-h-0 desktop:w-[calc(100%+16px)] desktop:rounded-md desktop:px-2',
+                  'flex min-h-[44px] w-full items-center gap-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset desktop:-mx-2 desktop:min-h-0 desktop:w-[calc(100%+16px)] desktop:rounded-md desktop:px-2',
                   active && 'bg-muted/40',
                 )}
               >
                 {rowContent(row, slot, active)}
               </button>
             ) : (
-              <div className="flex items-center gap-3 py-[9px]">{rowContent(row, slot, false)}</div>
+              <div className="flex items-center gap-3 py-2">{rowContent(row, slot, false)}</div>
             )}
           </motion.li>
         );
@@ -157,7 +157,7 @@ export function RankedRows({ rows, color, remainders, labelClassName, onRowClick
       {(remainders ?? [])
         .filter((remainder) => remainder.amount > 0)
         .map((remainder) => (
-          <li key={remainder.label} className="flex items-center gap-3 py-[9px]">
+          <li key={remainder.label} className="flex items-center gap-3 py-2">
             <span className={cn('min-w-0 truncate text-[13px] text-muted-foreground', labelWidth)}>
               {remainder.label}
             </span>

@@ -128,7 +128,7 @@ export function TettoTile({ id, summary, aside, reading, history, historyCaption
         </div>
       </div>
 
-      <div className="mt-[18px] grid grid-cols-3 gap-3.5">
+      <div className="mt-5 grid grid-cols-3 gap-3.5">
         {/* No pace in the first days: the KPI says so instead of printing a number it cannot back. */}
         {summary.projection !== null ? (
           <Kpi

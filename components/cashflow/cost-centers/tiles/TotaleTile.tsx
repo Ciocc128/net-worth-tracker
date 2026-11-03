@@ -54,7 +54,7 @@ export function TotaleTile({ id, summary, stack, stackCaption, aside, reading, l
         </p>
       </div>
 
-      <div className="mt-[18px] grid grid-cols-3 gap-3.5">
+      <div className="mt-5 grid grid-cols-3 gap-3.5">
         <Kpi label="Quest'anno" value={cachedFormatCurrencyEUR(summary.ytd, true)} caption={[{ text: 'da gennaio' }]} />
         <Kpi label="Anno scorso" value={cachedFormatCurrencyEUR(summary.lastYear, true)} caption={lastYearCaption} />
         <Kpi

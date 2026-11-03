@@ -69,7 +69,7 @@ export function CoastTraguardoTile({ reading, target, caption, chart, footer, st
             their own gap instead of a space that would never paint. */}
         {/* ONE name for the figure on the tile: «numero Coast FIRE», as the reading and the
             sub-eyebrow say it — «numero Coast» beside them read as a third thing (2026-09-23). */}
-        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-[9px] bg-muted px-[11px] py-[6px] font-mono text-[12px] font-semibold leading-none tabular-nums text-foreground">
+        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-[9px] bg-muted px-3 py-[6px] font-mono text-[12px] font-semibold leading-none tabular-nums text-foreground">
           <SettledPercentageValue value={target.progressPct} />
           <span>del numero Coast FIRE</span>
         </span>

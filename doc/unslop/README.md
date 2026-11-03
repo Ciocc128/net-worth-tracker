@@ -21,7 +21,7 @@ Check every change on **Lime Frost (the fork default) and Graphite, light and da
 | 2 | A3, M5, N1, N3 | AI button, header words, curve, tile border | implemented 2026-11-02 (N1 refused), PR pending |
 | 3 | A4, M7, N2 | Stretched tiles, FIRE head, empty Hall of Fame | implemented 2026-11-02, PR pending |
 | 4 | M1, M2, M3, M6 | Number formats, text sizes, pills, Cashflow verdict | implemented 2026-11-02, PR pending |
-| 5 | M4 (if wanted), B1–B3, N4, N5 | Page ground, chart weights, spacing, motion, violet, nav | not started |
+| 5 | M4 (if wanted), B1–B3, N4, N5 | Page ground, chart weights, spacing, motion, violet, nav | implemented 2026-11-03, PR pending |
 
 ## Session 1 — «Tipografia e cifre»
 
@@ -195,3 +195,44 @@ Mac collaudo (`test:e2e`, `mobile:budget`) is done once, at the end of the whole
 ### Refused points
 
 None.
+
+## Session 5 — «Fondo, grafici, spaziature, transizioni, viola, menu»
+
+Mac collaudo (`test:e2e`, `mobile:budget`) is done once, at the end of the whole refactor (owner, 2026-11-02).
+
+### Points
+
+**M4 — Lime Frost page ground** (medium). Light ground pea green (C 0.020), dark ground night blue (C 0.041); in dark the sidebar shared the ground while the tiles were slate.
+**B1 — Income/spending bars at equal weight** (low). Cashflow › Tracciamento «Ultimi 6 mesi»: twelve saturated bars, the current month marked only by a band.
+**B2 — Spacing off the 4px grid** (low). 52 `py-[9px]`, 6 `px-[11px]`, 7 `py-[7px]`, 6 `mt-[18px]`; 16 icons at 13px.
+**B3 — `transition-all` and unused motion** (low). `transition-all` in 8 files (the `Button` base among them), `hover:animate-pulse` and `hover:scale-110` in `multi-select.tsx`, `hover:scale-105` on the colour dots of two dialogs.
+**N4 — Violet in the data, a legend on one series** (low). Immobili violet (slot 4) in Composizione, Storico and Allocazione; «Portafoglio» legend over Rendimenti › Crescita di 100.
+**N5 — Green active nav row** (low). Lime Frost light: the sidebar's active row was a pale green pill.
+
+Sketch page (today · proposal, real screenshots): <https://claude.ai/artifact/QtYaLRDLXQHeTyYBhi4dcy>; the dark-theme comparisons for M4: <https://claude.ai/artifact/GfYdgTxoJxxhoCsqy4oMYu>.
+
+### Decisions (owner, 2026-11-03)
+
+| ID | Point | Decision | Alternatives discarded | Reason |
+| --- | --- | --- | --- | --- |
+| D-AS16 | M4 | **Light untouched; dark keeps its night-blue ground and slate tiles, the sidebar takes the tiles' colour** (`--sidebar` = `--card`) | dark ground cool grey 0.15 or 0.17 (with or without grey tiles); night-blue ground with neutral or cool-grey tiles and sidebar | the only change that makes dark mirror light (ground = the theme's colour, sidebar and tiles = one surface) without moving the theme's tones; the report's «no navy ground» stays refused by choice |
+| D-AS17 | B1 | **Past months in grey**, the page's month in the series colours | leave | one accent per chart, on the month that answers |
+| D-AS18 | B2 | **Padding and margins on the 4px grid**; 13px icons stay | also the icons; leave | invisible change, rows 1px apart today |
+| D-AS19 | B3 | **Named transitions, no hover scale, no pulse** | only `transition-all`; leave | no visible change; motion only where it explains |
+| D-AS20 | N4 | **Immobili brown (hue 55) in Lime Frost and Graphite; no legend on a single series** | only the legend; only the tint; leave | violet was the loudest colour on Storico and Allocazione |
+| D-AS21 | N5 | **Neutral grey active row** in Lime Frost light | leave | the frame carries no accent |
+
+### Implemented (branch `claude/unslop-s5`)
+
+- M4: `.dark[data-theme="lime-frost"]` `--sidebar` from the ground's night blue (0.1288 0.0406 264.7) to the tiles' slate (0.2077 0.0398 265.8); nothing else in the dark block moves.
+- B1: `FlowBarsChart` paints the non-highlighted months `color-mix(in oklab, var(--muted-foreground) 40% / 75%, var(--card))`; the scheduled month keeps its 0.45 opacity.
+- B2: `py-[9px]`/`py-[7px]` → `py-2`, `px-[11px]` → `px-3`, `mt-[18px]` → `mt-5` in 57 files; `h-[13px]`/`w-[13px]` icons untouched.
+- B3: `transition-all` replaced by named properties in `button.tsx`, `tabs.tsx`, `sidebar.tsx` (rail), `multi-select.tsx`, `GoalFormDialog`, `CategoryManagementDialog`, `AspettoTab`, `SubTargetEditor`; `multi-select`'s `pulse` variant removed and `lift` no longer scales (it is the default badge animation, so it was not unused as the report said: it lifts 2px); `hover:scale-105` removed from the colour dots of `CategoryManagementDialog` and `CostCenterDialog`.
+- N4: `--chart-4` in Lime Frost (light 0.52 0.08 55, dark 0.58 0.06 55) and Graphite (light 0.42 0.07 55, dark 0.52 0.05 55). A first try in teal (hue 195) failed `chartPaletteDistinctness` against Trend Following (ΔE00 7.4–7.9); brown passes. Storico's «Tasse sulle vendite» series reads slot 4 too and is brown with it. `RendimentoTile` shows its `SeriesLegend` only with a benchmark.
+- N5: Lime Frost light `--sidebar-accent` 0.94 0.004 257.
+- DESIGN.md: **The One-Accent-Per-Chart Rule**, **The Four-Pixel Rule**, **The Named-Transition Rule**, **The No-Violet-Data Rule**, **The Neutral-Frame Rule**.
+- Checks: `tsc` clean, eslint clean on the changed files, Vitest 7448 / 7449 (the one red is `monteCarloDefaultsArchive` AQ42, the known intermittent of the full run); `chartPaletteDistinctness`, `limeFrostTheme`, `graphiteTheme` 397 / 397. Screenshots at 1440 Lime Frost light and dark. Not run: Playwright and `mobile:budget` (B2 moves row heights by 1px: re-measure on the Mac at the end of the refactor).
+
+### Refused points
+
+- M4's dark ground: kept night blue by the owner's choice after four dark variants side by side (D-AS16).
