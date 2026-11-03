@@ -70,11 +70,11 @@ test('stacks the tiles in the DOM\'s order with no horizontal overflow', async (
   const order = await page.evaluate(() =>
     Array.from(document.querySelectorAll('main section[aria-label]'))
       .map((section) => ({ name: section.getAttribute('aria-label')!, top: section.getBoundingClientRect().top }))
-      .filter((section) => ['Periodo', 'Fuori scala', 'Spese per categoria', 'Entrate per categoria', 'Spese maggiori', 'Flusso'].includes(section.name))
+      .filter((section) => ['Periodo', 'Fuori scala', 'Spese per categoria', 'Entrate per categoria', 'Calendario delle spese', 'Spese maggiori', 'Flusso'].includes(section.name))
       .sort((a, b) => a.top - b.top)
       .map((section) => section.name),
   );
-  expect(order).toEqual(['Periodo', 'Fuori scala', 'Spese maggiori', 'Spese per categoria', 'Entrate per categoria', 'Flusso']);
+  expect(order).toEqual(['Periodo', 'Fuori scala', 'Spese maggiori', 'Spese per categoria', 'Entrate per categoria', 'Calendario delle spese', 'Flusso']);
 
   // `main` is the horizontal scroll container (AGENTS.md): measure it and every element in it.
   const overflow = await page.evaluate(() => {
@@ -272,4 +272,27 @@ test.describe('Flusso in deficit at 390', () => {
     await expect(flusso).toContainText('Quote delle spese. Nessuna entrata: tutto è coperto dal patrimonio.');
     await expect(flusso.getByText('entrate', { exact: true })).toHaveCount(0);
   });
+});
+
+test('the Calendario is a closed row after Entrate; open it shows one month, cells of 44px, ‹ › off at the period\'s edges', async ({ page }) => {
+  const trigger = page.locator('#analisi-calendario-trigger');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  // The row sits between Entrate and the Flusso in the DOM's order.
+  const ids = await page.evaluate(() => [...document.querySelectorAll('main [id$="-trigger"]')].map((el) => el.id));
+  expect(ids.indexOf('analisi-calendario-trigger')).toBe(ids.indexOf('analisi-entrate-trigger') + 1);
+
+  await openRow(page, 'analisi-calendario');
+  const tile = page.getByRole('region', { name: 'Calendario delle spese', exact: true });
+  const grid = tile.getByRole('group', { name: /giorno per giorno/ });
+  await expect(grid).toBeVisible();
+  const cell = grid.locator('button[data-date]').first();
+  expect((await cell.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  // «Anno corrente»: the scale is the year's, the grid one month: ‹ › step inside January → December.
+  const previous = tile.getByRole('button', { name: 'Mese precedente' });
+  const next = tile.getByRole('button', { name: 'Mese successivo' });
+  for (let i = 0; i < 12 && (await previous.isEnabled()); i++) await previous.click();
+  await expect(previous).toBeDisabled();
+  await expect(next).toBeEnabled();
+  for (let i = 0; i < 12 && (await next.isEnabled()); i++) await next.click();
+  await expect(next).toBeDisabled();
 });

@@ -454,6 +454,7 @@ export const ANALISI_SECTION_IDS = {
   maggiori: 'analisi-maggiori',
   spese: 'analisi-spese',
   entrate: 'analisi-entrate',
+  calendario: 'analisi-calendario',
   scheda: 'analisi-scheda',
   flusso: 'analisi-flusso',
 } as const;

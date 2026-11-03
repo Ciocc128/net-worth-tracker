@@ -387,3 +387,78 @@ test.describe('the calendar at 1440', () => {
     expect(scopeTop).toBeGreaterThanOrEqual(sentenceBottom - 1);
   });
 });
+
+// ─── Calendario delle spese (2026-11-03, doc/calendario-spese/README.md) ───────────────────────
+// The fixture's expenses all sit on January 15th, so the deterministic window is the PREVIOUS year
+// (nine hundred euro over one day: Condominio 250, Elettricità 90, Alimentari 500, Palestra 60).
+
+test.describe('Calendario delle spese', () => {
+  const calendarTile = (page: Page) => page.getByRole('region', { name: 'Calendario delle spese', exact: true });
+  const dayCell = (page: Page, iso: string) => calendarTile(page).locator(`button[data-date="${iso}"]`);
+
+  test('is a tile on the year and the month windows, and is not there in the history', async ({ page }) => {
+    for (const query of ['', '?period=ytd', `?period=year&year=${PREVIOUS_YEAR}`, '?month=1']) {
+      await gotoAnalisi(page, query);
+      await expect(calendarTile(page), query).toBeVisible();
+    }
+    await gotoAnalisi(page, '?period=history');
+    await expect(calendarTile(page)).toHaveCount(0);
+  });
+
+  test('reads the year and opens a day in a popover beside the cell, with the cents', async ({ page }) => {
+    await gotoAnalisi(page, `?period=year&year=${PREVIOUS_YEAR}`);
+    const tile = calendarTile(page);
+    await expect(tile).toContainText(/hai speso in 1 giorno su 36[56]/);
+    await expect(tile).toContainText(/Il giorno più caro è stato il 15 gennaio, 900,00[\s ]*€/);
+
+    const cell = dayCell(page, `${PREVIOUS_YEAR}-01-15`);
+    await expect(cell).toHaveAccessibleName(/15 gennaio: 900,00[\s ]*€/);
+    await cell.click();
+    const popover = page.getByRole('dialog');
+    await expect(popover).toContainText('15 gennaio');
+    await expect(popover).toContainText(/Speso\s*900,00[\s ]*€/);
+    await expect(popover).toContainText(/Alimentari|Spesa/);
+    await expect(popover).toContainText(/500,00[\s ]*€/);
+
+    // Escape closes it and the focus goes back to the cell.
+    await page.keyboard.press('Escape');
+    await expect(popover).toHaveCount(0);
+    await expect(cell).toBeFocused();
+  });
+
+  test('is one Tab stop: the arrows move a day and a week, Enter opens the day', async ({ page }) => {
+    await gotoAnalisi(page, `?period=year&year=${PREVIOUS_YEAR}`);
+    const first = dayCell(page, `${PREVIOUS_YEAR}-01-15`);
+    await first.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(dayCell(page, `${PREVIOUS_YEAR}-01-16`)).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(dayCell(page, `${PREVIOUS_YEAR}-01-23`)).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowLeft');
+    await expect(first).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('dialog')).toContainText(/Speso/);
+    await page.keyboard.press('Escape');
+    // Only the focused cell is in the Tab order.
+    expect(await calendarTile(page).locator('button[data-date][tabindex="0"]').count()).toBe(1);
+  });
+
+  test('remembers «Solo variabili» after a reload', async ({ page }) => {
+    await gotoAnalisi(page, `?period=year&year=${PREVIOUS_YEAR}`);
+    const tile = calendarTile(page);
+    await expect(tile.getByRole('radio', { name: 'Tutte' })).toBeChecked();
+    await tile.getByRole('radio', { name: 'Solo variabili' }).click();
+    await expect(tile).toContainText('spese variabili');
+    await page.reload();
+    await expect(calendarTile(page).getByRole('radio', { name: 'Solo variabili' })).toBeChecked();
+  });
+
+  test('a month is a calendar of seven columns with the day numbers', async ({ page }) => {
+    await gotoAnalisi(page, `?period=year&year=${PREVIOUS_YEAR}&month=1`);
+    const tile = calendarTile(page);
+    await expect(tile).toContainText(/A gennaio hai speso in 1 giorno su 31; il più caro è il 15, 900,00[\s ]*€\./);
+    await expect(tile.locator('button[data-date]')).toHaveCount(31);
+    await expect(tile.locator('button[data-date]').first()).toContainText('1');
+  });
+});
