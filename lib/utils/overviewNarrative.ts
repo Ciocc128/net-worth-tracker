@@ -323,7 +323,7 @@ function buildDriverClause(topMover: { assetClass: string; delta: number }, lead
  */
 export function buildOverviewVerdict(input: OverviewVerdictInput): OverviewVerdict {
   const { headline, tone, taxIsTheStory } = resolveHeadline(input);
-  const sentence: Narrative = [prose('Il patrimonio vale '), figure(cachedFormatCurrencyEUR(input.totalValue, true))];
+  const sentence: Narrative = [prose('Il patrimonio vale '), figure(cachedFormatCurrencyEUR(input.totalValue))];
 
   if (input.monthlyVariation) {
     sentence.push(

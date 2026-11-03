@@ -82,10 +82,10 @@ const deltaSignClass = (delta: number | null, isIncome: boolean): string => {
  * Whole euros, like every aggregate on the page: the Scheda printed «6709,68 €» beside a verdict
  * saying «6710 €» (2026-09-14). Cents stay on the transaction rows, which are facts, not sums.
  */
-const formatCurrency = (value: number): string => cachedFormatCurrencyEUR(value, true);
+const formatCurrency = (value: number): string => cachedFormatCurrencyEUR(value);
 
 /** «+50 €» / «−10 €» — the typographic minus (U+2212), never Intl's hyphen. */
-const signedCurrency = (value: number): string => `${value < 0 ? '−' : '+'}${cachedFormatCurrencyEUR(Math.abs(value), true)}`;
+const signedCurrency = (value: number): string => `${value < 0 ? '−' : '+'}${cachedFormatCurrencyEUR(Math.abs(value))}`;
 
 /** «(+11,8%)» / «(−11,1%)» — the Comma Rule: it-IT decimals, never `toFixed`. */
 const signedPercent = (value: number, delta: number): string => `${delta > 0 ? '+' : ''}${formatPercentage(value, 1)}`.replace(/^-/, '−');
@@ -125,7 +125,7 @@ function DossierChip({ label, value, caption }: { label: string; value: number; 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <p className={TILE_SUB_EYEBROW_CLASS}>{label}</p>
-      <p className="font-mono text-[16px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">{cachedFormatCurrencyEUR(value, true)}</p>
+      <p className="font-mono text-[16px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">{cachedFormatCurrencyEUR(value)}</p>
       {caption && <p className="text-[11px] text-muted-foreground">{caption}</p>}
     </div>
   );

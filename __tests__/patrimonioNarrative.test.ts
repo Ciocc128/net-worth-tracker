@@ -106,7 +106,7 @@ describe('buildPatrimonioVerdict — headline and tone', () => {
 describe('buildPatrimonioVerdict — sentence', () => {
   it('should state value, monthly change, the counts and the instrument that drove the month', () => {
     expect(plain(buildPatrimonioVerdict(AUGUST).sentence)).toBe(
-      'Il portafoglio vale 412.426 €: +3214 € (+0,79%) su luglio, 16 strumenti e 3 conti. ' +
+      'Il portafoglio vale 412.425,85 €: +3214 € (+0,79%) su luglio, 16 strumenti e 3 conti. ' +
         'Sul mercato ha spinto soprattutto Vanguard FTSE All-World (+2140 €). ' +
         'Di quel movimento: +2000 € dal mercato e +1214 € tra risparmio e altre variazioni.',
     );
@@ -178,20 +178,20 @@ describe('buildPatrimonioVerdict — sentence', () => {
       topMover: { id: 'btc', name: 'Bitcoin', delta: -1800 },
     }).sentence;
     expect(plain(sentence)).toBe(
-      'Il portafoglio vale 412.426 €: −2100 € (−0,50%) su luglio, 16 strumenti e 3 conti. Sul mercato ha pesato soprattutto Bitcoin (−1800 €). ' +
+      'Il portafoglio vale 412.425,85 €: −2100 € (−0,50%) su luglio, 16 strumenti e 3 conti. Sul mercato ha pesato soprattutto Bitcoin (−1800 €). ' +
         'Di quel movimento: −1500 € dal mercato e −600 € tra risparmio e altre variazioni.',
     );
   });
 
   it('should drop the monthly clause and the driver when there is nothing to compare against', () => {
     const sentence = buildPatrimonioVerdict({ ...AUGUST, monthlyVariation: null, marketEffect: null, topMover: null }).sentence;
-    expect(plain(sentence)).toBe('Il portafoglio vale 412.426 €, 16 strumenti e 3 conti.');
+    expect(plain(sentence)).toBe('Il portafoglio vale 412.425,85 €, 16 strumenti e 3 conti.');
   });
 
   it('should never name a driver when the market effect could not be measured', () => {
     // A top mover without an attributable market effect is a payload inconsistency: stay silent.
     const sentence = buildPatrimonioVerdict({ ...AUGUST, marketEffect: null }).sentence;
-    expect(plain(sentence)).toBe('Il portafoglio vale 412.426 €: +3214 € (+0,79%) su luglio, 16 strumenti e 3 conti.');
+    expect(plain(sentence)).toBe('Il portafoglio vale 412.425,85 €: +3214 € (+0,79%) su luglio, 16 strumenti e 3 conti.');
   });
 
   it('should use the singular for one instrument or one account and omit a zero count', () => {
@@ -202,7 +202,7 @@ describe('buildPatrimonioVerdict — sentence', () => {
     const onlyAccounts = buildPatrimonioVerdict({ ...AUGUST, instrumentCount: 0, accountCount: 2, marketEffect: null, topMover: null });
     expect(plain(onlyAccounts.sentence)).toContain(', 2 conti.');
     const empty = buildPatrimonioVerdict({ ...AUGUST, instrumentCount: 0, accountCount: 0, monthlyVariation: null, marketEffect: null, topMover: null });
-    expect(plain(empty.sentence)).toBe('Il portafoglio vale 412.426 €.');
+    expect(plain(empty.sentence)).toBe('Il portafoglio vale 412.425,85 €.');
   });
 
   it('should roll the previous month back to December in January', () => {
@@ -223,13 +223,13 @@ describe('buildPatrimonioVerdict — sentence', () => {
 describe('tile readings', () => {
   it('describeCashAccounts should read the share on the accounts and the largest balance', () => {
     expect(plain(describeCashAccounts(7.2, { name: 'Conto Fineco', balance: 18420.1 }, 3)!)).toBe(
-      'Il 7,2% del patrimonio è sui conti; 18.420 € su Conto Fineco.',
+      'Il 7,2% del patrimonio è sui conti; 18.420,10 € su Conto Fineco.',
     );
     expect(plain(describeCashAccounts(7.2, { name: 'Conto Fineco', balance: 18420.1 }, 1)!)).toBe(
       'Il 7,2% del patrimonio è su Conto Fineco.',
     );
     expect(plain(describeCashAccounts(8.4, { name: 'Revolut', balance: 1230.55 }, 2)!)).toBe(
-      "L'8,4% del patrimonio è sui conti; 1231 € su Revolut.",
+      "L'8,4% del patrimonio è sui conti; 1230,55 € su Revolut.",
     );
     // The article follows the ROUNDED figure that is printed, and zero takes "lo".
     expect(plain(describeCashAccounts(7.96, { name: 'Revolut', balance: 100 }, 1)!)).toBe("L'8,0% del patrimonio è su Revolut.");
@@ -349,7 +349,7 @@ describe('describeMortgage — the «Mutuo» tile\'s reading', () => {
 
   it('should say what the year\'s instalments paid in interest and repaid, then where the plan ends', () => {
     expect(plain(describeMortgage(BASE))).toBe(
-      'Nel 2026 hai pagato 39 € di interessi e rimborsato 519 € di capitale, in 1 rata; al ritmo di oggi il mutuo si chiude a novembre 2036.'
+      'Nel 2026 hai pagato 38,57 € di interessi e rimborsato 518,73 € di capitale, in 1 rata; al ritmo di oggi il mutuo si chiude a novembre 2036.'
     );
   });
 
@@ -360,7 +360,7 @@ describe('describeMortgage — the «Mutuo» tile\'s reading', () => {
   it('should speak of the first linked instalment before any has been paid', () => {
     const summary = { ...BASE, yearInstalments: 0, yearInterest: 0, yearPrincipal: 0, totalInterest: 0, trackedSince: null };
     expect(plain(describeMortgage(summary))).toBe(
-      'La prima rata collegata, il 28 ottobre, rimborserà 519 € di capitale; 38 € saranno interessi; al ritmo di oggi il mutuo si chiude a novembre 2036.'
+      'La prima rata collegata, il 28 ottobre, rimborserà 519,03 € di capitale; 38,27 € saranno interessi; al ritmo di oggi il mutuo si chiude a novembre 2036.'
     );
   });
 
@@ -403,7 +403,7 @@ describe('buildPatrimonioVerdict — the phone composition', () => {
   it('should close the lead on the first sentence — the total, the month and the counts', () => {
     const verdict = buildPatrimonioVerdict({ ...AUGUST, yearlyVariation: YEAR });
     const split = splitVerdict(verdict);
-    expect(plain(split.lead)).toBe('Il portafoglio vale 412.426 €: +3214 € (+0,79%) su luglio, 16 strumenti e 3 conti.');
+    expect(plain(split.lead)).toBe('Il portafoglio vale 412.425,85 €: +3214 € (+0,79%) su luglio, 16 strumenti e 3 conti.');
     expect(plain(split.rest)).toBe(
       ' Da inizio anno +4,10% (+4500 €). Sul mercato ha spinto soprattutto Vanguard FTSE All-World (+2140 €). ' +
         'Di quel movimento: +2000 € dal mercato e +1214 € tra risparmio e altre variazioni.',

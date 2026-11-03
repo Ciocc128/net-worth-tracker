@@ -78,6 +78,7 @@ export function selectTracciamentoStrip({ totals }: { totals: PeriodCashflowTota
       label: 'Entrate',
       value: totals.income,
       format: 'currency',
+      decimals: 2,
       ...(totals.income > 0 ? { tone: 'positive' as const } : {}),
       opens: TRACKING_SECTION_IDS.entrate,
       lifts,
@@ -86,11 +87,12 @@ export function selectTracciamentoStrip({ totals }: { totals: PeriodCashflowTota
       label: 'Spese',
       value: totals.expenses,
       format: 'currency',
+      decimals: 2,
       ...(totals.expenses > 0 ? { tone: 'negative' as const } : {}),
       opens: TRACKING_SECTION_IDS.spese,
       lifts,
     },
-    { label: 'Risparmio', value: totals.net, format: 'currency', opens: TRACKING_SECTION_IDS.risparmio, lifts },
+    { label: 'Risparmio', value: totals.net, format: 'currency', decimals: 2, opens: TRACKING_SECTION_IDS.risparmio, lifts },
   ];
 }
 

@@ -268,7 +268,7 @@ describe('Il fondo oggi', () => {
     expect(plain(chips[0].value)).toBe('+300 € (+0,98%)');
     expect(chips[0].sign).toBe('positive');
     expect(chips[0].caption).toBe('questo mese, effetto mercato');
-    expect(plain(chips[1].value)).toBe('2321 €');
+    expect(plain(chips[1].value)).toBe('2321,01 €');
     expect(chips[1].caption).toBe('versati in tutto, da novembre 2025');
 
     expect(buildFondoOggiChips({ ...TODAY, monthEffect: null, monthEffectPct: null })).toHaveLength(1);

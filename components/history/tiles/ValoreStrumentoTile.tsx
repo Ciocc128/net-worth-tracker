@@ -65,7 +65,7 @@ const MOBILE_PAGE = 6;
 const HEAD_CLASS = cn(TILE_SUB_EYEBROW_CLASS, 'whitespace-nowrap px-1.5 py-2 text-right font-semibold');
 const CELL_CLASS = 'whitespace-nowrap px-1.5 py-2 text-right align-middle font-mono tabular-nums';
 
-const signed = (value: number) => `${value >= 0 ? '+' : '−'}${cachedFormatCurrencyEUR(Math.abs(value), true)}`;
+const signed = (value: number) => `${value >= 0 ? '+' : '−'}${cachedFormatCurrencyEUR(Math.abs(value))}`;
 
 /**
  * A signed effect; a zero is a dash (nothing moved), never «+0 €». A `flow` (the quantity effect:
@@ -104,7 +104,7 @@ function TrendTooltip({ active, payload }: TrendTooltipProps) {
   return (
     <div style={TOOLTIP_CONTENT_STYLE} className="flex flex-col gap-1 text-[11px]">
       <span className="font-mono text-xs font-medium text-muted-foreground">{point.label}</span>
-      <span className="font-mono text-[13px] font-semibold tabular-nums text-card-foreground">{formatCurrency(point.total, 'EUR', 0)}</span>
+      <span className="font-mono text-[13px] font-semibold tabular-nums text-card-foreground">{formatCurrency(point.total)}</span>
       {point.delta !== null && (
         <div className="flex flex-col gap-0.5 border-t border-border pt-1 text-muted-foreground">
           <span>
@@ -157,7 +157,7 @@ function TableRow({ row, ticker, selected, onToggle, roving }: RowProps) {
       </th>
       <td className={cn(CELL_CLASS, 'hidden text-[13px] text-muted-foreground @[760px]:table-cell')}>{formatNumber(row.quantity)}</td>
       <td className={cn(CELL_CLASS, 'text-[13px] text-foreground')}>
-        {formatCurrency(row.totalValue, 'EUR', 0)}
+        {formatCurrency(row.totalValue)}
         <span className="block text-[11px] text-muted-foreground @[760px]:hidden">{formatPercentage(row.sharePct, 1)}</span>
       </td>
       <td className={cn(CELL_CLASS, 'hidden text-[11px] text-muted-foreground @[760px]:table-cell')}>{formatPercentage(row.sharePct, 1)}</td>
@@ -192,7 +192,7 @@ function FlatRow({ row, ticker, selected, onToggle, roving }: RowProps) {
         )}
       </div>
       <div className="shrink-0 text-right">
-        <span className="block font-mono text-[13px] tabular-nums text-foreground">{formatCurrency(row.totalValue, 'EUR', 0)}</span>
+        <span className="block font-mono text-[13px] tabular-nums text-foreground">{formatCurrency(row.totalValue)}</span>
         <span className="block font-mono text-[11px] tabular-nums">
           {row.delta !== null && (
             <>
@@ -323,7 +323,7 @@ export function ValoreStrumentoTile({
       </p>
       {selection && selection.count > 0 ? (
         <>
-          <p className="mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[-0.025em] tabular-nums text-foreground">{formatCurrency(selection.value, 'EUR', 0)}</p>
+          <p className="mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[-0.025em] tabular-nums text-foreground">{formatCurrency(selection.value)}</p>
           <p className="mt-1.5 text-[11px] leading-[1.4] text-muted-foreground">
             {articleForPercent(selection.sharePct, 1)}
             <span className="font-mono tabular-nums">{formatPercentage(selection.sharePct, 1)}</span> del patrimonio di {breakdown?.month.label.toLowerCase()}
@@ -340,7 +340,7 @@ export function ValoreStrumentoTile({
       {trend.length >= 2 && (
         <div className="mt-3 h-[190px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trend} margin={{ top: 8, right: 24, left: 0, bottom: 0 }} role="img" aria-label={`Andamento del valore degli strumenti selezionati, da ${trend[0].label} a ${trend[trend.length - 1].label}: da ${cachedFormatCurrencyEUR(trend[0].total, true)} a ${cachedFormatCurrencyEUR(trend[trend.length - 1].total, true)}.`} accessibilityLayer={false}>
+            <LineChart data={trend} margin={{ top: 8, right: 24, left: 0, bottom: 0 }} role="img" aria-label={`Andamento del valore degli strumenti selezionati, da ${trend[0].label} a ${trend[trend.length - 1].label}: da ${cachedFormatCurrencyEUR(trend[0].total)} a ${cachedFormatCurrencyEUR(trend[trend.length - 1].total)}.`} accessibilityLayer={false}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
               <XAxis dataKey="key" tickFormatter={shortTick} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={32} />
               <YAxis tickFormatter={(value: number) => formatCurrencyCompact(value)} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} width={52} domain={[(dataMin: number) => Math.min(0, dataMin), 'auto']} />

@@ -305,7 +305,7 @@ describe('buildNoContextVerdict', () => {
     expect(verdict.headline).toBe('Agosto sta andando bene.');
     expect(plain(verdict.sentence)).toBe(
       // The year's euro in brackets since 2026-10-11: the Panoramica's sentence, reused as it is.
-      'Il patrimonio vale 312.450 €: +3210 € (+1,04%) su luglio, +4,85% da inizio anno (+14.450 €). Hai messo da parte il 31% delle entrate; sul mercato hanno spinto soprattutto le azioni (+2890 €). ' +
+      'Il patrimonio vale 312.450,00 €: +3210 € (+1,04%) su luglio, +4,85% da inizio anno (+14.450 €). Hai messo da parte il 31% delle entrate; sul mercato hanno spinto soprattutto le azioni (+2890 €). ' +
         'Di quel movimento: +2890 € dal mercato e +320 € tra risparmio e altre variazioni.',
     );
   });

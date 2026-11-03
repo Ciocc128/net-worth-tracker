@@ -102,7 +102,7 @@ function Chip({ value, caption, className, children }: { value: number | null; c
 }
 
 function signed(value: number): string {
-  return `${value >= 0 ? '+' : '−'}${cachedFormatCurrencyEUR(Math.abs(value), true)}`;
+  return `${value >= 0 ? '+' : '−'}${cachedFormatCurrencyEUR(Math.abs(value))}`;
 }
 
 function signedPct(value: number): string {
@@ -153,7 +153,7 @@ function EvolutionTooltip({ active, payload, headFollows = false }: EvolutionToo
       <span className="font-mono text-xs font-medium text-muted-foreground">{formatPeriodMonth(point)}</span>
       {!headFollows && (
         <>
-          <span className="font-mono text-[13px] font-semibold tabular-nums text-card-foreground">{cachedFormatCurrencyEUR(point.totalNetWorth, true)}</span>
+          <span className="font-mono text-[13px] font-semibold tabular-nums text-card-foreground">{cachedFormatCurrencyEUR(point.totalNetWorth)}</span>
           {point.delta !== null && (
             <span className="text-muted-foreground">
               sul mese prima <span className={cn('font-mono font-semibold tabular-nums', signTextClass(point.delta))}>{signed(point.delta)}</span>
@@ -185,7 +185,7 @@ function HeadValue({ value }: { value: number }) {
   const animated = useCountUp(value, { fromPrevious: true, duration: SCRUB_SETTLE_MS, startDelay: 0 });
   return (
     <span className="mt-2.5 block font-mono text-[30px] font-bold leading-none tracking-[-0.03em] tabular-nums desktop:text-[40px]">
-      {cachedFormatCurrencyEUR(animated ?? value, true)}
+      {cachedFormatCurrencyEUR(animated ?? value)}
     </span>
   );
 }

@@ -37,7 +37,7 @@ export const PATRIMONIO_CURVE_ID_SUFFIX = '-andamento';
  * string does) — doc/guide/panoramica.md § Panoramica and Dashboard Data Isolation.
  */
 export function resolveHeroValueClass(totalValue: number): string {
-  const formattedLength = cachedFormatCurrencyEUR(totalValue, true).length;
+  const formattedLength = cachedFormatCurrencyEUR(totalValue).length;
   return cn(
     'font-mono font-semibold tracking-[-0.03em] tabular-nums',
     formattedLength > 13 ? 'text-[30px]' : 'text-[40px]',
