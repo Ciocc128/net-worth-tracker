@@ -19,12 +19,12 @@ const CURRENT_YEAR = new Date().getFullYear();
 const PREVIOUS_YEAR = CURRENT_YEAR - 1;
 
 /**
- * Match an exact euro amount as the tiles print it (compact, no cents) — Intl uses a
+ * Match an exact euro amount as the tiles print it (real figures with cents, estimates and deltas whole: D-AS27; the helper accepts both) — Intl uses a
  * non-breaking space before €, and Italian CLDR prints four-digit amounts UNGROUPED ("2000 €").
  * Anchored, so "300" cannot also match "1300".
  */
 function euro(amount: string): RegExp {
-  return new RegExp(`^${amount.replace(/[.]/g, '\\.')}[\\s\\u00a0]*€$`);
+  return new RegExp(`^${amount.replace(/[.]/g, '\\.')}(,00)?[\\s\\u00a0]*€$`);
 }
 
 /** The Scheda tile — the one landing place of every entity entry point. */
@@ -111,8 +111,8 @@ test('drills category → Scheda → subcategory transactions, writing the focus
 
   // The Scheda: reading, period hero + per-year table + its own subcategory ranking.
   await expect(scheda(page)).toBeVisible();
-  await expect(scheda(page)).toContainText(new RegExp(`Nel ${CURRENT_YEAR} hai speso 380[\\s\\u00a0]*€ in Casa`));
-  await expect(dossierHero(page, String(CURRENT_YEAR)).getByText(/^380[\s ]*€$/)).toBeVisible();
+  await expect(scheda(page)).toContainText(new RegExp(`Nel ${CURRENT_YEAR} hai speso 380(,00)?[\\s\\u00a0]*€ in Casa`));
+  await expect(dossierHero(page, String(CURRENT_YEAR)).getByText(/^380(,00)?[\s ]*€$/)).toBeVisible();
   const casaYears = perYearTable(page);
   await expect(casaYears.getByText('YTD')).toBeVisible();
   await expect(casaYears.getByText(new RegExp(`\\+40[\\s\\u00a0]*€ \\(\\+11,8%\\) vs ${PREVIOUS_YEAR} stessi mesi`))).toBeVisible();
@@ -125,7 +125,7 @@ test('drills category → Scheda → subcategory transactions, writing the focus
   // Level 2 → Condominio: the condominio question, answered in place.
   await scheda(page).getByRole('button', { name: /^Condominio, / }).click();
 
-  await expect(dossierHero(page, String(CURRENT_YEAR)).getByText(/^300[\s ]*€$/)).toBeVisible();
+  await expect(dossierHero(page, String(CURRENT_YEAR)).getByText(/^300(,00)?[\s ]*€$/)).toBeVisible();
   const condYears = perYearTable(page);
   await expect(condYears.getByText(new RegExp(`\\+50[\\s\\u00a0]*€ \\(\\+20,0%\\) vs ${PREVIOUS_YEAR} stessi mesi`))).toBeVisible();
   // The oldest tracked year has no baseline — said in words, never a fabricated zero nor a dash.
@@ -149,20 +149,20 @@ test('cold-loads a bookmarked focus URL straight into the open Scheda', async ({
 
   // No clicks: the deep link IS the check — breadcrumb, hero and year delta all present.
   await expect(page.getByLabel('Posizione nel drill-down').getByText('Condominio')).toBeVisible();
-  await expect(dossierHero(page, String(CURRENT_YEAR)).getByText(/^300[\s ]*€$/)).toBeVisible();
+  await expect(dossierHero(page, String(CURRENT_YEAR)).getByText(/^300(,00)?[\s ]*€$/)).toBeVisible();
   await expect(perYearTable(page).getByText(/\+50[\s ]*€ \(\+20,0%\)/)).toBeVisible();
 });
 
 test('keeps the focus across a period switch — the period is a cursor, not a cage', async ({ page }) => {
   await gotoAnalisi(page, '?focusType=fixed&focusCat=e2e-cat-casa&focusSub=e2e-sub-cond');
-  await expect(dossierHero(page, String(CURRENT_YEAR)).getByText(/^300[\s ]*€$/)).toBeVisible();
+  await expect(dossierHero(page, String(CURRENT_YEAR)).getByText(/^300(,00)?[\s ]*€$/)).toBeVisible();
 
   // The axis picks a value the whole page reads: a radiogroup, not a tablist with no panel.
   await page.getByRole('radiogroup', { name: 'Periodo di analisi' }).getByRole('radio', { name: 'Storico' }).click();
 
   // Same entity, re-scoped: 300 (CY) + 250 (PY) over the whole tracked history. In Storico the
   // month tile has no month to run on, so it is absent and Spese maggiori widens.
-  await expect(dossierHero(page, 'Storico completo').getByText(/^550[\s ]*€$/)).toBeVisible();
+  await expect(dossierHero(page, 'Storico completo').getByText(/^550(,00)?[\s ]*€$/)).toBeVisible();
   await expect(page).toHaveURL(/focusSub=e2e-sub-cond/);
   await expect(page.getByRole('region', { name: 'Fuori scala' })).toHaveCount(0);
 });
@@ -220,13 +220,13 @@ test('ranks the YoY drivers in the Confronto disclosure, ceased categories inclu
 
   // A delta row is an entity entry point like every other: it lands on the Scheda.
   await alimentari.click();
-  await expect(dossierHero(page, String(CURRENT_YEAR)).getByText(/^400[\s ]*€$/)).toBeVisible();
+  await expect(dossierHero(page, String(CURRENT_YEAR)).getByText(/^400(,00)?[\s ]*€$/)).toBeVisible();
   await expect(page).toHaveURL(/focusCat=e2e-cat-alimentari/);
 });
 
 test('keeps both category tiles usable while an entity is focused', async ({ page }) => {
   await gotoAnalisi(page, '?focusType=fixed&focusCat=e2e-cat-casa');
-  await expect(dossierHero(page, String(CURRENT_YEAR)).getByText(/^380[\s ]*€$/)).toBeVisible();
+  await expect(dossierHero(page, String(CURRENT_YEAR)).getByText(/^380(,00)?[\s ]*€$/)).toBeVisible();
 
   // The Scheda is its own tile: the category lists stay where they were, the income one included.
   await expect(page.getByRole('region', { name: 'Entrate per categoria' }).getByRole('button', { name: /^Stipendio, / })).toBeVisible();
@@ -248,10 +248,10 @@ test('breaks a category year row down by subcategory, with the previous year alo
 
   // Both figures the drill-down was asked for: the change AND the baseline it is measured against.
   await expect(breakdown.getByText('Condominio')).toBeVisible();
-  await expect(breakdown.getByText(/^da 250[\s ]*€$/)).toBeVisible();
+  await expect(breakdown.getByText(/^da 250(,00)?[\s ]*€$/)).toBeVisible();
   await expect(breakdown.getByText(/^\+50[\s ]*€ \(\+20,0%\)$/)).toBeVisible();
   await expect(breakdown.getByText('Elettricità')).toBeVisible();
-  await expect(breakdown.getByText(/^da 90[\s ]*€$/)).toBeVisible();
+  await expect(breakdown.getByText(/^da 90(,00)?[\s ]*€$/)).toBeVisible();
   await expect(breakdown.getByText(/^−10[\s\u00a0]*€ \(−11,1%\)$/)).toBeVisible();
 
   // Σ(subcategory delta) = the row's own delta: +50 − 10 = +40, the figure asserted on the year

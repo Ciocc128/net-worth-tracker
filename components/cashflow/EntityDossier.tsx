@@ -85,7 +85,7 @@ const deltaSignClass = (delta: number | null, isIncome: boolean): string => {
 const formatCurrency = (value: number): string => cachedFormatCurrencyEUR(value);
 
 /** «+50 €» / «−10 €» — the typographic minus (U+2212), never Intl's hyphen. */
-const signedCurrency = (value: number): string => `${value < 0 ? '−' : '+'}${cachedFormatCurrencyEUR(Math.abs(value))}`;
+const signedCurrency = (value: number): string => `${value < 0 ? '−' : '+'}${cachedFormatCurrencyEUR(Math.abs(value), true)}`;
 
 /** «(+11,8%)» / «(−11,1%)» — the Comma Rule: it-IT decimals, never `toFixed`. */
 const signedPercent = (value: number, delta: number): string => `${delta > 0 ? '+' : ''}${formatPercentage(value, 1)}`.replace(/^-/, '−');

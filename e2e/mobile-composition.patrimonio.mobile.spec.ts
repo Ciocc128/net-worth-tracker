@@ -93,7 +93,7 @@ test.describe('Patrimonio, composed for a phone', () => {
     await openPatrimonio(page);
     await perche(page).click();
     const verdict = verdictOf(page);
-    await expect(verdict.getByText(/Da inizio anno \+15,00% \(\+25\.000,00\s?€\)\./)).toBeVisible();
+    await expect(verdict.getByText(/Da inizio anno \+15,00% \(\+25\.000\s?€\)\./)).toBeVisible();
     await expect(verdict.getByText(/Sul mercato ha spinto soprattutto Fenicottero ETF \(\+1500\s?€\)\./)).toBeVisible();
   });
 

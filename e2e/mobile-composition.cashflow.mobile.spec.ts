@@ -212,9 +212,9 @@ test.describe('Cashflow › Tracciamento, composed for a phone', () => {
     // The strip: the period's trio, each cell the figure THE tile prints, each a thumb's target.
     const cells = strip(page, 'Tracciamento').getByRole('button');
     await expect(cells).toHaveCount(3);
-    await expect(cells.nth(0)).toContainText(/Entrate\s*2500\s?€/);
-    await expect(cells.nth(1)).toContainText(/Spese\s*1120\s?€/);
-    await expect(cells.nth(2)).toContainText(/Risparmio\s*1380\s?€/);
+    await expect(cells.nth(0)).toContainText(/Entrate\s*2500(,00)?\s?€/);
+    await expect(cells.nth(1)).toContainText(/Spese\s*1120(,00)?\s?€/);
+    await expect(cells.nth(2)).toContainText(/Risparmio\s*1380(,00)?\s?€/);
     await expect(cells.nth(0)).toHaveAccessibleName(/, apre Entrate per categoria$/);
     for (let i = 0; i < 3; i++) expect((await cells.nth(i).boundingBox())!.height, `cell ${i}`).toBeGreaterThanOrEqual(TOUCH_FLOOR);
 
