@@ -342,7 +342,7 @@ export function buildFondoOggiChips(today: FundTodaySummary): FondoOggiChip[] {
     });
   }
   if (today.contributionsAllTime > 0 && today.firstContributionMonth) {
-    chips.push({ value: cachedFormatCurrencyEUR(today.contributionsAllTime, true), caption: `versati in tutto, da ${formatMonthKey(today.firstContributionMonth)}` });
+    chips.push({ value: cachedFormatCurrencyEUR(today.contributionsAllTime), caption: `versati in tutto, da ${formatMonthKey(today.firstContributionMonth)}` });
   }
   return chips;
 }

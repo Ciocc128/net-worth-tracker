@@ -130,7 +130,7 @@ export function CashflowPeriodoTile({
               <div className="flex items-center justify-between gap-3 py-[8px]">
                 <span className="text-[13px] text-muted-foreground">{projection.previousLabel}</span>
                 <span className="font-mono text-[13px] tabular-nums text-foreground">
-                  {cachedFormatCurrencyEUR(projection.previousExpenses, true)}
+                  {cachedFormatCurrencyEUR(projection.previousExpenses)}
                 </span>
               </div>
             )}

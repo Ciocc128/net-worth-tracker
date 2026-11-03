@@ -144,7 +144,7 @@ describe('buildOverviewVerdict — headline and tone', () => {
     // The sale comes right after the variation and carries the month without the tax, and the
     // pension band reads as a subject, not as its database key.
     expect(plain(verdict.sentence)).toBe(
-      'Il patrimonio vale 412.381 €: −4156 € (−1,40%) su agosto, +8,29% da inizio anno (+31.560 €). ' +
+      'Il patrimonio vale 412.380,52 €: −4156 € (−1,40%) su agosto, +8,29% da inizio anno (+31.560 €). ' +
         'Hai venduto Vanguard FTSE All-World per 39.052 € con una plusvalenza di 15.726 € e pagato circa 4089 € di tasse: ' +
         'senza, il mese avrebbe fatto −67 € (+153 € dal mercato e −220 € tra risparmio e altre variazioni). ' +
         'Hai messo da parte il 40% delle entrate; sul mercato hanno spinto soprattutto i fondi pensione (+256 €).',
@@ -181,7 +181,7 @@ describe('buildOverviewVerdict — headline and tone', () => {
     expect(verdict.headline).toBe('Settembre è in pari: le tasse sulla vendita di VWCE si sono prese la crescita.');
     expect(verdict.tone).toBe('warning');
     expect(plain(verdict.sentence)).toBe(
-      'Il patrimonio vale 297.210 €: +124 € (+0,04%) su agosto, +13,47% da inizio anno (+35.289 €), nuovo massimo storico. ' +
+      'Il patrimonio vale 297.209,77 €: +124 € (+0,04%) su agosto, +13,47% da inizio anno (+35.289 €), nuovo massimo storico. ' +
         'Hai venduto VWCE per 39.052 € con una plusvalenza di 15.726 € e pagato circa 4089 € di tasse: ' +
         'senza, il mese avrebbe fatto +4213 € (+2018 € dal mercato e +2095 € risparmiati). ' +
         'Nello stesso mese hai comprato 6 strumenti per 34.305 €. ' +
@@ -248,7 +248,7 @@ describe('buildOverviewVerdict — sentence', () => {
   it('should state value, monthly and yearly change, the record, savings and the market driver', () => {
     const text = plain(buildOverviewVerdict(AUGUST).sentence);
     expect(text).toBe(
-      'Il patrimonio vale 412.381 €: +4120 € (+1,01%) su luglio, +8,29% da inizio anno (+31.560 €), nuovo massimo storico. ' +
+      'Il patrimonio vale 412.380,52 €: +4120 € (+1,01%) su luglio, +8,29% da inizio anno (+31.560 €), nuovo massimo storico. ' +
         'Hai messo da parte il 40% delle entrate; sul mercato hanno spinto soprattutto le azioni (+3480 €). ' +
         'Di quel movimento: +3980 € dal mercato e +140 € tra risparmio e altre variazioni.',
     );
@@ -307,7 +307,7 @@ describe('buildOverviewVerdict — sentence', () => {
     const segments = buildOverviewVerdict(AUGUST).sentence;
     const monthly = segments.find((s) => s.text.startsWith('+4120'));
     expect(monthly).toMatchObject({ mono: true, sign: 'positive' });
-    const value = segments.find((s) => s.text.startsWith('412.381'));
+    const value = segments.find((s) => s.text.startsWith('412.380,52'));
     expect(value).toMatchObject({ mono: true });
     expect(value?.sign).toBeUndefined();
   });
@@ -343,7 +343,7 @@ describe('buildOverviewVerdict — sentence', () => {
       }).sentence,
     );
     expect(text).toBe(
-      'Il patrimonio vale 412.381 €: +4120 € (+1,01%) su dicembre, +8,29% da inizio anno (+31.560 €). ' +
+      'Il patrimonio vale 412.380,52 €: +4120 € (+1,01%) su dicembre, +8,29% da inizio anno (+31.560 €). ' +
         'Hai messo da parte il 40% delle entrate.',
     );
   });
@@ -605,7 +605,7 @@ describe('buildOverviewVerdict — the phone cut', () => {
     expect(verdict.headline).toContain('è in pari');
     const split = splitVerdict(verdict);
     expect(plain(split.lead)).toBe(
-      'Il patrimonio vale 300.000 €: +100 € (+0,03%) su agosto, +11,11% da inizio anno (+30.000 €). ' +
+      'Il patrimonio vale 300.000,00 €: +100 € (+0,03%) su agosto, +11,11% da inizio anno (+30.000 €). ' +
         'Hai venduto VWCE per 40.000 € con una plusvalenza di 16.000 € e pagato circa 4160 € di tasse: ' +
         'senza, il mese avrebbe fatto +4260 € (+2000 € dal mercato, +2000 € risparmiati, +260 € di altre variazioni). ' +
         'Nello stesso mese hai comprato 2 strumenti per 30.000 €.',
@@ -676,7 +676,7 @@ describe('buildOverviewVerdict — the phone cut', () => {
 
   it('should print a zero without a sign and without a colour, −0,004 included', () => {
     const verdict = buildOverviewVerdict({ ...AUGUST, monthlyVariation: { value: -0.004, percentage: 0 }, yearlyVariation: { value: 0, percentage: -0.001 } });
-    expect(plain(verdict.sentence)).toContain('Il patrimonio vale 412.381 €: 0 € (0,00%) su luglio, 0,00% da inizio anno (0 €)');
+    expect(plain(verdict.sentence)).toContain('Il patrimonio vale 412.380,52 €: 0 € (0,00%) su luglio, 0,00% da inizio anno (0 €)');
     const zero = verdict.sentence.find((segment) => plain([segment]) === '0 €');
     expect(zero).toMatchObject({ mono: true });
     expect(zero?.sign).toBeUndefined();

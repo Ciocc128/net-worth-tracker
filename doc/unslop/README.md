@@ -262,3 +262,13 @@ The owner's four iPhone screenshots of Cashflow › Tracciamento after session 5
 
 - `--flow-past-in` / `--flow-past-out` in the four blocks of Lime Frost and Graphite; `FlowBarsChart` reads them, with today's formula as the fallback for every other theme.
 - DESIGN.md → The One-Accent-Per-Chart Rule rewritten on the weight.
+
+## Follow-up 2026-11-03 — «Rimettere i centesimi sui valori reali»
+
+D-AS12 (session 4) took the cents out of every tile, verdict and strip. The owner wants them back where the figure is a real value, because bank apps show the cent even on big numbers.
+
+| ID | Decision | Alternatives discarded | Reason |
+| --- | --- | --- | --- |
+| D-AS27 | **Cents on real values, whole euros on estimates and comparisons.** Cents: Cashflow (movements, income and expenses, month totals, the trio and its strip cells), Patrimonio (total, single assets and accounts, liquidity, mortgage), the Panoramica total and Cashflow tile, the Sintesi, Previdenza contributions, Storico values on a date, the verdict sentence's total. Whole: FIRE · Proiezione · Monte Carlo, PAC and optimizer, Budget, chart axes and projection tooltips, deltas and variations | cents everywhere (noise in simulations); the state after D-AS12 (too coarse to match an account) | a figure that matches a bank account must match it to the cent; a simulated one has no such precision |
+
+Amends D-AS12 and The One-Euro-Format Rule. Phone: a total with cents is 14 characters from 1.000.000 € (`resolveHeroValueClass` already steps the hero to 30px past 13). Not run here: Playwright and `mobile:budget` (to run on the Mac; e2e specs that read a whole-euro total may need cents).

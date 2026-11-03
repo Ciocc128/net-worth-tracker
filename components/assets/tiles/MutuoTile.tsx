@@ -68,13 +68,13 @@ export function MutuoTile({ summary, showPropertyName, collapse, asideWhenClosed
           tablet in landscape the tile is a phone's width at a 1024px viewport (2026-10-16). */}
       <div className="@container mt-3.5">
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 @[560px]:grid-cols-4">
-        <Kpi label="Debito residuo" value={cachedFormatCurrencyEUR(summary.debt, true)} />
+        <Kpi label="Debito residuo" value={cachedFormatCurrencyEUR(summary.debt)} />
         <Kpi
           label={`Interessi ${summary.year}`}
-          value={cachedFormatCurrencyEUR(summary.yearInterest, true)}
-          caption={summary.totalInterest > summary.yearInterest ? `${cachedFormatCurrencyEUR(summary.totalInterest, true)} dal collegamento` : undefined}
+          value={cachedFormatCurrencyEUR(summary.yearInterest)}
+          caption={summary.totalInterest > summary.yearInterest ? `${cachedFormatCurrencyEUR(summary.totalInterest)} dal collegamento` : undefined}
         />
-        <Kpi label={`Capitale ${summary.year}`} value={cachedFormatCurrencyEUR(summary.yearPrincipal, true)} />
+        <Kpi label={`Capitale ${summary.year}`} value={cachedFormatCurrencyEUR(summary.yearPrincipal)} />
         <Kpi label="Fine prevista" value={payoffValue} caption={payoffCaption} />
       </div>
       </div>
@@ -102,8 +102,8 @@ export function MutuoTile({ summary, showPropertyName, collapse, asideWhenClosed
                       <span className="font-mono tabular-nums text-foreground">{entry.year}</span>
                       {scope && <span className="ml-1.5 text-[11px] text-muted-foreground">{scope}</span>}
                     </th>
-                    <td className="py-2 text-right font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(entry.interest, true)}</td>
-                    <td className="py-2 text-right font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(entry.principal, true)}</td>
+                    <td className="py-2 text-right font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(entry.interest)}</td>
+                    <td className="py-2 text-right font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(entry.principal)}</td>
                     <td className="py-2 pl-3 text-right font-mono tabular-nums text-muted-foreground">{entry.instalments}</td>
                   </tr>
                 );

@@ -57,7 +57,7 @@ export function FlowBarsChart({ flows, highlightKey, minHeight = 150, onSelectMo
   const pairWidth = barWidth * 2 + gap;
 
   const label = flows
-    .map((f) => `${f.label}: entrate ${cachedFormatCurrencyEUR(f.income, true)}, spese ${cachedFormatCurrencyEUR(f.expenses, true)}${f.scheduled ? ' (in calendario)' : ''}`)
+    .map((f) => `${f.label}: entrate ${cachedFormatCurrencyEUR(f.income)}, spese ${cachedFormatCurrencyEUR(f.expenses)}${f.scheduled ? ' (in calendario)' : ''}`)
     .join('; ');
 
   // A mouse over a month reads its two figures (desktop only; the SVG titles serve the rest).
@@ -114,7 +114,7 @@ export function FlowBarsChart({ flows, highlightKey, minHeight = 150, onSelectMo
             const opacity = flow.scheduled ? 0.45 : 1;
             return (
               <g key={flow.key}>
-                <title>{`${flow.label}: entrate ${cachedFormatCurrencyEUR(flow.income, true)}, spese ${cachedFormatCurrencyEUR(flow.expenses, true)}${flow.scheduled ? ' (in calendario)' : ''}`}</title>
+                <title>{`${flow.label}: entrate ${cachedFormatCurrencyEUR(flow.income)}, spese ${cachedFormatCurrencyEUR(flow.expenses)}${flow.scheduled ? ' (in calendario)' : ''}`}</title>
                 <rect x={x} y={VIEW_H - incomeHeight} width={barWidth} height={incomeHeight} fill={incomeFill} fillOpacity={opacity} />
                 <rect x={x + barWidth + gap} y={VIEW_H - expensesHeight} width={barWidth} height={expensesHeight} fill={expensesFill} fillOpacity={opacity} />
               </g>
@@ -126,12 +126,12 @@ export function FlowBarsChart({ flows, highlightKey, minHeight = 150, onSelectMo
             <span className="font-mono tabular-nums">
               <SeriesDot color="var(--flow-in)" />
               <span className="text-muted-foreground">Entrate </span>
-              <span className="text-income-figure">{cachedFormatCurrencyEUR(hovered.income, true)}</span>
+              <span className="text-income-figure">{cachedFormatCurrencyEUR(hovered.income)}</span>
             </span>
             <span className="font-mono tabular-nums">
               <SeriesDot color="var(--flow-out)" />
               <span className="text-muted-foreground">Spese </span>
-              <span className="text-expense-figure">{cachedFormatCurrencyEUR(hovered.expenses, true)}</span>
+              <span className="text-expense-figure">{cachedFormatCurrencyEUR(hovered.expenses)}</span>
             </span>
           </ChartHoverTip>
         )}

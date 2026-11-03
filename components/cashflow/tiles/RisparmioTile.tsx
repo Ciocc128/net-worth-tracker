@@ -110,7 +110,7 @@ function SavingsRateBars({ history, highlightKey }: { history: SavingsHistory; h
               {hovered.savingsRate === null ? 'nessuna entrata' : rateText(hovered.savingsRate)}
             </span>
             <span className="font-mono tabular-nums text-muted-foreground">
-              entrate {cachedFormatCurrencyEUR(hovered.income, true)} · spese {cachedFormatCurrencyEUR(hovered.expenses, true)}
+              entrate {cachedFormatCurrencyEUR(hovered.income)} · spese {cachedFormatCurrencyEUR(hovered.expenses)}
             </span>
           </ChartHoverTip>
         )}

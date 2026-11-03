@@ -419,7 +419,7 @@ export function describePatrimonioClosedAnswers(input: PatrimonioClosedAnswersIn
   answers[PATRIMONIO_SECTION_IDS.liquidita] =
     cash.accounts.length === 0
       ? null
-      : [{ text: 'sui conti ' }, { text: withTypographicMinus(cash.total, cachedFormatCurrencyEUR(Math.abs(cash.total), true)), mono: true }];
+      : [{ text: 'sui conti ' }, { text: withTypographicMinus(cash.total, cachedFormatCurrencyEUR(Math.abs(cash.total))), mono: true }];
 
   const leadingClass = describeLeadingClass(input.classes);
   const stripTexts = new Set(input.strip.map((cell) => formatStripFigure(cell)?.text).filter(Boolean));

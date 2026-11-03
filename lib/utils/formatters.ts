@@ -60,9 +60,9 @@ export function withTypographicMinus(value: number, printedMagnitude: string): s
   return `${value < 0 ? '−' : ''}${printedMagnitude}`;
 }
 
-/** The compact euro (no cents) with the typographic minus, unsigned when it prints as zero. */
-export function formatEuroMinus(value: number): string {
-  return withTypographicMinus(value, cachedFormatCurrencyEUR(Math.abs(value), true));
+/** The euro with the typographic minus, unsigned when it prints as zero; `compact` drops the cents (default), `false` keeps them (a real figure: D-AS27). */
+export function formatEuroMinus(value: number, compact = true): string {
+  return withTypographicMinus(value, cachedFormatCurrencyEUR(Math.abs(value), compact));
 }
 
 /**

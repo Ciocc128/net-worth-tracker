@@ -103,7 +103,7 @@ export function CashflowTile({
         <div className="flex min-w-0 flex-col gap-1.5">
           <p className={TILE_SUB_EYEBROW_CLASS}><SeriesDot color="var(--flow-in)" />Entrate</p>
           <p className={cn('font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums', income > 0 ? 'text-income-figure' : 'text-muted-foreground')}>
-            {cachedFormatCurrencyEUR(income, true)}
+            {cachedFormatCurrencyEUR(income)}
           </p>
           <ScheduledCaption caption={describeScheduledCaption(incomeScheduled, daysInMonth)} />
           <DeltaLine delta={expenseStats.delta.income} positiveGood={true} month={month} />
@@ -111,7 +111,7 @@ export function CashflowTile({
         <div className="flex min-w-0 flex-col gap-1.5">
           <p className={TILE_SUB_EYEBROW_CLASS}><SeriesDot color="var(--flow-out)" />Spese</p>
           <p className={cn('font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums', expenses > 0 ? 'text-expense-figure' : 'text-muted-foreground')}>
-            {cachedFormatCurrencyEUR(expenses, true)}
+            {cachedFormatCurrencyEUR(expenses)}
           </p>
           <ScheduledCaption caption={describeScheduledCaption(expensesScheduled, daysInMonth)} />
           <DeltaLine delta={expenseStats.delta.expenses} positiveGood={false} month={month} />
@@ -120,7 +120,7 @@ export function CashflowTile({
           <p className={TILE_SUB_EYEBROW_CLASS}>Risparmio</p>
           {/* A net that prints as zero takes no «−» (AGENTS.md § Layout and Color Tokens;
               `formatEuroMinus` since 2026-10-12). */}
-          <p className={cn('font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums', netFigureClass(net))}>{formatEuroMinus(net)}</p>
+          <p className={cn('font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums', netFigureClass(net))}>{formatEuroMinus(net, false)}</p>
           <ScheduledCaption caption={describeScheduledNetCaption(expensesScheduled, incomeScheduled, daysInMonth)} />
           <p className="text-[11px] text-muted-foreground">
             {savingsRate !== null ? (
@@ -156,7 +156,7 @@ export function CashflowTile({
             <div className="flex items-center justify-between gap-3 py-[8px]">
               <span className="text-[13px] text-muted-foreground">{atPreviousMonth(month, true)}</span>
               <span className="font-mono text-[13px] tabular-nums text-foreground">
-                {previousExpenses > 0 ? cachedFormatCurrencyEUR(previousExpenses, true) : '–'}
+                {previousExpenses > 0 ? cachedFormatCurrencyEUR(previousExpenses) : '–'}
               </span>
             </div>
           </div>

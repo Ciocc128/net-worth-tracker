@@ -670,8 +670,8 @@ describe('selectTracciamentoStrip', () => {
    * formatter the tile calls (`formatEuroMinus`, since 2026-10-12): a copy of the tile's formula
    * here would stay green after the tile changed.
    */
-  const trioEuro = (value: number) => plain(cachedFormatCurrencyEUR(value, true));
-  const trioNet = (net: number) => plain(formatEuroMinus(net));
+  const trioEuro = (value: number) => plain(cachedFormatCurrencyEUR(value));
+  const trioNet = (net: number) => plain(formatEuroMinus(net, false));
   const totals = (income: number, expenses: number): PeriodCashflowTotals => ({
     income,
     expenses,
@@ -710,9 +710,9 @@ describe('selectTracciamentoStrip', () => {
     // A net that PRINTS as zero takes no sign either (the printed-zero rule, 2026-10-10): «0 €» in the
     // cell and in the trio. Seen red on 2026-10-12, in the spec's retirement: the trio decided its «−» on the
     // value and printed «−0 €» for −0,3 against the cell's «0 €».
-    const nearZero = selectTracciamentoStrip({ totals: totals(1000, 1000.3) });
-    expect(cellText(nearZero[2])).toBe('0 €');
-    expect(cellText(nearZero[2])).toBe(trioNet(-0.3));
+    const nearZero = selectTracciamentoStrip({ totals: totals(1000, 1000.003) });
+    expect(cellText(nearZero[2])).toBe('0,00 €');
+    expect(cellText(nearZero[2])).toBe(trioNet(-0.003));
   });
 
   it('should not colour a side that is zero, and lift nothing for a cell without a figure', () => {

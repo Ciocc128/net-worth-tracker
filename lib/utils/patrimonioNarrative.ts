@@ -263,7 +263,7 @@ export function formatHoldingCounts(instrumentCount: number, accountCount: numbe
  */
 export function buildPatrimonioVerdict(input: PatrimonioVerdictInput): PatrimonioVerdict {
   const { headline, tone } = resolveHeadline(input);
-  const sentence: Narrative = [prose('Il portafoglio vale '), figure(cachedFormatCurrencyEUR(input.totalValue, true))];
+  const sentence: Narrative = [prose('Il portafoglio vale '), figure(cachedFormatCurrencyEUR(input.totalValue))];
 
   if (input.monthlyVariation) {
     sentence.push(
@@ -359,7 +359,7 @@ export function describeCashAccounts(
   if (accountCount === 1) {
     return [...opening, prose(` ${largest.name}.`)];
   }
-  return [...opening, prose('i conti; '), figure(cachedFormatCurrencyEUR(largest.balance, true)), prose(` su ${largest.name}.`)];
+  return [...opening, prose('i conti; '), figure(cachedFormatCurrencyEUR(largest.balance)), prose(` su ${largest.name}.`)];
 }
 
 /** "Hai comprato 2500 € e venduto 800 €." — the month's buys and sells from the trade ledger. */
@@ -554,9 +554,9 @@ export function describeMortgage(summary: MortgageSummary): Narrative {
   if (summary.yearInstalments > 0) {
     return [
       prose(`Nel ${summary.year} hai pagato `),
-      figure(cachedFormatCurrencyEUR(summary.yearInterest, true)),
+      figure(cachedFormatCurrencyEUR(summary.yearInterest)),
       prose(' di interessi e rimborsato '),
-      figure(cachedFormatCurrencyEUR(summary.yearPrincipal, true)),
+      figure(cachedFormatCurrencyEUR(summary.yearPrincipal)),
       prose(` di capitale, in ${summary.yearInstalments === 1 ? '1 rata' : `${summary.yearInstalments} rate`}`),
       ...closing,
     ];
@@ -567,9 +567,9 @@ export function describeMortgage(summary: MortgageSummary): Narrative {
       prose(lead),
       figure(dayMonthOf(summary.next.date)),
       prose(', rimborserà '),
-      figure(cachedFormatCurrencyEUR(summary.next.principal, true)),
+      figure(cachedFormatCurrencyEUR(summary.next.principal)),
       prose(' di capitale; '),
-      figure(cachedFormatCurrencyEUR(summary.next.interest, true)),
+      figure(cachedFormatCurrencyEUR(summary.next.interest)),
       prose(' saranno interessi'),
       ...closing,
     ];
