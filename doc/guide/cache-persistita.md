@@ -29,6 +29,11 @@ Moved here from `AGENTS.md` § Caching on 2026-09-30.
   restored metrics are one consistent pair; a new cache key leaves the old entry on disk until its 24 hours pass.
   Measured on the mirror (2026-10-04, one visit to Rendimenti): the metrics are ~40 KB and the yields ~3 KB of a
   136 KB record whose snapshots are 55.
+- Since 2026-11-03 also the ECB anchors document, `['market-anchors', uid]` (global data, keyed by the reader only so
+  the persister carries it and the demo guard reads it): since the risk-free estimate of 2026-10-25 Rendimenti's
+  metrics wait for it when no rate is typed (`usePerformanceData`), and with it missing the reload painted the
+  skeleton for one Firestore read — `e2e/performance.degraded.spec.ts` › «a reload paints the last known figures»
+  was red from that day. Restored, the anchors resolve the same rate, so the same cache key as the restored metrics.
 
 ### Retention: `maxAge` and `gcTime`
 
@@ -41,8 +46,8 @@ Moved here from `AGENTS.md` § Caching on 2026-09-30.
 - **Bump `PERSIST_CACHE_VERSION` (the `buster`) on any change that RENAMES, REMOVES or retypes a field of a persisted
   payload** — everything under `PERSISTED_QUERY_PREFIXES`: an asset (the mortgage instalments under its key too), an
   expense, a snapshot, a category, the settings document, a contribution, a trade, the ledger's meta document, a cost
-  centre, the Hall of Fame rankings, a goal, a receipt, the overview, Rendimenti's `PerformanceData` and its yields —
-  or a client restores the old shape and reads it
+  centre, the Hall of Fame rankings, a goal, a receipt, the overview, Rendimenti's `PerformanceData` and its yields, the
+  ECB anchors — or a client restores the old shape and reads it
   as truth until the refetch lands; a new optional field whose absence means the default does not need it.
 
 ### Dates by value

@@ -10,7 +10,7 @@
  *
  * The ALLOWLIST is the safety: only the owner's own collections, read through the hooks of
  * AGENTS.md § React Query and Derived State, are persisted. What stays out: the assistant's threads
- * and contexts (they change on every message), the benchmark/FX/ECB series (a server cache already
+ * and contexts (they change on every message), the benchmark/FX/ECB rate series (a server cache already
  * holds them), the Esposizione's Yahoo profiles (same), the budget history — and EVERYTHING of
  * the demo account, whose data is shared by every visitor and must not land in a visitor's browser
  * (`isDemoUid`). Rendimenti's two payloads are IN since 2026-10-04 (the owner's decision): the
@@ -22,7 +22,7 @@
  * asset (the mortgage instalments under its key too), an expense, a snapshot, a category, the
  * settings document, a contribution, a trade, the ledger's meta document, a cost centre, the Hall
  * of Fame rankings, a goal, a dividend receipt, the overview payload, Rendimenti's
- * `PerformanceData` and its dividend yields. A client that restores an
+ * `PerformanceData` and its dividend yields, the ECB market anchors. A client that restores an
  * older shape would read it as truth until the refetch lands. A new optional field whose absence means the default does not need it
  * (AGENTS.md § Caching, beside `CACHE_MATH_VERSION`).
  */
@@ -87,6 +87,9 @@ export const PERSISTED_QUERY_PREFIXES: readonly (readonly string[])[] = [
   // from (restored inputs resolve to the same key, so the pair is consistent), and the yields.
   ['performance', 'data'],
   ['performance', 'yields'],
+  // The ECB anchors the risk-free estimate reads (2026-11-03): without a typed rate the metrics above wait
+  // for them, so a reload that restored everything else still painted Rendimenti's skeleton for one read.
+  ['market-anchors'],
 ];
 
 function matchesPrefix(queryKey: readonly unknown[], prefix: readonly string[]): boolean {
