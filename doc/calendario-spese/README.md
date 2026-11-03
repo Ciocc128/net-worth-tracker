@@ -2,8 +2,8 @@
 
 > Card Todoist «FEAT: calendar spending heatmap» (Backlog, nessuna descrizione: la lettura della richiesta è di questo
 > dossier). Schizzo «oggi / proposta» (WORKFLOW.md regola 8): pagina pubblicata «Calendario delle spese»,
-> https://claude.ai/artifact/SFoZ326pL8upgjZe2rxaou. Decisioni D-CS1–D-CS8 **proposte il 2026-11-03, in attesa del
-> proprietario**: finché § 8 non le dice prese, il resto del dossier descrive le opzioni raccomandate.
+> https://claude.ai/artifact/SFoZ326pL8upgjZe2rxaou. Decisioni D-CS1–D-CS8 **prese dal proprietario il 2026-11-03** («Tutte le
+> raccomandazioni»).
 
 ## 1. In breve
 
@@ -183,19 +183,19 @@ Una sola task, **CS1** (impl, Sonnet 5.5 salvo diversa indicazione sulla card):
 
 ## 8. Decisioni
 
-**Proposte il 2026-11-03 sullo schizzo, in attesa del proprietario.** Qui sotto la raccomandazione; le alternative
-sono quelle dello schizzo.
+Prese dal proprietario il 2026-11-03 sullo schizzo («Tutte le raccomandazioni»); le alternative sono quelle dello
+schizzo.
 
-| ID | Stato | Decisione proposta | Alternative scartate e motivo |
+| ID | Stato | Decisione | Alternative scartate e motivo |
 |----|-------|--------------------|-------------------------------|
-| D-CS1 | Proposta | In Analisi: anno = griglia a 53 settimane, mese = calendario del mese; in «Storico» il tile non c'è. | Tracciamento, accanto ad Andamento: il ritmo del mese lo dice già Andamento, e la domanda «dove vanno i soldi» è di Analisi. Tutte e due: due tile per una domanda. |
-| D-CS2 | Proposta | Le spese di «Spese» con una pillola «Tutte · Solo variabili», predefinita «Tutte», ricordata sul dispositivo. | Solo variabili: non somma come gli altri totali della pagina. Tutte senza pillola: affitto e rate dominano i primi del mese. |
-| D-CS3 | Proposta | Quattro gradini per quartili dei giorni con spesa del periodo; legenda con le soglie in euro interi. | Gradini fissi in euro: giusti per un reddito, sbagliati per un altro. Lineare sul giorno più caro: una spesa grossa schiaccia tutto sul primo gradino (sezione 2 dello schizzo). |
-| D-CS4 | Proposta | `--flow-out` a quattro intensità; giorno senza spese `--muted`; mai il rosso. | Il rosso: in Lime Frost e Graphite vale solo per i giudizi, e spendere non è un errore. |
-| D-CS5 | Proposta | Giorno futuro con spese in calendario: bordo e tratteggio senza riempimento; gli altri futuri vuoti. | Riempiti più chiari: si confondono con il gradino 1. Non mostrati: l'«Anno corrente» porta il calendario per definizione. |
-| D-CS6 | Proposta | Popover accanto alla cella: data, totale e fino a 5 voci con i centesimi, «e altre N». | Movimenti filtrato sul giorno: sta in un'altra scheda. Solo il titolo al passaggio: niente al tocco. |
-| D-CS7 | Proposta | Due frasi: giorni con spesa e il giorno della settimana più caro (medie in euro interi); il giorno più caro (centesimi). | Una frase: perde lo schema per giorno della settimana, che è la risposta nuova. Nessuna lettura: ogni tile risponde in parole. |
-| D-CS8 | Proposta | 390 riga chiusa «Calendario · giorno per giorno» prima della Scheda, aperta un mese alla volta con ‹ ›; 768 riga; tablet orizzontale nell'indice con «il sabato». | Anno in verticale (7 × 53): celle alte 14px, sotto un dito. Niente sul telefono: il tile sparisce dove si apre più spesso l'app. |
+| D-CS1 | **Presa** | In Analisi: anno = griglia a 53 settimane, mese = calendario del mese; in «Storico» il tile non c'è. | Tracciamento, accanto ad Andamento: il ritmo del mese lo dice già Andamento, e la domanda «dove vanno i soldi» è di Analisi. Tutte e due: due tile per una domanda. |
+| D-CS2 | **Presa** | Le spese di «Spese» con una pillola «Tutte · Solo variabili», predefinita «Tutte», ricordata sul dispositivo. | Solo variabili: non somma come gli altri totali della pagina. Tutte senza pillola: affitto e rate dominano i primi del mese. |
+| D-CS3 | **Presa** | Quattro gradini per quartili dei giorni con spesa del periodo; legenda con le soglie in euro interi. | Gradini fissi in euro: giusti per un reddito, sbagliati per un altro. Lineare sul giorno più caro: una spesa grossa schiaccia tutto sul primo gradino (sezione 2 dello schizzo). |
+| D-CS4 | **Presa** | `--flow-out` a quattro intensità; giorno senza spese `--muted`; mai il rosso. | Il rosso: in Lime Frost e Graphite vale solo per i giudizi, e spendere non è un errore. |
+| D-CS5 | **Presa** | Giorno futuro con spese in calendario: bordo e tratteggio senza riempimento; gli altri futuri vuoti. | Riempiti più chiari: si confondono con il gradino 1. Non mostrati: l'«Anno corrente» porta il calendario per definizione. |
+| D-CS6 | **Presa** | Popover accanto alla cella: data, totale e fino a 5 voci con i centesimi, «e altre N». | Movimenti filtrato sul giorno: sta in un'altra scheda. Solo il titolo al passaggio: niente al tocco. |
+| D-CS7 | **Presa** | Due frasi: giorni con spesa e il giorno della settimana più caro (medie in euro interi); il giorno più caro (centesimi). | Una frase: perde lo schema per giorno della settimana, che è la risposta nuova. Nessuna lettura: ogni tile risponde in parole. |
+| D-CS8 | **Presa** | 390 riga chiusa «Calendario · giorno per giorno» prima della Scheda, aperta un mese alla volta con ‹ ›; 768 riga; tablet orizzontale nell'indice con «il sabato». | Anno in verticale (7 × 53): celle alte 14px, sotto un dito. Niente sul telefono: il tile sparisce dove si apre più spesso l'app. |
 
 ## 9. Punti aperti
 
