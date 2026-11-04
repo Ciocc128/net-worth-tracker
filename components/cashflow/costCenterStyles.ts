@@ -13,6 +13,6 @@
  */
 export const CHART_TICK_STYLE = {
   fontSize: 11,
-  fontFamily: 'var(--font-geist-mono)',
+  fontFamily: 'var(--font-geist-sans)',
   fill: 'var(--muted-foreground)',
 } as const;

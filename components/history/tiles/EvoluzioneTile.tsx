@@ -90,7 +90,7 @@ function Chip({ value, caption, className, children }: { value: number | null; c
     <div className={cn('flex w-fit min-w-0 flex-col gap-1.5', className)}>
       <span
         className={cn(
-          'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap font-mono text-[13px] font-medium leading-none tracking-[-0.01em] tabular-nums',
+          'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap font-mono text-[13px] font-medium leading-none tabular-nums',
           value === null ? 'text-foreground' : signTextClass(value),
         )}
       >
@@ -184,7 +184,7 @@ function activeIndexOf(state: MouseHandlerDataParam): number | null {
 function HeadValue({ value }: { value: number }) {
   const animated = useCountUp(value, { fromPrevious: true, duration: SCRUB_SETTLE_MS, startDelay: 0 });
   return (
-    <span className="mt-2.5 block font-mono text-[30px] font-bold leading-none tracking-[-0.03em] tabular-nums desktop:text-[40px]">
+    <span className="mt-2.5 block font-mono text-[30px] font-bold leading-none tracking-[0.01em] tabular-nums desktop:text-[40px]">
       {cachedFormatCurrencyEUR(animated ?? value)}
     </span>
   );

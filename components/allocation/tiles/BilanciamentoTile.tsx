@@ -71,7 +71,7 @@ interface BilanciamentoTileProps {
   className?: string;
 }
 
-const KPI_VALUE_CLASS = 'mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground';
+const KPI_VALUE_CLASS = 'mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground';
 
 function Kpi({ label, value, caption, lifted = false }: { label: string; value: ReactNode; caption: string; lifted?: boolean }) {
   return (

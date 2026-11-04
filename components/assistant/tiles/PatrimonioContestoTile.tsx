@@ -12,7 +12,7 @@ import { Tile } from '@/components/ui/tile';
 import { VariationChip } from '@/components/dashboard/overview/PatrimonioTile';
 
 /** The section-hero step of the ramp (36px): the tile's one dominant figure. */
-const HERO_CLASS = 'mt-2.5 block font-mono text-[40px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground';
+const HERO_CLASS = 'mt-2.5 block font-mono text-[40px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground';
 
 type PatrimonioContestoTileProps =
   | { mode: 'period'; bundle: AssistantMonthContextBundle; today: AssistantToday }

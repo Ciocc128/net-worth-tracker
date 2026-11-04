@@ -11,8 +11,8 @@
  * - Toaster - UI notification system (placed inside providers to access context)
  *
  * Font Loading Strategy:
- * - Geist Sans and Geist Mono loaded via next/font/google (optimized)
- * - CSS variables (--font-geist-sans, --font-geist-mono) for Tailwind integration
+ * - Geist Sans loaded via next/font/google (optimized); figures use it with tnum (D-AS30)
+ * - CSS variable (--font-geist-sans) for Tailwind integration
  * - Applied to body via className for global availability
  *
  * Favicon Configuration:
@@ -22,7 +22,7 @@
  * - Safari mask icon with brand color (#10B981 emerald-500)
  */
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ActiveAccountProvider } from "@/contexts/ActiveAccountContext";
@@ -42,24 +42,8 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-// Geist Mono IS preloaded: the Mono Mandate (DESIGN.md §3) puts it on every number of every page,
-// starting with the 44/54px page hero, so it belongs on the critical path.
-//
-// It used to carry `preload: false`, justified by "Geist Mono is only used on FIRE and Hall of Fame"
-// — a premise the Mono Mandate has since made false, which left the font to be discovered only after
-// the CSS was parsed: measured on Previdenza, `document.fonts.check('54px "Geist Mono"')` was still
-// false on the first frame that painted the hero. No layout shift results (next/font's
-// metric-adjusted fallback holds the width), but every number in the app is drawn in the system
-// monospace and then redrawn — losing, for that window, precisely the precision signal the mono font
-// is there to give.
-//
-// The cost this reinstates is the original objection: a "preloaded but not used" console warning on
-// the pages that render no number at all, i.e. /login and /register (the landing page does use it).
-// A warning on two auth pages against late numbers everywhere else.
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+// There is no Geist Mono any more (D-AS30): figures are Geist Sans, tabular and spaced — see the
+// `.font-mono` rule in app/globals.css — so one font file serves the whole app.
 
 export const metadata: Metadata = {
   title: "Portfolio Tracker - Gestisci il tuo Patrimonio",
@@ -101,7 +85,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: COLOR_THEME_INIT_SCRIPT }} />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} antialiased`}
       >
         {/* Provider hierarchy: AuthProvider → QueryClientProvider → Children
             AuthProvider MUST be outermost to ensure auth state is available

@@ -283,3 +283,11 @@ In Patrimonio › Strumenti the expanded row drew an instrument's unit-price lin
 | D-AS29 | **Each Δ of the expanded row (Mese, YTD, Inizio) carries its euro amount with cents**, «−0,3% · −19,84 €»: the unit-price change × the quantity held today (`*DeltaEur` in `computeAssetPerformanceDeltas`), «—» exactly where the percentage is | whole euros (D-AS27 keeps deltas whole on summaries); the change of the position's value (a purchase would read as gain) | the G/P in the same row already reads to the cent; same base as the percentage, so a purchase moves neither |
 
 Amends D-AS27 for this row only (a delta shown beside a real figure). Phone: the longest line, «−12,3% · −1.234.567,89 €», is about 160px of the 320 the row offers at 390; not measured in a browser here (no emulators in this session). Not run: Playwright, `mobile:census`/`mobile:budget` (from 5 November).
+
+## Follow-up 2026-11-04 — «Passare le cifre a Geist spaziato»
+
+| ID | Decision | Alternatives discarded | Reason |
+| --- | --- | --- | --- |
+| D-AS30 | **Figures are Geist Sans, tabular, +0.05em; the big total +0.01em** (B2 of the font review). One token: `.font-mono` in `app/globals.css` (`--font-mono` = Geist Sans, `tnum`, `letter-spacing: var(--tw-tracking, 0.05em)`); the former `tracking-[-0.03em/-0.025em/-0.02em]` on figures became `tracking-[0.01em]`, the `-0.01em` ones were dropped. Geist Mono and its preload are removed; PDF and emails unchanged | A: Geist Mono as today; B: Geist `tnum` with no extra spacing (owner: «troppo accorpato»); C: Inter; D: IBM Plex Sans | the mono's width (0.60 em on every glyph, comma included) made «412.386,57 €» 288px at 40px against 247px, and a second font file on the critical path; the spacing keeps the digits from touching |
+
+Amends The Mono Mandate and The Two-Font Rule (DESIGN.md, now The Figure Rule and The One-Family Rule). Chart ticks use the sans family without `tnum` (SVG text). Not run here: Playwright, `mobile:census`, `mobile:budget` (line wraps at 390 change), on the Mac.

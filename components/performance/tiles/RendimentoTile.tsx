@@ -78,7 +78,7 @@ function Chip({ value, caption, className, children }: { value: number | null; c
     <div className={cn('flex min-w-0 flex-col gap-1', className)}>
       <span
         className={cn(
-          'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap font-mono text-[13px] font-medium leading-none tracking-[-0.01em] tabular-nums',
+          'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap font-mono text-[13px] font-medium leading-none tabular-nums',
           sign === null || sign === 0 ? 'text-foreground' : signTextClass(sign),
         )}
       >
@@ -127,7 +127,7 @@ export function RendimentoTile({
     <Tile id={PERFORMANCE_SECTION_IDS.twr} eyebrow="Rendimento (TWR)" aside={aside} reading={reading} className={className} ariaLabel="Rendimento">
       {/* The hero block is the figure WITH its qualifier: lifted, the strip's cell carries both («Rendimento nei 4 mesi»). */}
       <div className={cn('mt-3.5 flex flex-wrap items-baseline gap-x-3 gap-y-1', lifted(RENDIMENTO_HERO_BLOCK) && LIFTED_FIGURE_CLASS)}>
-        <p className={cn('font-mono text-[40px] font-semibold leading-none tracking-[-0.03em] tabular-nums', getMetricValueColor(heroReturn.value === null ? null : printedSign(heroReturn.value, 1), 'percentage'))}>
+        <p className={cn('font-mono text-[40px] font-semibold leading-none tracking-[0.01em] tabular-nums', getMetricValueColor(heroReturn.value === null ? null : printedSign(heroReturn.value, 1), 'percentage'))}>
           {heroReturn.value === null ? '—' : <HeroValue value={heroReturn.value} />}
         </p>
         {/* A period return already names its months («nei 9 mesi»); the annualised one needs them beside it. */}

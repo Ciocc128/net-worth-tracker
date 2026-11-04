@@ -25,7 +25,7 @@ interface TotaleTileProps {
   className?: string;
 }
 
-const KPI_VALUE_CLASS = 'font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground';
+const KPI_VALUE_CLASS = 'font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground';
 
 function Kpi({ label, value, caption }: { label: string; value: string; caption: Narrative }) {
   return (

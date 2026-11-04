@@ -547,7 +547,7 @@ function Vital({
       </div>
       <p
         className={cn(
-          'mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[-0.025em] tabular-nums',
+          'mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums',
           tone === 'positive'
             ? 'text-positive'
             : tone === 'destructive'

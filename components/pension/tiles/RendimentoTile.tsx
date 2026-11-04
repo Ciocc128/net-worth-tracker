@@ -43,7 +43,7 @@ export interface PensionRendimentoTileProps {
   className?: string;
 }
 
-const KPI_VALUE_CLASS = 'font-mono text-[22px] font-semibold leading-none tracking-[-0.02em] tabular-nums';
+const KPI_VALUE_CLASS = 'font-mono text-[22px] font-semibold leading-none tracking-[0.01em] tabular-nums';
 const ROW_CLASS = 'flex items-baseline justify-between gap-3 py-2 text-[13px]';
 const ROW_VALUE_CLASS = 'shrink-0 whitespace-nowrap font-mono tabular-nums';
 

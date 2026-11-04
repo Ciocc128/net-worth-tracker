@@ -267,7 +267,7 @@ export function TaxCalculatorModal({ open, onClose, asset }: TaxCalculatorModalP
             <div className="space-y-4 rounded-xl bg-muted/40 p-4">
               <div className="flex flex-col gap-1.5">
                 <p className={TILE_SUB_EYEBROW_CLASS}>Ricavo netto dopo le tasse</p>
-                <p className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
+                <p className="font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground">
                   {formatCurrency(results.netProceeds)}
                 </p>
                 <p className="text-[11px] text-muted-foreground">

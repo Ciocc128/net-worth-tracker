@@ -323,7 +323,7 @@ export function ValoreStrumentoTile({
       </p>
       {selection && selection.count > 0 ? (
         <>
-          <p className="mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[-0.025em] tabular-nums text-foreground">{formatCurrency(selection.value)}</p>
+          <p className="mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground">{formatCurrency(selection.value)}</p>
           <p className="mt-1.5 text-[11px] leading-[1.4] text-muted-foreground">
             {articleForPercent(selection.sharePct, 1)}
             <span className="font-mono tabular-nums">{formatPercentage(selection.sharePct, 1)}</span> del patrimonio di {breakdown?.month.label.toLowerCase()}

@@ -69,7 +69,7 @@ function RunwayKpi({ label, caption, value, delta }: { label: string; caption: s
   return (
     <div className="min-w-0">
       <p className={TILE_SUB_EYEBROW_CLASS}>{label}</p>
-      <p className="mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
+      <p className="mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground">
         <SettledYearsValue value={value} />
         {value !== null && <span className="ml-1 text-[13px] font-normal tracking-normal text-muted-foreground">anni</span>}
       </p>

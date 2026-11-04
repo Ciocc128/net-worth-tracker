@@ -57,7 +57,7 @@ function PreviewKpi({ label, value, caption }: { label: string; value: string; c
   return (
     <div className="min-w-0">
       <p className={TILE_SUB_EYEBROW_CLASS}>{label}</p>
-      <p className="mt-1 font-mono text-[16px] font-bold leading-none tracking-[-0.03em] tabular-nums">{value}</p>
+      <p className="mt-1 font-mono text-[16px] font-bold leading-none tracking-[0.01em] tabular-nums">{value}</p>
       {caption && <p className="mt-1 text-[11px] leading-[1.4] text-muted-foreground">{caption}</p>}
     </div>
   );

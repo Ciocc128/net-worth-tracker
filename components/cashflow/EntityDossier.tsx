@@ -125,7 +125,7 @@ function DossierChip({ label, value, caption }: { label: string; value: number; 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <p className={TILE_SUB_EYEBROW_CLASS}>{label}</p>
-      <p className="font-mono text-[16px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">{cachedFormatCurrencyEUR(value)}</p>
+      <p className="font-mono text-[16px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground">{cachedFormatCurrencyEUR(value)}</p>
       {caption && <p className="text-[11px] text-muted-foreground">{caption}</p>}
     </div>
   );
@@ -362,7 +362,7 @@ export function EntityDossier({ allExpenses, scope, color, period, periodLabel, 
   const hero = (
     <div>
       <p className={TILE_SUB_EYEBROW_CLASS}>Totale · {periodLabel}</p>
-      <p className="mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[-0.025em] tabular-nums text-foreground">
+      <p className="mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground">
         {formatCurrency(runRate.periodTotal)}
       </p>
       {runRate.shareOfPeriodTotal !== null && runRate.periodTotal > 0 && (

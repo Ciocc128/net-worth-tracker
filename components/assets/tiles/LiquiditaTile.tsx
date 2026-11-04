@@ -50,7 +50,7 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
         <>
           <div className="mt-3.5 flex flex-col gap-1.5">
             <p className={TILE_SUB_EYEBROW_CLASS}>Sui conti</p>
-            <p className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
+            <p className="font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground">
               {cachedFormatCurrencyEUR(summary.total)}
             </p>
           </div>

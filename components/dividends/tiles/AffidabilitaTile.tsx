@@ -26,7 +26,7 @@ interface AffidabilitaTileProps {
   className?: string;
 }
 
-const KPI_VALUE_CLASS = 'font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums';
+const KPI_VALUE_CLASS = 'font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums';
 
 /**
  * "Posso contare su questo reddito?" — the two risk signals latent in the payment history:

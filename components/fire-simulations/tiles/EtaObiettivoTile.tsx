@@ -37,7 +37,7 @@ function Figure({ label, value, caption, reference }: { label: string; value: Re
   return (
     <div className="min-w-0">
       <p className="text-[11px] leading-[1.4] text-muted-foreground">{label}</p>
-      <p className="mt-1 font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">{value}</p>
+      <p className="mt-1 font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground">{value}</p>
       <p className="mt-1 text-[11px] leading-[1.4] text-muted-foreground">{caption}</p>
       {reference && <p className="font-mono text-[11px] tabular-nums text-muted-foreground">{reference}</p>}
     </div>

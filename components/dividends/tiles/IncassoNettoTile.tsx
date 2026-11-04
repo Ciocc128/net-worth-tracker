@@ -107,7 +107,7 @@ export function IncassoNettoTile({
               <span
                 className={cn(
                   'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap',
-                  'font-mono text-[13px] font-medium leading-none tracking-[-0.01em] tabular-nums',
+                  'font-mono text-[13px] font-medium leading-none tabular-nums',
                   printed === 0 ? 'text-muted-foreground' : signTextClass(deltaValue),
                 )}
               >

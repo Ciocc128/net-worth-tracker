@@ -150,11 +150,14 @@ test('the Tabella view names its columns, sets its figures in mono, arms a delet
   // Every header names its column.
   await expect(table.locator('thead th[scope="col"]')).toHaveCount(8);
 
-  // The date and the amount are set in the mono face (the Mono Mandate).
+  // The date and the amount are set in the figure face: tabular, spaced (The Figure Rule, D-AS30).
   const firstRow = table.locator('tbody tr').first();
   for (const cell of [firstRow.locator('td').nth(0), firstRow.locator('td').nth(4)]) {
-    const font = await cell.evaluate((el) => getComputedStyle(el).fontFamily);
-    expect(font, font).toMatch(/Geist Mono|monospace/i);
+    const style = await cell.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return `${cs.fontFeatureSettings}|${cs.letterSpacing}`;
+    });
+    expect(style, style).toMatch(/"tnum"/);
   }
 
   // A plain row's delete arms in the row: «Conferma» on the button, the consequence in the row,
