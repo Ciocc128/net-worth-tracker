@@ -24,7 +24,7 @@ vi.mock('firebase/firestore', () => ({
   deleteField: vi.fn(),
 }));
 
-import { computeAssetPerformanceDeltas, computeAssetUnitPriceSeries } from '@/lib/utils/assetPerformanceDeltas';
+import { computeAssetPerformanceDeltas, formatDeltaEur, computeAssetUnitPriceSeries } from '@/lib/utils/assetPerformanceDeltas';
 
 function makeAsset(overrides: Partial<Asset> = {}): Asset {
   return {
@@ -63,6 +63,15 @@ function makeSnapshot(year: number, month: number, rows: Partial<Row>[]): Monthl
 
 const TODAY = { year: 2026, month: 8 };
 
+const EMPTY_DELTAS = {
+  lastSnapshotDelta: null,
+  ytdDelta: null,
+  allTimeDelta: null,
+  lastSnapshotDeltaEur: null,
+  ytdDeltaEur: null,
+  allTimeDeltaEur: null,
+};
+
 describe('computeAssetPerformanceDeltas — a Δ is a unit-price variation', () => {
   it('should ignore purchases: a hand-priced ETP bought six times over is not +573%', () => {
     // Auto-update off, so the old engine measured total value: 1.980 € → 13.278 € read "+571%".
@@ -96,8 +105,8 @@ describe('computeAssetPerformanceDeltas — a Δ is a unit-price variation', () 
     const deltas = computeAssetPerformanceDeltas([fund, cash], snapshots, TODAY);
 
     // Contributions and deposits are not a return: the columns stay empty, never "+27,5%".
-    expect(deltas.fund).toEqual({ lastSnapshotDelta: null, ytdDelta: null, allTimeDelta: null });
-    expect(deltas.cash).toEqual({ lastSnapshotDelta: null, ytdDelta: null, allTimeDelta: null });
+    expect(deltas.fund).toEqual(EMPTY_DELTAS);
+    expect(deltas.cash).toEqual(EMPTY_DELTAS);
   });
 
   it('should measure real estate gross of debt, so a mortgage instalment is not appreciation', () => {
@@ -144,6 +153,20 @@ describe('computeAssetPerformanceDeltas — the three windows', () => {
     expect(a1.allTimeDelta).toBeCloseTo(37.5, 6);
   });
 
+  it('should give each window in euro: the unit-price change on the quantity held today', () => {
+    const { a1 } = computeAssetPerformanceDeltas([asset], snapshots, TODAY);
+    expect(a1.lastSnapshotDeltaEur).toBeCloseTo((110 - 105) * 10, 6);
+    expect(a1.ytdDeltaEur).toBeCloseTo(100, 6);
+    expect(a1.allTimeDeltaEur).toBeCloseTo(300, 6);
+  });
+
+  it('should not let a purchase move the euro figure: past quantity is irrelevant', () => {
+    const bought = makeAsset({ type: 'etf', assetClass: 'equity', quantity: 20, currentPrice: 110 });
+    const { a1 } = computeAssetPerformanceDeltas([bought], snapshots, TODAY);
+    expect(a1.ytdDelta).toBeCloseTo(10, 6);
+    expect(a1.ytdDeltaEur).toBeCloseTo(200, 6);
+  });
+
   it('should fall back to the first snapshot of the year for Δ YTD when last year has none', () => {
     const thisYearOnly = snapshots.filter((s) => s.year === 2026);
     const { a1 } = computeAssetPerformanceDeltas([asset], thisYearOnly, TODAY);
@@ -154,15 +177,15 @@ describe('computeAssetPerformanceDeltas — the three windows', () => {
     const sold = makeAsset({ id: 'sold', quantity: 0 });
     const fresh = makeAsset({ id: 'fresh' });
     const deltas = computeAssetPerformanceDeltas([sold, fresh], snapshots, TODAY);
-    expect(deltas.sold).toEqual({ lastSnapshotDelta: null, ytdDelta: null, allTimeDelta: null });
-    expect(deltas.fresh).toEqual({ lastSnapshotDelta: null, ytdDelta: null, allTimeDelta: null });
+    expect(deltas.sold).toEqual(EMPTY_DELTAS);
+    expect(deltas.fresh).toEqual(EMPTY_DELTAS);
     expect(computeAssetPerformanceDeltas([asset], [], TODAY)).toEqual({});
   });
 
   it('should leave Δ YTD and Δ Inizio empty too when the only snapshot is this month', () => {
     // A position opened this month: yesterday's cron is not a year-to-date or since-inception base.
     const onlyThisMonth = [makeSnapshot(2026, 8, [{ quantity: 10, totalValue: 1050 }])];
-    expect(computeAssetPerformanceDeltas([asset], onlyThisMonth, TODAY).a1).toEqual({ lastSnapshotDelta: null, ytdDelta: null, allTimeDelta: null });
+    expect(computeAssetPerformanceDeltas([asset], onlyThisMonth, TODAY).a1).toEqual(EMPTY_DELTAS);
   });
 
   it('should skip snapshot rows with no quantity rather than divide by zero', () => {
@@ -191,5 +214,14 @@ describe('computeAssetUnitPriceSeries', () => {
     const fund = makeAsset({ id: 'fund', type: 'pensionFund' });
     const snapshots = [makeSnapshot(2026, 6, [{ assetId: 'fund' }]), makeSnapshot(2026, 7, [{ assetId: 'fund' }])];
     expect(computeAssetUnitPriceSeries([fund], snapshots).fund).toBeUndefined();
+  });
+});
+
+describe('formatDeltaEur', () => {
+  it('should print the sign, the cents and the typographic minus', () => {
+    expect(formatDeltaEur(-19.84)).toMatch(/^−19,84\s€$/);
+    expect(formatDeltaEur(12500.5)).toMatch(/^\+12\.500,50\s€$/);
+    expect(formatDeltaEur(0)).toMatch(/^\+0,00\s€$/);
+    expect(formatDeltaEur(null)).toBe('—');
   });
 });

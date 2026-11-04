@@ -6,7 +6,7 @@ interface AssetSparklineProps {
   data: { value: number }[];
   /** What the line is («Prezzo unitario di VWCE»): the chart's accessible name, since it has no axes. */
   label: string;
-  /** The page's `useChartColors()` palette: [0] a rising line, [3] a falling one. */
+  /** The page's `useChartColors()` palette: [0] a rising line, [3] a falling one (themes that set `--trend-up`/`--trend-down` override both). */
   colors: readonly string[];
 }
 
@@ -27,7 +27,11 @@ export function AssetSparkline({ data, label, colors }: AssetSparklineProps) {
   if (data.length < 2) return null;
 
   const isPositive = data[data.length - 1].value >= data[0].value;
-  const strokeColor = isPositive ? (colors[0] ?? '#16a34a') : (colors[3] ?? '#dc2626');
+  // Lime Frost and Graphite colour the line like a stock app, green up and red down (`--trend-up`/`--trend-down`,
+  // D-AS28); every other theme keeps the chart slots.
+  const strokeColor = isPositive
+    ? `var(--trend-up, ${colors[0] ?? '#16a34a'})`
+    : `var(--trend-down, ${colors[3] ?? '#dc2626'})`;
 
   return (
     <ResponsiveContainer width="100%" height={32} minWidth={0}>

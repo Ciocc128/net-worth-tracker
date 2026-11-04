@@ -25,6 +25,7 @@
 
 import { isLoanAsset, type Asset, type MonthlySnapshot } from '@/types/assets';
 import { calculateAssetValue } from '@/lib/services/assetService';
+import { formatCurrency } from '@/lib/utils/formatters';
 
 export interface AssetPerformanceData {
   /** % change vs the last COMPLETED month's snapshot; null when not measurable. */
@@ -33,6 +34,10 @@ export interface AssetPerformanceData {
   ytdDelta: number | null;
   /** % change vs the first snapshot that holds the asset. */
   allTimeDelta: number | null;
+  /** The same three windows in euro: the unit-price change × today's quantity (D-AS28). Null where the % is. */
+  lastSnapshotDeltaEur: number | null;
+  ytdDeltaEur: number | null;
+  allTimeDeltaEur: number | null;
 }
 
 export interface UnitPricePoint {
@@ -41,7 +46,14 @@ export interface UnitPricePoint {
   value: number;
 }
 
-const EMPTY: AssetPerformanceData = { lastSnapshotDelta: null, ytdDelta: null, allTimeDelta: null };
+const EMPTY: AssetPerformanceData = {
+  lastSnapshotDelta: null,
+  ytdDelta: null,
+  allTimeDelta: null,
+  lastSnapshotDeltaEur: null,
+  ytdDeltaEur: null,
+  allTimeDeltaEur: null,
+};
 
 /** Types whose unit price is pinned at 1 — the quantity carries the value (a loan its debt), so no Δ exists. */
 function hasNoUnitPrice(asset: Pick<Asset, 'type'>): boolean {
@@ -117,10 +129,18 @@ export function computeAssetPerformanceDeltas(
     const previousYear = completed.filter((p) => p.year === today.year - 1);
     const yearStart = previousYear.length > 0 ? previousYear[previousYear.length - 1] : completed.find((p) => p.year === today.year);
 
+    // The euro twin of each window: the same unit-price change, on the quantity held today, so a purchase
+    // moves neither figure. Null exactly where the percentage is.
+    const eurFrom = (point: UnitPricePoint | undefined): number | null =>
+      point && point.value > 0 ? (current - point.value) * asset.quantity : null;
+
     result[asset.id] = {
       lastSnapshotDelta: deltaFrom(previousMonth),
       ytdDelta: deltaFrom(yearStart),
       allTimeDelta: deltaFrom(completed[0]),
+      lastSnapshotDeltaEur: eurFrom(previousMonth),
+      ytdDeltaEur: eurFrom(yearStart),
+      allTimeDeltaEur: eurFrom(completed[0]),
     };
   }
   return result;
@@ -147,4 +167,10 @@ export function computeAssetUnitPriceSeries(
     if (series.length >= 2) result[asset.id] = series;
   }
   return result;
+}
+
+/** "−19,84 €" / "+0,00 €" — the euro twin of a Δ, cents like the G/P (D-AS28); "—" when not measurable. */
+export function formatDeltaEur(delta: number | null): string {
+  if (delta === null) return '—';
+  return `${delta >= 0 ? '+' : '−'}${formatCurrency(Math.abs(delta))}`;
 }

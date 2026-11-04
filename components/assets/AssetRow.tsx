@@ -19,7 +19,7 @@ import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import { describeAssetClassChip, type AssetClassChipModel } from '@/lib/utils/assetDisplayClass';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { getMetricValueColor } from '@/lib/utils/metricColors';
-import type { AssetPerformanceData } from '@/lib/utils/assetPerformanceDeltas';
+import { formatDeltaEur, type AssetPerformanceData } from '@/lib/utils/assetPerformanceDeltas';
 import { cn } from '@/lib/utils';
 import { describeZeroQuantityChip } from '@/lib/utils/zeroQuantityChip';
 import { lazyComponent } from '@/components/ui/lazy-component';
@@ -408,14 +408,15 @@ export function AssetRow({
             {performance && (
               <div className="flex flex-col divide-y divide-border border-t border-border">
                 {[
-                  { label: 'Δ Mese', delta: performance.lastSnapshotDelta },
-                  { label: 'Δ YTD', delta: performance.ytdDelta },
-                  { label: 'Δ Inizio', delta: performance.allTimeDelta },
-                ].map(({ label, delta }) => (
+                  { label: 'Δ Mese', delta: performance.lastSnapshotDelta, eur: performance.lastSnapshotDeltaEur },
+                  { label: 'Δ YTD', delta: performance.ytdDelta, eur: performance.ytdDeltaEur },
+                  { label: 'Δ Inizio', delta: performance.allTimeDelta, eur: performance.allTimeDeltaEur },
+                ].map(({ label, delta, eur }) => (
                   <div key={label} className="flex items-center justify-between py-1.5">
                     <span className="text-[11px] text-muted-foreground">{label}</span>
                     <span className={cn('font-mono text-[11px] font-semibold tabular-nums', getMetricValueColor(delta, 'percentage'))}>
                       {formatDeltaPercent(delta)}
+                      {eur !== null && <span data-testid="delta-eur"> · {formatDeltaEur(eur)}</span>}
                     </span>
                   </div>
                 ))}

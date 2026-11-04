@@ -936,6 +936,9 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
  * --chart-6/7/8 and --warning* added with the meaning every theme gives them, and the source's
  * fonts, shadows and letter-spacing left out (themes do not touch the type scale). */
 [data-theme="lime-frost"] {
+  /* Stock-app trend (D-AS28): an instrument's price line is green up, red down. */
+  --trend-up: var(--positive);
+  --trend-down: var(--destructive);
   --radius: 1rem;
   /* Lime-peel ground nudged toward the source theme's pea green (hue 133: 140 read too emerald,
      125 too olive), every button on the same hue, and a flat ground: owner's calls, 2026-09-13.
@@ -1114,6 +1117,9 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
 }
 
 .dark[data-theme="lime-frost"] {
+  /* Stock-app trend (D-AS28): an instrument's price line is green up, red down. */
+  --trend-up: var(--positive);
+  --trend-down: var(--destructive);
   /* The dark half of the owner's Lime Frost (roadmap step 4, 2026-09-25): the light block's roles,
      carried into the night. The owner's calls: the ground stays night blue (the cold is the «frost»
      half, the green lives in the lime of the action); a hover presses toward MORE contrast, so here
@@ -1261,6 +1267,9 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
  * chartPaletteDistinctness.test.ts; the dark block takes back every token the light block names.
  */
 [data-theme="graphite"] {
+  /* Stock-app trend (D-AS28): an instrument's price line is green up, red down. */
+  --trend-up: var(--positive);
+  --trend-down: var(--destructive);
   --radius: 1rem;
   --background: oklch(0.9550 0 0);
   --foreground: oklch(0.1450 0 0);
@@ -1370,6 +1379,9 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
 }
 
 .dark[data-theme="graphite"] {
+  /* Stock-app trend (D-AS28): an instrument's price line is green up, red down. */
+  --trend-up: var(--positive);
+  --trend-down: var(--destructive);
   --background: oklch(0.1000 0 0);
   --foreground: oklch(0.9850 0 0);
   --card: oklch(0.2050 0 0);

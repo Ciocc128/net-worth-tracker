@@ -272,3 +272,14 @@ D-AS12 (session 4) took the cents out of every tile, verdict and strip. The owne
 | D-AS27 | **Cents on real values, whole euros on estimates and comparisons.** Cents: Cashflow (movements, income and expenses, month totals, the trio and its strip cells), Patrimonio (total, single assets and accounts, liquidity, mortgage), the Panoramica total and Cashflow tile, the Sintesi, Previdenza contributions, Storico values on a date, the verdict sentence's total. Whole: FIRE · Proiezione · Monte Carlo, PAC and optimizer, Budget, chart axes and projection tooltips, deltas and variations | cents everywhere (noise in simulations); the state after D-AS12 (too coarse to match an account) | a figure that matches a bank account must match it to the cent; a simulated one has no such precision |
 
 Amends D-AS12 and The One-Euro-Format Rule. Phone: a total with cents is 14 characters from 1.000.000 € (`resolveHeroValueClass` already steps the hero to 30px past 13). Not run here: Playwright and `mobile:budget` (to run on the Mac; e2e specs that read a whole-euro total may need cents).
+
+## Follow-up 2026-11-04 — «Colorare l'andamento degli strumenti come le app di borsa»
+
+In Patrimonio › Strumenti the expanded row drew an instrument's unit-price line in chart slot 0 (blue) when it rose and slot 3 (amber) when it fell. The owner wants the stock apps' convention in Lime Frost and Graphite, and the euro amount beside each Δ.
+
+| ID | Decision | Alternatives discarded | Reason |
+| --- | --- | --- | --- |
+| D-AS28 | **An instrument's price line is green up, red down, in Lime Frost and Graphite** (`--trend-up: var(--positive)`, `--trend-down: var(--destructive)`, the four blocks; the other themes keep slots 0 and 3). In Graphite this is an exception to «red only for judgements»: a price line is read as a stock app's, where red means «down» | green/red in every theme; green/red in Lime Frost only; keep blue/amber | the owner asked for the two themes; the convention is learned elsewhere and read at a glance; every other theme has its own `--destructive` meaning (Cyberpunk renders it orange) and was not asked |
+| D-AS29 | **Each Δ of the expanded row (Mese, YTD, Inizio) carries its euro amount with cents**, «−0,3% · −19,84 €»: the unit-price change × the quantity held today (`*DeltaEur` in `computeAssetPerformanceDeltas`), «—» exactly where the percentage is | whole euros (D-AS27 keeps deltas whole on summaries); the change of the position's value (a purchase would read as gain) | the G/P in the same row already reads to the cent; same base as the percentage, so a purchase moves neither |
+
+Amends D-AS27 for this row only (a delta shown beside a real figure). Phone: the longest line, «−12,3% · −1.234.567,89 €», is about 160px of the 320 the row offers at 390; not measured in a browser here (no emulators in this session). Not run: Playwright, `mobile:census`/`mobile:budget` (from 5 November).
