@@ -29,7 +29,7 @@ function GoalRow({ goal, hero }: { goal: DashboardOverviewGoalProgress; hero: bo
         </span>
         <span
           className={cn(
-            'shrink-0 font-mono font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground',
+            'shrink-0 font-mono font-bold leading-none tracking-[0.01em] tabular-nums text-foreground',
             hero ? 'text-[40px]' : 'text-[16px]',
           )}
         >

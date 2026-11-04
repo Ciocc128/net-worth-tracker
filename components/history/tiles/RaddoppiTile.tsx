@@ -55,7 +55,7 @@ function Kpi({ label, value, caption }: { label: string; value: string; caption:
   return (
     <div className="min-w-0">
       <p className={TILE_SUB_EYEBROW_CLASS}>{label}</p>
-      <p className="mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[-0.025em] tabular-nums text-foreground">{value}</p>
+      <p className="mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground">{value}</p>
       <p className="mt-1.5 text-[11px] leading-[1.4] text-muted-foreground">{caption}</p>
     </div>
   );

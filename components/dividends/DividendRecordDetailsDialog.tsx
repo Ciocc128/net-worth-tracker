@@ -122,7 +122,7 @@ export function DividendRecordDetailsDialog({
           <div className="space-y-4 rounded-lg bg-muted p-4">
             <div>
               <p className={TILE_SUB_EYEBROW_CLASS}>Netto</p>
-              <p className="mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-positive">
+              <p className="mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums text-positive">
                 {formatCurrency(netAmount)}
               </p>
               {dividend.currency.toUpperCase() !== 'EUR' && dividend.netAmountEur !== undefined && (

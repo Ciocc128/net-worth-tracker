@@ -39,7 +39,7 @@ export const PATRIMONIO_CURVE_ID_SUFFIX = '-andamento';
 export function resolveHeroValueClass(totalValue: number): string {
   const formattedLength = cachedFormatCurrencyEUR(totalValue).length;
   return cn(
-    'font-mono font-semibold tracking-[-0.03em] tabular-nums',
+    'font-mono font-semibold tracking-[0.01em] tabular-nums',
     formattedLength > 13 ? 'text-[30px]' : 'text-[40px]',
   );
 }
@@ -114,7 +114,7 @@ export function VariationChip({
       <span
         className={cn(
           'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap',
-          'font-mono text-[13px] font-medium leading-none tracking-[-0.01em] tabular-nums',
+          'font-mono text-[13px] font-medium leading-none tabular-nums',
           signTextClass(value),
         )}
       >

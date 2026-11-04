@@ -47,7 +47,7 @@ export function CostiTile({ metrics, flags, costDrivers, collapse, asideWhenClos
         {flags.hasTERTracking && (
           <div className="flex min-w-0 flex-col gap-1.5">
             <p className={TILE_SUB_EYEBROW_CLASS}>TER medio</p>
-            <p className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
+            <p className="font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground">
               {formatPercentage(metrics.portfolioTER)}
             </p>
           </div>
@@ -56,7 +56,7 @@ export function CostiTile({ metrics, flags, costDrivers, collapse, asideWhenClos
           <p className={TILE_SUB_EYEBROW_CLASS}>Costo annuo</p>
           {/* --cost-figure: ink by default, as upstream (a cost is a fact the reading already judges);
               a theme may make it stand out without the red of a decision — Lime Frost amber. */}
-          <p className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-cost-figure">
+          <p className="font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums text-cost-figure">
             {cachedFormatCurrencyEUR(annualTotal, true)}
           </p>
         </div>

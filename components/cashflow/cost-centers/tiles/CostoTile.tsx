@@ -29,7 +29,7 @@ interface CostoTileProps {
   className?: string;
 }
 
-const KPI_VALUE_CLASS = 'font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums';
+const KPI_VALUE_CLASS = 'font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums';
 const KPI_TONE_CLASS: Record<KpiReading['tone'], string> = {
   neutral: 'text-foreground',
   negative: 'text-destructive',

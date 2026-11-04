@@ -72,7 +72,7 @@ function FondoChip({ chip }: { chip: FondoOggiChip }) {
       <span
         className={cn(
           'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap',
-          'font-mono text-[13px] font-medium leading-none tracking-[-0.01em] tabular-nums',
+          'font-mono text-[13px] font-medium leading-none tabular-nums',
           chip.sign ? signTextClass(chip.sign === 'positive' ? 1 : -1) : 'text-foreground',
         )}
       >

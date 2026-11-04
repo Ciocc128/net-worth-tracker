@@ -13,7 +13,7 @@ const formatExactEuroMinus = (value: number) => formatEuroMinus(value, false);
 
 // 22px where the trio has room; in a phone's column the three five-digit figures touched, so the
 // size follows the trio's own width (container units) down to a 15px floor.
-const KPI_VALUE_CLASS = 'font-mono text-[clamp(15px,5.8cqw,22px)] font-bold leading-none tracking-[-0.03em] tabular-nums';
+const KPI_VALUE_CLASS = 'font-mono text-[clamp(15px,5.8cqw,22px)] font-bold leading-none tracking-[0.01em] tabular-nums';
 
 /**
  * Colour of a period-over-period delta: a rise in income is good, a rise in spending is not —

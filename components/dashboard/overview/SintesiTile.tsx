@@ -62,7 +62,7 @@ export function SintesiTile({ metrics, hasCostBasisTracking, collapse, asideWhen
       {hasCostBasisTracking && (
         <div className="mt-auto flex flex-col gap-1.5 border-t border-border pt-3.5">
           <p className={TILE_EYEBROW_CLASS}>Patrimonio netto</p>
-          <p className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
+          <p className="font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground">
             {cachedFormatCurrencyEUR(metrics.netTotal)}
           </p>
           <p className="text-[11px] text-muted-foreground">

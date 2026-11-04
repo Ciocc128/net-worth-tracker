@@ -102,7 +102,7 @@ export function CashflowTile({
       <div className="mt-4 grid grid-cols-3 gap-3.5">
         <div className="flex min-w-0 flex-col gap-1.5">
           <p className={TILE_SUB_EYEBROW_CLASS}><SeriesDot color="var(--flow-in)" />Entrate</p>
-          <p className={cn('font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums', income > 0 ? 'text-income-figure' : 'text-muted-foreground')}>
+          <p className={cn('font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums', income > 0 ? 'text-income-figure' : 'text-muted-foreground')}>
             {cachedFormatCurrencyEUR(income)}
           </p>
           <ScheduledCaption caption={describeScheduledCaption(incomeScheduled, daysInMonth)} />
@@ -110,7 +110,7 @@ export function CashflowTile({
         </div>
         <div className="flex min-w-0 flex-col gap-1.5">
           <p className={TILE_SUB_EYEBROW_CLASS}><SeriesDot color="var(--flow-out)" />Spese</p>
-          <p className={cn('font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums', expenses > 0 ? 'text-expense-figure' : 'text-muted-foreground')}>
+          <p className={cn('font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums', expenses > 0 ? 'text-expense-figure' : 'text-muted-foreground')}>
             {cachedFormatCurrencyEUR(expenses)}
           </p>
           <ScheduledCaption caption={describeScheduledCaption(expensesScheduled, daysInMonth)} />
@@ -120,7 +120,7 @@ export function CashflowTile({
           <p className={TILE_SUB_EYEBROW_CLASS}>Risparmio</p>
           {/* A net that prints as zero takes no «−» (AGENTS.md § Layout and Color Tokens;
               `formatEuroMinus` since 2026-10-12). */}
-          <p className={cn('font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums', netFigureClass(net))}>{formatEuroMinus(net, false)}</p>
+          <p className={cn('font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums', netFigureClass(net))}>{formatEuroMinus(net, false)}</p>
           <ScheduledCaption caption={describeScheduledNetCaption(expensesScheduled, incomeScheduled, daysInMonth)} />
           <p className="text-[11px] text-muted-foreground">
             {savingsRate !== null ? (

@@ -102,11 +102,11 @@ typography:
     # since 2026-11-02 (it was 54px from desktop: and 44px below it). Until 2026-09-06 this role said
     # `clamp(1.75rem, 3vw, 2.5rem)`, a value no element ever wore, which made every documented
     # hero size read as off-system; it is now the ramp's own top step, set in the mono face.
-    fontFamily: "Geist Mono, ui-monospace, monospace"
+    fontFamily: "Geist Sans, system-ui, sans-serif"
     fontSize: "40px"
     fontWeight: 600
     lineHeight: 1
-    letterSpacing: "-0.03em"
+    letterSpacing: "0.01em"
   headline:
     fontFamily: "Geist Sans, system-ui, sans-serif"
     fontSize: "1.25rem"
@@ -131,10 +131,11 @@ typography:
     lineHeight: 1.4
     letterSpacing: "0.01em"
   numeric:
-    fontFamily: "Geist Mono, ui-monospace, monospace"
+    fontFamily: "Geist Sans, system-ui, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: 1.4
+    letterSpacing: "0.05em"
     fontFeature: "\"tnum\" 1"
 rounded:
   # sm–xl are DERIVED from the theme's `--radius` (globals.css: sm = r−4, md = r−2, lg = r,
@@ -277,7 +278,7 @@ This system explicitly rejects four aesthetic modes: Bloomberg terminal coldness
 **Key Characteristics:**
 - Form follows function: every visual property is derived from what an element does — honesty over illusion, deference over decoration, inevitability over ornament
 - Achromatic structural palette; data colors carry all chromatic meaning in the default theme
-- Geist Sans for interface text, Geist Mono for every number that matters
+- Geist Sans for everything; every number that matters in its tabular, spaced figures (The Figure Rule)
 - Radius is refined: 8px (`rounded-md` — inputs, buttons, badges, on the default theme), 16px (tiles, modals, the email card; fixed on every theme) — premium curve without losing authority
 - Elevation is ambient: surfaces layer through background steps, shadows are atmospheric whispers
 - Motion is physics-native: spring dialogs, ease-out-quart state transitions, circle-reveal theme toggle — and, since 2026-09-12, two authored moments that reveal a relationship rather than decorate: a navigation is one scene, a period transforms instead of being replaced (The Page Scene, The Period-Transforms Rule). Storico's scrub was the third and was retired on 2026-09-13, with the milestone confetti: the owner judged the page better still
@@ -417,9 +418,9 @@ other). None is declared; a linter that flags them is right.
 ## 3. Typography
 
 **UI Font:** Geist Sans (with `system-ui, sans-serif` fallback)
-**Numeric Font:** Geist Mono (with `ui-monospace, monospace` fallback)
+**Numeric Font:** Geist Sans, `tnum`, `letter-spacing: 0.05em` (0.01em on the big total)
 
-**Character:** Geist Sans is a neo-grotesque that reads precisely without clinical coldness. Its slightly geometric construction aligns with the Linear/Vercel reference. Geist Mono is not an afterthought: it is half the design system. Every monetary value, percentage, ratio, and structured date uses monospace figures — tabular numeral alignment is non-negotiable when columns of numbers must read as columns.
+**Character:** Geist Sans is a neo-grotesque that reads precisely without clinical coldness. Its slightly geometric construction aligns with the Linear/Vercel reference. The figures are the same face with `tnum` and +0.05em of spacing: columns of numbers still read as columns (digits 0,60 em, as the mono had) while «412.386,57 €» at 40px is ~247px instead of ~288px (D-AS30).
 
 ### Hierarchy
 
@@ -451,11 +452,11 @@ other). None is declared; a linter that flags them is right.
 
 ### Named Rules
 
-**The Mono Mandate.** Every number in a financial context uses Geist Mono with `tnum` features. No exceptions: KPI cards, table cells, chart axis labels, percentage badges. A number set in Geist Sans loses its financial authority. The ONE declared exception is the PDF export, which has no Geist to set it in — see **PDF Page and PDF Section**, where the column replaces the face.
+**The Figure Rule** (ex Mono Mandate, D-AS30, 2026-11-04). Every number in a financial context is set in Geist Sans with `tnum` and `+0.05em` of letter-spacing; the big total (the hero and the 18–22px values with a `tracking-[0.01em]`) takes `+0.01em` instead of the old `-0.03em`. One token carries it: the `.font-mono` rule in `app/globals.css` (`--font-mono` is Geist Sans; the class name stays so the ~680 call sites do not move), and a `tracking-[…]` utility on the element wins through `--tw-tracking`. No Geist Mono any more and no second font file. No exceptions: KPI cards, table cells, percentage badges. Chart axis labels set `fontFamily: var(--font-geist-sans)` (an SVG `<text>` takes no `tnum`). PDF and emails are untouched: they keep Helvetica, see **PDF Page and PDF Section**.
 
 **The Ramp Lives in the Frontmatter.** The enumerated step ladder — 9 / 9.5 / 10 / 11 / 12 / 13 / 14 / 15 / 16 / 17 / 18 / 20 / 22 / 24 / 30 / 32 / 36 / 40 / 44 / 54px, twenty steps, every one with at least one use in the tree (re-counted 2026-09-06; the workhorses are 13 and 11, four hundred uses each, and 17, 24 and 30 each live in ONE file: `PageHeader`, `page-verdict`) — is declared in `typography.scale`, because the named roles above cannot express a ramp, and this sentence and that list must name the SAME steps: until 2026-09-06 the prose enumerated twelve while the frontmatter held sixteen. Two consequences. First, the two layers of this file must agree: the prose documented the Trade Republic scale for months while the frontmatter still said `display: clamp(1.75rem, 3vw, 2.5rem)`, which made every documented hero size read as off-system (`display` is the 54px page hero since 2026-09-06). Second, a linter takes its font sizes **only** from the frontmatter (`typography` + `typography.scale`) — from `.impeccable/design.json` it takes only `colorMeta` and `typographyMeta`, the sidecar's two meta keys. So a `design-system-font-size` finding is never fixed by regenerating the sidecar, whatever the tool's own hint suggests; declare the size here instead. 32px and 40px sit in the ramp because they are genuinely used — they are the hero **overflow step-down** (`doc/guide/panoramica.md`, `resolveHeroValueClass`), not a step to reach for. Two sizes stay OUTSIDE it on purpose: `text-base md:text-sm` on every input (16px below `md:`, the iOS zoom guard — the field, not the ramp, decides), and shadcn's `text-[0.8rem]` weekday cells in the calendar and the period picker.
 
-**The Two-Font Rule.** The system uses exactly two fonts. No display serif, no decorative typeface, no icon font treated as type. Hierarchy is expressed through scale and weight within the same two families.
+**The One-Family Rule** (ex Two-Font Rule, D-AS30). The system uses ONE family, Geist Sans; figures are the same face with tabular figures and spacing (The Figure Rule). No display serif, no decorative typeface, no monospace, no icon font treated as type. Hierarchy is expressed through scale and weight.
 
 **The Verdict-First Rule.** A page opens with a sentence, not a number. The headline states the verdict ("Agosto sta andando bene.", "Agosto è in calo: il mercato ha pesato.") and the sentence under it carries the facts with mono figures set inside the prose; only then comes the grid. The headline is Geist Sans 600 at 24px (30px from `desktop:`), the sentence 14/15px muted, both capped at `max-w-[920px]`. Tone is encoded ONLY in the colour of the headline's full stop (`text-positive` / `text-muted-foreground` / `text-warning-foreground` / `text-destructive`): colouring the whole headline would shout, and the figures already carry their own sign colours. The words come from rules in a pure module (`lib/utils/overviewNarrative.ts` for the Panoramica), never from a component: each phrasing is pinned by a test, and Italian grammar (gender and number of the subject, `a`/`ad` before a vowel month) is data in that module, not guessed at render.
 

@@ -94,7 +94,7 @@ export function RendimentoTile({ gains, ranking, rankedFrom, collapse, asideWhen
             <p className={cn(TILE_SUB_EYEBROW_CLASS, liftedFigures.includes('gain') && LIFTED_FIGURE_CLASS)}>G/P non realizzato</p>
             <p
               className={cn(
-                'font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums',
+                'font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums',
                 printedSign(gains.gainLoss, 2) === 0 ? 'text-foreground' : signTextClass(gains.gainLoss),
                 liftedFigures.includes('gain') && LIFTED_FIGURE_CLASS,
               )}

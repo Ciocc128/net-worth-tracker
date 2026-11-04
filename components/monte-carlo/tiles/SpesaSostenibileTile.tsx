@@ -47,7 +47,7 @@ export function SpesaSostenibileTile({ reading, aside, summary, collapse, asideW
         <div className="grid grid-cols-1 gap-5 @[640px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @[640px]:items-center">
           <div>
             <p className={TILE_SUB_EYEBROW_CLASS}>Prelievo annuo · 9 simulazioni su 10 · scenario base</p>
-            <p className="mt-1.5 font-mono text-[30px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground desktop:text-[40px]">
+            <p className="mt-1.5 font-mono text-[30px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground desktop:text-[40px]">
               {hero.withdrawal === null ? 'nessuno' : cachedFormatCurrencyEUR(hero.withdrawal, true)}
             </p>
             {heroAside && <p className="mt-2 font-mono text-[12px] tabular-nums text-muted-foreground">{heroAside}</p>}

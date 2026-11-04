@@ -21,7 +21,7 @@ function Kpi({ label, value, caption }: { label: string; value: string; caption?
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <p className={TILE_SUB_EYEBROW_CLASS}>{label}</p>
-      <p className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">{value}</p>
+      <p className="font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground">{value}</p>
       {caption && <p className="text-[11px] leading-[1.4] text-muted-foreground">{caption}</p>}
     </div>
   );

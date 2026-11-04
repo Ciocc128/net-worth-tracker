@@ -60,7 +60,7 @@ export function GoalProjectionChart({ series, deadlineTs, color, height = '100%'
             scale="time"
             domain={['dataMin', 'dataMax']}
             tickFormatter={(ts) => formatShortMonthYear(new Date(ts))}
-            tick={{ fontSize: 11, fill: 'var(--muted-foreground)', fontFamily: 'var(--font-geist-mono)' }}
+            tick={{ fontSize: 11, fill: 'var(--muted-foreground)', fontFamily: 'var(--font-geist-sans)' }}
             axisLine={false}
             tickLine={false}
             minTickGap={40}
@@ -68,7 +68,7 @@ export function GoalProjectionChart({ series, deadlineTs, color, height = '100%'
           <YAxis
             width={48}
             tickFormatter={(v) => formatCurrencyCompact(v)}
-            tick={{ fontSize: 11, fill: 'var(--muted-foreground)', fontFamily: 'var(--font-geist-mono)' }}
+            tick={{ fontSize: 11, fill: 'var(--muted-foreground)', fontFamily: 'var(--font-geist-sans)' }}
             axisLine={false}
             tickLine={false}
           />

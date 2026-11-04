@@ -66,7 +66,7 @@ function GoalRow({ row, featured, selected, onSelect }: { row: ObiettiviRow; fea
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: line.color }} aria-hidden="true" />
             <span className="truncate">{line.name}</span>
           </span>
-          <span className={cn('shrink-0 font-mono font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground', featured ? 'text-[40px]' : 'text-[16px]')}>
+          <span className={cn('shrink-0 font-mono font-bold leading-none tracking-[0.01em] tabular-nums text-foreground', featured ? 'text-[40px]' : 'text-[16px]')}>
             {figure}
           </span>
         </span>

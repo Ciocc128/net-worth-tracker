@@ -53,7 +53,7 @@ export function RedditoPassivoTile({ reading, income, collapse, asideWhenClosed,
   return (
     <Tile eyebrow="Reddito passivo" aside={`oggi, al ${formatRate(income.swr)}`} asideWhenClosed={asideWhenClosed} reading={reading} ariaLabel="Reddito passivo sostenibile" className={className} collapse={collapse}>
       <div className="mt-3 flex items-baseline gap-2">
-        <SettledCurrencyValue value={income.annual} compact className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground" />
+        <SettledCurrencyValue value={income.annual} compact className="font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums text-foreground" />
         <span className="text-[11px] text-muted-foreground">all&apos;anno</span>
       </div>
 

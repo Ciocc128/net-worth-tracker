@@ -444,7 +444,7 @@ function ReadingTile({
         <div className="mt-auto pt-3">
           <p
             className={cn(
-              'font-mono text-[22px] font-bold leading-none tracking-[-0.025em] tabular-nums',
+              'font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums',
               kpiFormat === 'percent'
                 ? kpi > 0
                   ? 'text-positive'

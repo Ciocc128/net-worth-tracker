@@ -77,7 +77,7 @@ export function BalanceRing({ score }: BalanceRingProps) {
       </svg>
       {/* The SVG's title already names the score; the printed number is for the eye only. */}
       <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
-        <span className="font-mono text-[22px] font-semibold leading-none tracking-[-0.025em] tabular-nums text-foreground">
+        <span className="font-mono text-[22px] font-semibold leading-none tracking-[0.01em] tabular-nums text-foreground">
           {rounded}
         </span>
       </div>

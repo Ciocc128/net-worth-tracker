@@ -26,7 +26,7 @@ interface RendimentoTileProps {
   className?: string;
 }
 
-const KPI_VALUE_CLASS = 'font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums';
+const KPI_VALUE_CLASS = 'font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums';
 
 function Kpi({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
