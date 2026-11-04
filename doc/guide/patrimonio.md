@@ -78,7 +78,10 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   today's, the property (by TYPE `realestate` — a REIT ETF in that class is a quoted fund) gross of debt, pension
   funds and cash `null` (their quantity IS the value), and no window based on the current month's snapshot. Never
   measure a hand-priced asset on its total value: a purchase then reads as performance. `Δ Inizio`'s base is the
-  first recorded unit price, never `averageCost`.
+  first recorded unit price, never `averageCost`. **The expanded row prints each Δ with its euro twin**
+  («−0,3% · −19,84 €», D-AS29: unit-price change × today's quantity, cents, `*DeltaEur`), and the sparkline is
+  green up / red down in Lime Frost and Graphite (`--trend-up`/`--trend-down`, D-AS28; other themes keep chart
+  slots 0 and 3).
   **Any table whose column set changes at runtime must derive its group-header `colSpan` from the same flag.**
 - **A cash *account picker* requires `type === 'cash' && assetClass === 'cash'`** (a money-market ETF can carry
   `assetClass: 'cash'`), for the settlement account, ledger first buy, `ExpenseDialog`'s payment account, the pension
