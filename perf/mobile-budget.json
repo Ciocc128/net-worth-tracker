@@ -283,14 +283,14 @@
         "raisedBy": "2026-10-16: screens 1.19 → 1.2, riga null → false — la testata più alta di 8 px: l'icona Impostazioni di Cashflow e «Crea snapshot» passano da 36 a 44 px, bersagli per il pollice; la prima riga chiusa finisce 50 px sotto la pill a 947 — a 768 LA tessera sta a tutta larghezza dopo il verdetto, la curva già a 120 px (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main); 2026-10-10: pill a 44 px"
       },
       "1024": {
-        "screens": 1.12,
+        "screens": 1.13,
         "tilesAboveFold": 4,
         "tilesFullyAboveFold": 3,
         "figuresAboveFold": 20,
         "figuresOutsideVerdict": 11,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-16: figuresAboveFold 16 → 20, figuresOutsideVerdict 7 → 11 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-05: screens 1,12 → 1,13 — D-AS30: Geist Sans tabulare è più larga della mono; 2026-10-16: figuresAboveFold 16 → 20, figuresOutsideVerdict 7 → 11 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
       }
     },
     "cashflow-dividendi": {
@@ -541,10 +541,10 @@
         "tilesAboveFold": 3,
         "tilesFullyAboveFold": 2,
         "figuresAboveFold": 22,
-        "figuresOutsideVerdict": 15,
+        "figuresOutsideVerdict": 17,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.25 → 1.55, figuresAboveFold 18 → 22, figuresOutsideVerdict 14 → 18, tilesAboveFold 3 → 2, tilesFullyAboveFold 2 → 1); 2026-10-16: figuresAboveFold 17 → 18, figuresOutsideVerdict 13 → 14 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 11 → 13 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-05: figuresOutsideVerdict 15 → 17 — D-AS30: Geist Sans tabulare è più larga della mono; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.25 → 1.55, figuresAboveFold 18 → 22, figuresOutsideVerdict 14 → 18, tilesAboveFold 3 → 2, tilesFullyAboveFold 2 → 1); 2026-10-16: figuresAboveFold 17 → 18, figuresOutsideVerdict 13 → 14 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 11 → 13 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
       }
     },
     "fire-what-if": {
@@ -613,14 +613,14 @@
     },
     "fire-obiettivi": {
       "390": {
-        "screens": 1.39,
+        "screens": 1.41,
         "tilesAboveFold": 3,
-        "tilesFullyAboveFold": 3,
+        "tilesFullyAboveFold": 2,
         "figuresAboveFold": 11,
         "figuresOutsideVerdict": 10,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.32 → 1.57, figuresAboveFold 9 → 17, figuresOutsideVerdict 9 → 13, tilesAboveFold 4 → 1, tilesFullyAboveFold 3 → 0, firstClosedRowAbovePill True → False); 2026-10-15: Obiettivi acceso nel fixture con un obiettivo: le cifre e le schermate sono quelle di Obiettivi aperta, senza striscia («≤ 5» non raggiunto, dichiarato e registrato come misurato)"
+        "raisedBy": "2026-11-05: tilesFullyAboveFold 3 → 2, screens 1,39 → 1,41 — D-AS30: Geist Sans tabulare è più larga della mono; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.32 → 1.57, figuresAboveFold 9 → 17, figuresOutsideVerdict 9 → 13, tilesAboveFold 4 → 1, tilesFullyAboveFold 3 → 0, firstClosedRowAbovePill True → False); 2026-10-15: Obiettivi acceso nel fixture con un obiettivo: le cifre e le schermate sono quelle di Obiettivi aperta, senza striscia («≤ 5» non raggiunto, dichiarato e registrato come misurato)"
       },
       "768": {
         "screens": 1,
@@ -743,11 +743,11 @@
         "screens": 1.96,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
-        "figuresAboveFold": 20,
-        "figuresOutsideVerdict": 8,
+        "figuresAboveFold": 22,
+        "figuresOutsideVerdict": 11,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
+        "raisedBy": "2026-11-05: figuresAboveFold 20 → 22, figuresOutsideVerdict 8 → 11 — D-AS30: le cifre in Geist Sans tabulare, più larga della mono, cambiano a-capo e conteggio; 2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
       },
       "768": {
         "screens": 1.31,
