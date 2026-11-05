@@ -99,11 +99,12 @@ export function CashflowTile({
       {/* The three figures are the WHOLE month, calendar included; what is still in the calendar is
           declared under each figure that contains it, at every width (The Scheduled-Is-Not-Spent
           Rule, DESIGN.md → The Binding-Clause Rule). */}
+      {/* Whole euros, an exception to D-AS27 (D-AS31): three 22px figures with cents overlap at 390px. */}
       <div className="mt-4 grid grid-cols-3 gap-3.5">
         <div className="flex min-w-0 flex-col gap-1.5">
           <p className={TILE_SUB_EYEBROW_CLASS}><SeriesDot color="var(--flow-in)" />Entrate</p>
           <p className={cn('font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums', income > 0 ? 'text-income-figure' : 'text-muted-foreground')}>
-            {cachedFormatCurrencyEUR(income)}
+            {cachedFormatCurrencyEUR(income, true)}
           </p>
           <ScheduledCaption caption={describeScheduledCaption(incomeScheduled, daysInMonth)} />
           <DeltaLine delta={expenseStats.delta.income} positiveGood={true} month={month} />
@@ -111,7 +112,7 @@ export function CashflowTile({
         <div className="flex min-w-0 flex-col gap-1.5">
           <p className={TILE_SUB_EYEBROW_CLASS}><SeriesDot color="var(--flow-out)" />Spese</p>
           <p className={cn('font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums', expenses > 0 ? 'text-expense-figure' : 'text-muted-foreground')}>
-            {cachedFormatCurrencyEUR(expenses)}
+            {cachedFormatCurrencyEUR(expenses, true)}
           </p>
           <ScheduledCaption caption={describeScheduledCaption(expensesScheduled, daysInMonth)} />
           <DeltaLine delta={expenseStats.delta.expenses} positiveGood={false} month={month} />
@@ -120,7 +121,7 @@ export function CashflowTile({
           <p className={TILE_SUB_EYEBROW_CLASS}>Risparmio</p>
           {/* A net that prints as zero takes no «−» (AGENTS.md § Layout and Color Tokens;
               `formatEuroMinus` since 2026-10-12). */}
-          <p className={cn('font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums', netFigureClass(net))}>{formatEuroMinus(net, false)}</p>
+          <p className={cn('font-mono text-[22px] font-bold leading-none tracking-[0.01em] tabular-nums', netFigureClass(net))}>{formatEuroMinus(net, true)}</p>
           <ScheduledCaption caption={describeScheduledNetCaption(expensesScheduled, incomeScheduled, daysInMonth)} />
           <p className="text-[11px] text-muted-foreground">
             {savingsRate !== null ? (
