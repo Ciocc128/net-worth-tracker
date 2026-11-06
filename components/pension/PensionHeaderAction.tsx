@@ -48,8 +48,8 @@ export function PensionHeaderAction() {
         <span className="hidden desktop:inline">Aggiorna valore</span>
       </Button>
       <Button size="sm" className={ACTION_CLASS} onClick={() => setContributionOpen(true)} disabled={isDemo} aria-label="Registra versamento">
-        <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-        Registra versamento
+        <Plus className="h-4 w-4 desktop:mr-1.5" aria-hidden="true" />
+        <span className="hidden desktop:inline">Registra versamento</span>
       </Button>
       <PensionContributionDialog open={contributionOpen} onClose={() => setContributionOpen(false)} onRecorded={() => setValueOpen(true)} />
       <PensionValueDialog open={valueOpen} onClose={() => setValueOpen(false)} />

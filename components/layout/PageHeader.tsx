@@ -93,19 +93,27 @@ function useTopBandProgress(ref: React.RefObject<HTMLDivElement | null>) {
 }
 
 /**
+ * Where the shortcut stays out: Impostazioni itself, and the Assistente, whose four own buttons (with its
+ * own preferences) already fill the bar and left the conversation's title a few letters (owner 2026-11-06).
+ */
+const SHORTCUT_EXCLUDED = ['/dashboard/settings', '/dashboard/assistant'];
+
+/**
  * The band's shortcut to Impostazioni, as Nubank's avatar: a person, not a gear, because a page's own gear
- * (Cashflow's «Impostazioni Spese») already sits in the same bar. On every dashboard page but Impostazioni
- * itself, never on the landing.
+ * (Cashflow's «Impostazioni Spese») already sits in the same bar. On every dashboard page but those in
+ * `SHORTCUT_EXCLUDED`, never on the landing.
  */
 function SettingsShortcut() {
   const pathname = usePathname() ?? '';
-  if (!pathname.startsWith('/dashboard') || pathname.startsWith('/dashboard/settings')) return null;
+  if (!pathname.startsWith('/dashboard') || SHORTCUT_EXCLUDED.some((path) => pathname.startsWith(path))) return null;
   return (
     <Link
       href="/dashboard/settings"
       aria-label="Impostazioni"
       data-top-band-settings=""
-      className={cn(buttonVariants({ variant: 'outline' }), 'h-11 w-11 px-0 bg-background')}
+      data-slot="button"
+      data-variant="outline"
+      className={cn(buttonVariants({ variant: 'outline' }), 'h-11 w-11 px-0')}
     >
       <CircleUserRound className="h-5 w-5" aria-hidden="true" />
     </Link>
@@ -143,7 +151,8 @@ export function PageHeader({ title, description, actions, freshness, className }
       <div className="top-band -mx-4 -mt-4 px-4 pt-5 pb-2 flex flex-col bg-background desktop:hidden tablet-landscape:hidden">
         <div className="flex items-center justify-between">
           <h1 className="text-[16px] font-semibold tracking-tight truncate min-w-0">{title}</h1>
-          <div className="flex shrink-0 items-center gap-1.5 ml-2">
+          {/* `data-band-actions`: every button here takes the band's ONE shape (globals.css → The band's buttons). */}
+          <div data-band-actions="" className="flex shrink-0 items-center gap-2 ml-2">
             {actions}
             <SettingsShortcut />
           </div>

@@ -1671,6 +1671,37 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   mask: linear-gradient(#000 0 0) top right / var(--band-r) var(--band-r) no-repeat;
 }
 
+/* The band's buttons (doc/fascia/README.md § I pulsanti della barra, owner 2026-11-06), in every theme: below
+ * `desktop:` each action in the phone's top bar is ONE shape, a 44px square with a 20px icon, whatever its page
+ * wrote for it. The page's main action keeps the action fill; every other one is an outline in the bar's ink
+ * (a ghost, an outline, the Impostazioni shortcut alike), so the bar reads as one row. A word stays only where
+ * the button says it carries one (`data-band-label`: «Salva», whose «Salvato» is the save's answer). Outside
+ * any layer on purpose: it wins over the utilities each page put on its copy. */
+.top-band [data-band-actions] [data-slot="button"]:not([data-band-label]) {
+  width: 2.75rem;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  gap: 0;
+}
+.top-band [data-band-actions] [data-slot="button"][data-band-label] {
+  height: 2.75rem;
+}
+.top-band [data-band-actions] [data-slot="button"] > svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  color: inherit;
+}
+.top-band [data-band-actions] [data-slot="button"]:not([data-variant="default"]) {
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  box-shadow: none;
+}
+.top-band [data-band-actions] [data-slot="button"]:not([data-variant="default"]):not(:hover) {
+  background-color: transparent;
+}
+
 /* Lime Frost and Graphite only (owner's tour, 2026-09-26; Graphite 2026-11-02): a tile's inner scroll box
  * shows no scrollbar, in light and dark; it still scrolls by wheel and touch. Other themes keep the native bar. */
 [data-theme="lime-frost"] .lime-quiet-scroll,

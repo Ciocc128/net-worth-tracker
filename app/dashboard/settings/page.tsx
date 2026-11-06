@@ -401,10 +401,10 @@ export default function SettingsPage() {
                 className="h-11 desktop:h-8"
               >
                 <RotateCcw className="h-4 w-4" />
-                <span className="hidden sm:inline">Ripristina default</span>
+                <span className="hidden desktop:inline tablet-landscape:inline">Ripristina default</span>
               </Button>
             )}
-            <Button size="sm" onClick={handleSave} disabled={isDemo || saving} className={cn('h-11 desktop:h-8', justSaved && SAVED_BUTTON_CLASS)}>
+            <Button size="sm" data-band-label="" onClick={handleSave} disabled={isDemo || saving} className={cn('h-11 desktop:h-8', justSaved && SAVED_BUTTON_CLASS)}>
               <SaveButtonContent saving={saving} saved={justSaved} icon={<Save className="h-4 w-4" />} idle="Salva" />
             </Button>
           </div>

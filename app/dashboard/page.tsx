@@ -370,7 +370,7 @@ export default function DashboardPage() {
       aria-label={creatingSnapshot ? 'Creazione snapshot in corso' : 'Crea snapshot'}
     >
       <Camera className="h-4 w-4" aria-hidden="true" />
-      <span className="hidden sm:inline">{creatingSnapshot ? 'Creazione...' : 'Crea snapshot'}</span>
+      <span className="hidden desktop:inline tablet-landscape:inline">{creatingSnapshot ? 'Creazione...' : 'Crea snapshot'}</span>
     </Button>
   );
 
