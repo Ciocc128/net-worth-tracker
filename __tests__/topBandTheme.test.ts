@@ -74,6 +74,24 @@ describe('the top band', () => {
     expect(contrast(mix(ink, band, 0.88), toLab(band))).toBeGreaterThanOrEqual(4.5);
   });
 
+  const OPTION_RULES = [...css.matchAll(/^(\S[^{\n]*\[data-band="[a-z]+"\](?::not\(\.dark\))?) \{([^}\n]*)\}$/gm)];
+
+  it('names a rule for each colour option, light and dark', () => {
+    expect(OPTION_RULES.length).toBe(8);
+  });
+
+  it.each(OPTION_RULES.map((match) => [match[1].trim(), match[2]] as const))('%s: ink and 88%% line at 4.5:1', (_selector, body) => {
+    const read = (name: string) => {
+      const found = body.match(new RegExp(`--${name}:\\s*oklch\\(([\\d. ]+)\\)`));
+      if (!found) throw new Error(`--${name} missing`);
+      return found[1].trim().split(/\s+/).map(Number) as Oklch;
+    };
+    const band = read('top-band');
+    const ink = read('top-band-foreground');
+    expect(contrast(toLab(ink), toLab(band))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(mix(ink, band, 0.88), toLab(band))).toBeGreaterThanOrEqual(4.5);
+  });
+
   it('the shared default leaves every other theme as it was', () => {
     expect(css).toMatch(/--top-band:\s*var\(--background\);/);
     expect(css).toMatch(/--top-band-foreground:\s*var\(--foreground\);/);

@@ -966,6 +966,12 @@ export function describeColorTheme(themeName: string): Narrative {
   return [prose(`${themeName} attivo, sincronizzato su tutti i dispositivi.`)];
 }
 
+/** The Fascia tile's reading (doc/fascia/README.md): the band's colour in words, or that there is none. */
+export function describeTopBand(label: string | null): Narrative {
+  if (label === null) return [prose('Nessuna fascia: la barra in alto è neutra.')];
+  return [prose(`La fascia in alto è ${label.toLowerCase()}.`)];
+}
+
 // ─── Simulazioni ──────────────────────────────────────────────────────────────
 
 export interface MonteCarloMarketInput {

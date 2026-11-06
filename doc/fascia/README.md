@@ -16,7 +16,7 @@ actions sit, the page under it starting as a sheet with rounded corners, and a q
 - **Incluso**: the mobile `PageHeader` (below `desktop:`, never the tablet in landscape) on every dashboard page
   and on the landing; Lime Frost and Graphite, light and dark; a shortcut to Impostazioni on every dashboard page
   but Impostazioni.
-- **Escluso**: the desktop header (one line, unchanged), the other twelve themes (`--top-band` defaults to the
+- **Escluso**: the twelve upstream themes in the picker (no Fascia tile), the desktop header (one line, unchanged), the other twelve themes (`--top-band` defaults to the
   page's ground and ink: nothing changes), the iPhone status bar / `theme-color` (still the page's ground), the
   Patrimonio tile overlapping the band (research variant A, superseded by D-FA2).
 
@@ -52,6 +52,12 @@ actions sit, the page under it starting as a sheet with rounded corners, and a q
 | D-FA4 | **Lime Frost: the lime of `--action` in both modes** (light `oklch(0.88 0.15 128.5)` with slate ink, 12.9:1; dark `oklch(0.8871 0.2122 128.5)` with its ink, 15.1:1) | light: deep green (labels 4.4:1), slate, ice blue | the owner: the dark is neon-punk on purpose, and lime in both modes is the theme |
 | D-FA5 | **Graphite light: the theme's blue** (`oklch(0.52 0.15 255)`, the Aspetto swatch and `--hero-series`; white ink 5.6:1, line 4.7:1) | ink, slate | the owner: «il blu usato nell'icona del tema» |
 | D-FA6 | **Graphite dark: the same blue at night depth** `oklch(0.34 0.10 255)` (11.3:1) (owner, 2026-11-06) | the light blue as is (a saturated block on near-black, the neon Lime Frost owns); the bright dark-mode blue with dark ink; plain graphite (1.15:1 on the ground) | Graphite is sober: same hue, lower light, as its other dark tokens |
+
+| D-FA7 | **The reader picks the band in Impostazioni › Aspetto › Fascia, from three colours of the theme plus «Nessuna»**: Lime Frost lime (default) · blu ghiaccio · ardesia; Graphite blu (default) · verde · inchiostro (owner, 2026-11-06). Each a pair the theme already has (light/dark: lime `--action`; ghiaccio `--ghost-hover-foreground`/`--hero-series` dark; ardesia `--secondary`; Graphite verde `--positive` / its night depth; inchiostro `--action` / `--secondary` dark) | Lime Frost verde (refused by the owner); free colour picking | the owner wants to choose; the theme's own colours keep one meaning per colour |
+| D-FA8 | **The choice is saved on the account like the colour theme, one per theme** (`userPreferences.topBand`, localStorage `top-band`, `data-band` on `<html>` before the first paint by `TOP_BAND_INIT_SCRIPT`) | per device; one choice for every theme | a theme switch finds its own band again; no flash |
+| D-FA9 | **Lime Frost and Graphite lead the theme list** in Aspetto (owner, 2026-11-06) | upstream's order | the fork's two themes are the ones in use |
+
+Where the band is the action colour (the lime; Graphite's ink in light), a main button on it («Salva») takes the band's ink with the band as its label; the outline buttons on the band are transparent with a 30% ink border.
 
 Amends DESIGN.md → The Neutral-Frame Rule and The Quiet-Header Rule for this bar only (DESIGN.md → The Top-Band Rule).
 
