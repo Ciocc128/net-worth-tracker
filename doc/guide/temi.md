@@ -303,3 +303,7 @@ Cashflow › Analisi › Calendario delle spese fills a day with `--flow-out` at
 - **Immobili is brown, not violet**, in Lime Frost and Graphite (`--chart-4`, hue 55; doc/unslop/README.md D-AS20). Storico's «Tasse sulle vendite» reads the same slot. A teal try collided with Trend Following under `chartPaletteDistinctness`.
 - **Lime Frost light: the sidebar's active row is neutral** (`--sidebar-accent` 0.94 0.004 257, D-AS21).
 - **Lime Frost dark: the sidebar is the tiles' surface** (`--sidebar` = `--card`, slate 0.2077 0.0398 265.8) on the night-blue ground, the mirror of light's white sidebar and tiles on the green ground (D-AS16). The ground itself stays night blue.
+
+## The top band (2026-11-06, fork only)
+
+Below `desktop:` the phone's top bar is a band in `--top-band` with its ink `--top-band-foreground` (Lime Frost: the lime of `--action` in both modes; Graphite: the theme's blue, at night depth in dark), the page under it a sheet whose 24px corners flatten over the first 24px of scroll (`PageHeader` → `.top-band`, `useTopBandProgress`). The shared default is the ground and its ink, so the other twelve themes are untouched. Rules, decisions and open points: `doc/fascia/README.md`; DESIGN.md → The Top-Band Rule; contrast held by `__tests__/topBandTheme.test.ts`.

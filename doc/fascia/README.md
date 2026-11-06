@@ -1,0 +1,69 @@
+# La fascia in alto (mobile) — dossier
+
+Fork only, Lime Frost and Graphite. Thread «Integrare la fascia colorata nella home mobile», 2026-11-06.
+Reference: the Nubank home the owner shared (a full colour band behind the header, the content as a sheet
+with rounded corners over it). Research page with the four first variants on the real app:
+<https://claude.ai/artifact/HBBMV36KEWyJEcrNHEsUGj>; the colour options of the implementation:
+<https://claude.ai/artifact/FiUgMhPUfzqpsXadUkicnM> (files in the project's `fascia-panoramica/`).
+
+## Obiettivo
+
+Give the phone a top bar with depth and a theme's own colour: a band in which the page's title, date and
+actions sit, the page under it starting as a sheet with rounded corners, and a quick way to Impostazioni.
+
+## Perimetro
+
+- **Incluso**: the mobile `PageHeader` (below `desktop:`, never the tablet in landscape) on every dashboard page
+  and on the landing; Lime Frost and Graphite, light and dark; a shortcut to Impostazioni on every dashboard page
+  but Impostazioni.
+- **Escluso**: the desktop header (one line, unchanged), the other twelve themes (`--top-band` defaults to the
+  page's ground and ink: nothing changes), the iPhone status bar / `theme-color` (still the page's ground), the
+  Patrimonio tile overlapping the band (research variant A, superseded by D-FA2).
+
+## Casi d'uso
+
+1. A reader opens any page on the phone: the bar is the band, the page starts under it with 24px rounded corners.
+2. The reader scrolls: over the first 24px the corners flatten to a straight edge; the content slides under a
+   plain rectangle. Nothing changes height, so nothing moves but the corners.
+3. The reader taps the person icon in the band: Impostazioni.
+
+## Regole
+
+- **The band**: `--top-band` / `--top-band-foreground`, set in the four fork blocks of `app/globals.css`; the
+  shared default is `var(--background)` / `var(--foreground)`.
+- **On the band** (`.top-band`, fork themes only) `--background`, `--foreground`, `--border`, `--input`,
+  `--accent` and `--muted-foreground` are re-pointed to the band, so the outline buttons and the date read on it:
+  the secondary line is the ink at 88% (`color-mix(in oklab, ink 88%, transparent)`), the outlines at 30%, a
+  hover at 14%.
+- **The sheet's corners** are two band-coloured ears just under the bar (`::before`/`::after`, a radial gradient),
+  radius `24px × (1 − --band-progress)`; `--band-progress` = `scrollTop / 24` clamped to [0, 1], written on the
+  header's style by `useTopBandProgress` on each animation frame of `#page-main`'s scroll (no React state).
+- **The bar reaches the top**: `-mt-4 pt-5` covers `<main>`'s 16px padding; the sticky wrapper is unchanged.
+- **The shortcut** is a person (`CircleUserRound`), not a gear: Cashflow already has its own gear
+  («Impostazioni Spese») in the same bar.
+
+## Decisioni
+
+| ID | Decisione | Alternative scartate | Motivo |
+| --- | --- | --- | --- |
+| D-FA1 | **The band is the phone's top bar on every page** (owner, 2026-11-06) | band on the Panoramica only, behind title and verdict with the Patrimonio tile biting it (research A) | the owner wants the band as the app's bar, with each page's buttons and a way to Impostazioni |
+| D-FA2 | **The page under it is a sheet with 24px rounded corners that flatten over the first 24px of scroll** | corners that stay; a bar whose height shrinks | the owner's image: rounded and wrapping at rest, a rectangle the content stands out against while scrolling; no height change, so no jump |
+| D-FA3 | **Shortcut to Impostazioni in the band, a person icon** | a gear | Cashflow's own gear sits in the same bar |
+| D-FA4 | **Lime Frost: the lime of `--action` in both modes** (light `oklch(0.88 0.15 128.5)` with slate ink, 12.9:1; dark `oklch(0.8871 0.2122 128.5)` with its ink, 15.1:1) | light: deep green (labels 4.4:1), slate, ice blue | the owner: the dark is neon-punk on purpose, and lime in both modes is the theme |
+| D-FA5 | **Graphite light: the theme's blue** (`oklch(0.52 0.15 255)`, the Aspetto swatch and `--hero-series`; white ink 5.6:1, line 4.7:1) | ink, slate | the owner: «il blu usato nell'icona del tema» |
+| D-FA6 | **Graphite dark: the same blue at night depth** `oklch(0.34 0.10 255)` (11.3:1) — *proposed, awaiting the owner* | the light blue as is (a saturated block on near-black, the neon Lime Frost owns); the bright dark-mode blue with dark ink; plain graphite (1.15:1 on the ground) | Graphite is sober: same hue, lower light, as its other dark tokens |
+
+Amends DESIGN.md → The Neutral-Frame Rule and The Quiet-Header Rule for this bar only (DESIGN.md → The Top-Band Rule).
+
+## Punti aperti
+
+- The iPhone status bar: `ThemeColorSync` keeps the page's ground; painting it with the band needs
+  `e2e/shellBoot.ts` → `expectBrowserChromeFollowsTheme` rewritten for 390.
+- Mac checks: `test:e2e` (header specs at 390 and 768), `mobile:census` / `mobile:budget` (no height change expected).
+
+## Criteri di accettazione
+
+- `__tests__/topBandTheme.test.ts`: the four blocks name a band and its ink; ink and 88% line ≥ 4.5:1 on it;
+  the shared default keeps every other theme as before.
+- At 390 in the four fork blocks: rounded corners at rest, half at 12px of scroll, none at 24px; the bar's height
+  constant; the shortcut on every dashboard page but Impostazioni, none on the landing.

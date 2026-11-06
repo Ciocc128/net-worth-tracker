@@ -1050,9 +1050,10 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
      green, an outgoing amount stays ink — never red; the summaries above keep ink and the dot. */
   --feed-income-figure: var(--positive);
   --feed-expense-figure: var(--foreground);
-  /* The top band (doc/fascia/README.md), Lime Frost light: the ice blue of --ghost-hover-foreground (6.4:1 with white). */
-  --top-band: oklch(0.4800 0.0850 228.0000);
-  --top-band-foreground: oklch(1.0000 0 0);
+  /* The top band (doc/fascia/README.md), Lime Frost light: the lime of --action with its slate ink (12.9:1),
+     lime in both modes (owner, 2026-11-06). */
+  --top-band: oklch(0.8800 0.1500 128.5041);
+  --top-band-foreground: oklch(0.2077 0.0398 265.7549);
   --series-dot: inline-block;
   /* …while the savings, which IS a judgement, takes the sign: the income hue's text step when kept,
      red when the period spends more than it earns. */
@@ -1459,7 +1460,7 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --expense-figure: var(--foreground);
   --feed-income-figure: var(--positive);
   --feed-expense-figure: var(--foreground);
-  /* The top band (doc/fascia/README.md), Graphite dark: the hero hue 255, deep (11.3:1). */
+  /* The top band (doc/fascia/README.md), Graphite dark: the theme's blue (hue 255) at night depth, the sober mirror of the light band (11.3:1). */
   --top-band: oklch(0.3400 0.1000 255.0000);
   --top-band-foreground: oklch(0.9850 0 0);
   --series-dot: inline-block;
