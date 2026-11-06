@@ -31,6 +31,7 @@ import {
   describeCashflowSettings,
   describeClassTargets,
   describeColorTheme,
+  describeTopBand,
   describeCosts,
   describeDefaultAccounts,
   describeDividendCategory,
@@ -1072,5 +1073,12 @@ describe('Q4 — copertura del cambio', () => {
     expect(narrativeToText(describeMonteCarloCorrelations({ editedPairCount: 2, hedgedLabels: ['Trend'], correctedPairCount: 0 }))).toContain('la copertura non le cambia');
     expect(narrativeToText(describeMonteCarloCorrelations({ editedPairCount: 0, hedgedLabels: ['Trend'], correctedPairCount: 0 }))).toContain('Seguono la copertura scelta (Trend)');
     expect(narrativeToText(describeMonteCarloCorrelations({ editedPairCount: 2, correctedPairCount: 0 }))).not.toContain('copertura');
+  });
+});
+
+describe('describeTopBand', () => {
+  it('names the colour, or says the bar is neutral', () => {
+    expect(plain(describeTopBand('Blu ghiaccio'))).toBe('La fascia in alto è blu ghiaccio.');
+    expect(plain(describeTopBand(null))).toBe('Nessuna fascia: la barra in alto è neutra.');
   });
 });

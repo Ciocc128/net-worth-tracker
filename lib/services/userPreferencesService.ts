@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import type { ColorTheme } from '@/lib/constants/colorTheme';
+import type { TopBandChoices } from '@/lib/constants/topBand';
 
 const COLLECTION = 'userPreferences';
 
@@ -10,6 +11,8 @@ export type { ColorTheme };
 
 export interface UserPreferences {
   colorTheme?: ColorTheme;
+  /** The phone's top band, one choice per theme (doc/fascia/README.md; fork only). */
+  topBand?: TopBandChoices;
 }
 
 export async function getUserPreferences(userId: string): Promise<UserPreferences> {

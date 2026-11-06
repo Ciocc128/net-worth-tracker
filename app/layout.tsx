@@ -33,6 +33,7 @@ import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { ColorThemeProvider } from "@/contexts/ColorThemeContext";
 import { AgentationToolbar } from "@/components/providers/AgentationToolbar";
 import { COLOR_THEME_INIT_SCRIPT } from "@/lib/constants/colorTheme";
+import { TOP_BAND_INIT_SCRIPT } from "@/lib/constants/topBand";
 import { ThemeColorSync } from "@/components/providers/ThemeColorSync";
 import { DEFAULT_THEME_COLORS } from "@/lib/utils/themeColor";
 
@@ -83,6 +84,9 @@ export default function RootLayout({
             a rendering opportunity. `suppressHydrationWarning` on <html> covers the attribute the
             server did not render. The script and the key: lib/constants/colorTheme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: COLOR_THEME_INIT_SCRIPT }} />
+        {/* The phone's top band of that theme (`data-band`), read after the theme is on <html>:
+            lib/constants/topBand.ts, doc/fascia/README.md. */}
+        <script dangerouslySetInnerHTML={{ __html: TOP_BAND_INIT_SCRIPT }} />
       </head>
       <body
         className={`${geistSans.variable} antialiased`}
