@@ -51,7 +51,7 @@ actions sit, the page under it starting as a sheet with rounded corners, and a q
 | D-FA3 | **Shortcut to Impostazioni in the band, a person icon** | a gear | Cashflow's own gear sits in the same bar |
 | D-FA4 | **Lime Frost: the lime of `--action` in both modes** (light `oklch(0.88 0.15 128.5)` with slate ink, 12.9:1; dark `oklch(0.8871 0.2122 128.5)` with its ink, 15.1:1) | light: deep green (labels 4.4:1), slate, ice blue | the owner: the dark is neon-punk on purpose, and lime in both modes is the theme |
 | D-FA5 | **Graphite light: the theme's blue** (`oklch(0.52 0.15 255)`, the Aspetto swatch and `--hero-series`; white ink 5.6:1, line 4.7:1) | ink, slate | the owner: «il blu usato nell'icona del tema» |
-| D-FA6 | **Graphite dark: the same blue at night depth** `oklch(0.34 0.10 255)` (11.3:1) — *proposed, awaiting the owner* | the light blue as is (a saturated block on near-black, the neon Lime Frost owns); the bright dark-mode blue with dark ink; plain graphite (1.15:1 on the ground) | Graphite is sober: same hue, lower light, as its other dark tokens |
+| D-FA6 | **Graphite dark: the same blue at night depth** `oklch(0.34 0.10 255)` (11.3:1) (owner, 2026-11-06) | the light blue as is (a saturated block on near-black, the neon Lime Frost owns); the bright dark-mode blue with dark ink; plain graphite (1.15:1 on the ground) | Graphite is sober: same hue, lower light, as its other dark tokens |
 
 Amends DESIGN.md → The Neutral-Frame Rule and The Quiet-Header Rule for this bar only (DESIGN.md → The Top-Band Rule).
 
