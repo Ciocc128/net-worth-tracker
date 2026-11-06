@@ -48,6 +48,7 @@ import {
   describeModalStatus,
   describeWriteError,
   PENSION_CONTRIBUTION_COPY,
+  describePensionDateHint,
   PENSION_CONTRIBUTION_RECORDED,
   type ModalStatus,
 } from '@/lib/utils/dialogNarrative';
@@ -56,7 +57,7 @@ const NATURE_OPTIONS: { value: ContributionSource; label: string; hint: string }
   {
     value: 'voluntary',
     label: 'Volontario',
-    hint: 'Deducibile IRPEF entro il tetto annuo. Se versato da un tuo conto, scegli quale sotto — se invece è trattenuto in busta paga, lascia il campo vuoto.',
+    hint: 'Deducibile IRPEF entro il tetto annuo. Se versato da un tuo conto, scegli quale sotto — se invece è trattenuto in busta paga, scegli «Nessuno»: un conto scenderebbe di soldi mai usciti da lì.',
   },
   {
     value: 'employer',
@@ -372,7 +373,7 @@ export function PensionContributionDialog({ open, onClose, defaultAssetId, onRec
                 type="date"
                 disabled={isDemo}
                 aria-invalid={!!errors.date}
-                aria-describedby={errors.date ? 'pc-date-error' : undefined}
+                aria-describedby={errors.date ? 'pc-date-error' : 'pc-date-hint'}
                 {...register('date')}
               />
               {errors.date && (
@@ -412,6 +413,9 @@ export function PensionContributionDialog({ open, onClose, defaultAssetId, onRec
               )}
             </div>
           </div>
+          <p id="pc-date-hint" className="-mt-1 text-xs text-muted-foreground">
+            {describePensionDateHint(dateYear, currentTaxYear)}
+          </p>
 
           <div className="space-y-2">
             <Label htmlFor="pc-notes">Note (opzionale)</Label>

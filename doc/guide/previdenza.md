@@ -168,7 +168,14 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   contribution form is a Select derived from the date (year −1 · year · year +1, the ±1 rule of the service now named
   beside the field by a `superRefine`); every error is wired to its field (`aria-invalid`, `aria-describedby`,
   `role="alert"`); the dialog's words are `PENSION_CONTRIBUTION_COPY` / `describePensionValueCopy` in
-  `dialogNarrative.ts`. In the Rendimento tile — the page's 3-column tile — a row's hint («retribuzione, non
+  `dialogNarrative.ts`.
+  **Fund that values a month late (PV1, 2026-11-06, `doc/previdenza-competenza/README.md`).** No «data di
+  competenza» field (D-PV1): the value moves when you REGISTER, and a closed snapshot stays as it is (D-PV2). So for a
+  fund whose statement shows October's contribution in mid-November: register the contributions (date = the payroll
+  day), THEN «Aggiorna valore» with the statement. The hint under «Data» (`describePensionDateHint`) says the date
+  decides the fiscal year and warns when its year differs from today's (December deduction recorded in January keeps
+  its year); the value dialog speaks of contributions «registrati» (counted by registration month,
+  `valueEffectMonth`), not «versati»; a voluntary one withheld in payroll takes the «Nessuno» account. In the Rendimento tile — the page's 3-column tile — a row's hint («retribuzione, non
   rendimento») takes its own line under the label: inline, «Contributo datoriale» broke mid-word into three lines at
   1440 (the critique's last minor observation, measured by Playwright, closed by the polish pass). Anno fiscale and the
   Dettaglio keep the inline hint: at 4 and 6 columns it fits.

@@ -21,6 +21,7 @@ import {
   describeMovementsFilterAction,
   describeMovementsFilterReading,
   describeMovementsReading,
+  describePensionDateHint,
   describePensionValueCopy,
   describeSettlementTiming,
   describeWithheldTaxField,
@@ -472,17 +473,23 @@ describe('describeAssetIntent', () => {
 });
 
 describe('Previdenza modals', () => {
+  it('says under «Data» what the date decides, and warns when it sits in another year than today', () => {
+    expect(describePensionDateHint(2026, 2026)).toBe('Il giorno della trattenuta: decide l’anno fiscale. Il valore del fondo sale oggi, quindi registra quando l’estratto conto mostra il versamento.');
+    expect(describePensionDateHint(null, 2027)).toContain('Il giorno della trattenuta');
+    expect(describePensionDateHint(2026, 2027)).toBe('Data nel 2026, oggi è il 2027: l’anno fiscale segue la data. Per una trattenuta di dicembre registrata a gennaio è giusto così.');
+  });
+
   it('states the trap of the value overwrite: the month’s contributions are already in the statement', () => {
     const withPaidIn = describePensionValueCopy({ fundName: null, currentValue: 29_800, monthPaidIn: 821, stale: false });
-    expect(plain(withPaidIn.idle)).toBe('Il fondo vale 29.800,00 €: scrivi il valore dell’estratto conto. I 821,00 € versati questo mese sono già dentro l’estratto: non aggiungerli.');
+    expect(plain(withPaidIn.idle)).toBe('Il fondo vale 29.800,00 €: scrivi il valore dell’estratto conto. I 821,00 € registrati questo mese devono essere già dentro l’estratto: se non lo sono, aspetta il prossimo.');
 
     const named = describePensionValueCopy({ fundName: 'Cometa', currentValue: 100, monthPaidIn: 0, stale: true });
-    expect(plain(named.idle)).toBe('Cometa vale 100,00 € da un mese chiuso: scrivi il valore dell’estratto conto. Se questo mese hai versato, registra prima i versamenti: l’estratto li include già.');
+    expect(plain(named.idle)).toBe('Cometa vale 100,00 € da un mese chiuso: scrivi il valore dell’estratto conto. Se l’estratto mostra versamenti nuovi, anche del mese scorso, registrali prima: il valore li include già.');
     expect(named.submitting).toBe('Aggiornamento del valore in corso…');
   });
 
   it('teaches the order in the toast after a contribution', () => {
-    expect(PENSION_CONTRIBUTION_RECORDED.next).toContain('aggiorna il valore del fondo');
+    expect(PENSION_CONTRIBUTION_RECORDED.next).toBe('Ora aggiorna il valore del fondo con l’estratto conto che include questo versamento.');
     expect(PENSION_CONTRIBUTION_RECORDED.action).toBe('Aggiorna valore');
     expect(plain(PENSION_CONTRIBUTION_COPY.idle)).toContain('alza la deduzione IRPEF');
   });
