@@ -2,7 +2,8 @@
 
 > Dossier aperto il 2026-11-06 (thread «Allineare i versamenti previdenza alla data di competenza»).
 > Area: `doc/guide/previdenza.md`. Nessun calcolo cambia: il dossier specifica solo testi del
-> dialog, della guida e del toast (D-PV1).
+> dialog, della guida e del toast (D-PV1). Decisioni D-PV1–D-PV5 prese il 2026-11-06. Prossimo passo:
+> task impl **PV1 «Testi dei versamenti previdenza»** = la tabella dei testi + il paragrafo in guida.
 
 ## 1. Il caso da cui nasce
 
@@ -71,7 +72,14 @@ trattenuta in busta paga.
    anche per il caso 1.
 4. **Trattenuta in busta con un conto scelto.** Il conto scende di un importo mai uscito da lì. Il
    suggerimento della natura deve dirlo prima del salvataggio.
-5. **Registrazione dimenticata per due mesi.** Effetto nel mese in cui registra: il mese del NAV che già
+5. **Versamento di dicembre registrato a gennaio.** Dicembre 2026: il 27 è domenica, 25 e 26 festivi,
+   la trattenuta parte il 24/12, competenza 31/12, saldo visibile a metà gennaio 2027. «Data» 24/12/2026
+   → anno fiscale 2026 (giusto: pagato nel 2026, nella CU 2026). Effetto sul valore a gennaio 2027: lo
+   snapshot di fine anno non lo contiene. Previdenza (per `taxYear`) e Storico/Rendimenti (per
+   `valueEffectMonth`) contano 12 versamenti ciascuno, sfasati di un mese: i totali annui differiscono di
+   dicembre dell'anno − dicembre dell'anno prima (diverso da zero con un aumento o la tredicesima),
+   differenza attesa. L'errore da prevenire è lasciare «Data» a gennaio: anno fiscale 2027 (D-PV5).
+6. **Registrazione dimenticata per due mesi.** Effetto nel mese in cui registra: il mese del NAV che già
    lo conteneva legge un guadagno, quello di registrazione una perdita, il totale della finestra torna.
    Comportamento noto (guida, 2026-08-26), solo documentato.
 
@@ -85,18 +93,24 @@ mercato del mese = valore − valore dello snapshot precedente − versamenti co
   calcolo lo leggerebbe: il 27 e il 31 cadono nello stesso mese e quindi nello stesso anno fiscale);
   un flusso unico «Aggiorna dal rendiconto» che registra versamenti e valore insieme (il più robusto,
   ma il costo non vale finché l'ordine si insegna con due frasi).
-- **D-PV2 — Lo snapshot chiuso non si corregge.** *Proposta, da confermare.* Il ritardo di un mese è
+- **D-PV2 — Lo snapshot chiuso non si corregge.** *Confermata dal proprietario il 2026-11-06.* Il ritardo di un mese è
   costante; riscriverlo a mano rompe la serie del fondo (§ 2). Alternativa scartata: ricostruire lo
   snapshot passato con il versamento (nessuna pipeline lo sa fare senza i prezzi di quel giorno).
 - **D-PV3 — Il dialog del valore parla di versamenti «registrati», non «versati», questo mese.**
-  *Proposta, da confermare.* Il conteggio è per mese di registrazione (`valueEffectMonth`), e nel caso 1
+  *Confermata dal proprietario il 2026-11-06.* Il conteggio è per mese di registrazione (`valueEffectMonth`), e nel caso 1
   il versamento è datato il mese prima: «versati questo mese» è falso.
-- **D-PV4 — Il suggerimento sotto «Data» dice cosa decide la data.** *Proposta, da confermare.*
+- **D-PV4 — Il suggerimento sotto «Data» dice cosa decide la data.** *Confermata dal proprietario il 2026-11-06.*
 
-### Testi proposti (D-PV3, D-PV4, caso 4)
+- **D-PV5 — Avviso quando la data cade in un anno diverso da oggi.** *Confermata dal proprietario il
+  2026-11-06.* Sotto «Data», se l'anno della data è diverso dall'anno corrente in Italia, il suggerimento
+  diventa l'avviso del caso 5. Alternativa scartata: anno fiscale dall'anno di registrazione (sbagliato
+  per una trattenuta di dicembre registrata a gennaio).
+
+### Testi proposti (D-PV3, D-PV4, D-PV5, caso 4)
 | Dove | Oggi | Proposto |
 |---|---|---|
 | Suggerimento sotto «Data» (nuovo, `pc-date-hint`) | — | «Il giorno della trattenuta: decide l'anno fiscale. Il valore del fondo sale oggi, quindi registra quando l'estratto conto mostra il versamento.» |
+| Suggerimento sotto «Data» con anno della data ≠ anno di oggi (D-PV5) | — | «Data nel {anno della data}, oggi è il {anno corrente}: l'anno fiscale segue la data. Per una trattenuta di dicembre registrata a gennaio è giusto così.» |
 | `NATURE_OPTIONS.voluntary.hint` | «… se invece è trattenuto in busta paga, lascia il campo vuoto.» | «… se invece è trattenuto in busta paga, scegli «Nessuno»: un conto scenderebbe di soldi mai usciti da lì.» |
 | `PENSION_CONTRIBUTION_RECORDED.next` | «Quando arriva l'estratto conto, aggiorna il valore del fondo: lo include già.» | «Ora aggiorna il valore del fondo con l'estratto conto che include questo versamento.» |
 | `describePensionValueCopy`, con versamenti | «I X € versati questo mese sono già dentro l'estratto: non aggiungerli.» | «I X € registrati questo mese devono essere già dentro l'estratto: se non lo sono, aspetta il prossimo.» |
@@ -115,5 +129,8 @@ TFR 150,00 €, datoriale 50,00 €, trattenuta 60,00 € (totale 260,00 €), r
    (deducibili 110,00 €); nessuna riga nuova in cashflow; la riga del registro dice «registrato il 15 nov».
 2. Il dialog del valore, aperto dopo i tre versamenti, dice «I 260,00 € registrati questo mese …».
 3. Una trattenuta in busta con conto «Nessuno» non cambia il saldo di nessun conto.
-4. I testi della tabella compaiono come scritti; `tsc` pulito; i test di `dialogNarrative` e del dialog
+4. Versamento con «Data» 24/12/2026 registrato il 15/01/2027: anno fiscale 2026, «Versamenti 2026»
+   +importo, snapshot di dicembre 2026 invariato, effetto nel mercato di gennaio 2027; il dialog mostra
+   l'avviso D-PV5 con «2026» e «2027».
+5. I testi della tabella compaiono come scritti; `tsc` pulito; i test di `dialogNarrative` e del dialog
    aggiornati e verdi.
