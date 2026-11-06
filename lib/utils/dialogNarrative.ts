@@ -976,9 +976,22 @@ export const PENSION_CONTRIBUTION_COPY: ModalStatusCopy = {
 /** The toast after a contribution: the next step, so the order is taught where it matters. */
 export const PENSION_CONTRIBUTION_RECORDED = {
   title: 'Versamento registrato',
-  next: 'Quando arriva l’estratto conto, aggiorna il valore del fondo: lo include già.',
+  next: 'Ora aggiorna il valore del fondo con l’estratto conto che include questo versamento.',
   action: 'Aggiorna valore',
 } as const;
+
+/**
+ * The hint under «Data» in the contribution form: what the date decides (the fiscal year) and
+ * when to record (the value rises today). When the date sits in another calendar year than
+ * today, it says the fiscal year follows the date — a December deduction recorded in January
+ * keeps its year, and that is right (doc/previdenza-competenza, D-PV4, D-PV5).
+ */
+export function describePensionDateHint(dateYear: number | null, currentYear: number): string {
+  if (dateYear !== null && dateYear !== currentYear) {
+    return `Data nel ${dateYear}, oggi è il ${currentYear}: l’anno fiscale segue la data. Per una trattenuta di dicembre registrata a gennaio è giusto così.`;
+  }
+  return 'Il giorno della trattenuta: decide l’anno fiscale. Il valore del fondo sale oggi, quindi registra quando l’estratto conto mostra il versamento.';
+}
 
 export interface PensionValueFacts {
   /** The fund's name, or null when the modal still asks which fund. */
@@ -993,8 +1006,8 @@ export interface PensionValueFacts {
 
 /**
  * «Aggiorna il valore del fondo»: the reading says what the form overwrites and states the
- * one trap of the act — a statement already contains the month's contributions, so they
- * must be registered BEFORE the value, never after.
+ * one trap of the act — a statement already contains the contributions it shows (even last
+ * month's), so they must be registered BEFORE the value, never after.
  */
 export function describePensionValueCopy(facts: PensionValueFacts): ModalStatusCopy {
   const subject = facts.fundName ? `${facts.fundName} vale ` : 'Il fondo vale ';
@@ -1005,10 +1018,10 @@ export function describePensionValueCopy(facts: PensionValueFacts): ModalStatusC
     idle.push(
       { text: ' I ' },
       { text: cachedFormatCurrencyEUR(facts.monthPaidIn), mono: true },
-      { text: ' versati questo mese sono già dentro l’estratto: non aggiungerli.' },
+      { text: ' registrati questo mese devono essere già dentro l’estratto: se non lo sono, aspetta il prossimo.' },
     );
   } else {
-    idle.push({ text: ' Se questo mese hai versato, registra prima i versamenti: l’estratto li include già.' });
+    idle.push({ text: ' Se l’estratto mostra versamenti nuovi, anche del mese scorso, registrali prima: il valore li include già.' });
   }
   return { idle, submitting: 'Aggiornamento del valore in corso…' };
 }
