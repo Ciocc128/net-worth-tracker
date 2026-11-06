@@ -1,7 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { CircleUserRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { PageFreshness } from '@/lib/hooks/useFreshness';
 
@@ -58,9 +62,61 @@ function useFadingSentence(sentence: string | null): { text: string | null; leav
  * no separator: when a tab bar follows, its underline is the separation. The sidebar already names the section, so there is no eyebrow. The mobile sticky
  * navbar is one block, and its title is what the user anchors to while scrolling.
  */
+/** The scroll, in px, over which the band's rounded corners flatten (= their radius, `.top-band` in globals.css). */
+const TOP_BAND_FLATTEN_PX = 24;
+
+/**
+ * Writes `--band-progress` (0 at the top of the page, 1 once it has scrolled by the corners' radius) on
+ * the header, straight on its style: a scroll-linked value, so no React state and no re-render per frame.
+ * The scroller is the shell's `<main id="page-main">`; a page outside the shell (the landing) has none and
+ * keeps 0, the rounded corners at rest.
+ */
+function useTopBandProgress(ref: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const header = ref.current;
+    const scroller = document.getElementById('page-main');
+    if (!header || !scroller) return;
+    let frame = 0;
+    const write = () => {
+      frame = 0;
+      const progress = Math.min(1, Math.max(0, scroller.scrollTop / TOP_BAND_FLATTEN_PX));
+      header.style.setProperty('--band-progress', String(progress));
+    };
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(write); };
+    write();
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      scroller.removeEventListener('scroll', onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [ref]);
+}
+
+/**
+ * The band's shortcut to Impostazioni, as Nubank's avatar: a person, not a gear, because a page's own gear
+ * (Cashflow's «Impostazioni Spese») already sits in the same bar. On every dashboard page but Impostazioni
+ * itself, never on the landing.
+ */
+function SettingsShortcut() {
+  const pathname = usePathname() ?? '';
+  if (!pathname.startsWith('/dashboard') || pathname.startsWith('/dashboard/settings')) return null;
+  return (
+    <Link
+      href="/dashboard/settings"
+      aria-label="Impostazioni"
+      data-top-band-settings=""
+      className={cn(buttonVariants({ variant: 'outline' }), 'h-11 w-11 px-0 bg-background')}
+    >
+      <CircleUserRound className="h-5 w-5" aria-hidden="true" />
+    </Link>
+  );
+}
+
 export function PageHeader({ title, description, actions, freshness, className }: PageHeaderProps) {
   const { text: freshnessSentence, leaving } = useFadingSentence(freshness?.sentence ?? null);
   const fadeClass = cn(FRESHNESS_FADE_CLASS, leaving && 'opacity-0');
+  const headerRef = useRef<HTMLDivElement>(null);
+  useTopBandProgress(headerRef);
 
   return (
     // `page-header`: the page scene morphs this line into the next page's (globals.css → Page scene).
@@ -72,6 +128,7 @@ export function PageHeader({ title, description, actions, freshness, className }
     // offset is measured from the scroller's content edge, and at `top-0` the rows scrolling
     // past would show through a 16px strip above the bar.
     <div
+      ref={headerRef}
       data-page-header=""
       className={cn('max-desktop:sticky max-desktop:-top-4 max-desktop:z-20 tablet-landscape:static', className)}
       style={{ viewTransitionName: 'page-header' }}
@@ -79,12 +136,17 @@ export function PageHeader({ title, description, actions, freshness, className }
       {/* Mobile navbar — title + description in one block so the header feels like a unified
           navbar. Its background is OPAQUE: it covers the rows scrolling underneath, and a 95%
           fill with a blur let their words ghost through behind the title. */}
-      <div className="-mx-4 px-4 pt-1 pb-2 flex flex-col bg-background desktop:hidden tablet-landscape:hidden">
+      {/* `top-band` (globals.css → The top band): in Lime Frost and Graphite the bar is a band in the
+          net-worth colour that reaches the top of the screen (`-mt-4 pt-5` covers `<main>`'s padding),
+          the page under it starts as a sheet with rounded corners, and the corners flatten as the page
+          scrolls (`--band-progress`). Every other theme paints it as before. */}
+      <div className="top-band -mx-4 -mt-4 px-4 pt-5 pb-2 flex flex-col bg-background desktop:hidden tablet-landscape:hidden">
         <div className="flex items-center justify-between">
           <h1 className="text-[16px] font-semibold tracking-tight truncate min-w-0">{title}</h1>
-          {actions && (
-            <div className="flex shrink-0 items-center gap-1.5 ml-2">{actions}</div>
-          )}
+          <div className="flex shrink-0 items-center gap-1.5 ml-2">
+            {actions}
+            <SettingsShortcut />
+          </div>
         </div>
         {(description || freshness) && (
           // With a freshness reading the line is reserved even on a page with no description, so

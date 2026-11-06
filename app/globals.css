@@ -222,6 +222,11 @@
      incoming «+» in the gain green, an outgoing amount in ink — the feed exception, 2026-11-02). */
   --feed-income-figure: var(--income-figure);
   --feed-expense-figure: var(--expense-figure);
+  /* The phone's top bar as a band (doc/fascia/README.md): the bar's fill and its ink. Off by default —
+     the page's own ground and ink, so a theme that names none looks as before; Lime Frost and Graphite
+     paint it in the net-worth colour. */
+  --top-band: var(--background);
+  --top-band-foreground: var(--foreground);
   /* A Switch when on: the primary fill in light (the `.dark` block keeps the blue it always had). */
   --switch-on: var(--primary);
   --net-gain-figure: var(--foreground);
@@ -1045,6 +1050,9 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
      green, an outgoing amount stays ink — never red; the summaries above keep ink and the dot. */
   --feed-income-figure: var(--positive);
   --feed-expense-figure: var(--foreground);
+  /* The top band (doc/fascia/README.md), Lime Frost light: the ice blue of --ghost-hover-foreground (6.4:1 with white). */
+  --top-band: oklch(0.4800 0.0850 228.0000);
+  --top-band-foreground: oklch(1.0000 0 0);
   --series-dot: inline-block;
   /* …while the savings, which IS a judgement, takes the sign: the income hue's text step when kept,
      red when the period spends more than it earns. */
@@ -1198,6 +1206,9 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --expense-figure: var(--foreground);
   --feed-income-figure: var(--positive);
   --feed-expense-figure: var(--foreground);
+  /* The top band (doc/fascia/README.md), Lime Frost dark: the lime of --action, its slate ink (owner, 2026-11-06). */
+  --top-band: oklch(0.8871 0.2122 128.5041);
+  --top-band-foreground: oklch(0.1300 0.0300 265.0000);
   --series-dot: inline-block;
   --net-gain-figure: var(--positive);
   --net-loss-figure: var(--destructive);
@@ -1334,6 +1345,9 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --expense-figure: var(--foreground);
   --feed-income-figure: var(--positive);
   --feed-expense-figure: var(--foreground);
+  /* The top band (doc/fascia/README.md), Graphite light: the theme's blue, the swatch of Aspetto and --hero-series (5.6:1 with white; owner, 2026-11-06). */
+  --top-band: oklch(0.5200 0.1500 255.0000);
+  --top-band-foreground: oklch(1.0000 0 0);
   --series-dot: inline-block;
   --net-gain-figure: var(--positive);
   --net-loss-figure: var(--destructive);
@@ -1445,6 +1459,9 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --expense-figure: var(--foreground);
   --feed-income-figure: var(--positive);
   --feed-expense-figure: var(--foreground);
+  /* The top band (doc/fascia/README.md), Graphite dark: the hero hue 255, deep (11.3:1). */
+  --top-band: oklch(0.3400 0.1000 255.0000);
+  --top-band-foreground: oklch(0.9850 0 0);
   --series-dot: inline-block;
   --net-gain-figure: var(--positive);
   --net-loss-figure: var(--destructive);
@@ -1581,6 +1598,52 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   .animate-spin {
     animation: none;
   }
+}
+
+/* The top band (doc/fascia/README.md, owner 2026-11-06; Lime Frost and Graphite only). The phone's
+ * top bar (`PageHeader`, below `desktop:`) is a band in --top-band, the net-worth colour, and re-themes
+ * what sits on it (the title, the date, the outline buttons) to --top-band-foreground. The page under it
+ * starts as a sheet with rounded top corners, drawn as two band-coloured ears just under the bar; as the
+ * page scrolls by their radius (`--band-progress` 0 → 1, `useTopBandProgress`) the ears shrink to
+ * nothing and the bar is a plain rectangle the content slides under. No height changes, so nothing
+ * moves but the corners. */
+[data-theme="lime-frost"] .top-band,
+[data-theme="graphite"] .top-band {
+  --band-r: calc(24px * (1 - var(--band-progress, 0)));
+  --background: var(--top-band);
+  --foreground: var(--top-band-foreground);
+  --muted-foreground: color-mix(in oklab, var(--top-band-foreground) 88%, transparent);
+  --border: color-mix(in oklab, var(--top-band-foreground) 30%, transparent);
+  --input: color-mix(in oklab, var(--top-band-foreground) 30%, transparent);
+  --accent: color-mix(in oklab, var(--top-band-foreground) 14%, transparent);
+  --accent-foreground: var(--top-band-foreground);
+  color: var(--foreground);
+  position: relative;
+}
+[data-theme="lime-frost"] .top-band::before,
+[data-theme="lime-frost"] .top-band::after,
+[data-theme="graphite"] .top-band::before,
+[data-theme="graphite"] .top-band::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+}
+[data-theme="lime-frost"] .top-band::before,
+[data-theme="graphite"] .top-band::before {
+  left: 0;
+  background: radial-gradient(circle at var(--band-r) var(--band-r), transparent calc(var(--band-r) - 0.5px), var(--top-band) var(--band-r));
+  -webkit-mask: linear-gradient(#000 0 0) top left / var(--band-r) var(--band-r) no-repeat;
+  mask: linear-gradient(#000 0 0) top left / var(--band-r) var(--band-r) no-repeat;
+}
+[data-theme="lime-frost"] .top-band::after,
+[data-theme="graphite"] .top-band::after {
+  right: 0;
+  background: radial-gradient(circle at calc(100% - var(--band-r)) var(--band-r), transparent calc(var(--band-r) - 0.5px), var(--top-band) var(--band-r));
+  -webkit-mask: linear-gradient(#000 0 0) top right / var(--band-r) var(--band-r) no-repeat;
+  mask: linear-gradient(#000 0 0) top right / var(--band-r) var(--band-r) no-repeat;
 }
 
 /* Lime Frost and Graphite only (owner's tour, 2026-09-26; Graphite 2026-11-02): a tile's inner scroll box
