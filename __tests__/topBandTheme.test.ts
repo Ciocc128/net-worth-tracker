@@ -96,4 +96,18 @@ describe('the top band', () => {
     expect(css).toMatch(/--top-band:\s*var\(--background\);/);
     expect(css).toMatch(/--top-band-foreground:\s*var\(--foreground\);/);
   });
+
+  // D-FA10: every button in the bar is one 44px square with a 20px icon, the non-main ones outlined.
+  it('gives every button in the bar one shape', () => {
+    const rule = (selector: string) => {
+      const at = css.indexOf(`${selector} {`);
+      expect(at, selector).toBeGreaterThan(-1);
+      return css.slice(at, css.indexOf('}', at));
+    };
+    const shape = rule('.top-band [data-band-actions] [data-slot="button"]:not([data-band-label])');
+    expect(shape).toMatch(/width:\s*2\.75rem/);
+    expect(shape).toMatch(/height:\s*2\.75rem/);
+    expect(rule('.top-band [data-band-actions] [data-slot="button"] > svg')).toMatch(/width:\s*1\.25rem/);
+    expect(rule('.top-band [data-band-actions] [data-slot="button"]:not([data-variant="default"])')).toMatch(/border:\s*1px solid var\(--border\)/);
+  });
 });

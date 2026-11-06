@@ -579,7 +579,7 @@ export default function AssetsPage() {
         aria-label={updatingPrices ? 'Aggiornamento prezzi in corso' : 'Aggiorna prezzi'}
       >
         <RefreshCw className={cn('h-4 w-4', updatingPrices && 'animate-spin')} aria-hidden="true" />
-        <span className="hidden sm:inline">{updatingPrices ? 'Aggiornamento...' : 'Aggiorna prezzi'}</span>
+        <span className="hidden desktop:inline tablet-landscape:inline">{updatingPrices ? 'Aggiornamento...' : 'Aggiorna prezzi'}</span>
       </Button>
       <Button
         type="button"
@@ -590,7 +590,7 @@ export default function AssetsPage() {
         aria-label="Aggiungi asset"
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden sm:inline">Aggiungi asset</span>
+        <span className="hidden desktop:inline tablet-landscape:inline">Aggiungi asset</span>
       </Button>
     </>
   );

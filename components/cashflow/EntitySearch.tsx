@@ -69,7 +69,7 @@ export function EntitySearch({
         aria-label="Vai a categoria"
       >
         <Search />
-        <span className="hidden sm:inline">Vai a categoria…</span>
+        <span className="hidden desktop:inline tablet-landscape:inline">Vai a categoria…</span>
       </Button>
 
       <ResponsiveModal
