@@ -8,7 +8,7 @@
  * (doc/guide/impostazioni.md). The view reads the two contexts itself.
  */
 
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useTheme } from 'next-themes';
 import { Sun, Moon, Monitor } from 'lucide-react';
 import { useColorTheme, type ColorTheme } from '@/contexts/ColorThemeContext';
@@ -16,8 +16,18 @@ import { Tile, TILE_CELL_CLASS } from '@/components/ui/tile';
 import { cn } from '@/lib/utils';
 import { applyThemeWithTransition } from '@/lib/utils/themeTransition';
 import { describeColorTheme, describeThemeMode, describeTopBand, type ThemeMode } from '@/lib/utils/settingsNarrative';
-import { TOP_BAND_LABELS, TOP_BAND_NONE, TOP_BAND_OPTIONS, TOP_BAND_SWATCHES, isTopBandTheme } from '@/lib/constants/topBand';
+import {
+  TOP_BAND_LABELS,
+  TOP_BAND_NONE,
+  TOP_BAND_OPTIONS,
+  TOP_BAND_SWATCHES,
+  isTopBandTheme,
+  type TopBandOption,
+  type TopBandTheme,
+} from '@/lib/constants/topBand';
 import { SettingsTabPanel } from './shared';
+import { NarrativeText } from '@/components/ui/narrative-text';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 // Stable no-op store for the SSR/hydration split (same guard ThemePicker uses).
 const neverChanges = () => () => {};
@@ -116,8 +126,52 @@ const COLOR_THEME_SWATCHES = [
   },
 ] as const;
 
+/**
+ * The phone's top band of a theme (doc/fascia/README.md): the popover that opens on the theme's card
+ * when the reader picks it (owner, 2026-11-06), three colours of the theme and «Nessuna».
+ */
+function BandPicker({ theme, band, onPick }: { theme: TopBandTheme; band: TopBandOption | null; onPick: (option: TopBandOption) => void }) {
+  return (
+    <>
+      <p className="text-[12px] text-muted-foreground">Fascia in alto sul telefono</p>
+      <div className="mt-1 text-[13px] leading-[1.45]">
+        <NarrativeText segments={describeTopBand(band === null || band === TOP_BAND_NONE ? null : TOP_BAND_LABELS[band])} />
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="Colore della fascia">
+        {TOP_BAND_OPTIONS[theme].map((option) => {
+          const isActive = band === option;
+          const swatch = TOP_BAND_SWATCHES[theme][option];
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onPick(option)}
+              aria-pressed={isActive}
+              className={cn(
+                'relative flex min-h-11 flex-col rounded-[10px] border-2 p-2 text-left transition-[border-color] hover:border-primary/60',
+                isActive ? 'border-primary' : 'border-border'
+              )}
+            >
+              {/* Light over dark, the band's own two values (TOP_BAND_SWATCHES) */}
+              <div className="mb-2 h-8 overflow-hidden rounded-md border border-border/50" aria-hidden="true">
+                <div className="h-4 w-full" style={{ background: swatch.light }} />
+                <div className="h-4 w-full" style={{ background: swatch.dark }} />
+              </div>
+              <span className="text-[13px] font-medium leading-none">{TOP_BAND_LABELS[option]}</span>
+              {isActive && <div className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" aria-hidden="true" />}
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-[11px] leading-[1.45] text-muted-foreground">Ogni tema ricorda la sua. Si salva da sola sull&apos;account.</p>
+    </>
+  );
+}
+
 export function AspettoTab() {
   const { colorTheme, setColorTheme, topBand, setTopBand } = useColorTheme();
+  // The theme whose band popover is open: it opens when a theme with a band is picked (or tapped again).
+  const [bandFor, setBandFor] = useState<TopBandTheme | null>(null);
   const { theme, setTheme } = useTheme();
   // The active next-themes mode does not exist until hydration (same guard as ThemePicker).
   const isThemeHydrated = useSyncExternalStore(neverChanges, () => true, () => false);
@@ -162,10 +216,16 @@ export function AspettoTab() {
           <div className="mt-3.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             {COLOR_THEME_SWATCHES.map((swatch, index) => {
               const isActive = colorTheme === swatch.id;
-              return (
+              const bandTheme = isTopBandTheme(swatch.id) ? swatch.id : null;
+              const card = (
                 <button
                   key={swatch.id}
-                  onClick={() => setColorTheme(swatch.id)}
+                  type="button"
+                  onClick={() => {
+                    setColorTheme(swatch.id);
+                    // A theme with a band asks for its colour right away (owner, 2026-11-06).
+                    if (bandTheme) setBandFor(bandTheme);
+                  }}
                   aria-label={`Colore ${index + 1} di ${COLOR_THEME_SWATCHES.length}: ${swatch.name}`}
                   aria-pressed={isActive}
                   className={cn(
@@ -186,10 +246,22 @@ export function AspettoTab() {
                   </div>
                   <span className="text-[13px] font-medium leading-none">{swatch.name}</span>
                   <span className="mt-1 text-[11px] text-muted-foreground">{swatch.description}</span>
+                  {isActive && bandTheme && topBand !== null && (
+                    <span className="mt-1 text-[11px] text-muted-foreground">Fascia: {TOP_BAND_LABELS[topBand].toLowerCase()}</span>
+                  )}
                   {isActive && (
                     <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
                   )}
                 </button>
+              );
+              if (!bandTheme) return card;
+              return (
+                <Popover key={swatch.id} open={bandFor === bandTheme} onOpenChange={(open) => { if (!open) setBandFor(null); }}>
+                  <PopoverTrigger asChild>{card}</PopoverTrigger>
+                  <PopoverContent align="start" className="w-[min(18rem,calc(100vw-2rem))]">
+                    <BandPicker theme={bandTheme} band={topBand} onPick={(option) => setTopBand(bandTheme, option)} />
+                  </PopoverContent>
+                </Popover>
               );
             })}
           </div>
@@ -199,48 +271,6 @@ export function AspettoTab() {
         </Tile>
       </div>
 
-      {/* Fascia — the phone's top band (doc/fascia/README.md), only for a theme that has one */}
-      {isTopBandTheme(colorTheme) && (
-        <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-6')}>
-          <Tile
-            eyebrow="Fascia"
-            aside="tutti i dispositivi"
-            reading={describeTopBand(topBand === null || topBand === TOP_BAND_NONE ? null : TOP_BAND_LABELS[topBand])}
-          >
-            <div className="mt-3.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4" role="group" aria-label="Colore della fascia">
-              {TOP_BAND_OPTIONS[colorTheme].map((option) => {
-                const isActive = topBand === option;
-                const swatch = TOP_BAND_SWATCHES[colorTheme][option];
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => setTopBand(colorTheme, option)}
-                    aria-pressed={isActive}
-                    className={cn(
-                      'relative flex flex-col rounded-[10px] border-2 p-2.5 text-left transition-[border-color] hover:border-primary/60',
-                      isActive ? 'border-primary shadow-sm' : 'border-border'
-                    )}
-                  >
-                    {/* Light over dark, the band's own two values (TOP_BAND_SWATCHES) */}
-                    <div className="mb-2.5 h-10 overflow-hidden rounded-md border border-border/50" aria-hidden="true">
-                      <div className="h-5 w-full" style={{ background: swatch.light }} />
-                      <div className="h-5 w-full" style={{ background: swatch.dark }} />
-                    </div>
-                    <span className="text-[13px] font-medium leading-none">{TOP_BAND_LABELS[option]}</span>
-                    {isActive && (
-                      <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-              La barra in alto sul telefono: ogni tema ricorda la sua. Si salva da sola sull&apos;account.
-            </div>
-          </Tile>
-        </div>
-      )}
     </SettingsTabPanel>
   );
 }
