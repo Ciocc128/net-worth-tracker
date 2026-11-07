@@ -482,8 +482,9 @@ export default function HistoryPage() {
       actions={
         <>
           <div className="hidden items-center gap-2 desktop:flex">{headerActions(false)}</div>
-          {/* The sticky navbar's slot is cramped: only the manual snapshot fits there on a phone. */}
-          <Button variant="ghost" size="icon" onClick={() => setShowManualSnapshotModal(true)} disabled={isDemo} className="h-9 w-9 text-muted-foreground desktop:hidden" aria-label="Aggiungi uno snapshot passato">
+          {/* The sticky navbar's slot is cramped: only the manual snapshot fits there on a phone. Filled, because in
+              the band a «+» is always the action fill (doc/fascia/README.md D-FA12). */}
+          <Button size="icon" onClick={() => setShowManualSnapshotModal(true)} disabled={isDemo} className="h-9 w-9 desktop:hidden" aria-label="Aggiungi uno snapshot passato">
             <Plus className="h-4 w-4" aria-hidden="true" />
           </Button>
         </>
