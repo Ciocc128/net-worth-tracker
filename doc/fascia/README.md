@@ -69,7 +69,7 @@ actions sit, the page under it starting as a sheet with rounded corners, and a q
 | Cashflow (ogni scheda) | Impostazioni Spese · Impostazioni |
 | Analisi | Vai a categoria · Impostazioni |
 | Rendimenti | Analizza con AI · Aggiorna · Impostazioni |
-| Storico | Aggiungi uno snapshot passato · Impostazioni |
+| Storico | **Aggiungi uno snapshot passato** · Impostazioni |
 | Hall of Fame, Allocazione, FIRE | Impostazioni |
 | Previdenza | Aggiorna valore · **Registra versamento** · Impostazioni |
 | Assistente | Conversazioni · Memoria · Preferenze · **Nuova conversazione** |
@@ -91,6 +91,7 @@ actions sit, the page under it starting as a sheet with rounded corners, and a q
 | D-FA9 | **Lime Frost and Graphite lead the theme list** in Aspetto (owner, 2026-11-06) | upstream's order | the fork's two themes are the ones in use |
 | D-FA10 | **Every button in the bar has ONE shape: 44px square, 20px icon, no word; the main action filled, the rest outlined in the bar's ink** (owner: «rendi coerente graficamente tutti i pulsanti», 2026-11-06) | each page's own sizes (32, 36, 40, 42, 44px), ghosts beside outlines, «Registra versamento» in words | the bar read as a different toolbar on each page; the words cut Previdenza's title to «Previd…» |
 | D-FA11 | **No Impostazioni shortcut on the Assistente** | five buttons in the bar | its four own buttons (with its own preferences) left the conversation's title a few letters |
+| D-FA12 | **In the bar a «+» is always filled** (owner's question, 2026-11-07: «perché alcuni + sono lime e altri blu?») | Storico's «+» outlined as a secondary action | on a blue band (Blu ghiaccio) an outlined «+» took the band's blue while the filled ones were lime: one sign, one look |
 
 Where the band is the action colour (the lime; Graphite's ink in light), a main button on it («Salva») takes the band's ink with the band as its label; the outline buttons on the band are transparent with a 30% ink border.
 
