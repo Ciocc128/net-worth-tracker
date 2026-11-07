@@ -43,6 +43,10 @@ actions sit, the page under it starting as a sheet with rounded corners, and a q
   the gap above the bar showed the ground between Safari's lime status bar and the band. The band paints its
   colour 100vh above itself with no layout (`border-image: linear-gradient(var(--top-band) 0 0) fill 0 / 0 /
   100vh 0 0 0`), clipped by `<main>` the rest of the time.
+- **The document does not bounce** (2026-11-07, the owner's video): right after a tab change `<main>` has nothing
+  to scroll yet, iOS hands the drag to the document, and its bounce moved the whole shell down over the ground.
+  Below `desktop:`, in the band themes, `html` and `body` take `overscroll-behavior-y: none`; `<main>` keeps its
+  own bounce (covered by the outset above). Safari's pull-to-refresh goes with it in those themes.
 - **The shortcut** is a person (`CircleUserRound`), not a gear: Cashflow already has its own gear
   («Impostazioni Spese») in the same bar. Not on Impostazioni, not on the Assistente (D-FA11).
 

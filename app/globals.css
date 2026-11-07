@@ -1640,6 +1640,18 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
    * sight otherwise: `<main>` clips it. */
   border-image: linear-gradient(var(--top-band) 0 0) fill 0 / 0 / 100vh 0 0 0;
 }
+/* The DOCUMENT never rubber-bands under the band (owner's iPhone video, 2026-11-07): right after a tab change
+ * the new page is still short, `<main>` has nothing to scroll, and iOS hands the drag to the document, which
+ * bounced the whole shell down and showed the ground above the bar until the page filled in. `<main>` keeps
+ * its own bounce, and the band's outset above covers that one. Below `desktop:` only. */
+@media (width < 1440px) {
+  [data-theme="lime-frost"]:not([data-band="nessuna"]),
+  [data-theme="graphite"]:not([data-band="nessuna"]),
+  [data-theme="lime-frost"]:not([data-band="nessuna"]) body,
+  [data-theme="graphite"]:not([data-band="nessuna"]) body {
+    overscroll-behavior-y: none;
+  }
+}
 /* Where the band IS the action colour (the lime; Graphite's ink in light), the page's main button
  * on it («Salva», «Nuova Spesa») would vanish into it: on the band it turns to the band's ink with
  * the band's colour as its label. */
