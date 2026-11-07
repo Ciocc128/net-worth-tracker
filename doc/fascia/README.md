@@ -92,8 +92,9 @@ actions sit, the page under it starting as a sheet with rounded corners, and a q
 | D-FA10 | **Every button in the bar has ONE shape: 44px square, 20px icon, no word; the main action filled, the rest outlined in the bar's ink** (owner: «rendi coerente graficamente tutti i pulsanti», 2026-11-06) | each page's own sizes (32, 36, 40, 42, 44px), ghosts beside outlines, «Registra versamento» in words | the bar read as a different toolbar on each page; the words cut Previdenza's title to «Previd…» |
 | D-FA11 | **No Impostazioni shortcut on the Assistente** | five buttons in the bar | its four own buttons (with its own preferences) left the conversation's title a few letters |
 | D-FA12 | **In the bar a «+» is always filled** (owner's question, 2026-11-07: «perché alcuni + sono lime e altri blu?») | Storico's «+» outlined as a secondary action | on the lime band the filled «+» are the theme ink (night blue) while an outlined one shows the band's lime: one sign, one look |
+| D-FA13 | **The filled «+» (and «Salva») on the band is the band's ink with the band's colour as its glyph, on every band** (owner, 2026-11-07; page https://claude.ai/artifact/8S8CF5yXJ61aYdmmmU2fgf) | the theme's action colour (lime on ghiaccio/ardesia, black/grey in Graphite), the ink only where the band IS the action colour | one rule on every band, at the band text's own contrast; the lime no longer appears in the bar on ghiaccio and ardesia |
 
-Where the band is the action colour (the lime; Graphite's ink in light), a main button on it («Salva») takes the band's ink with the band as its label; the outline buttons on the band are transparent with a 30% ink border.
+On every band a main button («+», «Salva») takes the band's ink with the band as its label (D-FA13); the outline buttons on the band are transparent with a 30% ink border.
 
 Amends DESIGN.md → The Neutral-Frame Rule and The Quiet-Header Rule for this bar only (DESIGN.md → The Top-Band Rule).
 

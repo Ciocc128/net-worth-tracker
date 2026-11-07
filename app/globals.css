@@ -1652,12 +1652,11 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
     overscroll-behavior-y: none;
   }
 }
-/* Where the band IS the action colour (the lime; Graphite's ink in light), the page's main button
- * on it («Salva», «Nuova Spesa») would vanish into it: on the band it turns to the band's ink with
- * the band's colour as its label. */
-[data-theme="lime-frost"]:not([data-band]) .top-band,
-[data-theme="lime-frost"][data-band="lime"] .top-band,
-[data-theme="graphite"][data-band="inchiostro"]:not(.dark) .top-band {
+/* The page's main button on the band («+», «Salva») is a hole in it, on every band (D-FA13, owner 2026-11-07):
+ * filled in the band's ink, its glyph in the band's colour. One rule for every option, at the contrast the
+ * band's text already has; the theme's own action colour (lime, ink) stays for the rest of the page. */
+[data-theme="lime-frost"]:not([data-band="nessuna"]) .top-band,
+[data-theme="graphite"]:not([data-band="nessuna"]) .top-band {
   --action: var(--top-band-foreground);
   --action-foreground: var(--top-band);
   --action-hover: color-mix(in oklab, var(--top-band-foreground) 85%, var(--top-band));
