@@ -39,6 +39,10 @@ actions sit, the page under it starting as a sheet with rounded corners, and a q
   radius `24px × (1 − --band-progress)`; `--band-progress` = `scrollTop / 24` clamped to [0, 1], written on the
   header's style by `useTopBandProgress` on each animation frame of `#page-main`'s scroll (no React state).
 - **The bar reaches the top**: `-mt-4 pt-5` covers `<main>`'s 16px padding; the sticky wrapper is unchanged.
+- **Above the bar, the band** (2026-11-07, the owner's iPhone): when iOS rubber-bands the page down at the top,
+  the gap above the bar showed the ground between Safari's lime status bar and the band. The band paints its
+  colour 100vh above itself with no layout (`border-image: linear-gradient(var(--top-band) 0 0) fill 0 / 0 /
+  100vh 0 0 0`), clipped by `<main>` the rest of the time.
 - **The shortcut** is a person (`CircleUserRound`), not a gear: Cashflow already has its own gear
   («Impostazioni Spese») in the same bar. Not on Impostazioni, not on the Assistente (D-FA11).
 

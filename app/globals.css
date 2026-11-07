@@ -1634,6 +1634,11 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --ghost-hover-foreground: var(--top-band-foreground);
   color: var(--foreground);
   position: relative;
+  /* The band's colour painted 100vh ABOVE the bar, with no layout (a border-image outset): when iOS
+   * rubber-bands the page down at the top, the gap it opens above the bar is the band, continuous with
+   * the status bar Safari tints from it, never a strip of the ground (owner's iPhone, 2026-11-07). Out of
+   * sight otherwise: `<main>` clips it. */
+  border-image: linear-gradient(var(--top-band) 0 0) fill 0 / 0 / 100vh 0 0 0;
 }
 /* Where the band IS the action colour (the lime; Graphite's ink in light), the page's main button
  * on it («Salva», «Nuova Spesa») would vanish into it: on the band it turns to the band's ink with
