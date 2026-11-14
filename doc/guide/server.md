@@ -11,6 +11,9 @@
   handler body. Firestore rules do not protect Admin SDK calls, so enforce record-level ownership after loading the doc.
 - **Owner-scoped routes authorize with `assertCanAccessAccount(decodedToken, ownerUserId)`**, never a fallback to
   `decodedToken.uid`; viewer-scoped routes (sharing management) just read the token uid.
+- **Which account each route may act for, and how it checks**: the table of the 46 handlers and the spec of the test
+  that will hold it are in `doc/sicurezza/README.md` § 5–6 (spec of 2026-11-14, not implemented yet; A1 and A4 of the
+  security review are open until then).
 - Server-owned materialized docs are mutated only via a private authenticated route; cron routes use `CRON_SECRET`, and
   `/api/portfolio/snapshot` must keep accepting `cronSecret`.
 - **Validation**: `lib/server/validation.ts` owns the reusable schemas and `parseOr400` — never cast with `as { … }`
