@@ -5,8 +5,8 @@
 > script `audit-calcoli/script/rendimenti.test.ts`). Solo specifica: nessun file dell'app è cambiato. La specifica
 > viaggia con la PR dell'implementazione (branch `claude/project-thread-uwvwn7`).
 >
-> **Stato delle decisioni**: D-RM1 presa dal proprietario il 2026-11-14. D-RM2–D-RM7 sono **proposte**, in attesa
-> di approvazione (§ 8).
+> **Stato delle decisioni**: D-RM1–D-RM7 **prese dal proprietario il 2026-11-14** («Approvo tutto», le
+> raccomandazioni della § 8).
 
 ## 1. In breve
 
@@ -413,7 +413,7 @@ Riferimento T6: 15.000 €, 10 € di commissioni e 260 € di tassa → pesano 
   aperte sono valutate al lordo della tassa latente, e una vendita scaricherebbe in un mese la tassa di anni.
 - *Scartata: lasciare le due modalità come sono.* Lo stesso mese dà due rendimenti secondo la base.
 
-### D-RM2 — Dividendi e cedole al lordo · **proposta**
+### D-RM2 — Dividendi e cedole al lordo · **presa** (proprietario, 2026-11-14)
 
 L'imposta trattenuta su una distribuzione è un prelievo come quella di una vendita: il rendimento conta il lordo
 del registro dividendi (§ 5.2, § 5.3, T5c). L'Attribuzione passa al lordo.
@@ -421,9 +421,9 @@ del registro dividendi (§ 5.2, § 5.3, T5c). L'Attribuzione passa al lordo.
 - *Alternativa B: al netto accreditato.* Più semplice (nessun termine `T_distrib`, Attribuzione invariata), ma la
   definizione diventa «lordo della tassa sulle plusvalenze, netto di quella sulle cedole», e il confronto con i
   benchmark, che non pagano imposte, perde ogni anno la ritenuta.
-- Raccomandata la prima: D-RM1 vale senza eccezioni.
+- Scelta la prima: D-RM1 vale senza eccezioni.
 
-### D-RM3 — Il pagatore decide; gli interessi nella categoria dei dividendi · **proposta**
+### D-RM3 — Il pagatore decide; gli interessi nella categoria dei dividendi · **presa** (proprietario, 2026-11-14)
 
 Una distribuzione è rendimento della base quando il suo pagatore è dentro la base (§ 5.3). Un'entrata nella
 categoria dei dividendi senza record nel registro è l'interesse del suo conto.
@@ -432,18 +432,18 @@ categoria dei dividendi senza record nel registro è l'interesse del suo conto.
   risposte diverse per la stessa riga.
 - *Alternativa C: un'impostazione nuova «categorie di rendimento».* Un'impostazione in più per un caso che la
   categoria esistente copre; si può aggiungere dopo senza cambiare la regola.
-- Raccomandata la prima.
+- Scelta la prima.
 
-### D-RM4 — Nel mese in corso il flusso si ferma al giorno di cattura dello snapshot · **proposta**
+### D-RM4 — Nel mese in corso il flusso si ferma al giorno di cattura dello snapshot · **presa** (proprietario, 2026-11-14)
 
 § 5.4. I mesi chiusi restano interi.
 
 - *Alternativa B: fermarsi a oggi.* Sbaglia quando lo snapshot è di un giorno precedente (cron fermo, o prima
   delle 19).
 - *Alternativa C: escludere solo le righe `balancePending`.* Non copre le righe senza conto collegato.
-- Raccomandata la prima.
+- Scelta la prima.
 
-### D-RM5 — Un buco è un solo sotto-periodo · **proposta**
+### D-RM5 — Un buco è un solo sotto-periodo · **presa** (proprietario, 2026-11-14)
 
 § 5.5: flussi sommati, rendimento nella cella del mese che chiude, una osservazione mensile equivalente per la
 volatilità.
@@ -451,9 +451,9 @@ volatilità.
 - *Alternativa B: interpolare gli snapshot mancanti.* Inventa valutazioni che nessuno ha misurato.
 - *Alternativa C: escludere il buco dalla volatilità.* È un filtro silenzioso dentro una sola metrica, vietato
   dalla guida.
-- Raccomandata la prima.
+- Scelta la prima.
 
-### D-RM6 — Flusso a metà mese (Dietz modificato) · **proposta**
+### D-RM6 — Flusso a metà mese (Dietz modificato) · **presa** (proprietario, 2026-11-14)
 
 § 5.6, con le tre guardie e l'IRR sugli stessi istanti. **Sposta di poco ogni cifra già pubblicata** (T1: TWR
 annualizzato da 8,243% a 7,977%).
@@ -464,9 +464,9 @@ annualizzato da 8,243% a 7,977%).
   da verificare a mano.
 - *Alternativa C: formula di oggi più una guardia* (mese non misurabile quando il flusso supera una soglia del
   capitale). Tocca meno cifre, ma i primi mesi di un account spariscono e la soglia è arbitraria.
-- Raccomandata la prima: una formula, verificabile a mano, lo standard per valutazioni mensili.
+- Scelta la prima: una formula, verificabile a mano, lo standard per valutazioni mensili.
 
-### D-RM7 — Due passi · **dalla card**; una PR ciascuno · **proposta**
+### D-RM7 — Due passi e una PR ciascuno · **presa** (proprietario, 2026-11-14)
 
 Passo 1: B1, B3, B2 (§ 5.1–5.4). Passo 2: B4, B9 (§ 5.5–5.6). Il passo 1 non sposta le cifre di un account senza
 i casi che corregge; il passo 2 le sposta tutte. `CACHE_MATH_VERSION` sale a ogni passo che arriva su `main`
