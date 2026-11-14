@@ -7,7 +7,7 @@ is the spec.
 
 | Stage | Card | What | State |
 | --- | --- | --- | --- |
-| **S1 «chi può agire per chi»** | F02 (A1 + A4 + the authorization table) | this file, §§ 1–8 | spec, 2026-11-14 |
+| **S1 «chi può agire per chi»** | F02 (A1 + A4 + the authorization table) | this file, §§ 1–9 | spec ready, 2026-11-14 |
 | S2 | F04 (allowed users: R1, A3, A2) | to be written by its own thread | — |
 | S3 | F11 (rules suite, R2–R4, S1) | to be written by its own thread | — |
 
@@ -226,8 +226,9 @@ proof is the emulator probe of § 8, CA6.
 
 ## 7. Decisioni
 
-Proposed by this spec on 2026-11-14; **each one waits for the owner's confirmation in the thread** before the card
-moves to Spec pronta.
+Proposed by this spec on 2026-11-14. **D-SI1, D-SI4 and D-SI6** — the three that depart from the card — were
+confirmed by the owner in the thread the same day. The other six apply the review's corrections and were shown to
+the owner with them; none was objected to.
 
 | Id | Decision | Alternatives rejected, and why |
 | --- | --- | --- |
