@@ -504,7 +504,8 @@ export function PerformanceDettaglio({ metrics, periodAside, drawdown, rollingCa
                 <div>
                   <p className="mb-1 font-semibold text-foreground">Contributi e capitale</p>
                   I contributi netti sono entrate meno uscite registrate in Cashflow, trasferimenti esclusi; i dividendi sono rendimento, non
-                  contributo. Il capitale investito conta acquisti meno vendite dal registro operazioni. «Capitale immesso» è il valore a
+                  contributo. Il rendimento è lordo d&apos;imposta e netto delle commissioni di negoziazione: una tassa trattenuta è un
+                  prelievo, una commissione è un costo. Il capitale investito conta acquisti meno vendite dal registro operazioni. «Capitale immesso» è il valore a
                   inizio periodo più il capitale entrato da allora: i contributi netti, oppure — quando la base è una parte del patrimonio —
                   i flussi misurati al suo confine (registro operazioni e variazioni di quantità). La distanza dal patrimonio è il mercato.
                 </div>

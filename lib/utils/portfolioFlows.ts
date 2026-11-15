@@ -71,7 +71,10 @@
  *  - a quantity change is not always a trade: a split, a merger, an in-kind transfer or a
  *    reinvested dividend moves units without money and reads as a flow;
  *  - a trade left out of the ledger vanishes for a covered instrument (the ledger is trusted);
- *  - interest credited on a cash account inside the base reads as a deposit, not a return.
+ *  - interest credited on a cash account inside the base reads as a deposit, not a return — unless it
+ *    is recorded as income in the dividend category: since 2026-11-15 (F08) the measured month's
+ *    correction removes every distribution whose payer is inside the base, a dividend or a coupon
+ *    credited to an account in the base included (`lib/utils/returnFlows.ts`, `measuredAdjustment`).
  */
 
 import type { MonthlySnapshot } from '@/types/assets';

@@ -7,6 +7,11 @@
 >
 > **Stato delle decisioni**: D-RM1–D-RM7 **prese dal proprietario il 2026-11-14** («Approvo tutto», le
 > raccomandazioni della § 8).
+>
+> **Stato dell'implementazione**: passo 1 (B1, B3, B2) implementato il 2026-11-15 (`lib/utils/returnFlows.ts`,
+> casi T4–T6 in `__tests__/returnFlows.test.ts`, `CACHE_MATH_VERSION` `v9-fork`). Passo 2 (B4, B9) da fare, in una
+> PR a parte. Il giorno di cattura si legge da `createdAt`; quando F07 aggiunge `snapshotCapturedAt`, `resolveFlowCutoff`
+> lo leggerà al suo posto.
 
 ## 1. In breve
 

@@ -6,9 +6,9 @@
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
-- **Rendimenti**: `app/dashboard/performance/page.tsx`, `components/performance/*` (+ `tiles/*`, `AttribuzioneTile`; the hand-written plots glide through `lib/hooks/useMorphingSeries.ts` over pure `lib/utils/seriesMorph.ts`), pure `lib/utils/{performanceNarrative,performanceSummary,performanceBase,portfolioFlows,performanceAttribution,drawdownSeries,cashFlowMap,benchmarkPeriodReturn}.ts` (`resolvePerformanceBase` = the ONE base for service, page and PDF; `externalFlowOf`/`mergePensionFlows`/`mergePortfolioFlows` = the two flow channels; `buildPortfolioBoundaryFlows` = the measured boundary; `resolvePeriodReturnChip`/`deannualizeReturn`; `attributePeriodReturn` + `RESIDUAL_ALERT_SHARE` = the residual guard), `lib/services/performanceService.ts` (`CACHE_MATH_VERSION`); cache `performance-cache/{userId}`; spec `e2e/performance.degraded.spec.ts` on `npm run e2e:seed -- performance`. Yields: `lib/utils/yieldOnCost.ts` (`computeDividendYieldMetrics`, also behind `app/api/dividends/stats/route.ts`), `lib/utils/dividendYield.ts` (`computeYieldsForPeriods`, the twelve yield fields per period), `app/api/performance/yields/route.ts`, `lib/services/performanceYieldsService.ts` (the client reader, the PDF's too). Reads: `lib/hooks/usePerformanceData.ts` (every read of the page), `lib/query/performanceQueries.ts` (the two queries, built together — pure), `resolvePerformanceSetup` / `resolveYieldPeriods` / `PerformanceInputs` in the service
+- **Rendimenti**: `app/dashboard/performance/page.tsx`, `components/performance/*` (+ `tiles/*`, `AttribuzioneTile`; the hand-written plots glide through `lib/hooks/useMorphingSeries.ts` over pure `lib/utils/seriesMorph.ts`), pure `lib/utils/{performanceNarrative,performanceSummary,performanceBase,portfolioFlows,returnFlows,performanceAttribution,drawdownSeries,cashFlowMap,benchmarkPeriodReturn}.ts` (`resolvePerformanceBase` = the ONE base for service, page and PDF; `externalFlowOf`/`mergePensionFlows`/`mergePortfolioFlows` = the two flow channels; `buildReturnFlowAdjustments`/`mergeReturnAdjustments`/`resolveFlowCutoff` = the branch corrections and the running month's cap; `buildPortfolioBoundaryFlows` = the measured boundary; `resolvePeriodReturnChip`/`deannualizeReturn`; `attributePeriodReturn` + `RESIDUAL_ALERT_SHARE` = the residual guard), `lib/services/performanceService.ts` (`CACHE_MATH_VERSION`); cache `performance-cache/{userId}`; spec `e2e/performance.degraded.spec.ts` on `npm run e2e:seed -- performance`. Yields: `lib/utils/yieldOnCost.ts` (`computeDividendYieldMetrics`, also behind `app/api/dividends/stats/route.ts`), `lib/utils/dividendYield.ts` (`computeYieldsForPeriods`, the twelve yield fields per period), `app/api/performance/yields/route.ts`, `lib/services/performanceYieldsService.ts` (the client reader, the PDF's too). Reads: `lib/hooks/usePerformanceData.ts` (every read of the page), `lib/query/performanceQueries.ts` (the two queries, built together — pure), `resolvePerformanceSetup` / `resolveYieldPeriods` / `PerformanceInputs` in the service
 - **Benchmark**: `lib/constants/benchmarks.ts`, `app/api/benchmarks/*`, `lib/server/ecbRatesService.ts`; caches `benchmark-cache/*`, `fx-rate-cache/usd-eur`, `ecb-rate-cache/deposit-rate`
-- **Suites to run after a change here — Rendimenti** (moved from `AGENTS.md` § Commands on 2026-09-30): `performanceService` (+ `performanceBase`, `drawdownSeries`, `cashFlowMap`) · **Attribuzione** `performanceAttribution`, `snapshotAssetBreakdown` · **Verdetto e letture** `performanceNarrative`, `performanceSummaryTiles`, `performanceSummary` (+ `patrimonioNarrative` for the articles) · **Composizione mobile** `performanceNarrative` (`describePerformanceClosedAnswers`, the landscape index), `tabletComposition` · **Letture e rendimenti da dividendo** `performanceInputs`, `performanceQueries`, `dividendYield`, `performanceYieldsRoute` (+ `persistCache`) · **Analizza con AI** `analyzePerformanceRoute` (`app/api/ai/analyze-performance/route.ts`: the overload, the refusal, the `max_tokens` cut, the server-side fallback) + `performanceNarrative` (`describeReportAuthor`) · **Browser** `e2e/performance.degraded.spec.ts`, `e2e/mobile-composition.performance.degraded.mobile.spec.ts` (390, project `degraded-mobile`, since 2026-10-14), `e2e/modal.origin.spec.ts`
+- **Suites to run after a change here — Rendimenti** (moved from `AGENTS.md` § Commands on 2026-09-30): `performanceService` (+ `performanceBase`, `drawdownSeries`, `cashFlowMap`, `returnFlows` — the F08 acceptance cases) · **Attribuzione** `performanceAttribution`, `snapshotAssetBreakdown` · **Verdetto e letture** `performanceNarrative`, `performanceSummaryTiles`, `performanceSummary` (+ `patrimonioNarrative` for the articles) · **Composizione mobile** `performanceNarrative` (`describePerformanceClosedAnswers`, the landscape index), `tabletComposition` · **Letture e rendimenti da dividendo** `performanceInputs`, `performanceQueries`, `dividendYield`, `performanceYieldsRoute` (+ `persistCache`) · **Analizza con AI** `analyzePerformanceRoute` (`app/api/ai/analyze-performance/route.ts`: the overload, the refusal, the `max_tokens` cut, the server-side fallback) + `performanceNarrative` (`describeReportAuthor`) · **Browser** `e2e/performance.degraded.spec.ts`, `e2e/mobile-composition.performance.degraded.mobile.spec.ts` (390, project `degraded-mobile`, since 2026-10-14), `e2e/modal.origin.spec.ts`
 
 ## Rendimenti — every collection read once (`lib/hooks/usePerformanceData.ts`, `lib/query/performanceQueries.ts`)
 
@@ -88,9 +88,29 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   in 2024 and typed in September: 1.000 € of phantom gain, proven by `portfolioFlows.test.ts`). The history before the
   app saw the instrument is not measured — a TWR cannot attribute two years of a price move to the month the position
   was typed in — and the backdated month itself produces no entry, since no snapshot pair holds the instrument.
-  `CACHE_MATH_VERSION` v8. Declared limits: end-of-month price on the quantity branch, a split or an in-kind transfer
-  reads as a flow, a trade left out of the ledger vanishes, interest credited on an account inside the base reads as
-  a deposit.
+  Declared limits: end-of-month price on the quantity branch, a split or an in-kind transfer reads as a flow, a trade
+  left out of the ledger vanishes, interest credited on an account inside the base reads as a deposit UNLESS it is
+  recorded as income in the dividend category (next rule).
+- **ONE definition in both branches: gross of tax, net of trading fees** (2026-11-15, F08 step 1,
+  `doc/rendimenti-misura/README.md` § 5.1–5.4, `lib/utils/returnFlows.ts`). A withheld tax is a WITHDRAWAL, a trading
+  fee a COST, a distribution paid by an instrument INSIDE the base RETURN. Each branch carries its own correction on
+  its own field of `CashFlowData`: a cashflow month adds `cashflowAdjustment` = the fee rows of a trade
+  (`feeOfTradeId`, given back: the account's drop stays in the gain) − the sales' `withheldTaxEur` − the registry's
+  dividend tax (only with a dividend category set); a measured month adds `measuredAdjustment` = − the gross of every
+  distribution whose PAYER is inside the base — a registry record whose `assetId` is not excluded, or an income row in
+  the dividend category no record names (`Dividend.expenseId`: the interest of its account, in the base when the
+  account is, always when it has none). A payer OUTSIDE the base (a rent registered on the excluded house) is outside
+  money. Reference: 15.000 €, 10 € of fees and 260 € of tax weigh −10 € in both branches (before: −260 € or −10 €
+  depending on the base); a 100 € dividend credited to an account in a subset base is +0,909%, no longer 0%.
+  The registry is an input of the metrics (`PerformanceInputs.dividends`, `getDividendReceipts` carries gross, tax and
+  the synced row); the PDF reads it, the email passes the records it already reads for its window.
+- **The running month stops at the snapshot's capture day** (B3, same date, `resolveFlowCutoff`): when the latest
+  snapshot is of the month we are in, the rows (expenses, registry, sale taxes) count up to the end of the Italian day
+  of its `createdAt` (absent → today) — a salary in the calendar for the 27th is neither flow nor «Contributi netti» on
+  the 10th. A closed month counts whole. The measured and the pension flows come from the snapshots: no cap. Declared
+  limit: a row dated the capture day and saved after the evening's write is in the flow, not yet in the balances.
+  `CACHE_MATH_VERSION` v9 (`buildCacheKey` fingerprints the registry by month, the sale taxes, the exclusions and the
+  capture day: `returnFlowTokens`).
 - **«Liquidità fuori dalla base»** (`performanceExcludesCash`, default OFF): the `cash` accounts leave the base by TYPE,
   their `allocationRole` untouched (Allocazione keeps them); a money-market ETF has a price and stays in. It exists only
   now because without the measured flows it would read every purchase as return. `classifyContribution` reads the
@@ -114,7 +134,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **The flows ride their own channels, never `netCashFlow`.** `CashFlowData.pensionFlow` (merged by `mergePensionFlows`)
   and `CashFlowData.portfolioFlow` (merged by `mergePortfolioFlows`, `null`/absent = not measurable, `0` = measured and
   still) inside `calculatePerformanceForPeriod`/`calculateRollingPeriods`; `buildCashFlowMap` sums `externalFlowOf(cf)`
-  = `(portfolioFlow ?? netCashFlow) + pensionFlow`, so TWR, volatility, drawdown, heatmap, Evoluzione and IRR see them
+  = `(portfolioFlow + measuredAdjustment) ?? (netCashFlow + cashflowAdjustment)` `+ pensionFlow`, so TWR, volatility, drawdown, heatmap, Evoluzione and IRR see them
   without knowing; ROI and CAGR sum `externalFlowOf` over the series. `metrics.netCashFlow` stays the cashflow's savings
   (the Contributi tile's «Contributi netti»); `metrics.pensionFlow`/`pensionEntryFlow`/`pensionInternalFlow` and
   `metrics.portfolioFlow`/`flowSource`/`measuredFlowMonths` are shown apart («Capitale entrato nella base», with its
@@ -202,7 +222,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   position — **fixed in `attributeSelectedChange` on 2026-09-06**: the cron writes every asset, sold ones included, and a
   `quantity 0, totalValue 0` row read as present had unit value 0, turning a 14.830 € sale into a −14.830 € PRICE effect
   (Xtrackers Overnight, 2026-08, visible in Storico › Valore per strumento).
-- **Dividends per instrument come from the `dividends` registry** (`sumDividendsByAsset`: net EUR, `paymentDate` inside
+- **Dividends per instrument come from the `dividends` registry** (`sumDividendsByAsset`: GROSS EUR since 2026-11-15,
+  D-RM2 — the tax is a withdrawal in the flows, so it never lands in «Non attribuito»; `paymentDate` inside
   `[startDate, dividendEndDate]` — received, never announced), added to the instrument's row; the cashflow's dividend
   income is inside the gain, so a dividend recorded in only one of the two places lands in «Non attribuito».
 - **Coverage is said** (`coverage.attributedMonths` of `measuredMonths`, first/last month): on a window that starts
