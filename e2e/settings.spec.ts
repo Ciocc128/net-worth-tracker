@@ -204,3 +204,72 @@ test('un documento nel formato vecchio si riscrive come v2 al primo «Salva» e 
     await fetch(SETTINGS_DOC, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: before }) });
   }
 });
+
+/**
+ * SE1 (doc/sicurezza/README.md § 8, CA4) — «Sincronizza dividendi esistenti» after A1: the request
+ * carries the account and the category id only, the server reads the dividends and the category
+ * itself. A paid dividend without a row (decoy note «ornitorinco SE1») gets ONE income row in the
+ * account, with the STORED category's name; the toast counts it. Everything planted is removed at
+ * the end (the dividend, its row, the settings field).
+ */
+test('«Sincronizza dividendi esistenti» scrive la riga del dividendo pagato nell\'account, con la categoria salvata', async ({ page }) => {
+  const FIRESTORE = 'http://127.0.0.1:8080/v1/projects/demo-net-worth/databases/(default)/documents';
+  const HEADERS = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
+  const DECOY = 'ornitorinco SE1';
+  const DIVIDEND_ID = 'e2e-se1-dividend';
+  const paid = '2026-01-15T11:00:00Z';
+
+  const decoyRows = async () => {
+    const res = await fetch(`${FIRESTORE}/expenses?pageSize=500`, { headers: HEADERS });
+    const body = (await res.json()) as { documents?: Array<{ name: string; fields: Record<string, { stringValue?: string }> }> };
+    return (body.documents ?? []).filter((d) => d.fields.notes?.stringValue?.includes(DECOY));
+  };
+  const cleanUp = async () => {
+    for (const row of await decoyRows()) await fetch(`${FIRESTORE}/${row.name.split('/documents/')[1]}`, { method: 'DELETE', headers: HEADERS });
+    await fetch(`${FIRESTORE}/dividends/${DIVIDEND_ID}`, { method: 'DELETE', headers: HEADERS });
+    // No field in the body with the field in the mask = the field is removed.
+    await fetch(`${SETTINGS_DOC}?updateMask.fieldPaths=dividendIncomeCategoryId`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ fields: {} }) });
+  };
+
+  await cleanUp();
+  await fetch(`${SETTINGS_DOC}?updateMask.fieldPaths=dividendIncomeCategoryId`, {
+    method: 'PATCH', headers: HEADERS, body: JSON.stringify({ fields: { dividendIncomeCategoryId: { stringValue: 'seed-cat-income' } } }),
+  });
+  await fetch(`${FIRESTORE}/dividends?documentId=${DIVIDEND_ID}`, {
+    method: 'POST',
+    headers: HEADERS,
+    body: JSON.stringify({
+      fields: {
+        userId: { stringValue: 'test-user-1' },
+        assetId: { stringValue: 'seed-vwce' },
+        assetTicker: { stringValue: 'VWCE' },
+        assetName: { stringValue: 'Vanguard FTSE All-World' },
+        exDate: { timestampValue: paid },
+        paymentDate: { timestampValue: paid },
+        dividendPerShare: { doubleValue: 1 },
+        quantity: { doubleValue: 50 },
+        grossAmount: { doubleValue: 50 },
+        taxAmount: { doubleValue: 0 },
+        netAmount: { doubleValue: 50 },
+        currency: { stringValue: 'EUR' },
+        dividendType: { stringValue: 'ordinary' },
+        notes: { stringValue: DECOY },
+      },
+    }),
+  });
+
+  try {
+    await openSettings(page, 'dividendi');
+    const button = page.getByRole('button', { name: 'Sincronizza dividendi esistenti' });
+    await button.click();
+    await page.getByRole('button', { name: 'Conferma sincronizzazione' }).click();
+    await expect(page.getByText(/Sincronizzazione completata: 1 voci create/)).toBeVisible({ timeout: 30_000 });
+
+    const rows = await decoyRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].fields.userId?.stringValue).toBe('test-user-1');
+    expect(rows[0].fields.categoryName?.stringValue).toBe('Stipendio');
+  } finally {
+    await cleanUp();
+  }
+});

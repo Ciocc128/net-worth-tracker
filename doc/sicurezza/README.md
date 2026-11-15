@@ -2,12 +2,12 @@
 
 Fork only. Source: the security review of 2026-11-11 (project Library `review-sicurezza/`, page
 <https://claude.ai/artifact/2hwcn9rwBnE2iJyKtqxprx>) and the test-health review (`salute-test/parte-2-copertura.md`,
-C3). This dossier collects the corrections of that review, one stage per Todoist card. Nothing in the app yet: this
-is the spec.
+C3). This dossier collects the corrections of that review, one stage per Todoist card. S1 is implemented
+(2026-11-15); S2 and S3 are specs of their own.
 
 | Stage | Card | What | State |
 | --- | --- | --- | --- |
-| **S1 «chi può agire per chi»** | F02 (A1 + A4 + the authorization table) | this file, §§ 1–9 | spec ready, 2026-11-14 |
+| **S1 «chi può agire per chi»** | F02 (A1 + A4 + the authorization table) | this file, §§ 1–9 | implemented 2026-11-15 (§ 10) |
 | S2 | F04 (allowed users: R1, A3, A2) | to be written by its own thread | — |
 | S3 | F11 (rules suite, R2–R4, S1) | to be written by its own thread | — |
 
@@ -269,3 +269,32 @@ the owner with them; none was objected to.
   dividend fixes of F09.
 - **The 14 routes without a test of their own** get 401/403 from the table; their 200 and payload remain debt
   (salute-test C3), to be paid when each is next touched.
+
+## 10. Stato dell'implementazione (2026-11-15)
+
+- **A1** closed: `app/api/dividends/sync-expenses/route.ts` (schema `dividendSyncRequestSchema`, RS1),
+  `syncDividendExpenses(userId, category)` and `readDividendSyncCategory` in `lib/services/dividendIncomeService.ts`
+  (RS2–RS3), the owner check inside the transaction of `createExpenseFromDividend` (RS4);
+  `components/settings/tabs/DividendiTab.tsx` sends ids only.
+- **A4** closed: `updateExpenseFromDividend` throws on a row of another account, `deleteExpenseForDividend(dividendId,
+  expenseId, ownerId)` leaves it and drops the link (RS5); `dividends` is `allow write: if false` in
+  `firestore.rules` (RS6, **to be published by hand**); `DELETE /api/assets/[assetId]` filters the future dividends
+  by owner (RS6b).
+- **Tests**: SX1–SX7 `__tests__/syncExpensesRoute.test.ts`, DI1–DI3 (+ DI1b: a dividend not stored at all) in
+  `__tests__/dividendIncomeService.test.ts`, DR1–DR2 `__tests__/dividendLinkedExpenseRoute.test.ts`, AD1
+  `__tests__/assetDeleteRoute.test.ts`, RA1–RA5 `__tests__/routeAuthorization.{table,test}.ts` (160 cases, every row
+  hermetic: no exemption was needed). All run the real routes over `__tests__/helpers/adminFake.ts`. Seen red on
+  `main`'s code: SX1 (a row written in the victim's account), SX2 (8000 → 5500, the review's P4c), SX4–SX6, DI1–DI3,
+  DR1–DR2, AD1; RA1 with a throwaway `app/api/zz/route.ts`, RA3 with the check removed from `dashboard/overview`.
+  The table's cells for A1 and A4 now read «`getAllDividends(userId)`; category `userId`» and
+  «`expense.userId === dividend.userId`».
+- **Two AI routes check the key before the account** (`ai/analyze-performance` 500, `ai/assistant/stream` 503 without
+  `ANTHROPIC_API_KEY`): harmless (nothing is read), but the table stubs the key so RA3 reaches the check.
+- **On the Mac** (CA4–CA6): SE1 in `e2e/settings.spec.ts`, the dividend specs with the new rules loaded in the
+  emulator, the review's probes.
+- **Seen while implementing, left for later**: `deleteUpcomingCouponsForAsset` and
+  `deleteUpcomingFinalPremiumForAsset` (`lib/services/dividendService.ts`) delete the expense named by a dividend's
+  `expenseId` without comparing its owner — the dividends are filtered by `userId`, and with RS6 `expenseId` is no
+  longer client-writable, so only a link written before the rule could reach another account; and
+  `resolveDividendIncomeCategory` reads the category named in the settings without comparing its `userId` (names
+  only). Both are candidates for «Fable minori · sicurezza».

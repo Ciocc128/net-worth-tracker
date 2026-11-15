@@ -4,16 +4,26 @@
 
 ## Files
 
-- **Server layer**: `app/api/**/route.ts` (the cron routes `app/api/cron/monthly-snapshot/route.ts` and `app/api/cron/daily-dividend-processing/route.ts`, `/api/portfolio/snapshot`), `lib/server/*` (server-only: `apiAuth.ts` with `assertCanAccessAccount`, `validation.ts` with the reusable schemas, `isoDateSchema` and `parseOr400`, `serverTiming.ts` with `startTiming()` and `ServerTimingRecorder`), `lib/firebase/admin.ts` (the Admin SDK), `vercel.json`, `package.json` (`overrides`, `engines.node`); tests `__tests__/vercelConfig.test.ts`, `__tests__/serverCashSettlement.test.ts`, `__tests__/serverValidation.test.ts`, `__tests__/serverTiming.test.ts`, `__tests__/apiAuthRoutes.test.ts` and the route tests (`__tests__/{performanceYieldsRoute,dividendStatsRoute,instrumentProfilesRoute}.test.ts`), plus the throwaway emulator exercises `scripts/*.tmp.mts` of doc/guide/e2e-emulatori.md
+- **Server layer**: `app/api/**/route.ts` (the cron routes `app/api/cron/monthly-snapshot/route.ts` and `app/api/cron/daily-dividend-processing/route.ts`, `/api/portfolio/snapshot`), `lib/server/*` (server-only: `apiAuth.ts` with `assertCanAccessAccount`, `validation.ts` with the reusable schemas, `isoDateSchema` and `parseOr400`, `serverTiming.ts` with `startTiming()` and `ServerTimingRecorder`), `lib/firebase/admin.ts` (the Admin SDK), `vercel.json`, `package.json` (`overrides`, `engines.node`); tests `__tests__/vercelConfig.test.ts`, `__tests__/serverCashSettlement.test.ts`, `__tests__/serverValidation.test.ts`, `__tests__/serverTiming.test.ts`, `__tests__/apiAuthRoutes.test.ts`, the authorization table `__tests__/routeAuthorization.{table,test}.ts` over `__tests__/helpers/adminFake.ts`, and the route tests (`__tests__/{performanceYieldsRoute,dividendStatsRoute,instrumentProfilesRoute,syncExpensesRoute,dividendLinkedExpenseRoute,assetDeleteRoute}.test.ts`), plus the throwaway emulator exercises `scripts/*.tmp.mts` of doc/guide/e2e-emulatori.md
 
 ## Server Layer and API Authorization
 - Route = auth → validate → fetch → ownership check → delegate → return; no Firestore queries or business logic in the
   handler body. Firestore rules do not protect Admin SDK calls, so enforce record-level ownership after loading the doc.
 - **Owner-scoped routes authorize with `assertCanAccessAccount(decodedToken, ownerUserId)`**, never a fallback to
   `decodedToken.uid`; viewer-scoped routes (sharing management) just read the token uid.
-- **Which account each route may act for, and how it checks**: the table of the 46 handlers and the spec of the test
-  that will hold it are in `doc/sicurezza/README.md` § 5–6 (spec of 2026-11-14, not implemented yet; A1 and A4 of the
-  security review are open until then).
+- **A route passes IDS to its service, and the service re-reads** (RS7, 2026-11-15, `doc/sicurezza/README.md` § 4): a
+  document that arrives in a request is never written, and never names the account it is written in. The account of
+  a write is one of two things — the `userId` verified by `assertCanAccessAccount`, or the `userId` of a document the
+  server has just read. Until 2026-11 `POST /api/dividends/sync-expenses` wrote income rows in whatever account each
+  dividend OBJECT in its body declared (A1): it now takes `{ userId, categoryId, subCategoryId? }` and reads the rest.
+- **Every `route.ts` × method is a row of `__tests__/routeAuthorization.table.ts`** (kind `owner` · `resource` ·
+  `viewer` · `token` · `secret` · `public`, and a request that REACHES the check). `__tests__/routeAuthorization.test.ts`
+  reads the handlers from disk and fails when one is missing from the table (RA1), when it answers anything but 401
+  without a credential (RA2), anything but 403 (or the row's declared 404) or writes anything for a stranger's token
+  aimed at another account (RA3), 401/403 to the account's own token or a member's (RA4), or when a `viewer` route
+  touches the account named in the request (RA5). The routes run for real over `__tests__/helpers/adminFake.ts`, an
+  in-memory Admin SDK that records every path read and written; `fetch` rejects. A new route is born with its row; the
+  readable table with the review's notes is `doc/sicurezza/README.md` § 5.
 - Server-owned materialized docs are mutated only via a private authenticated route; cron routes use `CRON_SECRET`, and
   `/api/portfolio/snapshot` must keep accepting `cronSecret`.
 - **Validation**: `lib/server/validation.ts` owns the reusable schemas and `parseOr400` — never cast with `as { … }`
