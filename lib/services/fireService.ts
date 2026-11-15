@@ -196,11 +196,20 @@ interface MonthlyExpenseAggregate {
 const EXPENSE_MULTIPLIERS = [0.8, 0.9, 1.0, 1.1, 1.2] as const;
 const SAVINGS_MULTIPLIERS = [0.75, 1.0, 1.25, 1.5] as const;
 const SAVINGS_FALLBACK_VALUES = [0, 5000, 10000, 20000] as const;
+// RN8 (doc/fire-ipotesi/README.md § 23.6): the ordinary IRPEF brackets in force from tax year 2026
+// (art. 11 TUIR as amended by L. 199/2025) — 23% up to 28.000 €, 33% up to 50.000 €, 43% above.
 const DEFAULT_COAST_FIRE_TAX_BRACKETS: CoastFireTaxBracket[] = [
-  { id: 'irpef-23', upTo: 15000, rate: 23 },
-  { id: 'irpef-25', upTo: 28000, rate: 25 },
-  { id: 'irpef-35', upTo: 50000, rate: 35 },
+  { id: 'irpef-23', upTo: 28000, rate: 23 },
+  { id: 'irpef-33', upTo: 50000, rate: 33 },
   { id: 'irpef-43', upTo: null, rate: 43 },
+];
+// The defaults before RN8 (the 2022 brackets). A saved list equal to them, once normalised, was never
+// touched by the user: it reads as the current defaults (D-FC7), and Firestore follows at the next save.
+const LEGACY_DEFAULT_COAST_FIRE_TAX_BRACKETS: ReadonlyArray<Pick<CoastFireTaxBracket, 'upTo' | 'rate'>> = [
+  { upTo: 15000, rate: 23 },
+  { upTo: 28000, rate: 25 },
+  { upTo: 50000, rate: 35 },
+  { upTo: null, rate: 43 },
 ];
 
 interface CoastFIRERetirementNeeds {
@@ -340,6 +349,14 @@ export function normalizeCoastFireTaxBrackets(
     upTo: null,
     rate: topRate,
   });
+
+  const isLegacyDefault =
+    normalized.length === LEGACY_DEFAULT_COAST_FIRE_TAX_BRACKETS.length &&
+    normalized.every((bracket, index) => {
+      const legacy = LEGACY_DEFAULT_COAST_FIRE_TAX_BRACKETS[index];
+      return bracket.upTo === legacy.upTo && bracket.rate === legacy.rate;
+    });
+  if (isLegacyDefault) return getDefaultCoastFireTaxBrackets();
 
   return normalized;
 }

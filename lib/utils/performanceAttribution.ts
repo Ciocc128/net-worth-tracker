@@ -52,7 +52,7 @@ import type { Asset, MonthlySnapshot } from '@/types/assets';
 import type { CashFlowData, PeriodMonth } from '@/types/performance';
 import type { PensionContribution } from '@/types/pension';
 import { attributeSelectedChange, hasAssetBreakdown, type SnapshotAsset } from '@/lib/utils/snapshotAssetBreakdown';
-import { buildCashFlowMap, monthKey } from '@/lib/utils/cashFlowMap';
+import { buildFlowIndex, monthKey, subPeriodFlow } from '@/lib/utils/cashFlowMap';
 import { valueEffectMonth } from '@/lib/utils/pensionReturn';
 
 /** One instrument's contribution to the period's gain, in euro. */
@@ -151,7 +151,7 @@ function contributionsMovedIn(contributions: PensionContribution[], assetId: str
 export function attributePeriodReturn(input: AttributionInput): ReturnAttribution {
   const { cashFlows, excludedAssetIds, pension, assets, dividendsByAsset } = input;
   const ordered = [...input.snapshots].sort((a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month));
-  const flowByMonth = buildCashFlowMap(cashFlows);
+  const flowIndex = buildFlowIndex(cashFlows);
   const excluded = new Set(excludedAssetIds);
   const fundIds = new Set(pension.fundIds);
   const assetById = new Map(assets.map((asset) => [asset.id, asset]));
@@ -188,7 +188,8 @@ export function attributePeriodReturn(input: AttributionInput): ReturnAttributio
     if (!hasAssetBreakdown(prev) || !hasAssetBreakdown(curr)) continue;
 
     const currKey = monthKey(curr.year, curr.month);
-    const monthGain = curr.totalNetWorth - prev.totalNetWorth - (flowByMonth.get(currKey) ?? 0);
+    // Every month since the previous snapshot, a gap's too (doc/rendimenti-misura § 5.5): the TWR's own flow.
+    const monthGain = curr.totalNetWorth - prev.totalNetWorth - subPeriodFlow(flowIndex, prev, curr).flow;
     gain += monthGain;
     attributedMonths += 1;
     firstAttributed ??= { year: curr.year, month: curr.month };

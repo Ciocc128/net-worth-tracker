@@ -185,7 +185,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   (pinned); with the bridge the fan lands on the walk's year BEFORE the unlock (pinned); after it the two diverge by
   the compartment's growth (the walk merges the grown fund, the fan injects today's value — the documented model).
 - **The state pensions are the Coast tab's, dated by the saved age** (`settings.coastFirePensions`,
-  `coastFireTaxBrackets`, `userAge`): net through the IRPEF brackets and deflated with the scenario's inflation —
+  `coastFireTaxBrackets`, `userAge`): net through the IRPEF brackets and deflated with the scenario's inflation (the default IRPEF brackets are the ones in force from 2026 — 23% up to 28.000 €, 33% up to 50.000 €, 43% above (`DEFAULT_COAST_FIRE_TAX_BRACKETS`, FC-IR, doc/fire-ipotesi/README.md § 23 RN8); a saved list equal to the old 2022 defaults (15.000/23, 28.000/25, 50.000/35, 43) reads as the new ones in `normalizeCoastFireTaxBrackets` (D-FC7) and Firestore follows at the next save of the brackets; any other saved list stays) —
   `calculateCoastFireNetRealAnnualPension`, the SAME figure the Afflussi tile prints. **No age places no pension**
   and the Base di calcolo says so («non considerate: manca l'età in Coast FIRE › Ipotesi»); none saved is the row's
   «nessuna in Coast FIRE › Ipotesi: il numero le esclude» — never a silent «as if no pension». `FireTargetHonest`

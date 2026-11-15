@@ -54,6 +54,23 @@ export function heatmapCellStyle(value: number | null): CSSProperties {
 /** A year that enters the window fades in; one that leaves it fades out — never a jump of the grid. */
 const ROW_FADE = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.22 } } as const;
 
+/**
+ * What a cell says beside its figure when the snapshots have a gap (doc/rendimenti-misura § 5.5, § 9):
+ * the closing month's return spans the gap — «in 3 mesi (da gennaio)» — and a month without a
+ * snapshot points at the cell that holds it — «senza snapshot, conta in marzo». Nothing is
+ * interpolated: the gap months stay empty.
+ */
+export function describeGapCell(cell: MonthlyReturnHeatmapData['months'][number]): string | null {
+  if (cell.return !== null && cell.spanMonths && cell.spanMonths > 1) {
+    const firstMonth = ((cell.month - cell.spanMonths) % 12 + 12) % 12; // 0-based index of the gap's first month
+    return `in ${cell.spanMonths} mesi (da ${MONTH_NAMES[firstMonth].toLowerCase()})`;
+  }
+  if (cell.return === null && cell.countedIn) {
+    return `senza snapshot, conta in ${MONTH_NAMES[cell.countedIn.month - 1].toLowerCase()}`;
+  }
+  return null;
+}
+
 function signedPercent(value: number): string {
   return `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatPercentage(Math.abs(value), 1)}`;
 }
@@ -108,9 +125,9 @@ export function MonthlyReturnsHeatmap({ data, className }: MonthlyReturnsHeatmap
   // The pointer speaks last, the keyboard next, the pin stays underneath. Looked up in `data` so a
   // month that left the period stops being read without an effect to clear it.
   const shownRef = hovered ?? focused ?? pinned;
-  const shownReturn = shownRef
-    ? data.find((row) => row.year === shownRef.year)?.months.find((m) => m.month === shownRef.month)?.return
-    : undefined;
+  const shownCell = shownRef ? data.find((row) => row.year === shownRef.year)?.months.find((m) => m.month === shownRef.month) : undefined;
+  const shownReturn = shownCell?.return;
+  const shownGap = shownCell ? describeGapCell(shownCell) : null;
 
   /**
    * The grid's own keys. `useRovingFocus` reads a LIST (up/down step by one); here left/right step
@@ -168,7 +185,8 @@ export function MonthlyReturnsHeatmap({ data, className }: MonthlyReturnsHeatmap
               {row.months.map((m) => {
                 const cell: MonthRef = { year: row.year, month: m.month };
                 const key = monthKey(cell);
-                const name = `${MONTH_NAMES[m.month - 1]} ${row.year}: ${m.return === null ? 'nessun dato' : signedPercent(m.return)}`;
+                const gap = describeGapCell(m);
+                const name = `${MONTH_NAMES[m.month - 1]} ${row.year}: ${m.return === null ? gap ?? 'nessun dato' : signedPercent(m.return)}${m.return !== null && gap ? ` ${gap}` : ''}`;
                 const isPinned = pinned !== null && monthKey(pinned) === key;
                 const { onFocus: rovingFocus, ...rovingProps } = roving.itemProps(rovingIndexByKey.get(key) ?? 0);
                 return (
@@ -223,9 +241,12 @@ export function MonthlyReturnsHeatmap({ data, className }: MonthlyReturnsHeatmap
             <span className="text-foreground">{MONTH_NAMES[shownRef.month - 1]} {shownRef.year}</span>
             {' · '}
             {shownReturn === null ? (
-              'fuori periodo'
+              shownGap ?? 'fuori periodo'
             ) : (
-              <span className={cn('font-mono tabular-nums', signClass(shownReturn))}>{signedPercent(shownReturn)}</span>
+              <>
+                <span className={cn('font-mono tabular-nums', signClass(shownReturn))}>{signedPercent(shownReturn)}</span>
+                {shownGap ? ` ${shownGap}` : null}
+              </>
             )}
           </>
         ) : (
