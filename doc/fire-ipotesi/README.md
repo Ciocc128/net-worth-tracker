@@ -3264,7 +3264,7 @@ Dalla review Fable dell'11–12/11/2026: `audit-calcoli/audit-calcoli-parte-3.md
 
 Incluso: `fireCapital.test.ts`; la regola del requisito con pensioni e fondo (RN1–RN5) in tutte le schede che la
 leggono; il significato del campo pensione e i suoi testi; i predefiniti IRPEF e la lettura dei vecchi predefiniti
-salvati; audit H4 e H3 se D-FC8 e D-FC9 sono confermate.
+salvati; audit H4 e H3 (D-FC8, D-FC9).
 
 Escluso: detrazioni da pensione, addizionali regionali e comunali (limite dichiarato, resta); indicizzazione degli
 scaglioni; IRPEF sui redditi dei flussi datati (D-F8); il motore Monte Carlo (legge la pensione netta dalla stessa
