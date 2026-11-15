@@ -287,7 +287,7 @@ holds it): how it was learned is `git log`'s.
   snapshot series, the base signature, the risk-free rate, the dividend category; a 6h TTL covers what the key cannot;
   reads/writes `try/catch` fire-and-forget; `Date` ↔ `Timestamp` field-by-field, never JSON). **A figure whose inputs
   the key does not cover stays OUT of the document** (2026-10-04, Rendimenti's dividend yields —
-  doc/guide/rendimenti.md). **A changed FORMULA is the one input no signature sees — bump `CACHE_MATH_VERSION`** (`v9`);
+  doc/guide/rendimenti.md). **A changed FORMULA is the one input no signature sees — bump `CACHE_MATH_VERSION`** (`v10`);
   verifying by hand, press **Aggiorna** (`forceRefresh`) first; a new optional field needs no bump if paired with
   `?force=true`; wire «Aggiorna» to `refresh()`, never to a bare `refetch()`.
 - **Global shared cache** (benchmark, FX, ECB): natural key as doc id, no `userId`, `read: isAuthenticated(); write:
@@ -465,7 +465,7 @@ file used to carry.
 ### Rendimenti → `doc/guide/rendimenti.md`
 - The base is resolved ONCE by `resolvePerformanceBase` for its THREE call sites (service, page, PDF). An exclusion read from `byAsset` MUST be backfilled across the pre-`byAsset` months (constant `E₀`) or it becomes a phantom crash.
 - The pension toggle WINS over a fund's `allocationRole`. A contribution is a flow iff it crosses the base's boundary; flows ride their own channels (`externalFlowOf`), `netCashFlow` stays the cashflow's savings.
-- **The return is gross of tax and net of trading fees in BOTH branches** (2026-11-15, F08, `lib/utils/returnFlows.ts`): a withheld tax is a withdrawal, a fee a cost, a distribution whose payer is inside the base is return; each branch's correction rides its own field (`cashflowAdjustment`, `measuredAdjustment`); the running month's rows stop at the snapshot's capture day (`resolveFlowCutoff`).
+- **The return is gross of tax and net of trading fees in BOTH branches** (2026-11-15, F08, `lib/utils/returnFlows.ts`): a withheld tax is a withdrawal, a fee a cost, a distribution whose payer is inside the base is return; each branch's correction rides its own field (`cashflowAdjustment`, `measuredAdjustment`); the running month's rows stop at the snapshot's capture day (`resolveFlowCutoff`). ONE formula per sub-period (snapshot to snapshot, a gap included): mid-period Dietz `subPeriodReturn` over `subPeriodFlow`, read by TWR, volatility, heatmap, drawdown, «Capitale e mercato» and Attribuzione; the IRR on the same instants.
 - **The flows follow the base** (2026-09-07): with anything out of it, the months with `byAsset` on both snapshots neutralise the MEASURED boundary flows (`lib/utils/portfolioFlows.ts`); the ledger speaks for an instrument only once the base has SEEN it (2026-09-13).
 - The first snapshot of a period is the starting valuation, never a measured month; the page must NEVER re-derive the window from `new Date()` (`metrics.nominalPeriodStart`).
 - No silent filters inside a metric (`null` with a reason); the attribution (`performanceAttribution.ts`) is EURO and reconciled to the TWR numerator.

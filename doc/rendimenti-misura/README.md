@@ -9,8 +9,10 @@
 > raccomandazioni della § 8).
 >
 > **Stato dell'implementazione**: passo 1 (B1, B3, B2) implementato il 2026-11-15 (`lib/utils/returnFlows.ts`,
-> casi T4–T6 in `__tests__/returnFlows.test.ts`, `CACHE_MATH_VERSION` `v9-fork`). Passo 2 (B4, B9) da fare, in una
-> PR a parte. Il giorno di cattura si legge da `createdAt`; quando F07 aggiunge `snapshotCapturedAt`, `resolveFlowCutoff`
+> casi T4–T6 in `__tests__/returnFlows.test.ts`, `CACHE_MATH_VERSION` `v9-fork`, PR #182). Passo 2 (B4, B9)
+> implementato lo stesso giorno (`subPeriodFlow`/`subPeriodReturn` in `lib/utils/cashFlowMap.ts`, casi T1–T3, T7–T9 in
+> `__tests__/returnFormula.test.ts`, `v10-fork`); il punto aperto della cella di un buco è chiuso con la proposta della
+> § 9 («in N mesi (da …)», «senza snapshot, conta in …»). Il giorno di cattura si legge da `createdAt`; quando F07 aggiunge `snapshotCapturedAt`, `resolveFlowCutoff`
 > lo leggerà al suo posto.
 
 ## 1. In breve

@@ -192,12 +192,13 @@ describe('calculateVolatility', () => {
     // Il patrimonio triplica in un mese, ma è tutto denaro versato: il rendimento aggiustato è ~0.
     // Il filtro ±50% diceva di servire proprio a questo — ma la formula lo risolve già, quindi
     // toglierlo non cambia una virgola qui. È la prova che il filtro non stava facendo quel lavoro.
-    // Febbraio: +1% di mercato su 100.000 e 200.000 versati → 301.000. Da lì +1% al mese.
+    // Febbraio: 200.000 versati a metà mese e +1% sul capitale pesato (100.000 + 200.000/2) →
+    // 302.000 (Dietz modificato, doc/rendimenti-misura § 5.6). Da lì +1% al mese.
     const snapshots = [
       makeSnapshot(2025, 1, 100000),
-      makeSnapshot(2025, 2, 301000), // +201% apparente, ma il rendimento vero è 1%
-      makeSnapshot(2025, 3, 304010),
-      makeSnapshot(2025, 4, 307050.1),
+      makeSnapshot(2025, 2, 302000), // +202% apparente, ma il rendimento vero è 1%
+      makeSnapshot(2025, 3, 305020),
+      makeSnapshot(2025, 4, 308070.2),
     ]
     const withContribution = calculateVolatility(snapshots, [makeCashFlow(2025, 2, 200000)])
     // Lo stesso portafoglio senza il versamento: +1% al mese, identico rendimento mensile.
@@ -673,12 +674,12 @@ describe('calculateIRR', () => {
   })
 
   it('discounts a mid-period contribution over the time it was actually invested', () => {
-    // −100.000 a t=0, −10.000 a t=6 mesi, +121.000 a t=12. Con x = 1+r la NPV si riduce a
-    // 100.000x + 10.000√x − 121.000 = 0, cioè 100s² + 10s − 121 = 0 con s = √x:
-    // s = (−10 + √48.500)/200 → x = s² → r = 10,488642%. Verificato in forma chiusa, a mano.
+    // −100.000 a t=0, −10.000 a metà luglio (t = 6,5 mesi, D-RM6), +121.000 a t=12. Con x = 1+r la
+    // NPV si riduce a 100.000x + 10.000·x^(5,5/12) − 121.000 = 0; per bisezione r = 10,530422%
+    // (con il versamento a inizio luglio, t = 6, era 10,488642%: più tardi entra, più sale l'IRR).
     const result = calculateIRR(100000, 121000, [makeCashFlow(2025, 7, 10000)], 12, PERIOD_START)
     expect(result).not.toBeNull()
-    expect(result!).toBeCloseTo(10.488642, 5)
+    expect(result!).toBeCloseTo(10.530422, 5)
   })
 
   it('treats a withdrawal as money taken out', () => {
@@ -715,18 +716,21 @@ describe('calculateIRR', () => {
   })
 
   it('converges on a collapse that Newton alone would struggle with (bisection fallback)', () => {
-    // Prelevati 95.000 su 100.000, ne restano 1.000: −100.000 + 95.000 + 1.000/(1+r) = 0 → r = −80%.
+    // Prelevati 95.000 su 100.000 a metà gennaio (t = 0,5), ne restano 1.000:
+    // −100.000 + 95.000·(1+r)^(−0,5/12) + 1.000/(1+r) = 0 → per bisezione r = −51,738112%
+    // (prelevati a t = 0, com'era prima del 2026-11-15, il risultato era −80%).
     const result = calculateIRR(100000, 1000, [makeCashFlow(2025, 1, -95000)], 12, PERIOD_START)
     expect(result).not.toBeNull()
-    expect(result!).toBeCloseTo(-80, 6)
+    expect(result!).toBeCloseTo(-51.738112, 5)
   })
 
   it('reaches an extreme but well-defined rate instead of giving up', () => {
-    // Versato un milione su 100.000, ne restano 1.000: −1.100.000 + 1.000/(1+r) = 0 → r = −99,909%.
+    // Versato un milione su 100.000 a metà gennaio, ne restano 1.000:
+    // −100.000 − 1.000.000·(1+r)^(−0,5/12) + 1.000/(1+r) = 0 → per bisezione r = −99,931248%.
     // È un numero estremo ma vero, e vive dove Newton (che parte dal +10%) fatica ad arrivare.
     const result = calculateIRR(100000, 1000, [makeCashFlow(2025, 1, 1000000)], 12, PERIOD_START)
     expect(result).not.toBeNull()
-    expect(result!).toBeCloseTo(-99.909091, 5)
+    expect(result!).toBeCloseTo(-99.931248, 5)
   })
 
   it('returns null when no rate can explain the stream', () => {
@@ -1111,8 +1115,8 @@ describe('buildCacheKey', () => {
     // l'utente continua a leggere numeri pre-fix per 6 ore. Il test è qui perché il bump è manuale
     // e va ricordato — se questa asserzione fallisce dopo un cambio di matematica, è corretto
     // aggiornarla; se fallisce senza, qualcuno ha rotto il prefisso.
-    expect(buildCacheKey(baseline).startsWith('v9-')).toBe(true)
-    expect(buildCacheKey({ ...baseline, snapshots: [] }).startsWith('v9-')).toBe(true)
+    expect(buildCacheKey(baseline).startsWith('v10-')).toBe(true)
+    expect(buildCacheKey({ ...baseline, snapshots: [] }).startsWith('v10-')).toBe(true)
   })
 
   it('ignores the order snapshots arrive in', () => {
