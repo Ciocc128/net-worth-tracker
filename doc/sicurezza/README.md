@@ -298,3 +298,11 @@ the owner with them; none was objected to.
   longer client-writable, so only a link written before the rule could reach another account; and
   `resolveDividendIncomeCategory` reads the category named in the settings without comparing its `userId` (names
   only). Both are candidates for «Fable minori · sicurezza».
+- **Mac round of 2026-11-15**: the probes confirm A1 and A4 closed (the victim's 133 rows and the 8000 balance
+  untouched, P5's expense stays; P4a now answers 400 «Categoria non trovata»). SE1 was red only because its
+  `decoyRows()` read the first page of `expenses` (150 of 826 in a long-lived emulator), so the count missed the row
+  and the clean-up left earlier runs' rows behind (the doubled row of the first attempt); it now follows
+  `nextPageToken`. `assets.bond.spec.ts:77` was red the same day for a date reason, not S1: on 15/11 (and 15/05) the
+  BTP€i's provisional coupon falls today and the banner lists only coupons after now. **P7**, the manual snapshot
+  answering 200 to a malformed body instead of 400, is input validation, not authorization: out of S1, it goes to
+  F07 (A5) or «Fable minori».

@@ -219,10 +219,19 @@ test('«Sincronizza dividendi esistenti» scrive la riga del dividendo pagato ne
   const DIVIDEND_ID = 'e2e-se1-dividend';
   const paid = '2026-01-15T11:00:00Z';
 
+  type ExpenseDoc = { name: string; fields: Record<string, { stringValue?: string }> };
+  // Every page of `expenses`: the emulator answers at most a few hundred documents per call, and a
+  // row past the first page would be missed by the count AND left behind by the clean-up.
   const decoyRows = async () => {
-    const res = await fetch(`${FIRESTORE}/expenses?pageSize=500`, { headers: HEADERS });
-    const body = (await res.json()) as { documents?: Array<{ name: string; fields: Record<string, { stringValue?: string }> }> };
-    return (body.documents ?? []).filter((d) => d.fields.notes?.stringValue?.includes(DECOY));
+    const found: ExpenseDoc[] = [];
+    let pageToken = '';
+    do {
+      const url = `${FIRESTORE}/expenses?pageSize=300${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
+      const body = (await (await fetch(url, { headers: HEADERS })).json()) as { documents?: ExpenseDoc[]; nextPageToken?: string };
+      found.push(...(body.documents ?? []).filter((d) => d.fields.notes?.stringValue?.includes(DECOY)));
+      pageToken = body.nextPageToken ?? '';
+    } while (pageToken);
+    return found;
   };
   const cleanUp = async () => {
     for (const row of await decoyRows()) await fetch(`${FIRESTORE}/${row.name.split('/documents/')[1]}`, { method: 'DELETE', headers: HEADERS });
