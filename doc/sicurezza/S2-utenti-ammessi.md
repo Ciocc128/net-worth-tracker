@@ -166,7 +166,8 @@ against production, run by the owner on the Mac. Order, each step harmless if th
 Reversed, step 2 before 1 gives the owner 403 on every route and step 3 before 1 denies every read; both are cured
 by step 1 and lose no data. The PR says the order in its first lines. Vercel must keep
 `NEXT_PUBLIC_REGISTRATIONS_ENABLED=false` or `NEXT_PUBLIC_REGISTRATION_WHITELIST_ENABLED=true`: with both at their
-defaults `isRegistrationAllowed` admits every email and the list would admit whoever signs up (§ 9).
+defaults `isRegistrationAllowed` admits every email and the list would admit whoever signs up (§ 9) — which is the
+state found on 2026-11-15: step 0 is `NEXT_PUBLIC_REGISTRATIONS_ENABLED=false` on Vercel (§ 9).
 
 ### I limiti di A3
 
@@ -341,9 +342,18 @@ the owner with them; none was objected to.
 
 ## 9. Punti aperti
 
-- **The registration variables on Vercel** (`NEXT_PUBLIC_REGISTRATIONS_ENABLED`,
-  `NEXT_PUBLIC_REGISTRATION_WHITELIST_ENABLED`, `REGISTRATION_WHITELIST`): not readable from here. RU8 needs
-  registrations off or the whitelist on; the owner confirms the values before S2a is merged.
+- **The registration variables on Vercel** — checked by the owner on 2026-11-15: `NEXT_PUBLIC_REGISTRATIONS_ENABLED`
+  exists in no environment, so the default holds (`!== 'false'` → registrations ON, `registrationPolicy.ts:28`).
+  Unless the whitelist flag is `true`, `isRegistrationAllowed` answers true for EVERY email: `/api/auth/activate`
+  (RU2) would admit any Auth user who calls it, and the list would close nothing the day sign-up is reopened in the
+  console. Today the only lock is the console switch (off since 11/11). **Before S2a is merged** the owner sets, in
+  Production and Preview, `NEXT_PUBLIC_REGISTRATIONS_ENABLED` = `false` and redeploys (a `NEXT_PUBLIC_` value is
+  inlined at build time). With that alone the policy admits nobody and the owner enters by `users:allow` (RU8). To
+  let a relative register later: `NEXT_PUBLIC_REGISTRATION_WHITELIST_ENABLED` = `true` and `REGISTRATION_WHITELIST` =
+  their email (comma-separated for more than one, no `NEXT_PUBLIC_` prefix), redeploy, then reopen sign-up in the
+  console for the time of the registration (use case 3). S2a's PR repeats this as a prerequisite, and CA5 is run on
+  the emulators with `NEXT_PUBLIC_REGISTRATIONS_ENABLED=false` once (activation refused, 403) and with the whitelist
+  once (admitted).
 - **A member of a shared account calling `users:allow --remove` on themselves** is not a case: the script is the
   owner's. A member who is removed from the list keeps their entry in `memberUids`; it is inert (RU3) and the owner
   revokes it from the tile.
