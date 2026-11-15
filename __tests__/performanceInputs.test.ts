@@ -20,6 +20,7 @@ const { getDocMock, setDocMock, readers } = vi.hoisted(() => ({
     getAllAssets: vi.fn(),
     getPensionContributions: vi.fn(),
     getAssetTransactions: vi.fn(),
+    getDividendReceipts: vi.fn(),
     getExpensesByDateRange: vi.fn(),
   },
 }));
@@ -40,6 +41,7 @@ vi.mock('@/lib/services/assetService', () => ({ getAllAssets: readers.getAllAsse
 vi.mock('@/lib/services/pensionContributionService', () => ({ getPensionContributions: readers.getPensionContributions }));
 vi.mock('@/lib/services/assetTransactionService', () => ({ getAssetTransactions: readers.getAssetTransactions }));
 vi.mock('@/lib/services/expenseService', () => ({ getExpensesByDateRange: readers.getExpensesByDateRange }));
+vi.mock('@/lib/services/dividendReceiptsService', () => ({ getDividendReceipts: readers.getDividendReceipts }));
 
 import { getAllPerformanceData, resolvePerformanceSetup, resolveYieldPeriods, type PerformanceInputs } from '@/lib/services/performanceService';
 import type { Asset, AssetAllocationSettings, MonthlySnapshot } from '@/types/assets';
@@ -84,7 +86,7 @@ const EXPENSES = [
   { id: 'e3', userId: UID, type: 'income', amount: 50, categoryId: 'dividendi', date: new Date(2026, 5, 3, 12) },
 ] as unknown as Expense[];
 
-const INPUTS: PerformanceInputs = { snapshots: SNAPSHOTS, settings: SETTINGS, assets: ASSETS, contributions: [], trades: [] };
+const INPUTS: PerformanceInputs = { snapshots: SNAPSHOTS, settings: SETTINGS, assets: ASSETS, contributions: [], trades: [], dividends: [] };
 
 /** Everything but the instant the payload was built. */
 function comparable(data: PerformanceData) {
@@ -102,6 +104,7 @@ beforeEach(() => {
   readers.getAllAssets.mockResolvedValue(ASSETS);
   readers.getPensionContributions.mockResolvedValue([]);
   readers.getAssetTransactions.mockResolvedValue([]);
+  readers.getDividendReceipts.mockResolvedValue([]);
   readers.getExpensesByDateRange.mockResolvedValue(EXPENSES);
 });
 
@@ -112,7 +115,7 @@ afterEach(() => {
 describe('getAllPerformanceData with the inputs already read', () => {
   it('should compute the same payload as when it reads them itself, without reading them', async () => {
     const readHere = await getAllPerformanceData(UID);
-    const inputReads = [readers.getUserSnapshots, readers.getSettings, readers.getAllAssets, readers.getPensionContributions, readers.getAssetTransactions];
+    const inputReads = [readers.getUserSnapshots, readers.getSettings, readers.getAllAssets, readers.getPensionContributions, readers.getAssetTransactions, readers.getDividendReceipts];
     for (const reader of inputReads) expect(reader).toHaveBeenCalledTimes(1);
 
     vi.clearAllMocks();

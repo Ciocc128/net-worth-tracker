@@ -65,6 +65,7 @@ import { describeMeasurementBase } from '@/lib/utils/performanceNarrative';
 import { getAnnualExpenses, getAnnualIncome, calculateFIREMetrics } from './fireService';
 import { filterExpensesByTime, DEFAULT_CASHFLOW_HISTORY_START_YEAR } from '@/lib/utils/pdfTimeFilters';
 import { calculatePerformanceForPeriod } from './performanceService';
+import { getDividendReceipts } from './dividendReceiptsService';
 import { readMarketAnchors } from './marketAnchorsReadService';
 import { resolveRiskFreeRate } from '@/lib/utils/riskFreeRate';
 import { fetchPerformanceYields } from './performanceYieldsService';
@@ -599,7 +600,13 @@ async function preparePerformanceData(
     // the measured boundary flows prefer — the SAME inputs the page and the service give the base,
     // or the report prints a different TWR under the same title (the owner's own export showed
     // 26,05% against the page's 27,08% while the ledger was left out, 2026-09-07).
-    const [settings, contributions, trades, anchors] = await Promise.all([getSettings(userId), getPensionContributions(userId), getAssetTransactions(userId), readMarketAnchors()]);
+    const [settings, contributions, trades, dividends, anchors] = await Promise.all([
+      getSettings(userId),
+      getPensionContributions(userId),
+      getAssetTransactions(userId),
+      getDividendReceipts(userId),
+      readMarketAnchors(),
+    ]);
     // Typed rate, else the ECB estimate: the SAME resolution the page runs (`resolvePerformanceSetup`).
     const riskFreeRate = resolveRiskFreeRate(settings?.riskFreeRate, anchors).value;
     const dividendCategoryId = settings?.dividendIncomeCategoryId;
@@ -616,7 +623,9 @@ async function preparePerformanceData(
       cachedExpenses,
       dividendCategoryId,
       base.pensionFlows,
-      base.portfolioFlows
+      base.portfolioFlows,
+      // The page's branch corrections (doc/rendimenti-misura § 5.2): registry, ledger, exclusions.
+      { dividends, trades, excludedAssetIds: base.excludedAssetIds }
     );
 
     // Early exit if insufficient data (< 2 snapshots)

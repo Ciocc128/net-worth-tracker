@@ -126,7 +126,7 @@ export interface AttributionInput {
   };
   /** The account's assets, for the type (real estate, pension fund) and the current name. */
   assets: ReadonlyArray<Pick<Asset, 'id' | 'name' | 'type'>>;
-  /** Net dividends received in the period, per assetId (see `sumDividendsByAsset`). */
+  /** Gross dividends received in the period, per assetId (see `sumDividendsByAsset`). */
   dividendsByAsset?: Map<string, number>;
 }
 
@@ -259,20 +259,31 @@ export type DividendReceipt = {
   netAmount: number;
   /** Set when the record was converted; a EUR record has none. */
   netAmountEur?: number;
+  /** Gross amount (the record's currency); absent on an old reader = the net. */
+  grossAmount?: number;
+  grossAmountEur?: number;
+  /** Tax withheld (the record's currency). */
+  taxAmount?: number;
+  taxAmountEur?: number;
+  /** The cashflow row the record was synced to, if any (`Dividend.expenseId`). */
+  expenseId?: string;
 };
 
 /**
- * Net dividends and coupons RECEIVED in a window, per instrument.
+ * GROSS dividends and coupons RECEIVED in a window, per instrument.
  *
  * Received = paid by `endDate`, which the caller caps at today (`metrics.dividendEndDate`): an
  * announced coupon is not return yet (doc/guide/cashflow-dividendi.md — received and announced
  * are never one figure). EUR when the record carries a conversion, the native figure otherwise.
+ * Gross since 2026-11-15 (D-RM2, doc/rendimenti-misura § 5.3): the withheld tax is a withdrawal in
+ * the page's flows, so the rows add up to the page's gain and the tax never lands in «Non
+ * attribuito». A record read without its gross falls back to the net.
  */
 export function sumDividendsByAsset(dividends: DividendReceipt[], startDate: Date, endDate: Date): Map<string, number> {
   const byAsset = new Map<string, number>();
   for (const dividend of dividends) {
     if (dividend.paymentDate < startDate || dividend.paymentDate > endDate) continue;
-    const amount = dividend.netAmountEur ?? dividend.netAmount;
+    const amount = dividend.grossAmountEur ?? dividend.grossAmount ?? dividend.netAmountEur ?? dividend.netAmount;
     byAsset.set(dividend.assetId, (byAsset.get(dividend.assetId) ?? 0) + amount);
   }
   return byAsset;

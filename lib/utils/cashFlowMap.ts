@@ -35,6 +35,13 @@
  * `portfolioFlow` SOSTITUISCE `netCashFlow` in `externalFlowOf`; dove non si può (`null`/assente)
  * si torna al risparmio del Cashflow. `netCashFlow` non cambia mai significato: resta ciò che la
  * tessera Contributi stampa come «messi da parte».
+ *
+ * LE DUE CORREZIONI (2026-11-15, F08 passo 1, doc/rendimenti-misura/README.md § 5.2)
+ * Il rendimento è lordo d'imposta e netto delle commissioni, nei due rami. Ogni ramo porta la sua
+ * correzione su un campo proprio: `cashflowAdjustment` (commissioni delle operazioni restituite,
+ * tasse trattenute come prelievo) si somma a `netCashFlow`, `measuredAdjustment` (le distribuzioni
+ * pagate dentro la base, che il saldo leggerebbe come versamento) a `portfolioFlow`. Le calcola
+ * `lib/utils/returnFlows.ts`; `externalFlowOf` sceglie quella del ramo del mese.
  */
 
 import type { CashFlowData, PensionBoundaryFlow, PortfolioBoundaryFlow } from '@/types/performance';
@@ -66,7 +73,14 @@ export function monthKeyOf(date: Date): string {
  * che è la metà stampata dalla tessera Contributi.
  */
 export function externalFlowOf(cashFlow: CashFlowData): number {
-  return (cashFlow.portfolioFlow ?? cashFlow.netCashFlow) + (cashFlow.pensionFlow ?? 0);
+  // Each branch carries its own correction (lib/utils/returnFlows.ts, doc/rendimenti-misura § 5.2):
+  // the return is gross of tax and net of trading fees, and a distribution paid inside the base is
+  // return — whichever branch measured the month.
+  const own =
+    cashFlow.portfolioFlow !== undefined && cashFlow.portfolioFlow !== null
+      ? cashFlow.portfolioFlow + (cashFlow.measuredAdjustment ?? 0)
+      : cashFlow.netCashFlow + (cashFlow.cashflowAdjustment ?? 0);
+  return own + (cashFlow.pensionFlow ?? 0);
 }
 
 /**
