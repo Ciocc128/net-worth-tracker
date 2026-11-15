@@ -18,6 +18,7 @@ import {
   calculateFIRESensitivityMatrix,
   rescaleMonthlyAllowance,
   getDefaultCoastFireTaxBrackets,
+  normalizeCoastFireTaxBrackets,
   getDefaultScenarios,
   resolveFanFireTargets,
   resolveFireRequirement,
@@ -344,7 +345,41 @@ describe('state pension tax helpers', () => {
     const brackets = getDefaultCoastFireTaxBrackets()
     const tax = calculateProgressiveTax(60000, brackets)
 
-    expect(tax).toBe(15000 * 0.23 + 13000 * 0.25 + 22000 * 0.35 + 10000 * 0.43)
+    expect(tax).toBeCloseTo(28000 * 0.23 + 22000 * 0.33 + 10000 * 0.43, 6)
+  })
+
+  // RN8 (doc/fire-ipotesi/README.md § 23.9, IR-1…IR-8): the brackets in force from 2026.
+  it('IR-1…IR-6: the default brackets are 23% to 28.000, 33% to 50.000, 43% above', () => {
+    expect(getDefaultCoastFireTaxBrackets().map(({ upTo, rate }) => [upTo, rate])).toEqual([[28000, 23], [50000, 33], [null, 43]])
+    const cases: Array<[number, number]> = [[15000, 3450], [26000, 5980], [28000, 6440], [40000, 10400], [50000, 13700], [60000, 18000]]
+    for (const [gross, expected] of cases) {
+      expect(calculateProgressiveTax(gross, getDefaultCoastFireTaxBrackets())).toBeCloseTo(expected, 2)
+    }
+  })
+
+  it('IR-7: a saved list equal to the old defaults (2022) reads as the current defaults', () => {
+    const legacy = [
+      { id: 'irpef-23', upTo: 15000, rate: 23 },
+      { id: 'irpef-25', upTo: 28000, rate: 25 },
+      { id: 'irpef-35', upTo: 50000, rate: 35 },
+      { id: 'irpef-43', upTo: null, rate: 43 },
+    ]
+    expect(normalizeCoastFireTaxBrackets(legacy)).toEqual(getDefaultCoastFireTaxBrackets())
+    // Same values in another order and with other ids: still the old defaults once normalised.
+    const shuffled = [legacy[3], legacy[1], legacy[0], legacy[2]].map((bracket, index) => ({ ...bracket, id: `custom-${index}` }))
+    expect(normalizeCoastFireTaxBrackets(shuffled)).toEqual(getDefaultCoastFireTaxBrackets())
+    expect(calculateProgressiveTax(26000, legacy)).toBeCloseTo(5980, 2)
+  })
+
+  it('IR-8: any other saved list stays as it is', () => {
+    const custom = [
+      { id: 'a', upTo: 15000, rate: 23 },
+      { id: 'b', upTo: 28000, rate: 25 },
+      { id: 'c', upTo: 50000, rate: 35 },
+      { id: 'd', upTo: null, rate: 45 },
+    ]
+    expect(normalizeCoastFireTaxBrackets(custom)).toEqual(custom)
+    expect(calculateProgressiveTax(60000, custom)).toBeCloseTo(15000 * 0.23 + 13000 * 0.25 + 22000 * 0.35 + 10000 * 0.45, 6)
   })
 
   it('should convert a future nominal pension into a net real annual amount', () => {
