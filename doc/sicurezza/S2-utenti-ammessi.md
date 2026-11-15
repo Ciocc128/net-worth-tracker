@@ -4,7 +4,7 @@ Fork only. Second stage of the dossier `doc/sicurezza/README.md` (S1 = F02, on i
 implementation PR of this stage fills the row «S2» of that file's stage table and links here). Source: the security
 review of 2026-11-11, points **R1** (`review-sicurezza/parte-1-regole-firestore.md`), **A3** and **A2**
 (`parte-2-api-route.md`), page <https://claude.ai/artifact/2hwcn9rwBnE2iJyKtqxprx>. Nothing in the app yet: this is
-the spec. Read at `main` = `ec6d115`. Decisions continue S1's series (D-SI1–D-SI9) from **D-SI10**.
+the spec, ready on 2026-11-15. Read at `main` = `ec6d115`. Decisions continue S1's series (D-SI1–D-SI9) from **D-SI10**.
 
 State on 2026-11-15: Firebase sign-up was switched off in the console on 11/11; two Auth users exist (the owner and
 a PAC test user that F01 deletes). The door is closed by a console switch; rules, API and crons still accept any
@@ -291,8 +291,10 @@ Pair by pair, positive control first:
 
 ## 7. Decisioni
 
-Proposed by this spec on 2026-11-15; **none is taken until the owner confirms it in the thread**. D-SI10, D-SI11,
-D-SI15 and D-SI17 are the product choices put to the owner; the others apply the review's corrections.
+Proposed by this spec on 2026-11-15. **D-SI10, D-SI11, D-SI15, D-SI17 and D-SI19** — the product choices — were
+confirmed by the owner the same day («Ok le proposte»), with the sketch «oggi / proposta» of RU7 and RU17
+(<https://claude.ai/artifact/9AySZNpoPCUpBtHo1atCQs>). The others apply the review's corrections and were shown to
+the owner with them; none was objected to.
 
 | Id | Decision | Alternatives rejected, and why |
 | --- | --- | --- |
