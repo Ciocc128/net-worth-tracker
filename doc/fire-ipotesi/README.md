@@ -3358,15 +3358,15 @@ Nessun elemento nuovo, nessun avviso: solo testi e cifre. Niente bozzetto oltre 
 | ID | Stato | Decisione | Alternative scartate e motivo |
 | --- | --- | --- | --- |
 | D-FC1 | **Presa** (card F10, 14/11) | Correggere audit H1, coerente con D-F7. | Lasciare la camminata: toglie il margine dell'SWR solo a chi ha una pensione. |
-| D-FC2 | **Da confermare** | Regola RN2: numero pieno all'SWR, meno il valore scontato di ciò che pensioni e fondo liberano. È la formula «consistent» dello script dell'audit e quella di RF5. | (a) Due vasi: spesa coperta dopo ÷ SWR più gli anni di attesa a `r`: più basso di RN2 con `r > s` (374.000 contro 403.000 € nel caso dell'audit), meno prudente e diverso da RF5. (b) `max` tra numero pieno e camminata: con `r < s` resta il salto. |
-| D-FC3 | **Da confermare** | Pavimento RN3 per il fondo grande. | Solo `max(N, 0)`: con un fondo oltre il numero FIRE il requisito andrebbe a zero e gli anni di attesa resterebbero scoperti. |
+| D-FC2 | **Presa** (15/11/2026) | Regola RN2: numero pieno all'SWR, meno il valore scontato di ciò che pensioni e fondo liberano. È la formula «consistent» dello script dell'audit e quella di RF5. | (a) Due vasi: spesa coperta dopo ÷ SWR più gli anni di attesa a `r`: più basso di RN2 con `r > s` (374.000 contro 403.000 € nel caso dell'audit), meno prudente e diverso da RF5. (b) `max` tra numero pieno e camminata: con `r < s` resta il salto. |
+| D-FC3 | **Presa** (15/11/2026) | Pavimento RN3 per il fondo grande. | Solo `max(N, 0)`: con un fondo oltre il numero FIRE il requisito andrebbe a zero e gli anni di attesa resterebbero scoperti. |
 | D-FC4 | **Presa** (card F10) | La pensione si scrive lorda, come la dà l'INPS, a prezzi di oggi (RN7). | Tenere il nominale futuro: nessuno ha quel numero. |
-| D-FC5 | **Da confermare** | I valori già salvati si rileggono **così come sono** a prezzi di oggi, senza conversione e senza campo nuovo. Vale se il numero salvato viene dal simulatore INPS. | (a) Convertire il salvato dividendolo per l'inflazione: giusto solo se era davvero un nominale futuro. (b) Campo `priceBasis` con avviso e scelta per riga: interfaccia nuova per due utenti. |
-| D-FC6 | **Da confermare** | Predefiniti = scaglioni ordinari in vigore (RN8). La deroga del solo 2027, se diventa legge, non entra: le pensioni partono decenni dopo. | Seguire ogni anno la legge di bilancio: il predefinito cambierebbe per una misura di un anno. |
-| D-FC7 | **Da confermare** | I vecchi predefiniti salvati si riconoscono e si leggono come nuovi (RN8), senza guardare i dati di produzione. | Controllare il piano di Giorgio sul mirror e correggerlo a mano: serve il Mac e non copre il secondo account. |
-| D-FC8 | **Da confermare** | Correggere anche audit H4 (RN6). | Lasciarlo: pensione e stessa entrata datata darebbero numeri diversi di `(1+s)/(1+r)`. |
-| D-FC9 | **Da confermare** | Correggere anche audit H3 (RN9). | Lasciarlo: Coast sottostima la tassa del 3% nel caso dell'audit. |
-| D-FC10 | **Da confermare** | Tre PR in ordine: FC-Q2 (solo test), FC-IR (scaglioni), FC-NF (RN1–RN7, RN9). | Una sola PR: il test del capitale deve essere verde su `main` prima che cambino i numeri. |
+| D-FC5 | **Da confermare** (raccomandata; aspetta PA-3) | I valori già salvati si rileggono **così come sono** a prezzi di oggi, senza conversione e senza campo nuovo. Vale se il numero salvato viene dal simulatore INPS. | (a) Convertire il salvato dividendolo per l'inflazione: giusto solo se era davvero un nominale futuro. (b) Campo `priceBasis` con avviso e scelta per riga: interfaccia nuova per due utenti. |
+| D-FC6 | **Presa** (15/11/2026) | Predefiniti = scaglioni ordinari in vigore (RN8). La deroga del solo 2027, se diventa legge, non entra: le pensioni partono decenni dopo. | Seguire ogni anno la legge di bilancio: il predefinito cambierebbe per una misura di un anno. |
+| D-FC7 | **Presa** (15/11/2026) | I vecchi predefiniti salvati si riconoscono e si leggono come nuovi (RN8), senza guardare i dati di produzione. | Controllare il piano di Giorgio sul mirror e correggerlo a mano: serve il Mac e non copre il secondo account. |
+| D-FC8 | **Presa** (15/11/2026) | Correggere anche audit H4 (RN6). | Lasciarlo: pensione e stessa entrata datata darebbero numeri diversi di `(1+s)/(1+r)`. |
+| D-FC9 | **Presa** (15/11/2026) | Correggere anche audit H3 (RN9). | Lasciarlo: Coast sottostima la tassa del 3% nel caso dell'audit. |
+| D-FC10 | **Presa** (15/11/2026) | Tre PR in ordine: FC-Q2 (solo test), FC-IR (scaglioni), FC-NF (RN1–RN7, RN9). | Una sola PR: il test del capitale deve essere verde su `main` prima che cambino i numeri. |
 
 ### 23.9 Criteri di accettazione (valori di riferimento verificabili)
 
@@ -3454,8 +3454,7 @@ di oggi: se un caso non torna, fermarsi e scriverlo nel thread.
 `fire-coast.md`, `previdenza.md` (il risparmio fiscale della deduzione cambia con gli scaglioni), `impostazioni.md`.
 
 **FC-NF — numero FIRE e pensione** (impl; dopo FC-Q2 e FC-IR). RN1–RN5 in `buildCoastFIRERetirementNeeds` (una
-formula sola, niente seconda strada), RN7 in `calculateCoastFireNetRealAnnualPension` e nei testi di § 23.7, RN6 e RN9
-se confermate. Test da riscrivere: `fireService`, `coastStages` (CO2), `fireBaseLedger`, `whatIfService`,
+formula sola, niente seconda strada), RN7 in `calculateCoastFireNetRealAnnualPension` e nei testi di § 23.7, RN6 e RN9. **Prima di toccare RN7 serve la risposta a PA-3 (D-FC5)**: senza, fermarsi e chiedere nel thread. Test da riscrivere: `fireService`, `coastStages` (CO2), `fireBaseLedger`, `whatIfService`,
 `datedFlows`, `datedFlowsEngines`, `goalFire`, `monteCarloService` dove citano cifre della camminata. Guide:
 `fire.md`, `fire-coast.md`, `fire-what-if.md`, `fire-monte-carlo.md`. CLAUDE.md: una riga «Latest». Sul Mac, dopo:
 `test:e2e` delle spec FIRE e il giro guidato sul mirror (numero FIRE prima e dopo, con il piano vero).
