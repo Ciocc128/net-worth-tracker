@@ -341,7 +341,7 @@ export function FirePlanBlock() {
 
           {/* Pensioni (12) */}
           <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
-            <Tile eyebrow="Pensioni" aside="lordo mensile nominale alla decorrenza" reading={describePensioniStatali(form.pensions.length, incompleteCount)} ariaLabel="Il mio piano: pensioni">
+            <Tile eyebrow="Pensioni" aside="lordo mensile, a prezzi di oggi" reading={describePensioniStatali(form.pensions.length, incompleteCount)} ariaLabel="Il mio piano: pensioni">
               {pensionIssues.length > 0 && (
                 <div className="mt-2 flex flex-col gap-0.5" role="status" aria-live="polite">
                   {pensionIssues.map((issue) => (
@@ -413,7 +413,7 @@ export function FirePlanBlock() {
                   Aggiungi pensione
                 </Button>
                 <span className="text-[11px] leading-[1.4] text-muted-foreground">
-                  Lordo stimato alla decorrenza, in euro di quell&apos;anno (nominale futuro); 13 mensilità con la tredicesima. Gli scaglioni IRPEF sono in Impostazioni › Simulazioni. {FIRE_PLAN_AFFECTS.pensions}.
+                  Lordo al mese come lo dà il simulatore INPS «La mia pensione futura», a prezzi di oggi; 13 mensilità con la tredicesima. Gli scaglioni IRPEF sono in Impostazioni › Simulazioni. {FIRE_PLAN_AFFECTS.pensions}.
                 </span>
               </div>
 

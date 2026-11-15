@@ -247,7 +247,7 @@ export interface FlowSchedule {
   lumpParts(s: number): { inflow: number; outflow: number };
   /** RF4: the change of the need in year `s > T`, nominal, retiring at the end of year `T`. */
   needDelta(s: number, retirementYear: number): number;
-  /** Years after `T` of the last start or end of any flow (0 when none is ahead). */
+  /** Years after `T` of the last change of any flow: a lump's year, a recurring flow's end or the year before its start (RN6); 0 when none is ahead. */
   horizon(retirementYear: number): number;
 }
 
@@ -312,7 +312,11 @@ export function buildFlowSchedule(resolved: readonly ResolvedFlow[], options: Fl
         }
         const window = windowOf(flow, retirementYear);
         if (window === null) continue;
-        last = Math.max(last, window.first, window.last ?? window.first);
+        // RN6 (doc/fire-ipotesi/README.md § 23.6, audit H4): the permanent part starts the year the flows stop
+        // changing — a recurring flow's start counts as `first − 1`, so one forever from year 1 is `δ/SWR` (as a
+        // pension), its first year not financed at the real return first. Its end and the lumps count as before.
+        const startMark = isLump(flow.kind) ? window.first : window.first - 1;
+        last = Math.max(last, startMark, window.last ?? startMark);
       }
       return last - retirementYear;
     },
