@@ -48,6 +48,19 @@ export interface CashFlowData {
    * Built by `resolvePerformanceBase`, merged by `mergePortfolioFlows`.
    */
   portfolioFlow?: number | null;
+  /**
+   * The cashflow branch's correction (doc/rendimenti-misura § 5.2, lib/utils/returnFlows.ts):
+   * `C_rows − T_sales − T_distributions` — a trade's fee row is a cost, not a withdrawal; a withheld
+   * tax is a withdrawal. Added to `netCashFlow` by `externalFlowOf` only in a month with no
+   * `portfolioFlow`. Absent means 0.
+   */
+  cashflowAdjustment?: number;
+  /**
+   * The measured branch's correction: `−D_gross`, the distributions whose payer is inside the base
+   * (return, not a deposit). Added to `portfolioFlow` by `externalFlowOf` only in a measured month.
+   * Absent means 0.
+   */
+  measuredAdjustment?: number;
 }
 
 /** Which source produced a month's measured flow — the reading names it. */
@@ -245,6 +258,8 @@ export interface FirestoreCashFlowData {
   netCashFlow: number;
   pensionFlow?: number;
   portfolioFlow?: number | null;
+  cashflowAdjustment?: number;
+  measuredAdjustment?: number;
 }
 
 // Firestore-serialized version of PerformanceMetrics (Date fields → Timestamp)

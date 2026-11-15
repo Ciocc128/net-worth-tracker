@@ -335,6 +335,7 @@ export default function PerformancePage() {
   // projected snapshots — what a period switch and a custom range recompute from, in memory — the
   // inputs the attribution reads beside it, and the dividends it adds to each instrument.
   const base = loaded.base;
+  const returnFlows = loaded.returnFlows;
   const cachedSnapshots = base?.snapshots ?? NO_SNAPSHOTS;
   const assets = loaded.assets ?? NO_ASSETS;
   const pensionContributions = loaded.contributions ?? NO_CONTRIBUTIONS;
@@ -443,6 +444,7 @@ export default function PerformancePage() {
     // Read before the try, which may hold no `?.`/`??` under the React Compiler.
     const pensionFlows = base?.pensionFlows ?? [];
     const portfolioFlows = base?.portfolioFlows ?? [];
+    const rangeReturnFlows = returnFlows ?? undefined;
     try {
       const measured = await calculatePerformanceForPeriod(
         ownerId,
@@ -455,6 +457,7 @@ export default function PerformancePage() {
         performanceData.ytd.dividendCategoryId,
         pensionFlows,
         portfolioFlows,
+        rangeReturnFlows,
       );
       setCustomMetrics(withYields(measured, await readCustomRangeYields(queryClient, ownerId, measured)));
       handlePeriodChange('CUSTOM');

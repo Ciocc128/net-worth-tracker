@@ -107,7 +107,7 @@ export function buildPerformanceQueries({ ownerId, inputs, setup, periods, pause
   const ready = !!ownerId && !!inputs && !!setup && !paused;
   // A disabled query still needs a key and a function of the right shape.
   const owner = ownerId ?? '';
-  const emptyInputs: PerformanceInputs = { snapshots: [], settings: null, assets: [], contributions: [], trades: [] };
+  const emptyInputs: PerformanceInputs = { snapshots: [], settings: null, assets: [], contributions: [], trades: [], dividends: [] };
   return {
     data: {
       ...performanceDataQueryOptions(owner, inputs ?? emptyInputs, setup?.cacheKey ?? ''),
