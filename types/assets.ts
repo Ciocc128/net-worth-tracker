@@ -386,7 +386,7 @@ export interface IdealAllocationSettings {
 export interface CoastFirePensionInput {
   id: string;
   label: string;
-  grossMonthlyAmount: number; // Monthly gross pension, nominal future amount from the source estimate
+  grossMonthlyAmount: number; // Monthly gross pension at TODAY's prices, as the INPS simulator gives it (RN7, doc/fire-ipotesi/README.md § 23)
   monthsPerYear: number; // Annual payment count (e.g. 13 in Italy)
   startDate?: string; // Retirement start date in YYYY-MM-DD format
   startAge?: number; // Legacy fallback kept for backward compatibility with previously saved rows

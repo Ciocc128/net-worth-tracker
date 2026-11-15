@@ -309,7 +309,8 @@ describe('calculateCoastFIREProjection', () => {
     expect(result.scenarios.base.coastFireNumberToday).toBeCloseTo(baseWithoutPension.coastFireNumberToday, 6)
   })
 
-  it('should deflate pension income differently across scenarios', () => {
+  // RN7 (doc/fire-ipotesi/README.md § 23.6): the gross is at today's prices, so the scenario's inflation no longer moves it.
+  it('should read the same net pension in every scenario', () => {
     const pension = [
       {
         id: 'p1',
@@ -331,10 +332,10 @@ describe('calculateCoastFIREProjection', () => {
       FIXED_CURRENT_DATE
     )
 
-    expect(result.scenarios.bear.totalNetAnnualPensionAtSteadyState).toBeLessThan(
+    expect(result.scenarios.bear.totalNetAnnualPensionAtSteadyState).toBe(
       result.scenarios.base.totalNetAnnualPensionAtSteadyState
     )
-    expect(result.scenarios.base.totalNetAnnualPensionAtSteadyState).toBeLessThan(
+    expect(result.scenarios.base.totalNetAnnualPensionAtSteadyState).toBe(
       result.scenarios.bull.totalNetAnnualPensionAtSteadyState
     )
   })
@@ -382,7 +383,7 @@ describe('state pension tax helpers', () => {
     expect(calculateProgressiveTax(60000, custom)).toBeCloseTo(15000 * 0.23 + 13000 * 0.25 + 22000 * 0.35 + 10000 * 0.45, 6)
   })
 
-  it('should convert a future nominal pension into a net real annual amount', () => {
+  it('should read the gross at today\'s prices and take the IRPEF off it (RN7)', () => {
     const result = calculateCoastFireNetRealAnnualPension(
       {
         id: 'p1',
@@ -397,9 +398,9 @@ describe('state pension tax helpers', () => {
       FIXED_CURRENT_DATE
     )
 
-    expect(result.grossAnnualFutureNominal).toBe(4242 * 13)
-    expect(result.grossAnnualRealAtStart).toBeLessThan(result.grossAnnualFutureNominal)
-    expect(result.netAnnualRealAtStart).toBeLessThan(result.grossAnnualRealAtStart)
+    // 55.146 € gross: 28.000 · 23% + 22.000 · 33% + 5.146 · 43% = 15.912,78 € of IRPEF.
+    expect(result.grossAnnualRealAtStart).toBe(4242 * 13)
+    expect(result.netAnnualRealAtStart).toBeCloseTo(55146 - (28000 * 0.23 + 22000 * 0.33 + 5146 * 0.43), 6)
   })
 
   it('should respect custom tax brackets', () => {
@@ -750,8 +751,8 @@ describe('buildCoastFIRERetirementNeeds — capitalInflows (bridge invariants)',
 
   it('extends the walk beyond the pension bridge when an inflow lands later (no pensions case)', () => {
     // No pensions → bridgeYears = 0 → without the extension the inflow would be silently ignored.
-    // Independent PV check: R(0) = Σ_{s=0..1} E/(1+r)^(s+1) + max(S − A, 0)/(1+r)^2
-    // with E=40000, S=1_000_000, A=200_000, r=5%: (840000/1.05 + 40000)/1.05 = 800000 exactly.
+    // RN2 (doc/fire-ipotesi/README.md § 23.6): R = E/s − A/(1+ρ)^2 = 1.000.000 − 200.000/1,05² = 818.594,10;
+    // the floor of RN3 (40.000/1,05 + 40.000/1,05² = 74.376,42) does not bind.
     const result = buildCoastFIRERetirementNeeds(
       40000,
       4,
@@ -766,7 +767,7 @@ describe('buildCoastFIRERetirementNeeds — capitalInflows (bridge invariants)',
     )
 
     expect(result.steadyStatePortfolioNeed).toBe(1000000)
-    expect(result.retirementCapitalRequired).toBeCloseTo(800000, 6)
+    expect(result.retirementCapitalRequired).toBeCloseTo(1000000 - 200000 / Math.pow(1.05, 2), 6)
   })
 })
 
@@ -796,9 +797,8 @@ describe('calculateFireBridgeNumber', () => {
   })
 
   it('is below the standard number when the fund covers part of the post-unlock capital', () => {
-    // Independent PV-sum check (r = g = 5%, y = 2, P = 200000):
-    //   P_at_unlock = 200000·1.05² = 220500; terminal = 1_000_000 − 220500 = 779500
-    //   bridge = 40000/1.05 + 40000/1.05² + 779500/1.05² = 781405.895…
+    // RN2 (r = g = 5%, y = 2, P = 200000): P_at_unlock = 200000·1.05² = 220500, worth 200.000 today
+    //   bridge = 1.000.000 − 220500/1.05² = 800.000: the fund enters at its value today (RN4).
     const result = calculateFireBridgeNumber({
       annualExpenses: 40000,
       withdrawalRate: 4,
@@ -808,7 +808,8 @@ describe('calculateFireBridgeNumber', () => {
       pensionGrowthRate: 5,
     })
 
-    const expected = 40000 / 1.05 + 40000 / Math.pow(1.05, 2) + 779500 / Math.pow(1.05, 2)
+    const expected = 1000000 - 220500 / Math.pow(1.05, 2)
+    expect(expected).toBeCloseTo(800000, 6)
     expect(result.standardFireNumber).toBe(1000000)
     expect(result.pensionValueAtUnlock).toBeCloseTo(220500, 6)
     expect(result.bridgeFireNumber).toBeCloseTo(expected, 4)
@@ -945,8 +946,8 @@ describe('calculateCoastFIREMetrics — capital inflows from pension unlock', ()
   })
 
   it('handles an unlock after retirement via the generalized walk (independent PV check)', () => {
-    // Unlock at 35 years from now = 5 after retirement. Independent formula:
-    // terminal = max(S − A·1.05^35, 0); R(0) = Σ_{s=0..4} E/1.05^(s+1) + terminal/1.05^5.
+    // Unlock at 35 years from now = 5 after retirement. RN2: R = S − A·1.05^35 / 1.05^5 = 1.000.000 − 100.000·1.05^30;
+    // the RN3 floor (five years of 40.000 at 5%, 173.179,07) does not bind.
     const result = calculateCoastFIREMetrics(
       300000,
       40000,
@@ -961,11 +962,7 @@ describe('calculateCoastFIREMetrics — capital inflows from pension unlock', ()
       [{ yearsFromNow: 35, amountToday: 100000 }]
     )
 
-    const terminal = Math.max(1000000 - 100000 * Math.pow(1.05, 35), 0)
-    let expected = terminal
-    for (let step = 4; step >= 0; step--) {
-      expected = (expected + 40000) / 1.05
-    }
+    const expected = 1000000 - 100000 * Math.pow(1.05, 30)
     expect(result.retirementCapitalRequired).toBeCloseTo(expected, 4)
     expect(result.coastFireNumberToday).toBeCloseTo(expected / Math.pow(1.05, 30), 4)
   })
@@ -1247,8 +1244,8 @@ describe('calculateCoastFIREMetrics — tax on withdrawals', () => {
     const taxed = calculateCoastFIREMetrics(200000, 30000, 4, 35, 60, 4.5, 2.5, [], getDefaultCoastFireTaxBrackets(), FIXED_CURRENT_DATE, undefined, { basisToday: 200000, rate: 26 })
     expect(taxed.retirementCapitalRequired).toBeGreaterThan(bare.retirementCapitalRequired)
     expect(taxed.coastFireNumberToday).toBeGreaterThan(bare.coastFireNumberToday)
-    // Independent: the capital grown 25 years at 4,5% on a basis of 200k gives the gain share.
-    const grown = 200000 * Math.pow(1.045, 25)
+    // Independent (RN9): the capital grown 25 years at 4,5% real, back in nominal euro at 2,5%, on a basis of 200k gives the gain share.
+    const grown = 200000 * Math.pow(1.045, 25) * Math.pow(1.025, 25)
     const share = 1 - 200000 / grown
     expect(taxed.retirementCapitalRequired).toBeCloseTo(bare.retirementCapitalRequired / (1 - share * 0.26), 4)
   })
@@ -1302,7 +1299,9 @@ describe('RF5 at one rate: the flows are valued at the Base\'s real return in ev
 
   it('the Coast number of the bear discounts the flows at the Base too: absent, the scenario\'s own rate', () => {
     const coast = (realRate: number, flowsRate?: number) =>
-      calculateCoastFIREMetrics(420_000, 25_200, 3.5, 40, 60, realRate, 3.04, [], undefined, now, undefined, undefined, input, flowsRate)
+      // Target 45: the child, the boat and the rent fall after it. At 60 only the rent forever from the FIRE is left, whose
+      // permanent part is `δ/SWR` at any rate since RN6 (doc/fire-ipotesi/README.md § 23.6), so the rate would not show.
+      calculateCoastFIREMetrics(420_000, 25_200, 3.5, 40, 45, realRate, 3.04, [], undefined, now, undefined, undefined, input, flowsRate)
     const base = coast(realReturn(8.28, 3.04))
     const bearOwn = coast(realReturn(6.1, 3.04))
     const bearAtBase = coast(realReturn(6.1, 3.04), realReturn(8.28, 3.04))

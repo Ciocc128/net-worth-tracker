@@ -3361,7 +3361,7 @@ Nessun elemento nuovo, nessun avviso: solo testi e cifre. Niente bozzetto oltre 
 | D-FC2 | **Presa** (15/11/2026) | Regola RN2: numero pieno all'SWR, meno il valore scontato di ciò che pensioni e fondo liberano. È la formula «consistent» dello script dell'audit e quella di RF5. | (a) Due vasi: spesa coperta dopo ÷ SWR più gli anni di attesa a `r`: più basso di RN2 con `r > s` (374.000 contro 403.000 € nel caso dell'audit), meno prudente e diverso da RF5. (b) `max` tra numero pieno e camminata: con `r < s` resta il salto. |
 | D-FC3 | **Presa** (15/11/2026) | Pavimento RN3 per il fondo grande. | Solo `max(N, 0)`: con un fondo oltre il numero FIRE il requisito andrebbe a zero e gli anni di attesa resterebbero scoperti. |
 | D-FC4 | **Presa** (card F10) | La pensione si scrive lorda, come la dà l'INPS, a prezzi di oggi (RN7). | Tenere il nominale futuro: nessuno ha quel numero. |
-| D-FC5 | **Da confermare** (raccomandata; aspetta PA-3) | I valori già salvati si rileggono **così come sono** a prezzi di oggi, senza conversione e senza campo nuovo. Vale se il numero salvato viene dal simulatore INPS. | (a) Convertire il salvato dividendolo per l'inflazione: giusto solo se era davvero un nominale futuro. (b) Campo `priceBasis` con avviso e scelta per riga: interfaccia nuova per due utenti. |
+| D-FC5 | **Presa** (15/11/2026: la cifra del piano viene dal simulatore INPS, PA-3 chiuso) | I valori già salvati si rileggono **così come sono** a prezzi di oggi, senza conversione e senza campo nuovo. Vale se il numero salvato viene dal simulatore INPS. | (a) Convertire il salvato dividendolo per l'inflazione: giusto solo se era davvero un nominale futuro. (b) Campo `priceBasis` con avviso e scelta per riga: interfaccia nuova per due utenti. |
 | D-FC6 | **Presa** (15/11/2026) | Predefiniti = scaglioni ordinari in vigore (RN8). La deroga del solo 2027, se diventa legge, non entra: le pensioni partono decenni dopo. | Seguire ogni anno la legge di bilancio: il predefinito cambierebbe per una misura di un anno. |
 | D-FC7 | **Presa** (15/11/2026) | I vecchi predefiniti salvati si riconoscono e si leggono come nuovi (RN8), senza guardare i dati di produzione. | Controllare il piano di Giorgio sul mirror e correggerlo a mano: serve il Mac e non copre il secondo account. |
 | D-FC8 | **Presa** (15/11/2026) | Correggere anche audit H4 (RN6). | Lasciarlo: pensione e stessa entrata datata darebbero numeri diversi di `(1+s)/(1+r)`. |
@@ -3460,6 +3460,13 @@ di oggi: se un caso non torna, fermarsi e scriverlo nel thread.
 `normalizeCoastFireTaxBrackets`, IR-1…IR-8; i test che citano 6.200 € o i quattro scaglioni; `doc/guide/fire.md`,
 `fire-coast.md`, `previdenza.md` (il risparmio fiscale della deduzione cambia con gli scaglioni), `impostazioni.md`.
 
+**Esito (15/11/2026).** FC-IR e FC-NF scritti nello stesso thread: `__tests__/fireRequirementRules.test.ts` afferma
+PE-1…PE-3, NF-1…NF-16, FL-1…FL-3 e CO-1; IR-1…IR-8 in `fireService.test.ts`. Due scelte di lettura: in NF-16 «dallo
+stesso anno» è la pensione attiva dal passo 10 contro il flusso ancorato al FIRE con 10 anni dopo (entrambi l'11° anno
+di prelievo); in Coast › Dettaglio la colonna «Lordo reale» esce con «Lordo nominale», perché ora sarebbe la stessa cifra
+di «Lordo annuo». Le pensioni della fixture Coast (unit ed E2E) passano a prezzi di oggi: 1.000 € e 300 € al mese al
+posto di 2.200 € e 600 € nominali alla decorrenza.
+
 **FC-NF — numero FIRE e pensione** (impl; dopo FC-Q2 e FC-IR). RN1–RN5 in `buildCoastFIRERetirementNeeds` (una
 formula sola, niente seconda strada), RN7 in `calculateCoastFireNetRealAnnualPension` e nei testi di § 23.7, RN6 e RN9. **Prima di toccare RN7 serve la risposta a PA-3 (D-FC5)**: senza, fermarsi e chiedere nel thread. Test da riscrivere: `fireService`, `coastStages` (CO2), `fireBaseLedger`, `whatIfService`,
 `datedFlows`, `datedFlowsEngines`, `goalFire`, `monteCarloService` dove citano cifre della camminata. Guide:
@@ -3471,7 +3478,7 @@ formula sola, niente seconda strada), RN7 in `calculateCoastFireNetRealAnnualPen
 - **PA-1.** La dicitura dell'INPS sul prospetto di «La mia pensione futura» (prezzi costanti, lordo, mensilità) non è
   stata letta alla fonte: la conferma chi ha il prospetto davanti. Se l'importo fosse nominale, D-FC4 va riaperta.
 - **PA-2.** Testo primario dell'art. 11 TUIR non letto (rete): le tre fonti secondarie concordano.
-- **PA-3.** Quale numero c'è oggi nel campo pensione del piano vero decide D-FC5.
+- **PA-3.** ~~Quale numero c'è oggi nel campo pensione del piano vero decide D-FC5.~~ Chiuso il 15/11/2026: viene dal simulatore INPS.
 
 ### 23.12 Rischi
 

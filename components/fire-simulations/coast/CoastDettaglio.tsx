@@ -145,13 +145,9 @@ export function CoastDettaglio({
                       <p className="mt-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
                         {pension.startDate ? formatDate(toDate(pension.startDate)) : 'non disponibile'} · tra {formatYearCount(Math.ceil(pension.yearsUntilStart))}
                       </p>
-                      <div className="mt-2 grid grid-cols-3 gap-x-3">
+                      <div className="mt-2 grid grid-cols-2 gap-x-3">
                         <div>
-                          <p className={TILE_SUB_EYEBROW_CLASS}>Lordo nominale</p>
-                          <p className="mt-1 font-mono text-[13px] tabular-nums text-foreground">{compact(pension.grossAnnualFutureNominal)}</p>
-                        </div>
-                        <div>
-                          <p className={TILE_SUB_EYEBROW_CLASS}>Lordo reale</p>
+                          <p className={TILE_SUB_EYEBROW_CLASS}>Lordo annuo</p>
                           <p className="mt-1 font-mono text-[13px] tabular-nums text-foreground">{compact(pension.grossAnnualRealAtStart)}</p>
                         </div>
                         <div>
@@ -168,8 +164,7 @@ export function CoastDettaglio({
                       <tr className="border-b border-border">
                         <th scope="col" className={cn(TILE_SUB_EYEBROW_CLASS, 'pb-2 text-left font-semibold')}>Pensione</th>
                         <th scope="col" className={cn(TILE_SUB_EYEBROW_CLASS, 'pb-2 text-left font-semibold')}>Decorrenza</th>
-                        <th scope="col" className={cn(TILE_SUB_EYEBROW_CLASS, 'pb-2 text-right font-semibold')}>Lordo nominale</th>
-                        <th scope="col" className={cn(TILE_SUB_EYEBROW_CLASS, 'pb-2 text-right font-semibold')}>Lordo reale</th>
+                        <th scope="col" className={cn(TILE_SUB_EYEBROW_CLASS, 'pb-2 text-right font-semibold')}>Lordo annuo</th>
                         <th scope="col" className={cn(TILE_SUB_EYEBROW_CLASS, 'pb-2 text-right font-semibold')}>Netto reale</th>
                       </tr>
                     </thead>
@@ -185,7 +180,6 @@ export function CoastDettaglio({
                           <td className="whitespace-nowrap py-2 pr-3 font-mono tabular-nums text-muted-foreground">
                             {pension.startDate ? formatDate(toDate(pension.startDate)) : 'non disponibile'} · tra {formatYearCount(Math.ceil(pension.yearsUntilStart))}
                           </td>
-                          <td className="whitespace-nowrap py-2 pl-3 text-right font-mono tabular-nums text-foreground">{compact(pension.grossAnnualFutureNominal)}</td>
                           <td className="whitespace-nowrap py-2 pl-3 text-right font-mono tabular-nums text-foreground">{compact(pension.grossAnnualRealAtStart)}</td>
                           <td className="whitespace-nowrap py-2 pl-3 text-right font-mono font-semibold tabular-nums text-foreground">{compact(pension.netAnnualRealAtStart)}</td>
                         </tr>
@@ -202,13 +196,10 @@ export function CoastDettaglio({
             <Tile eyebrow="Modello della pensione" reading={PENSION_MODEL_READING} ariaLabel="Modello della pensione">
               <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 text-[13px] leading-[1.5] text-muted-foreground desktop:grid-cols-2">
                 <p>
-                  <strong className="font-semibold text-foreground">Importo lordo mensile.</strong> Stima dell&apos;importo alla decorrenza, in euro di quell&apos;anno (nominale futuro).
+                  <strong className="font-semibold text-foreground">Importo lordo mensile.</strong> A prezzi di oggi, come nel simulatore INPS; l&apos;IRPEF si calcola su questa cifra.
                 </p>
                 <p>
-                  <strong className="font-semibold text-foreground">Deflazione.</strong> Il lordo nominale diventa potere d&apos;acquisto ai prezzi di oggi con l&apos;inflazione dello scenario.
-                </p>
-                <p>
-                  <strong className="font-semibold text-foreground">IRPEF.</strong> Imposta sul lordo annuo reale con gli scaglioni di Impostazioni › Simulazioni; il netto reale è ciò che abbatte il fabbisogno.
+                  <strong className="font-semibold text-foreground">IRPEF.</strong> Imposta sul lordo annuo con gli scaglioni di Impostazioni › Simulazioni; il netto reale è ciò che abbatte il fabbisogno.
                 </p>
                 <p>
                   <strong className="font-semibold text-foreground">Decorrenza.</strong> Prima di quella data la pensione non riduce nulla: il portafoglio copre da solo.
@@ -234,8 +225,8 @@ export function CoastDettaglio({
                   <strong className="font-semibold text-foreground">Spese usate.</strong> Il target si basa sulla spesa del piano (Il mio piano) o, se vuota, sulle spese del Cashflow.
                 </p>
                 <p>
-                  <strong className="font-semibold text-foreground">Pensione statale.</strong> Ogni importo è un lordo mensile nominale futuro, deflazionato con l&apos;inflazione dello scenario e convertito in
-                  netto reale con l&apos;IRPEF progressiva.
+                  <strong className="font-semibold text-foreground">Pensione statale.</strong> Ogni importo è un lordo mensile a prezzi di oggi, come lo dà il simulatore INPS, convertito in
+                  netto con l&apos;IRPEF progressiva.
                 </p>
                 <p>
                   <strong className="font-semibold text-foreground">Fondo pensione bloccato.</strong> Con il vincolo attivo (lo switch è in Il mio piano) il fondo esce dal patrimonio di oggi e

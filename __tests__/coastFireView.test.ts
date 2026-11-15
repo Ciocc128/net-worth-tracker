@@ -61,21 +61,22 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 /**
  * The fixture the Playwright suite runs on, with a FIXED reference date so every figure is
  * reproducible: age 35 → Coast target 60, two state pensions after the target, and a pension
- * fund unlocking at 22 years (the bridge model).
+ * fund unlocking at 22 years (the bridge model). The pensions are at today's prices (RN7, § 23), as in
+ * `scripts/seedCoastFireE2E.mts`.
  */
 const REFERENCE_DATE = new Date('2026-08-18T12:00:00Z');
 const PENSIONS = [
   {
     id: 'inps',
     label: 'Pensione INPS',
-    grossMonthlyAmount: 2200,
+    grossMonthlyAmount: 1000,
     monthsPerYear: 13,
     startDate: '2058-01-01',
   },
   {
     id: 'estera',
     label: 'Pensione estera',
-    grossMonthlyAmount: 600,
+    grossMonthlyAmount: 300,
     monthsPerYear: 12,
     startDate: '2052-06-01',
   },
@@ -488,7 +489,7 @@ describe('coastFireView — the Ipotesi disclosure', () => {
 
   it('should read the pensions tile by count and name the incomplete rows', () => {
     expect(plain(describePensioniStatali(0, 0))).toMatch(/^Nessuna pensione: il portafoglio sostiene per intero/);
-    expect(plain(describePensioniStatali(2, 0))).toBe('2 pensioni: ognuna riduce il fabbisogno del portafoglio solo dalla sua decorrenza, al netto IRPEF e deflazionata.');
+    expect(plain(describePensioniStatali(2, 0))).toBe('2 pensioni: ognuna riduce il fabbisogno del portafoglio solo dalla sua decorrenza, al netto IRPEF, a prezzi di oggi.');
     expect(plain(describePensioniStatali(2, 1))).toContain('; una riga è incompleta e non entra nel calcolo.');
   });
 });
