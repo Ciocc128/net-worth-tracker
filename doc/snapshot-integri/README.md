@@ -7,7 +7,7 @@ for R3 and R5) and the data-model review (`review-modello-dati/parte-1-tipi-e-do
 <https://claude.ai/artifact/2hwcn9rwBnE2iJyKtqxprx>, <https://claude.ai/artifact/WU1QvVw5iUgYRojErZgJva>.
 
 Nothing in the app yet: this is the spec, written on 2026-11-14 on `main` = `ec6d115`. **One implementation PR.**
-State of the decisions: § 8.
+Decisions confirmed by the owner on 2026-11-15 (§ 8): spec ready.
 
 Sibling specs not on `main` yet, referenced where they overlap:
 
@@ -400,27 +400,28 @@ route.
 
 ## 8. Decisioni
 
-Proposed by this spec on 2026-11-14; state in the last column. A decision is taken only when the owner confirms it
-in the thread.
+Proposed by this spec on 2026-11-14; state in the last column. The five put to the owner (D-SN3, D-SN5, D-SN6,
+D-SN7, D-SN12) were confirmed as recommended on 2026-11-15; the others apply the card or follow from those, were
+shown with them and not objected to.
 
 | Id | Decision | Alternatives rejected, and why | State |
 | --- | --- | --- | --- |
 | **D-SN1** | Authorship as `writtenBy` (`cron`, `button`, `manual`, `dummy`), `writtenByUid`, `updatedAt`; `createdAt` frozen at the first write (C1, card F07). One field serves C1's «who» and M7's «source». | *A separate `source` field next to `writtenBy`*: two names for one fact. *A log collection of writes*: answers «who» only by a join, and the question is asked on the document. | applies the card |
 | **D-SN2** | The automatic route refuses `year`/`month` (strict schema, 400) instead of ignoring them. | *Drop them silently*: a caller that names March 2024 would get the current month rewritten and a 200. *Keep them for the cron's use*: the cron never sends them. | applies the card |
-| **D-SN3** | A closed month is written only by hand; replacing an existing month needs an explicit `replace`, and the replaced version is kept in a `versions` sub-collection, restorable from the dialog. | *(a) Refuse any rewrite of a closed month*: the manual snapshot exists to correct history (a wrong balance found a week later); it would force a delete-and-recreate that does not exist. *(b) A `previous` field holding the old document inside the new one*: every reader downloads it (Storico reads all snapshots), it keeps one level only, and it doubles a document that already carries `byAsset`. *(c) Archive every rewrite, the cron's too*: thirty versions a month of a document that is meant to be rewritten. | **to confirm** |
+| **D-SN3** | A closed month is written only by hand; replacing an existing month needs an explicit `replace`, and the replaced version is kept in a `versions` sub-collection, restorable from the dialog. | *(a) Refuse any rewrite of a closed month*: the manual snapshot exists to correct history (a wrong balance found a week later); it would force a delete-and-recreate that does not exist. *(b) A `previous` field holding the old document inside the new one*: every reader downloads it (Storico reads all snapshots), it keeps one level only, and it doubles a document that already carries `byAsset`. *(c) Archive every rewrite, the cron's too*: thirty versions a month of a document that is meant to be rewritten. | **taken** (owner, 2026-11-15) |
 | **D-SN4** | Undo is a swap (RI10): restoring archives what it replaces. | *A one-way restore that deletes the version*: an undo that cannot be undone, on the one collection with no backup (free plan, no PITR). | follows D-SN3 |
-| **D-SN5** | A price that jumps ≥ 30% in a day is written and flagged, not held back. | *Hold the old price and count it as a failure*: a real fall (a 3× ETF in a crash, a crypto) would never be accepted — tomorrow's quote is again 30% from the stale one. *Flag at 10%*: ordinary days of single stocks and crypto would cry wolf. *No check*: C4's ×100 case stays silent. | **to confirm** |
-| **D-SN6** | The client can only write a note; real snapshots are written by the server; test data only on free ids (RI17). Decided here because F11 defers R3 to this spec. | *R3's lighter form (bind the id to `userId` at creation)*: closes the squatting of a future month, leaves every member's client free to rewrite any closed month — the thing this spec protects. *Leave it to F11*: the API would be closed and the client door open until then. | **to confirm** |
-| **D-SN7** | The price warning shows in two places: the toast after «Crea snapshot» and the month's reading in Storico › Dettaglio. The Storico verdict and the Panoramica verdict are untouched. | *In the Storico verdict* (the review's suggestion): the verdict is the growth since the first snapshot; a stale price of one month is not what the page answers, and it would stay there for a month. *A badge on the chart*: a new visual vocabulary for a rare fact. | **to confirm** (sketch) |
+| **D-SN5** | A price that jumps ≥ 30% in a day is written and flagged, not held back. | *Hold the old price and count it as a failure*: a real fall (a 3× ETF in a crash, a crypto) would never be accepted — tomorrow's quote is again 30% from the stale one. *Flag at 10%*: ordinary days of single stocks and crypto would cry wolf. *No check*: C4's ×100 case stays silent. | **taken** (owner, 2026-11-15) |
+| **D-SN6** | The client can only write a note; real snapshots are written by the server; test data only on free ids (RI17). Decided here because F11 defers R3 to this spec. | *R3's lighter form (bind the id to `userId` at creation)*: closes the squatting of a future month, leaves every member's client free to rewrite any closed month — the thing this spec protects. *Leave it to F11*: the API would be closed and the client door open until then. | **taken** (owner, 2026-11-15) |
+| **D-SN7** | The price warning shows in two places: the toast after «Crea snapshot» and the month's reading in Storico › Dettaglio. The Storico verdict and the Panoramica verdict are untouched. | *In the Storico verdict* (the review's suggestion): the verdict is the growth since the first snapshot; a stale price of one month is not what the page answers, and it would stay there for a month. *A badge on the chart*: a new visual vocabulary for a rare fact. | **taken** (owner, 2026-11-15) |
 | **D-SN8** | The rule ships with an emulator probe (CA6); its automated test arrives with F11's suite. Declared exception to D-T3, the same as F02's D-SI6. | *Add `@firebase/rules-unit-testing` here*: it is F11's whole job. | follows D-SI6 |
 | **D-SN9** | A future month is refused by the manual route; the current month is allowed. | *Refuse the current month too*: an account with no market-priced asset gets no snapshot from the cron («No assets found» aside, a cash-only account does, but a user who tracks totals by hand has no other door). | proposed |
 | **D-SN10** | No backfill of the existing documents: absent fields read as «not recorded». | *Stamp every old document `writtenBy: 'cron'`*: an invented fact — October 2026 was the button. | proposed |
 | **D-SN11** | The stream prompt is capped at 8.000 characters here; F04 may lower it with the limits of A3. | *No cap until F04*: a schema that accepts any length checks only the type. | proposed |
-| **D-SN12** | **The month that closes at 19:00** — § 9 P1. | see § 9 P1 | **owner's choice** |
+| **D-SN12** | **The month that closes at 19:00**: option A of § 9 P1 — the recap email and the vault's `dati/` are built by the cron of the 1st on the month that closed. Implemented with the cron card, not in this PR. | B (re-run on rewrite), C (say it, re-send by hand), D (leave it): § 9 P1, with their costs. | **taken** (owner, 2026-11-15) |
 
 ## 9. Punti aperti
 
-**P1 — The month closes at 19:00** (D-SN12). On the last day the cron takes the photo at 19:00 Italian time and, in
+**P1 — The month closes at 19:00** (D-SN12, decided: option A). On the last day the cron takes the photo at 19:00 Italian time and, in
 the same run, builds the recap email and the vault's `dati/` on it. What is typed that evening enters the month
 only if «Crea snapshot» is pressed before midnight — and then Storico holds one October, the email and the wiki
 another (31/10/2026). Whatever is chosen is implemented with the cron card («Fable minori · Cron serale», with C5's
@@ -428,7 +429,7 @@ another (31/10/2026). Whatever is chosen is implemented with the cron card («Fa
 
 | Option | What happens | Cost |
 | --- | --- | --- |
-| **A — Recap and wiki the day after** (recommended) | The cron of the 1st, at 19:00, sends the recap and writes `dati/` for the month that closed, reading its final snapshot and its final cashflow. The 19:00 photo of the last day stays; the button before midnight still improves it. | The recap arrives a day later. One email, one AI comment, nothing to re-run. Quarterly, half-year and yearly move the same way. |
+| **A — Recap and wiki the day after** (**chosen**, 2026-11-15) | The cron of the 1st, at 19:00, sends the recap and writes `dati/` for the month that closed, reading its final snapshot and its final cashflow. The 19:00 photo of the last day stays; the button before midnight still improves it. | The recap arrives a day later. One email, one AI comment, nothing to re-run. Quarterly, half-year and yearly move the same way. |
 | B — Re-run on rewrite (the coordinator's lean) | When the last day's snapshot is rewritten after the cron, the email and the export are built again. | A second email and a second paid comment per press; the button's request must outlive its response (minutes of AI); needs C5 to tell a correction from a duplicate. A row typed at 23:50 without pressing the button is still missed. |
 | C — Say it, re-send by hand | The toast after a late «Crea snapshot» says the recap was built on the 19:00 figures; «Invia ora» in Impostazioni already re-sends, `npm run vault:export` rewrites `dati/`. | Nothing automatic; the wiki step stays a Mac command. |
 | D — Leave it | Known and documented. | Two Octobers each time. |
