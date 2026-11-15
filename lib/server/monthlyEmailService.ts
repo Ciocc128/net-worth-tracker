@@ -116,6 +116,7 @@ import { resolvePensionReturnStart } from '@/lib/utils/pensionReturn';
 import { resolvePerformanceBase } from '@/lib/utils/performanceBase';
 import { describeMeasurementBase } from '@/lib/utils/performanceNarrative';
 import { calculatePerformanceForPeriod } from '@/lib/services/performanceService';
+import type { DividendReceipt } from '@/lib/utils/performanceAttribution';
 import {
   describeCommonIncome,
   describeMemberBalance,
@@ -1506,6 +1507,7 @@ export async function buildPeriodEmailData(
     windowStart,
     windowEnd,
     expenseDocs: expensesSnap.docs,
+    dividendDocs: dividendsSnap.docs,
   });
 
   return {
@@ -1557,6 +1559,8 @@ async function buildEmailPortfolio(input: {
   windowStart: Date;
   windowEnd: Date;
   expenseDocs: FirebaseFirestore.QueryDocumentSnapshot[];
+  /** The registry's records paid in the window: Rendimenti counts them gross, their tax as a withdrawal (F08). */
+  dividendDocs: FirebaseFirestore.QueryDocumentSnapshot[];
 }): Promise<EmailPortfolioSection> {
   const { userId, year, month, prevYear, prevMonth, windowStart, windowEnd } = input;
   let assets: Asset[];
@@ -1643,6 +1647,15 @@ async function buildEmailPortfolio(input: {
       settings?.dividendIncomeCategoryId,
       base.pensionFlows,
       base.portfolioFlows,
+      {
+        dividends: input.dividendDocs.flatMap((doc) => {
+          const data = doc.data();
+          const paymentDate = data.paymentDate?.toDate?.();
+          return paymentDate instanceof Date ? [{ ...data, paymentDate } as DividendReceipt] : [];
+        }),
+        trades: transactions,
+        excludedAssetIds: base.excludedAssetIds,
+      },
     );
     periodReturn = resolveEmailPeriodReturn(metrics, describeMeasurementBase(base));
   } catch (error) {

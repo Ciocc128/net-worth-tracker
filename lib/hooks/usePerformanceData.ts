@@ -3,7 +3,7 @@
 /**
  * Everything Rendimenti reads, each collection ONCE (2026-10-04).
  *
- * Depth two: the six collections through the app's shared hooks (one round trip, cached across
+ * Depth two: the six collections (the dividend registry among the metrics' inputs since F08) through the app's shared hooks (one round trip, cached across
  * pages, restored from the persisted cache on a reload), then — together, as soon as the inputs
  * are in — the pre-computed metrics (`getAllPerformanceData` on those same inputs: one `getDoc` of
  * `performance-cache/{uid}`, the expenses only on a miss) and the dividend yields of the five
@@ -70,6 +70,7 @@ export function usePerformanceData(ownerId: string | undefined) {
   const settings = settingsQuery.data;
   const contributions = contributionsQuery.data;
   const trades = tradesQuery.data;
+  const dividends = dividendsQuery.data;
 
   // The settings document may not exist (`null`): only `undefined` means «not read yet».
   // The risk-free rate is the ECB estimate unless one is typed: the metrics wait for the anchors' read, or the first
@@ -77,10 +78,10 @@ export function usePerformanceData(ownerId: string | undefined) {
   const { anchors, ready: anchorsReady } = useMarketAnchorsState();
   const inputs = useMemo<PerformanceInputs | null>(
     () =>
-      snapshots && assets && settings !== undefined && contributions && trades && (anchorsReady || settings?.riskFreeRate !== undefined)
-        ? { snapshots, assets, settings, contributions, trades, anchors }
+      snapshots && assets && settings !== undefined && contributions && trades && dividends && (anchorsReady || settings?.riskFreeRate !== undefined)
+        ? { snapshots, assets, settings, contributions, trades, dividends, anchors }
         : null,
-    [snapshots, assets, settings, contributions, trades, anchors, anchorsReady],
+    [snapshots, assets, settings, contributions, trades, dividends, anchors, anchorsReady],
   );
   // The SAME resolution the service runs: the base the page's charts read and the key its payload is named by.
   const setup = useMemo(() => (inputs ? resolvePerformanceSetup(inputs) : null), [inputs]);
@@ -126,7 +127,7 @@ export function usePerformanceData(ownerId: string | undefined) {
       // Invalidated FIRST, so `fetchQuery` reads anew instead of answering from the cache; the
       // hooks above are the same entries and receive the same fresh lists.
       await Promise.all(stageOne.map((options) => queryClient.invalidateQueries({ queryKey: options.queryKey })));
-      const [freshSnapshots, freshAssets, freshSettings, freshContributions, freshTrades] = await Promise.all([
+      const [freshSnapshots, freshAssets, freshSettings, freshContributions, freshTrades, freshDividends] = await Promise.all([
         queryClient.fetchQuery(stageOne[0]),
         queryClient.fetchQuery(stageOne[1]),
         queryClient.fetchQuery(stageOne[2]),
@@ -140,6 +141,7 @@ export function usePerformanceData(ownerId: string | undefined) {
         settings: freshSettings,
         contributions: freshContributions,
         trades: freshTrades,
+        dividends: freshDividends,
         anchors,
       };
       const freshSetup = resolvePerformanceSetup(freshInputs);
@@ -165,6 +167,8 @@ export function usePerformanceData(ownerId: string | undefined) {
     performanceData,
     /** The resolved base (projected snapshots, exclusions, pension entry, both flow channels). */
     base: setup?.base ?? null,
+    /** What the branch corrections read (registry, ledger, exclusions): a custom range passes it on. */
+    returnFlows: setup?.returnFlows ?? null,
     assets,
     contributions,
     dividends: dividendsQuery.data,
