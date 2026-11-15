@@ -117,16 +117,10 @@ service cloud.firestore {
       // Lettura: proprietario o membro delegato
       allow read: if canAccess(resource.data.userId);
 
-      // Creazione: un membro può creare dividendi sull'account condiviso
-      allow create: if canAccess(request.resource.data.userId);
-
-      // Aggiornamento: proprietario/membro e userId immutabile (se presente)
-      allow update: if canAccess(resource.data.userId) &&
-                       (!('userId' in request.resource.data) ||
-                        request.resource.data.userId == resource.data.userId);
-
-      // Cancellazione: proprietario o membro delegato
-      allow delete: if canAccess(resource.data.userId);
+      // Scrittura: solo il server (le API /api/dividends* e i cron, con l'Admin SDK).
+      // Fino al 2026-11 il client poteva scrivere `expenseId` e collegare un dividendo alla
+      // spesa di un altro account (A4, doc/sicurezza/README.md RS6, D-SI5).
+      allow write: if false;
     }
 
     // Collezione pensionContributions - contributi al fondo pensione

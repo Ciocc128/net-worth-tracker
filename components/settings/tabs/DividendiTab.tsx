@@ -21,7 +21,6 @@ import { ErrorNotice } from '@/components/ui/error-notice';
 import { cn } from '@/lib/utils';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
-import { getCategoryById } from '@/lib/services/expenseCategoryService';
 import { describeReadFailure, type SurfaceState } from '@/lib/utils/statesNarrative';
 import { describeBtpItalia, describeDividendCategory } from '@/lib/utils/settingsNarrative';
 import { NO_SELECTION, type DividendiSlice } from '@/lib/utils/settingsDraft';
@@ -119,38 +118,22 @@ export function DividendiTab({
     await runGuarded(async () => {
       setSyncingDividends(true);
 
-      const category = await getCategoryById(dividendIncomeCategoryId);
-      if (!category) {
-        toast.error('Categoria non trovata');
-        return;
-      }
-
-      let subCategoryName: string | undefined;
-      if (dividendIncomeSubCategoryId) {
-        subCategoryName = category.subCategories.find((sub) => sub.id === dividendIncomeSubCategoryId)?.name;
-      }
-
-      // Every recorded dividend, then the sync route writes the rows it has not written yet.
-      const response = await authenticatedFetch(`/api/dividends?userId=${ownerId}`);
-      if (!response.ok) {
-        throw new Error('Errore nel caricamento dei dividendi');
-      }
-      const data = await response.json();
-      const dividends = data.dividends || [];
-
+      // The server reads the account's dividends and the category itself: the request carries ids
+      // only (doc/sicurezza/README.md RS1–RS3). The category id is the tab's draft, not the saved one.
       const syncResponse = await authenticatedFetch('/api/dividends/sync-expenses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: ownerId,
-          dividends,
           categoryId: dividendIncomeCategoryId,
-          categoryName: category.name,
           subCategoryId: dividendIncomeSubCategoryId || undefined,
-          subCategoryName,
         }),
       });
 
+      if (syncResponse.status === 400) {
+        toast.error('Categoria non trovata');
+        return;
+      }
       if (!syncResponse.ok) {
         throw new Error('Errore nella sincronizzazione');
       }

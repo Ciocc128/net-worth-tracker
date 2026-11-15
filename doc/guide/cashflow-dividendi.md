@@ -128,6 +128,16 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   and `dividendTypeNoun` («la cedola», «il dividendo») live in `dividendiNarrative.ts`.
 
 ## Dividends and Coupons
+
+- **«Sincronizza dividendi esistenti» reads the dividends on the server** (2026-11-15, `doc/sicurezza/README.md` S1,
+  A1): Impostazioni › Dividendi sends `{ userId, categoryId, subCategoryId? }` — the category is the tab's DRAFT —
+  and `syncDividendExpenses` reads the account's dividends (`getAllDividends`) and the category
+  (`readDividendSyncCategory`: missing or another account's → 400 «Categoria non trovata»; the names on the rows come
+  from the document). `createExpenseFromDividend` re-reads the dividend inside its transaction and throws when the
+  object's `userId` is not the stored one (the second defence for every caller). A linked expense of ANOTHER account
+  is never rewritten or deleted (`updateExpenseFromDividend` throws, `deleteExpenseForDividend(…, ownerId)` leaves it
+  and drops the false link: the dividend stays editable and deletable). `dividends` is read-only for the client in
+  `firestore.rules`: every write goes through `/api/dividends*` or the crons.
 - **A bond may pay ONE coupon, with the redemption** (`CouponFrequency 'maturity'`, 2026-10-10 — the BTP Valore
   «Insieme» of the 19–23 October dual-tranche issue, MEF comunicato of 2026-09-25: five years, no intermediate coupon,
   «rendimenti equivalenti» to the quarterly step-up Valore). The owner's reading of that equivalence is COMPOUND:
@@ -234,7 +244,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **The tab opens on ONE request, and the list survives a failed measure** (2026-10-05): the answer of
   `/api/dividends/stats` carries `dividends` beside `stats` — the owner's WHOLE registry, whatever the bounds or the
   instrument asked. Until then the page asked `/api/dividends` for the list: a second request and a second read of
-  the collection at every opening (that route stays: Impostazioni's expense sync reads it).
+  the collection at every opening (that route stays for its other readers; since 2026-11-15 Impostazioni's expense sync no longer
+  reads it: `POST /api/dividends/sync-expenses` reads the account's dividends on the server, see below).
   `lib/hooks/useDividendStats.ts` reads the answer with two hooks on one key (`dividendStatsQueryKey`):
   `useDividendRegistry`, the page's list, enabled by the mounted tab, and `useDividendStats`, the tab's measures.
   `staleTime: 0` — every opening rereads behind the cached answer: dividends are also written where nothing
