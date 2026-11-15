@@ -3390,6 +3390,13 @@ mano: K2, K3 (con `cashToInvestPct`), K5, K6, K7, K8, K9, K10 di § 11.8; E1–E
 
 Fatto quando: le 15 mutazioni di `salute-test/mutazioni.json` su `fireCapital.ts` falliscono tutte.
 
+*Esito (FC-Q2, 15/11/2026).* `__tests__/fireCapital.test.ts`, 30 casi: 13 mutazioni su 15 falliscono. Le altre due sono
+**equivalenti**, nessun ingresso le distingue: riga 145 (`C >= 0`): con `C = 0` anche `C_in` è 0, quindi `X` vale 0 in
+entrambe le forme; riga 188 (`amount < 0`): uno strumento con `amount = 0` entra con quantità 0 e
+`resolvePortfolioTaxProfile` lo salta. Q-5 ha un secondo caso senza strumenti fuori dalla Liquidità (`N = 0`): è il
+solo che distingue `t >= 100` da `t > 100` (con `N > 0` il ramo dà `C` comunque). Q-7 ha un fondo sotto `L`: il solo
+che distingue `&&` da `||` alla riga 157.
+
 **Audit E1 — scaglioni.**
 
 | # | Lordo annuo | IRPEF attesa (nuovi) | Prima |
