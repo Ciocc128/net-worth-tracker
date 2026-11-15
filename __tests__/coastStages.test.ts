@@ -2,6 +2,9 @@
  * Coast — the Traguardo's three stages and the Afflussi's dated flows (doc/fire-ipotesi/README.md § 17, task CO1):
  * reference values CO1–CO11 of § 17.8. Example of § 12.9: 1 January 2026, age 35, target 50 (`T` = 15), g = 7%, π = 2%,
  * spending 30.000 €, SWR 4%, no tax, one «Pensione INPS» of 1.500 € gross × 13 from 1 January 2058. Tolerance ± 0,01 €.
+ *
+ * Since FC-NF (§ 23.6, 15/11/2026) the pension is at today's prices (RN7: 19.500 € gross, 15.015 € net) and the
+ * requirement at the target is RN2: `R = 30.000/0,04 − 15.015/0,04 / (1 + r)^17` = 583.603,55 €, `r` = 4,902%.
  */
 import { describe, expect, it, vi } from 'vitest';
 
@@ -68,44 +71,51 @@ const euro = (value: number) => cachedFormatCurrencyEUR(Math.round(value), true)
 describe('CO1–CO3 — the stages', () => {
   it('CO1 should give the three stages of a plan that is not there yet', () => {
     const { metrics, projection } = run(200_000);
-    expect(metrics.coastFireNumberToday).toBeCloseTo(285_306.37, 2);
-    expect(metrics.retirementCapitalRequired).toBeCloseTo(584_878.37, 2);
+    expect(metrics.coastFireNumberToday).toBeCloseTo(284_684.51, 2);
+    expect(metrics.retirementCapitalRequired).toBeCloseTo(583_603.55, 2);
     expect(metrics.capitalAtRetirementOnCourse).toBeCloseTo(410_000.22, 2);
     expect(metrics.capitalAtRetirementOnCourse).toBeCloseTo(metrics.futureValueAtRetirementWithoutNewContributions, 6);
     expect(metrics.regimeYears).toBe(17);
-    expect(metrics.regimeCapitalRequired).toBeCloseTo(550_816.12, 2);
+    expect(metrics.regimeCapitalRequired).toBeCloseTo(374_625, 2); // (30.000 − 15.015) / 0,04
     expect(metrics.regimeCapitalRequired).toBeCloseTo(metrics.steadyStatePortfolioNeed, 6);
-    expect(metrics.capitalAtRegimeOnCourse).toBeCloseTo(156_307.16, 2);
+    // Z_H = S_H + M·(1+r)^32, M = 200.000 − 284.684,51: below zero, the stage reads «esaurito».
+    expect(metrics.capitalAtRegimeOnCourse).toBeCloseTo(-17_008.09, 2);
     // The chart's own Base series at the target age is the stage's figure.
     expect(projection.scenarios.base.capitalAtRetirementOnCourse).toBeCloseTo(projection.projectionData.at(-1)!.basePortfolioValue, 2);
 
     const target = summarizeCoastTarget(metrics as never, { currentNetWorth: 200_000, liquidNetWorth: 0, currentAge: 35, retirementAge: 50, isBridge: false, currentYear: YEAR, withdrawalRate: 4 });
     expect(target.stages.map((stage) => stage.label)).toEqual(['Oggi', 'A 50 anni · 2041', 'A regime · dal 2058']);
-    expect(target.stages.map((stage) => Math.round(stage.shortfall * 100) / 100)).toEqual([85_306.37, 174_878.16, 394_508.96]);
+    expect(target.stages.map((stage) => Math.round(stage.shortfall * 100) / 100)).toEqual([84_684.51, 173_603.34, 374_625]); // an exhausted capital counts as 0 (CG-A)
     expect(target.stages.every((stage) => !stage.enough)).toBe(true);
   });
 
-  it('CO2 should be the same capital as running 410.000,22 € forward, paying 30.000 € at each year-end', () => {
+  // RN5 (§ 23.6): Z_H matches the forward run only when ρ = SWR. With ρ = 4,902% > 4% the requirement no longer finances
+  // the 17 waiting years at ρ, so running 410.000,22 € forward paying 30.000 € a year lands ABOVE Z_H (156.307,17 €).
+  it('CO2 should be the margin grown to the steady state, and below the forward run of 410.000,22 € when ρ > SWR', () => {
+    const { metrics } = run(200_000);
     let capital = 410_000.22;
     for (let year = 0; year < 17; year++) capital = capital * (1 + RATE / 100) - 30_000;
-    expect(capital).toBeCloseTo(run(200_000).metrics.capitalAtRegimeOnCourse, 1);
+    expect(capital).toBeCloseTo(156_307.17, 1);
+    const margin = 200_000 - metrics.coastFireNumberToday;
+    expect(metrics.capitalAtRegimeOnCourse).toBeCloseTo(metrics.regimeCapitalRequired + margin * Math.pow(1 + RATE / 100, 32), 6);
+    expect(capital).toBeGreaterThan(metrics.capitalAtRegimeOnCourse);
   });
 
   it('CO3 should say «basta» three times with 300.000 €', () => {
     const { metrics } = run(300_000);
     expect(metrics.capitalAtRetirementOnCourse).toBeCloseTo(615_000.32, 2);
-    expect(metrics.capitalAtRegimeOnCourse).toBeCloseTo(618_768.45, 2);
+    expect(metrics.capitalAtRegimeOnCourse).toBeCloseTo(445_453.21, 2);
     const target = summarizeCoastTarget(metrics as never, { currentNetWorth: 300_000, liquidNetWorth: 0, currentAge: 35, retirementAge: 50, isBridge: false, currentYear: YEAR });
     expect(target.stages.every((stage) => stage.enough)).toBe(true);
   });
 
   it('CO4 should read the inheritance in the stage, the chart and the verdict alike', () => {
     const { metrics, projection } = run(200_000, { flows: [INHERITANCE] });
-    expect(metrics.coastFireNumberToday).toBeCloseTo(234_471.44, 2);
+    expect(metrics.coastFireNumberToday).toBeCloseTo(233_849.58, 2);
     expect(metrics.capitalAtRetirementOnCourse).toBeCloseTo(514_211.87, 2);
     expect(projection.scenarios.base.capitalAtRetirementOnCourse).toBeCloseTo(projection.projectionData.at(-1)!.basePortfolioValue, 2);
-    expect(metrics.regimeCapitalRequired).toBeCloseTo(550_816.12, 2);
-    expect(metrics.capitalAtRegimeOnCourse).toBeCloseTo(391_399.03, 2);
+    expect(metrics.regimeCapitalRequired).toBeCloseTo(374_625, 2);
+    expect(metrics.capitalAtRegimeOnCourse).toBeCloseTo(218_083.78, 2);
 
     const target = summarizeCoastTarget(projection.scenarios.base, { currentNetWorth: 200_000, liquidNetWorth: 0, currentAge: 35, retirementAge: 50, isBridge: false, currentYear: YEAR });
     const verdict = buildCoastVerdict({ target, incompleteReason: null, pace: null, lock: INACTIVE_LOCK });
@@ -114,17 +124,19 @@ describe('CO1–CO3 — the stages', () => {
 
   it('CO5 should read a rent after the target into the steady-state stage', () => {
     const { metrics } = run(200_000, { flows: [RENT] });
-    expect(metrics.coastFireNumberToday).toBeCloseTo(219_631.02, 2);
-    expect(metrics.retirementCapitalRequired).toBeCloseTo(450_243.83, 2);
+    // R + Σ_{j=1..17} −6.000/(1+r)^j − 6.000/0,04/(1+r)^17 (the pension's horizon keeps J at 17).
+    expect(metrics.coastFireNumberToday).toBeCloseTo(219_009.16, 2);
+    expect(metrics.retirementCapitalRequired).toBeCloseTo(448_969.01, 2);
     expect(metrics.capitalAtRetirementOnCourse).toBeCloseTo(410_000.22, 2);
-    expect(metrics.regimeCapitalRequired).toBeCloseTo(402_105.84, 2);
-    expect(metrics.capitalAtRegimeOnCourse).toBeCloseTo(311_319.96, 2);
+    expect(metrics.regimeCapitalRequired).toBeCloseTo(224_625, 2); // 374.625 − 6.000/0,04
+    expect(metrics.capitalAtRegimeOnCourse).toBeCloseTo(136_715, 2);
   });
 
   it('CO6 should leave the numbers of the locked fund as they were and keep H at 17', () => {
     const { metrics } = run(200_000, { fund: [{ yearsFromNow: 25, amountToday: 40_000 }] });
-    expect(metrics.coastFireNumberToday).toBeCloseTo(245_306.37, 2);
-    expect(metrics.retirementCapitalRequired).toBeCloseTo(502_878.33, 2);
+    // RN2: R − 40.000·(1+r)^25 / (1+r)^10; the RN3 floor (ten years of 30.000, 232.758,93) does not bind.
+    expect(metrics.coastFireNumberToday).toBeCloseTo(244_684.51, 2);
+    expect(metrics.retirementCapitalRequired).toBeCloseTo(501_603.51, 2);
     expect(metrics.regimeYears).toBe(17);
   });
 
@@ -197,6 +209,6 @@ describe('CO11 — no dated flows, nothing existing moves', () => {
     const plainRun = run(200_000);
     const emptyRun = calculateCoastFIREMetrics(200_000, 30_000, 4, 35, 50, RATE, PI, PENSION, BRACKETS, START, undefined, undefined, { resolved: [], planExpensesFromCashflow: true }, RATE);
     expect(emptyRun).toEqual(plainRun.metrics);
-    expect(plainRun.metrics.coastFireNumberToday).toBeCloseTo(285_306.37, 2);
+    expect(plainRun.metrics.coastFireNumberToday).toBeCloseTo(284_684.51, 2);
   });
 });

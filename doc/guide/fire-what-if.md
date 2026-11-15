@@ -14,6 +14,7 @@
   `whatIfNarrative.ts` puts them into words (the DOM ids of the phone composition in the summary, § Composizione mobile). The service now RETURNS the two base-scenario walks it runs (`projections`), so the
   chart draws the series the years were read from — never a third walk in a component. The job-loss decomposition (retained income
   covers the expenses first, the portfolio pays the uncovered part) is `decomposeJobLossHit`, out of the component.
+- **FC-NF (2026-11-15, doc/fire-ipotesi/README.md § 23)**: the «prima» and «dopo» numbers read `resolveFireRequirement`, so they follow RN1–RN7 with no change here — with a pension or a locked fund the number no longer jumps (RN2), and the pension is a gross at today's prices (RN7).
 - **The headline and the tone come from the delta in years** (`timelineCase`: keeps · loses · gains · neverBoth · leaves · returns ·
   same · moves), shared by the verdict and the Prima e dopo reading; a `yearsToFIRE` of 0 means reached, null means beyond the
   50-year horizon (`WHAT_IF_HORIZON_YEARS`, the Calcolatore's). **Only the deltas carry a sign** (`signedAmount`), by the direction
