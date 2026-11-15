@@ -124,7 +124,8 @@ export async function PUT(
  *
  * Cascade Logic:
  *   If dividend has linked expense (expenseId exists):
- *     - Deletes the linked expense first
+ *     - Deletes the linked expense first — only when it is the dividend's account's; a row of
+ *       another account is left untouched and the false link dropped (doc/sicurezza RS5)
  *     - Then deletes the dividend
  *     - Non-blocking: expense deletion failure doesn't prevent dividend deletion
  *
@@ -160,7 +161,7 @@ export async function DELETE(
     // If dividend has linked expense, delete it first
     if (dividend.expenseId) {
       try {
-        await deleteExpenseForDividend(dividendId, dividend.expenseId);
+        await deleteExpenseForDividend(dividendId, dividend.expenseId, dividend.userId);
       } catch (expenseError) {
         console.error('Error deleting linked expense:', expenseError);
         // Continue with dividend deletion even if expense deletion fails

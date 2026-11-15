@@ -3,7 +3,8 @@ import 'server-only';
 import { Timestamp, type DocumentReference, type Transaction } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase/admin';
 import { Dividend } from '@/types/dividend';
-import { updateDividend } from '@/lib/services/dividendService';
+import { getAllDividends, updateDividend } from '@/lib/services/dividendService';
+import type { ExpenseCategory } from '@/types/expenses';
 import { invalidateDashboardOverviewSummaryServer } from '@/lib/services/dashboardOverviewInvalidation.server';
 import { toDate } from '@/lib/utils/dateHelpers';
 import { appliedBalanceEffectsOf, type SettlementRow } from '@/lib/utils/cashSettlement';
@@ -29,6 +30,7 @@ const EXPENSES_COLLECTION = 'expenses';
 const ASSETS_COLLECTION = 'assets';
 const DIVIDENDS_COLLECTION = 'dividends';
 const SETTINGS_COLLECTION = 'assetAllocationTargets';
+const CATEGORIES_COLLECTION = 'expenseCategories';
 
 function buildDividendNotes(dividend: Dividend, isConvertedToEur: boolean): string {
   const converted = isConvertedToEur ? ` (${dividend.netAmount.toFixed(2)} ${dividend.currency} convertiti)` : '';
@@ -101,14 +103,21 @@ export async function createExpenseFromDividend(
     const dividendRef = adminDb.collection(DIVIDENDS_COLLECTION).doc(dividend.id);
 
     const result = await adminDb.runTransaction(async (tx) => {
-      // ALL reads before ANY write: the dividend (idempotency), then the account.
+      // ALL reads before ANY write: the dividend (owner, idempotency), then the account.
       const dividendSnap = await tx.get(dividendRef);
+      // The second defence of A1 (doc/sicurezza/README.md RS4): the object a caller passes is
+      // trusted for its figures only when it IS the stored dividend's account's — otherwise a
+      // forged `userId` would write a row and move a balance in someone else's account.
+      const storedOwnerId = dividendSnap.exists ? (dividendSnap.data()?.userId as string | undefined) : undefined;
+      if (!storedOwnerId || storedOwnerId !== dividend.userId) {
+        throw new Error(`Dividend ${dividend.id} is not stored for the account it declares`);
+      }
       const existingExpenseId = dividendSnap.data()?.expenseId as string | undefined;
       if (existingExpenseId) return { expenseId: existingExpenseId, credited: false, written: false };
       const account = accountId ? await readCreditableAccount(tx, accountId, dividend.userId, currency) : undefined;
 
       tx.set(expenseRef, {
-        userId: dividend.userId,
+        userId: storedOwnerId,
         type: 'income',
         categoryId,
         categoryName,
@@ -163,6 +172,10 @@ export async function updateExpenseFromDividend(
 
     await adminDb.runTransaction(async (tx) => {
       const expenseSnap = await tx.get(expenseRef);
+      // A4 (doc/sicurezza/README.md RS5): a linked row of another account is never rewritten.
+      if (expenseSnap.exists && expenseSnap.data()?.userId !== dividend.userId) {
+        throw new Error(`Expense ${expenseId} is not in the account of dividend ${dividend.id}`);
+      }
       const applied = expenseSnap.exists ? appliedCreditOf(expenseSnap.data() as SettlementRow) : undefined;
       const difference = applied ? roundToCents(amount - applied.amount) : 0;
       const accountRef = applied && difference !== 0 ? adminDb.collection(ASSETS_COLLECTION).doc(applied.accountId) : undefined;
@@ -194,10 +207,15 @@ export async function updateExpenseFromDividend(
 /**
  * Delete the income row of a dividend, give back what it had credited to its account (same
  * transaction), and remove the row's reference from the dividend.
+ *
+ * `ownerId` is the dividend's account. A row of ANOTHER account (a false link: `expenseId` was
+ * client-writable until 2026-11) is left as it is with its balance, and only the link is dropped
+ * (doc/sicurezza/README.md RS5, D-SI4): the dividend stays deletable by its owner.
  */
 export async function deleteExpenseForDividend(
   dividendId: string,
-  expenseId: string
+  expenseId: string,
+  ownerId: string
 ): Promise<void> {
   try {
     const expenseRef = adminDb.collection(EXPENSES_COLLECTION).doc(expenseId);
@@ -207,16 +225,20 @@ export async function deleteExpenseForDividend(
     const rowOwnerId = await adminDb.runTransaction(async (tx) => {
       const expenseSnap = await tx.get(expenseRef);
       const row = expenseSnap.exists ? expenseSnap.data() : undefined;
+      if (row && row.userId !== ownerId) {
+        console.warn('[dividendIncomeService] Linked expense of another account left untouched', { dividendId, expenseId });
+        return undefined;
+      }
       const applied = row ? appliedCreditOf(row as SettlementRow) : undefined;
       const accountRef = applied ? adminDb.collection(ASSETS_COLLECTION).doc(applied.accountId) : undefined;
       const accountSnap = accountRef ? await tx.get(accountRef) : undefined;
 
       tx.delete(expenseRef);
-      const ownerId = row?.userId as string | undefined;
+      const deletedRowOwnerId = row?.userId as string | undefined;
       const account = accountSnap?.exists ? accountSnap.data() : undefined;
-      if (!applied || !accountRef || !account || account.userId !== ownerId) return ownerId;
+      if (!applied || !accountRef || !account || account.userId !== deletedRowOwnerId) return deletedRowOwnerId;
       tx.update(accountRef, { quantity: roundToCents(((account.quantity as number) ?? 0) - applied.amount), updatedAt: now });
-      return ownerId;
+      return deletedRowOwnerId;
     });
 
     // Remove expense reference from dividend: the key must be PRESENT with `undefined`,
@@ -232,24 +254,54 @@ export async function deleteExpenseForDividend(
   }
 }
 
+/** The category the sync writes on its rows: read from the account's own document, never declared. */
+export interface DividendSyncCategory {
+  categoryId: string;
+  categoryName: string;
+  subCategoryId?: string;
+  subCategoryName?: string;
+}
+
 /**
- * Sync all dividends to expense entries
- * Creates expenses for dividends without expense references
- * Useful for bulk synchronization
+ * Read `categoryId` and say what the sync writes on its rows, or `undefined` when the category is
+ * missing or belongs to another account (doc/sicurezza/README.md RS3). The id comes from the
+ * request because the tab's category is an unsaved draft of Impostazioni; the names come from the
+ * document. A sub-category the document does not list is dropped, id and name together.
+ */
+export async function readDividendSyncCategory(
+  userId: string,
+  categoryId: string,
+  subCategoryId?: string
+): Promise<DividendSyncCategory | undefined> {
+  const snap = await adminDb.collection(CATEGORIES_COLLECTION).doc(categoryId).get();
+  const category = snap.exists ? (snap.data() as ExpenseCategory | undefined) : undefined;
+  if (!category || category.userId !== userId) return undefined;
+  const subCategory = subCategoryId ? category.subCategories?.find((sub) => sub.id === subCategoryId) : undefined;
+  return {
+    categoryId,
+    categoryName: category.name,
+    ...(subCategory ? { subCategoryId: subCategory.id, subCategoryName: subCategory.name } : {}),
+  };
+}
+
+/**
+ * Write the income row of every dividend of `userId` that is already paid and has none yet.
+ *
+ * The dividends are READ here, by the account's `userId` (doc/sicurezza/README.md RS2): a caller
+ * passes the account it was authorised for, never a list of documents — until 2026-11 the route
+ * wrote rows in whatever account each object in the request declared (A1).
  */
 export async function syncDividendExpenses(
   userId: string,
-  dividends: Dividend[],
-  categoryId: string,
-  categoryName: string,
-  subCategoryId?: string,
-  subCategoryName?: string
+  category: DividendSyncCategory
 ): Promise<{ created: number; skipped: number; failed: number }> {
   const results = {
     created: 0,
     skipped: 0,
     failed: 0,
   };
+
+  const dividends = await getAllDividends(userId);
 
   // Only create expenses for dividends already paid
   const today = new Date();
@@ -270,13 +322,12 @@ export async function syncDividendExpenses(
         continue;
       }
 
-      // Create expense for this dividend
       await createExpenseFromDividend(
         dividend,
-        categoryId,
-        categoryName,
-        subCategoryId,
-        subCategoryName
+        category.categoryId,
+        category.categoryName,
+        category.subCategoryId,
+        category.subCategoryName
       );
 
       results.created++;

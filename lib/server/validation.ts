@@ -40,6 +40,17 @@ export const snapshotRequestSchema = z.object({
   cronSecret: z.string().optional(),
 });
 
+/**
+ * POST /api/dividends/sync-expenses: the account and the category, nothing else
+ * (doc/sicurezza/README.md RS1). Not strict on purpose: a tab of the previous build still sends
+ * `dividends`, `categoryName`, `subCategoryName` — they are dropped here, never read.
+ */
+export const dividendSyncRequestSchema = z.object({
+  userId: z.string().min(1),
+  categoryId: z.string().min(1),
+  subCategoryId: z.string().optional().nullable(),
+});
+
 /** Covers the server-relevant subset of DividendFormData fields. */
 export const dividendDataSchema = z.object({
   assetId: z.string().min(1),

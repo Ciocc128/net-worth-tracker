@@ -122,8 +122,11 @@ export async function DELETE(
     //   3. Commit atomically (all succeed or all fail)
     const batch = adminDb.batch();
 
-    // Delete future dividends
-    dividendsSnapshot.docs.forEach(dividendDoc => {
+    // Only the account's own: the query is by `assetId` alone (no composite index with
+    // `userId`), so another account's document carrying the same id is filtered out here
+    // (doc/sicurezza/README.md RS6b, D-SI9).
+    const ownFutureDividends = dividendsSnapshot.docs.filter(dividendDoc => dividendDoc.data().userId === userId);
+    ownFutureDividends.forEach(dividendDoc => {
       batch.delete(dividendDoc.ref);
     });
 
@@ -134,12 +137,12 @@ export async function DELETE(
     await batch.commit();
     await invalidateDashboardOverviewSummaryServer(userId, 'asset_deleted');
 
-    console.log(`Asset ${assetId} deleted with ${dividendsSnapshot.size} future dividends removed`);
+    console.log(`Asset ${assetId} deleted with ${ownFutureDividends.length} future dividends removed`);
 
     return NextResponse.json({
       success: true,
       message: 'Asset deleted successfully',
-      deletedFutureDividends: dividendsSnapshot.size,
+      deletedFutureDividends: ownFutureDividends.length,
     });
   } catch (error) {
     const authErrorResponse = getApiAuthErrorResponse(error);
