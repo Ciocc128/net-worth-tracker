@@ -4,8 +4,9 @@
 > D6)», label `epic-review-fable`. Fonte: `audit-calcoli/audit-calcoli-parte-2.md` (Library), letto sul main
 > `ec6d115`. Specifica scritta il 2026-11-15 leggendo il codice; **nessun codice in questo commit**.
 >
-> **Stato delle decisioni**: D-DV1–D-DV5 sono proposte al proprietario il 2026-11-15 e **non ancora confermate**;
-> D-DV6–D-DV9 sono scelte tecniche di questa specifica. L'implementazione non parte prima della conferma (§ 8).
+> **Stato delle decisioni**: D-DV1–D-DV4 **prese** dal proprietario il 2026-11-15; D-DV5 presa in forma ridotta lo
+> stesso giorno (solo l'aliquota dello strumento; il campo «Ritenuta estera» è rimandato, § 9 PA-5); D-DV6–D-DV8 sono
+> scelte tecniche di questa specifica.
 
 ## 1. Obiettivo
 
@@ -16,7 +17,7 @@ l'intermediario applica davvero. Oggi tre punti non lo fanno:
 | --- | --- | --- | --- |
 | **D1** | Il dividendo scaricato da Borsa Italiana usa la quantità di oggi | `app/api/dividends/scrape/route.ts:161`, `lib/server/dividendProcessor.ts:144` | Lordo, netto, riga di entrata e accredito gonfiati (o ridotti) ogni volta che la quantità è cambiata dopo lo stacco |
 | **D2** | La cedola programmata tiene la quantità del giorno in cui è stata creata | `lib/services/couponScheduling.ts`, `dividendProcessor.ts` fase 3 (`:457`), fase 2 che paga l'importo memorizzato | Un acquisto o una vendita prima dello stacco non muove la cedola |
-| **D6** | Ritenuta fissa `× 0.26` sul lordo nei dividendi scaricati | le stesse due righe di D1 (`route.ts:162`, `dividendProcessor.ts:146`) | L'aliquota dello strumento è ignorata; per un'azione estera il netto è troppo alto |
+| **D6** | Ritenuta fissa `× 0.26` sul lordo nei dividendi scaricati | le stesse due righe di D1 (`route.ts:162`, `dividendProcessor.ts:146`) | L'aliquota dello strumento è ignorata |
 
 ## 2. Perimetro
 
@@ -26,11 +27,13 @@ l'intermediario applica davvero. Oggi tre punti non lo fanno:
   fase 1), cedole e premio finale (scheduler del client, cron fase 3).
 - I pagamenti non ancora incassati che seguono il registro operazioni (D2 e, per lo stesso motivo, un dividendo
   annunciato con stacco futuro).
-- La ritenuta dei pagamenti generati: aliquota dello strumento e, per le azioni estere, netto frontiera.
+- La ritenuta dei pagamenti generati: l'aliquota dello strumento.
 - Un elenco dei pagamenti già incassati la cui quantità non torna con il registro (sola lettura).
 
 **Escluso** (dichiarato, non dimenticato)
 
+- La ritenuta estera e il netto frontiera delle azioni estere (seconda metà di D6): rimandata, il proprietario non
+  ne ha oggi (D-DV5, § 9 PA-5). Si corregge a mano sul singolo pagamento, com'è oggi.
 - D3, D4, D5 dell'audit (annualizzazione del rendimento sul costo, date a fine mese, parte fissa del BTP Italia):
   card «Fable minori · Calcoli».
 - Il rateo pagato al venditore in un acquisto di obbligazioni: non modellato, come oggi.
@@ -49,8 +52,8 @@ l'intermediario applica davvero. Oggi tre punti non lo fanno:
    riceve 87,50 €.
 4. **Vendo tutto prima della cedola.** La cedola attesa e il premio finale spariscono dal calendario.
 5. **Ho corretto a mano un pagamento atteso.** La mia correzione resta, anche se poi registro un'operazione.
-6. **Azione estera quotata a Milano.** Sullo strumento indico «Ritenuta estera 15%»: un dividendo scaricato di
-   100 € lordi entra con 37,10 € di ritenuta e 62,90 € netti.
+6. **Strumento con aliquota propria.** Lo strumento ha «Aliquota fiscale 12,5%»: un dividendo scaricato di 100 €
+   lordi entra con 12,50 € di ritenuta e 87,50 € netti, non 26 €.
 7. **Storia già registrata con la quantità sbagliata.** «Scarica storico» mi dice quali pagamenti non tornano con
    il registro; li correggo dalla finestra, che sposta la differenza sulla riga di cashflow e sul conto.
 
@@ -142,38 +145,18 @@ salvato, non di quello dichiarato).
 
 ### 4.4 La ritenuta (D6) — `resolveDividendWithholding`
 
-Nello stesso modulo puro. Ingressi: lordo `G`, aliquota italiana dello strumento `t` (`Asset.taxRate`, in
-percento), ritenuta estera `f` (`Asset.foreignWithholdingRate`, in percento, campo nuovo e facoltativo).
+Nello stesso modulo puro. Ingressi: lordo `G` e aliquota dello strumento `t` (`Asset.taxRate`, in percento).
 
-**RT1 — L'aliquota italiana è quella dello strumento.** `t = asset.taxRate ?? 26`. Uno `0` scritto è un valore
+**RT1 — L'aliquota è quella dello strumento.** `t = asset.taxRate ?? 26`. Uno `0` scritto è un valore
 («`taxRate` di 0 è legittimo», `AssetDialog.tsx:1252`): oggi il cron e lo scheduler leggono lo 0 come 26
 (`taxRate && taxRate > 0 ? taxRate : 26`, `dividendProcessor.ts:430`, `couponScheduling.ts:46`), la finestra
 manuale no (`DividendDialog.tsx:184`). Una regola sola per tutti e quattro i punti.
 
-**RT2 — Netto frontiera.** Con `f` assente o 0: `taxAmount = G × t / 100`. Con `f > 0`:
+**RT2 — L'importo.** `taxAmount = G × t / 100`; `netAmount = G − taxAmount`. `taxAmount` è «l'imposta trattenuta
+sulle distribuzioni» che Rendimenti legge come prelievo (`T_distrib`, D-RM2), e il lordo resta al lordo.
 
-```
-ritenuta estera   = G × f / 100
-netto frontiera   = G − ritenuta estera
-ritenuta italiana = netto frontiera × t / 100
-taxAmount         = ritenuta estera + ritenuta italiana
-netAmount         = G − taxAmount
-```
-
-`taxAmount` resta UN campo (estera più italiana): è «l'imposta trattenuta sulle distribuzioni» che Rendimenti
-legge come prelievo (`T_distrib`, D-RM2), e il lordo resta al lordo di entrambe. La composizione è detta in
-`notes`: «Ritenuta estera 15% + 26% sul netto frontiera».
-
-**RT3 — Dove si applica.** Ai pagamenti generati dall'app (scarico, cron fasi 1 e 3, scheduler, RQ7, RQ9) e alla
-proposta della finestra manuale (`DividendDialog`: la ritenuta per unità proposta diventa
-`resolveDividendWithholding(lordo per unità, strumento)`, sempre solo su record nuovo e campo non toccato).
-`f` vale solo per i dividendi azionari; cedole e premio finale la ignorano.
-
-**RT4 — Il campo.** `Asset.foreignWithholdingRate?: number` (0–100), nella scheda dello strumento accanto ad
-«Aliquota fiscale (%)», visibile solo per `type: 'stock'`. Vuoto = nessuna ritenuta estera. Nessun valore
-proposto dall'ISIN: le aliquote convenzionali cambiano per Paese e per modulo presentato, e l'app non le
-indovina. Parole e posizione del campo sono una proposta di interfaccia: prima dell'implementazione serve lo
-schizzo «oggi / proposta» (WORKFLOW § 1.8).
+**RT3 — Dove si applica.** Ai pagamenti generati dall'app (scarico, cron fasi 1 e 3, scheduler, RQ7, RQ9). La
+finestra manuale propone già l'aliquota dello strumento e non cambia.
 
 ### 4.5 I pagamenti chiusi che non tornano (D-DV4)
 
@@ -182,7 +165,7 @@ schizzo «oggi / proposta» (WORKFLOW § 1.8).
 `{ dividendId, exDate, paymentDate, dividendType, recordedQuantity, entitledQuantity }`.
 
 **RQ13 — Dove si vede.** `POST /api/dividends/scrape` aggiunge alla risposta `mismatches` per lo strumento
-scaricato, e il toast di «Scarica storico» li nomina (parole: schizzo «oggi / proposta» con RT4). Nessuna
+scaricato, e il toast di «Scarica storico» li nomina (parole: schizzo «oggi / proposta», § 9 PA-3). Nessuna
 scrittura: la correzione è la finestra del pagamento, che attraverso `updateExpenseFromDividend` sposta già la
 differenza sulla riga e sul conto e, con RQ10, marca il record. Per l'intero account, cedole comprese, lo script
 `npm run dividends:check -- <email>` (solo lettura, sul Mac, con l'OK del proprietario) stampa lo stesso elenco.
@@ -191,7 +174,7 @@ differenza sulla riga e sul conto e, con RQ10, marca il record. Per l'intero acc
 
 - **F08, D-RM2** (`doc/rendimenti-misura/README.md`, branch `claude/project-thread-uwvwn7`): distribuzioni al
   lordo, ritenuta come prelievo. Qui `grossAmount` resta il lordo prima di ogni ritenuta e `taxAmount` le contiene
-  tutte (RT2): `D_lordo` e `T_distrib` non cambiano significato, diventano giusti nell'importo.
+  tutte (RT2; quando arriverà la ritenuta estera starà nello stesso campo): `D_lordo` e `T_distrib` non cambiano significato, diventano giusti nell'importo.
 - **F08, D-RM3**: il pagatore decide. Nessun cambio: `assetId` del record non è toccato.
 - **F02, D-SI1 / RS6 / RS7** (`doc/sicurezza/README.md`, branch `claude/project-thread-btpwuv`): `dividends` è
   scritta solo dal server. Tutto ciò che questa specifica aggiunge scrive dal server (aggancio, cron, PUT, POST), e
@@ -212,8 +195,8 @@ Una PR, in quest'ordine: D1 e D2 insieme (stessa funzione), poi D6.
 | `lib/server/dividendUseCase.ts` | `syncOpenPaymentsForAsset`, costruttore della cedola e del premio; RQ11 |
 | `lib/server/assetTransactionUseCase.ts` | RQ7, RQ8 dopo il commit |
 | `app/api/dividends/[dividendId]/route.ts` | RQ10 |
-| `lib/services/couponScheduling.ts`, `components/dividends/DividendDialog.tsx` | RT1, RT3 |
-| `types/{dividend,assets}.ts`, `lib/server/validation.ts`, `components/assets/AssetDialog.tsx` | `manuallyEdited`, `foreignWithholdingRate` |
+| `lib/services/couponScheduling.ts` | RT1 |
+| `types/dividend.ts`, `lib/server/validation.ts` | `manuallyEdited` |
 | `scripts/checkDividendQuantities.mts` (nuovo) | RQ13 |
 | `doc/guide/cashflow-dividendi.md`, `doc/guide/registro-operazioni.md`, `CLAUDE.md` | le regole RQ/RT al posto di «assume user holds current quantity» |
 
@@ -259,17 +242,15 @@ DQ1 è l'esempio della card (oggi l'app registra 200 €).
 
 **Ritenuta (lordo 100,00 €)**
 
-| Caso | `taxRate` | `foreignWithholdingRate` | Ritenuta | Netto |
-| --- | --- | --- | --- | --- |
-| **TX1** | 26 | assente | 26,00 | 74,00 |
-| **TX2** | 26 | 15 | 15,00 + 22,10 = 37,10 | 62,90 |
-| **TX3** | 26 | 30 | 30,00 + 18,20 = 48,20 | 51,80 |
-| **TX4** | assente | assente | 26,00 | 74,00 |
-| **TX5** | 12,5 | assente | 12,50 | 87,50 |
-| **TX6** | 0 | assente | 0,00 | 100,00 |
-| **TX7** | 26 | 0 | 26,00 | 74,00 |
+| Caso | `taxRate` | Ritenuta | Netto |
+| --- | --- | --- | --- |
+| **TX1** | 26 | 26,00 | 74,00 |
+| **TX2** | assente | 26,00 | 74,00 |
+| **TX3** | 12,5 | 12,50 | 87,50 |
+| **TX4** | 0 | 0,00 | 100,00 |
 
-TX2 è l'esempio della card (oggi 74 €).
+TX4 vale anche per una cedola creata dal cron e dallo scheduler (oggi 26,00 €). L'esempio estero della card
+(62,90 €) non è un criterio di questa specifica (PA-5).
 
 **Elenco dei chiusi**: **MM1** — DQ1 con i due record già salvati a 200 unità e incassati: `mismatches` ne
 contiene due, `recordedQuantity` 200, `entitledQuantity` 100, e nessun documento è scritto. **MM2** — lo stesso
@@ -280,7 +261,7 @@ record `manuallyEdited`: elenco vuoto.
 
 ## 8. Decisioni
 
-### Proposte al proprietario il 2026-11-15, **da confermare**
+### Prese dal proprietario il 2026-11-15
 
 | ID | Decisione | Alternative scartate e motivo |
 | --- | --- | --- |
@@ -288,7 +269,7 @@ record `manuallyEdited`: elenco vuoto.
 | **D-DV2** | Prima che il registro sappia: quantità della posizione iniziale, o `asset.quantity` senza operazioni (RQ3). | *(a) Scartare quei dividendi*: chi ha migrato perderebbe i dividendi tra la creazione dello strumento e la posizione iniziale, che oggi ha. *(b) La quantità di oggi*: è D1. |
 | **D-DV3** | Un pagamento aperto segue il registro: ricalcolo a ogni operazione (RQ7) e ricontrollo del cron al pagamento (RQ9); la correzione a mano vince (RQ10). | *(a) Solo il ricontrollo al pagamento*: il calendario mostrerebbe per mesi una cifra che non arriverà. *(b) Solo l'aggancio*: un aggancio saltato pagherebbe l'importo vecchio, cioè D2. |
 | **D-DV4** | I pagamenti chiusi non sono riscritti: l'app li elenca (RQ12–RQ13), il proprietario li corregge dalla finestra. | *Correzione automatica*: riscriverebbe righe di cashflow e saldi di conti in mesi chiusi senza che nessuno l'abbia chiesto, e gli snapshot di quei mesi resterebbero quelli vecchi. |
-| **D-DV5** | Aliquota dello strumento (RT1) e campo facoltativo «Ritenuta estera (%)» con il 26% sul netto frontiera (RT2, RT4). | *(a) Solo l'aliquota dello strumento, senza campo*: chiude metà di D6; l'esempio della card (62,90 €) resta sbagliato. *(b) Una tabella per Paese dall'ISIN*: aliquote che cambiano per convenzione e per modulo presentato; un numero indovinato. |
+| **D-DV5** | I pagamenti generati usano l'aliquota dello strumento, `taxRate ?? 26` (RT1). Il campo «Ritenuta estera (%)» e il netto frontiera **non si fanno ora**: il proprietario non ha azioni estere che ne abbiano bisogno. | *(a) Aliquota dello strumento più campo «Ritenuta estera» con il 26% sul netto frontiera* (la proposta di questa specifica): rimandata dal proprietario, resta descritta in PA-5. *(b) Una tabella per Paese dall'ISIN*: aliquote che cambiano per convenzione e per modulo presentato; un numero indovinato. |
 
 ### Scelte tecniche di questa specifica
 
@@ -296,8 +277,7 @@ record `manuallyEdited`: elenco vuoto.
 | --- | --- | --- |
 | **D-DV6** | La quantità è il replay del prefisso con `replayTransactions`, non una somma di acquisti e vendite. | *Somma dei segni*: non conosce l'`adjustment` (reset assoluto) e duplicherebbe l'ordine interno del replay. |
 | **D-DV7** | L'aggancio gira dopo il commit, fuori dalla transazione, e non è critico (RQ8). | *Dentro la transazione*: letture e scritture di `dividends` in una transazione che ne ha già quattro, e un errore sui dividendi farebbe fallire una compravendita. |
-| **D-DV8** | `taxAmount` resta un campo solo; la parte estera è detta in `notes` (RT2). | *Un campo `foreignTaxAmount`*: ogni lettore del registro (statistiche, email, Rendimenti di F08) dovrebbe sommarne due, per una distinzione che nessuna superficie mostra. |
-| **D-DV9** | `manuallyEdited` è un campo nuovo, non `isAutoGenerated: false`. | *Spegnere `isAutoGenerated`*: il cron recupera in ritardo solo le cedole `isAutoGenerated` (`CATCHUP_DIVIDEND_TYPES`) e l'id deterministico dipende da quel flag: una cedola corretta a mano smetterebbe di essere pagata. |
+| **D-DV8** | `manuallyEdited` è un campo nuovo, non `isAutoGenerated: false`. | *Spegnere `isAutoGenerated`*: il cron recupera in ritardo solo le cedole `isAutoGenerated` (`CATCHUP_DIVIDEND_TYPES`) e l'id deterministico dipende da quel flag: una cedola corretta a mano smetterebbe di essere pagata. |
 
 ## 9. Punti aperti
 
@@ -320,8 +300,14 @@ record `manuallyEdited`: elenco vuoto.
   registrazione rispetto al regolamento). RQ1 usa il giorno prima del pagamento; un acquisto nei due giorni di
   borsa prima della cedola può quindi ricevere nell'app una cedola che il mercato dà al venditore. Si corregge a
   mano (RQ10).
-- **PA-3 — Schizzo «oggi / proposta»** per il campo «Ritenuta estera (%)» e per il toast di «Scarica storico» con i
-  pagamenti che non tornano: dovuto prima dell'implementazione di RT4 e RQ13.
+- **PA-3 — Schizzo «oggi / proposta»** per il toast di «Scarica storico» con i pagamenti che non tornano: dovuto
+  prima dell'implementazione di RQ13.
 - **PA-4 — Stacco alla mezzanotte.** L'id deterministico usa il giorno UTC di `exDate`
   (`dividendService.ts:152`), RQ1 il giorno italiano: il thread impl verifica con un test come lo scraper
   costruisce la data, sotto `Europe/Rome` e `TZ=UTC`.
+- **PA-5 — Ritenuta estera, rimandata** (D-DV5). Quando servirà: un campo facoltativo
+  `Asset.foreignWithholdingRate` (percento, solo `type: 'stock'`, accanto ad «Aliquota fiscale (%)», nessun valore
+  proposto dall'ISIN) e in `resolveDividendWithholding` `taxAmount = G × f + G × (1 − f) × t`, in un campo solo con
+  la composizione detta in `notes`. Valori di riferimento: lordo 100 €, estera 15%, italiana 26% → 15,00 + 22,10 =
+  37,10 € di ritenuta, 62,90 € netti (oggi 74 €); estera 30% → 48,20 €, 51,80 € netti. Richiede lo schizzo «oggi /
+  proposta» del campo e la verifica di PA-1 su un estratto conto.
