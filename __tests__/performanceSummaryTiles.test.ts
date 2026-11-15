@@ -107,8 +107,9 @@ describe('resolveDrawdownStory', () => {
       [snap(2026, 1, 100), snap(2026, 2, 100), snap(2026, 3, 100)],
       [{ date: new Date(2026, 1, 15, 12), income: 20, expenses: 0, dividendIncome: 0, netCashFlow: 20 }],
     );
-    // February: (100 − 20) / 100 − 1 = −20% — a withdrawal-shaped month, not a flat one.
-    expect(story?.value).toBeCloseTo(-20, 5);
+    // February: (100 − 100 − 20) / (100 + 20/2) = −18,18% — the mid-month Dietz (doc/rendimenti-misura
+    // § 5.6): a 20 € deposit the value does not show is a loss, not a flat month.
+    expect(story?.value).toBeCloseTo((-20 / 110) * 100, 5);
     expect(story?.trough).toEqual({ year: 2026, month: 2 });
   });
 });

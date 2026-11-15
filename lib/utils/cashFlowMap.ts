@@ -131,8 +131,10 @@ export function mergePensionFlows(
   );
   for (const flow of inWindow) {
     const existing = byMonth.get(flow.month);
+    const entry = flow.kind === 'entry' ? flow.amount : 0;
     if (existing) {
       existing.pensionFlow = (existing.pensionFlow ?? 0) + flow.amount;
+      if (entry !== 0) existing.pensionEntryFlow = (existing.pensionEntryFlow ?? 0) + entry;
       continue;
     }
     const [year, month] = flow.month.split('-').map(Number);
@@ -143,6 +145,7 @@ export function mergePensionFlows(
       dividendIncome: 0,
       netCashFlow: 0,
       pensionFlow: flow.amount,
+      ...(entry !== 0 ? { pensionEntryFlow: entry } : {}),
     });
   }
 
@@ -196,4 +199,102 @@ export function mergePortfolioFlows(
   }
 
   return [...byMonth.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+/** What crossed the base in one month or sub-period: the whole flow, and the part that is the pension funds' entry. */
+export interface PeriodFlow {
+  /** Every external flow (`externalFlowOf`), the entry included. */
+  flow: number;
+  /** The funds' entry into the base (`PensionBoundaryFlow.kind === 'entry'`): at the end-of-month value, it never worked in the month. */
+  entry: number;
+}
+
+/**
+ * Index the series by month, flow and entry apart — the input of `subPeriodFlow`.
+ *
+ * @param cashFlows - The monthly series (any order; months that repeat are summed)
+ */
+export function buildFlowIndex(cashFlows: CashFlowData[]): Map<string, PeriodFlow> {
+  const index = new Map<string, PeriodFlow>();
+  for (const cashFlow of cashFlows) {
+    const key = monthKeyOf(cashFlow.date);
+    const current = index.get(key) ?? { flow: 0, entry: 0 };
+    current.flow += externalFlowOf(cashFlow);
+    current.entry += cashFlow.pensionEntryFlow ?? 0;
+    index.set(key, current);
+  }
+  return index;
+}
+
+/** A snapshot's month, as the two sides of a sub-period name it. */
+export interface MonthRef {
+  year: number;
+  month: number;
+}
+
+/** Months from `from` to `to` (0 when equal, negative when `to` comes first). */
+export function monthsBetween(from: MonthRef, to: MonthRef): number {
+  return (to.year - from.year) * 12 + (to.month - from.month);
+}
+
+/**
+ * The flow of a SUB-PERIOD — from one snapshot to the next of the series, consecutive or not
+ * (doc/rendimenti-misura § 5.5, B4): every month after `from` up to `to`, both of a gap's months
+ * and the closing one. Before 2026-11-15 the four formulas read only the closing month's flow, and
+ * the deposits of the months without a snapshot became return (snapshots in December and March,
+ * 1.000 € a month: +20% where the truth is 0%).
+ *
+ * @param index - From `buildFlowIndex`
+ * @param from - The snapshot that opens the sub-period (its own month is NOT in it)
+ * @param to - The snapshot that closes it
+ * @returns The summed flow and entry, and the number of months the sub-period spans
+ */
+export function subPeriodFlow(index: Map<string, PeriodFlow>, from: MonthRef, to: MonthRef): PeriodFlow & { months: number } {
+  const months = monthsBetween(from, to);
+  let flow = 0;
+  let entry = 0;
+  for (let step = 1; step <= months; step++) {
+    const absolute = from.year * 12 + (from.month - 1) + step;
+    const found = index.get(monthKey(Math.floor(absolute / 12), (absolute % 12) + 1));
+    if (!found) continue;
+    flow += found.flow;
+    entry += found.entry;
+  }
+  return { flow, entry, months };
+}
+
+/**
+ * The return of one sub-period — the ONE formula TWR, volatility, the heatmap, the drawdown index
+ * and Attribuzione read (doc/rendimenti-misura § 5.6, B9, D-RM6): modified Dietz with the flow at
+ * MID-period,
+ *
+ *     r = (V1 − V0 − F) / (V0 + W)        W = (F − F_entry) / 2
+ *
+ * The pension funds' entry weighs 0: it arrives at its end-of-month value and never worked in the
+ * month, so the entry month stays neutral. `W = 0` is the end-of-period formula the pipeline used
+ * until 2026-11-15, which let a large deposit on a small capital read as −1.100%.
+ *
+ * Guards, in order (§ 5.6): `V0 ≤ 0` → null (no return from a non-positive start); `V0 + W ≤ 0` →
+ * null (a weighted capital that is not positive has no return). The third — `1 + r ≤ 0`, more than
+ * the weighted capital lost — is the CALLER's: the heatmap shows `r`, every chained figure becomes
+ * «non misurabile».
+ *
+ * @returns `r` as a fraction (0.01 = +1%), or null when the sub-period cannot be measured
+ */
+export function subPeriodReturn(startValue: number, endValue: number, flow: number, entry = 0): number | null {
+  if (!(startValue > 0)) return null;
+  const weighted = startValue + (flow - entry) / 2;
+  if (!(weighted > 0)) return null;
+  return (endValue - startValue - flow) / weighted;
+}
+
+/**
+ * The monthly equivalent of a sub-period's return over `months` months: `(1 + r)^(1/k) − 1`. One
+ * observation for the volatility and the Sortino, never k invented ones (§ 5.5, D-RM5). With one
+ * month it is `r` itself, whatever its sign; over a gap with `1 + r ≤ 0` there is no real root: null.
+ */
+export function monthlyEquivalentReturn(r: number, months: number): number | null {
+  if (months <= 1) return r;
+  if (1 + r <= 0) return null;
+  return Math.pow(1 + r, 1 / months) - 1;
 }

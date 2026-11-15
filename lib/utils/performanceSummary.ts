@@ -27,7 +27,7 @@ import type { MonthlySnapshot } from '@/types/assets';
 import type { AssetTransaction, AssetTransactionsMeta } from '@/types/assetTransactions';
 import { buildTwrIndex, findMaxDrawdown, type TwrIndexPoint } from '@/lib/utils/drawdownSeries';
 import { annualizeTWR, buildIndexedSeries, type MonthlyReturnPoint } from '@/lib/utils/benchmarkPeriodReturn';
-import { externalFlowOf } from '@/lib/utils/cashFlowMap';
+import { externalFlowOf, monthlyEquivalentReturn } from '@/lib/utils/cashFlowMap';
 import { aggregateRealizedByYear } from '@/lib/utils/assetTransactionUtils';
 import type { StripFigure } from '@/lib/utils/verdictStrip';
 
@@ -514,7 +514,17 @@ export function computeSortinoRatio(
   riskFreeRate: number
 ): number | null {
   if (annualizedReturn === null) return null;
-  const returnsPct = flattenHeatmapReturns(heatmap).map((p) => p.return * 100);
+  // One observation per sub-period, the monthly equivalent over a gap (doc/rendimenti-misura § 5.5):
+  // the same series the volatility reads. A gap with no real root leaves the ratio unmeasurable.
+  const returnsPct: number[] = [];
+  for (const yearRow of heatmap) {
+    for (const m of yearRow.months) {
+      if (m.return === null) continue;
+      const monthly = monthlyEquivalentReturn(m.return / 100, m.spanMonths ?? 1);
+      if (monthly === null) return null;
+      returnsPct.push(monthly * 100);
+    }
+  }
   const downside = computeDownsideDeviation(returnsPct);
   if (downside === null || downside === 0) return null;
   return (annualizedReturn - riskFreeRate) / downside;

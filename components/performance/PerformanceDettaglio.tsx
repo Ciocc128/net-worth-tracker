@@ -518,8 +518,8 @@ export function PerformanceDettaglio({ metrics, periodAside, drawdown, rollingCa
                 </div>
                 <div>
                   <p className="mb-1 font-semibold text-foreground">Heatmap e underwater</p>
-                  Ogni mese vale (patrimonio fine mese − cashflow del mese) / patrimonio inizio mese − 1: si sottrae solo il cashflow di quel
-                  mese. L&apos;underwater concatena esattamente questi mesi e misura la distanza dal massimo raggiunto: stessa serie, due letture.
+                  Ogni mese vale il guadagno del mese (patrimonio fine mese − inizio mese − flussi) diviso per il patrimonio di inizio mese più
+                  metà dei flussi. Se mancano snapshot, il rendimento dei mesi senza dati sta nel mese che li chiude. L&apos;underwater concatena esattamente questi mesi e misura la distanza dal massimo raggiunto: stessa serie, due letture.
                 </div>
                 <div>
                   <p className="mb-1 font-semibold text-foreground">Benchmark e proventi</p>

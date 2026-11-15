@@ -25,7 +25,7 @@
 
 import type { MonthlySnapshot } from '@/types/assets';
 import type { CashFlowData } from '@/types/performance';
-import { buildCashFlowMap, monthKey } from '@/lib/utils/cashFlowMap';
+import { buildFlowIndex, subPeriodFlow, subPeriodReturn } from '@/lib/utils/cashFlowMap';
 
 /** Valore convenzionale di partenza dell'indice. Solo i rapporti contano, non il livello. */
 const INDEX_BASE = 100;
@@ -64,21 +64,22 @@ export function buildTwrIndex(
   cashFlows: CashFlowData[]
 ): TwrIndexPoint[] {
   if (snapshots.length === 0) return [];
-  const cashFlowMap = buildCashFlowMap(cashFlows);
+  const flowIndex = buildFlowIndex(cashFlows);
 
   const points: TwrIndexPoint[] = [{ value: INDEX_BASE, snapshot: snapshots[0] }];
   let index = INDEX_BASE;
 
   for (let i = 1; i < snapshots.length; i++) {
-    const startNetWorth = snapshots[i - 1].totalNetWorth;
+    const previous = snapshots[i - 1];
     const snapshot = snapshots[i];
 
-    // A non-positive starting value has no return to chain: a negative one would flip the sign of
-    // the factor and read a whole period as wiped out (the `!== 0` guard let it through, 2026-09-07).
-    if (startNetWorth > 0) {
-      const cashFlow = cashFlowMap.get(monthKey(snapshot.year, snapshot.month)) ?? 0;
-      index *= (snapshot.totalNetWorth - cashFlow) / startNetWorth;
-    }
+    // The heatmap's own `r` (`subPeriodReturn`: every month of a gap, mid-period Dietz). A
+    // non-measurable sub-period (non-positive start or weighted capital) chains nothing — a negative
+    // start would flip the sign of the factor (2026-09-07); one that lost more than its weighted
+    // capital stops the index at 0, −100%, never below (doc/rendimenti-misura § 5.6, guard 3).
+    const { flow, entry } = subPeriodFlow(flowIndex, previous, snapshot);
+    const r = subPeriodReturn(previous.totalNetWorth, snapshot.totalNetWorth, flow, entry);
+    if (r !== null) index = Math.max(0, index * (1 + r));
 
     points.push({ value: index, snapshot });
   }
