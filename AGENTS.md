@@ -273,6 +273,12 @@ holds it): how it was learned is `git log`'s.
   rewrites only the CURRENT month). Keep the replace and carry the hand-written fields across it
   (`preserveUserAuthoredSnapshotFields`, pinned by `__tests__/apiAuthRoutes.test.ts` → *keeps the Storico note of the
   snapshot it overwrites*); `merge: true` is the wrong fix whenever the doc holds a MAP the pipeline recomputes.
+- **A monthly snapshot has ONE builder** (`buildSnapshotDocument`, `lib/utils/snapshotDocument.ts`, F07 2026-11-16):
+  every writer — the automatic route, the manual route, the test-data generator — assembles the document through it,
+  which stamps `writtenBy`/`writtenByUid`, keeps the first `createdAt`, stamps `updatedAt` and carries the note and the
+  `previous` pointer. Read the capture instant with `snapshotCapturedAt`, never `createdAt`. From the client only the
+  note (`updateDoc { note }`) and test data on a free id are writable (`firestore.rules`, RI17); a real snapshot is the
+  server's, and a closed month is written only by hand, its replaced version kept in `versions/`.
 
 ### Firestore Queries and the Rules
 - **A `list` must carry the constraint the rule needs, or it is refused entirely**: every collection guarded by `allow
@@ -449,7 +455,7 @@ file used to carry.
 - Il resto — the mobile composition (§ Composizione mobile), the Rendimento tile off the axis, `useDividendStats` without date bounds, the tab's ONE request (the stats answer carries the list, `useDividendRegistry`; `stats: null` keeps the list when a measure fails), every number from `dividendAnalytics.ts`, a scraped dividend's ONE floor (`lib/utils/dividendEligibility.ts`, 2026-09-13), the zero coupon (`hasCouponPayments`), the calendar, the form (`taxRate` proposal, picker) and the armed row delete, `computeDividendYieldMetrics`, the legacy `isInflationLinked`, provisional coupons, the running-window rule, `couponUtils` — in `doc/guide/cashflow-dividendi.md`.
 
 ### Storico · History and Snapshot Baselines → `doc/guide/storico.md`
-- The snapshot cron runs DAILY (the name lies) and both writers REPLACE the document: a new `MonthlySnapshot` field no pipeline recomputes goes in `SNAPSHOT_USER_AUTHORED_FIELDS` or the cron erases it (§ *Firestore Writes*).
+- The snapshot cron runs DAILY (the name lies) on the CURRENT month only, and every writer REPLACES the document through ONE builder (`buildSnapshotDocument`, F07): a new `MonthlySnapshot` field no pipeline recomputes goes in `SNAPSHOT_USER_AUTHORED_FIELDS` or the cron erases it (§ *Firestore Writes*); the capture instant is `snapshotCapturedAt`.
 - Reuse `byAsset.totalValue` for per-instrument history, never recompute; `byAsset.price` is RAW NATIVE currency (EUR unit value = `totalValue / quantity`).
 - The page's CAGR is WEALTH growth (`(endNW/startNW)^(12/months)−1`, «versamenti inclusi»), never Rendimenti's return; ONE linear pace (`summarizeGrowthPace`), do not compound it.
 - The Driver is SIX parts (`lib/utils/growthDrivers.ts`, 2026-09-19), its market MEASURED per instrument (`marketEffect.ts`) — never «Δ − risparmio»; Lavoro takes the Driver's windows AND parts. «Mutuo» reads the LOAN rows as a total since 2026-10-10 (a loan's `byAsset.totalValue` is minus its principal), the legacy property pairing beside it: the two cross the migration month without a jump.

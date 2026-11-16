@@ -272,6 +272,11 @@ describe('B3 — the running month stops at the capture day', () => {
     const noCapture = [{ ...plain(2026, 11, 1), createdAt: undefined } as unknown as MonthlySnapshot];
     expect(resolveFlowCutoff(noCapture, new Date())?.toISOString()).toBe('2026-11-10T22:59:59.999Z');
   });
+
+  it('resolveFlowCutoff reads snapshotCapturedAt (F07 RI4): updatedAt, not the month\'s first createdAt', () => {
+    const rewritten = { ...plain(2026, 11, 1, new Date('2026-11-01T18:00:00Z')), updatedAt: new Date('2026-11-09T18:00:00Z') } as MonthlySnapshot;
+    expect(resolveFlowCutoff([plain(2026, 10, 1), rewritten], new Date())?.toISOString()).toBe('2026-11-09T22:59:59.999Z');
+  });
 });
 
 describe('invariant — an account with none of these cases does not move', () => {

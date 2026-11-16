@@ -101,6 +101,7 @@ import {
   describeEvolution,
   describeEvolutionAside,
   describeMonthBreakdown,
+  withSnapshotPriceReading,
   describeStoricoClosedAnswers,
   describeStoricoHeader,
 } from '@/lib/utils/storicoNarrative';
@@ -148,6 +149,7 @@ import { ComposizioneTile } from '@/components/history/tiles/ComposizioneTile';
 import { DriverTile } from '@/components/history/tiles/DriverTile';
 import { ValoreStrumentoTile } from '@/components/history/tiles/ValoreStrumentoTile';
 import { StoricoDettaglio } from '@/components/history/StoricoDettaglio';
+import { describeSnapshotAuthorship } from '@/lib/utils/snapshotDocument';
 
 /** The grid's geometry, for the skeleton: the same spans as the tiles below. */
 const SKELETON_CELLS: TileSkeletonCell[] = [
@@ -371,6 +373,8 @@ export default function HistoryPage() {
   );
   const readMonthKey = scrub?.breakdownMonthKey ?? activeMonthKey;
   const breakdown = useMemo(() => (readMonthKey ? buildMonthAssetBreakdown(ordered, readMonthKey) : null), [ordered, readMonthKey]);
+  // The snapshot the breakdown reads: its price record and who wrote it (doc/snapshot-integri/README.md § 5.8).
+  const breakdownSnapshot = breakdown ? ordered.find((s) => s.year === breakdown.month.year && s.month === breakdown.month.month) ?? null : null;
   const selection = useMemo(() => (breakdown ? summarizeSelection(breakdown, selectedAssetIds) : null), [breakdown, selectedAssetIds]);
   const selectionTrend = useMemo(() => buildSelectedAssetTrend(ordered, selectedAssetIds), [ordered, selectedAssetIds]);
 
@@ -494,7 +498,7 @@ export default function HistoryPage() {
 
   const dialogs = (
     <>
-      <CreateManualSnapshotModal open={showManualSnapshotModal} onOpenChange={setShowManualSnapshotModal} userId={ownerId || ''} onSuccess={reloadData} />
+      <CreateManualSnapshotModal open={showManualSnapshotModal} onOpenChange={setShowManualSnapshotModal} userId={ownerId || ''} snapshots={snapshots} onSuccess={reloadData} />
       <SnapshotSearchDialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen} snapshots={snapshots} onSave={handleSaveNote} />
     </>
   );
@@ -635,7 +639,8 @@ export default function HistoryPage() {
           <ValoreStrumentoTile
             collapse={sections.collapse(STORICO_SECTION_IDS.valore)}
             asideWhenClosed={STORICO_CLOSED_ASIDES.valore}
-            reading={describeMonthBreakdown(breakdown)}
+            reading={withSnapshotPriceReading(describeMonthBreakdown(breakdown), breakdownSnapshot)}
+            authorship={breakdownSnapshot ? describeSnapshotAuthorship(breakdownSnapshot) : null}
             months={breakdownMonths}
             activeMonthKey={readMonthKey}
             onMonthChange={setSelectedMonthKey}

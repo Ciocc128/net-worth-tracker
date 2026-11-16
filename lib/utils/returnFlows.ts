@@ -52,6 +52,7 @@ import type { Expense } from '@/types/expenses';
 import type { DividendReceipt } from '@/lib/utils/performanceAttribution';
 import { getItalyDayBoundsUtc, getItalyMonthYear } from '@/lib/utils/dateHelpers';
 import { monthKeyOf } from '@/lib/utils/cashFlowMap';
+import { snapshotCapturedAt } from '@/lib/utils/snapshotDocument';
 
 /** What the corrections read besides the expenses: the dividend registry, the trade ledger, the base's exclusions. */
 export interface ReturnFlowContext {
@@ -81,13 +82,6 @@ export function distributionTaxEur(dividend: DividendReceipt): number {
   return dividend.taxAmountEur ?? dividend.taxAmount ?? 0;
 }
 
-/** A snapshot's capture instant: `createdAt` (rewritten at every write), a Timestamp read raw, or nothing. */
-function captureInstantOf(snapshot: MonthlySnapshot): Date | null {
-  const raw = (snapshot as { createdAt?: unknown }).createdAt;
-  if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : raw;
-  if (raw && typeof (raw as { toDate?: unknown }).toDate === 'function') return (raw as { toDate: () => Date }).toDate();
-  return null;
-}
 
 /**
  * The last instant whose rows count in the flow (§ 5.4): the end of the Italian day the RUNNING
@@ -101,7 +95,7 @@ export function resolveFlowCutoff(snapshots: MonthlySnapshot[], now: Date): Date
   const latest = snapshots.reduce((a, b) => (a.year !== b.year ? (a.year > b.year ? a : b) : a.month >= b.month ? a : b));
   const today = getItalyMonthYear(now);
   if (latest.year !== today.year || latest.month !== today.month) return null;
-  return getItalyDayBoundsUtc(captureInstantOf(latest) ?? now).end;
+  return getItalyDayBoundsUtc(snapshotCapturedAt(latest) ?? now).end;
 }
 
 /** `endDate` capped at the cutoff, when there is one before it. */

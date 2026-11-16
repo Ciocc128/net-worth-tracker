@@ -15,6 +15,7 @@ import { queryOptions, useQuery, useMutation, useQueryClient } from '@tanstack/r
 import { queryKeys } from '@/lib/query/queryKeys';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { getUserSnapshots } from '@/lib/services/snapshotService';
+import type { SnapshotPriceRecord } from '@/types/assets';
 
 /**
  * Fetch all snapshots for a user with React Query caching
@@ -40,13 +41,15 @@ export function snapshotsQueryOptions(userId: string) {
   });
 }
 
+/**
+ * The automatic route always writes the CURRENT month (doc/snapshot-integri/README.md RI6): the
+ * request names no month, and one that did is a 400.
+ */
 interface CreateSnapshotParams {
   userId: string;
-  year?: number;
-  month?: number;
 }
 
-interface CreateSnapshotResponse {
+export interface CreateSnapshotResponse {
   success: boolean;
   message: string;
   snapshotId: string | null;
@@ -56,6 +59,8 @@ interface CreateSnapshotResponse {
     totalNetWorth: number;
     liquidNetWorth: number;
     assetsCount: number;
+    /** What the price refresh did (RI13): the toast reads it through `describeSnapshotPrices`. */
+    prices?: SnapshotPriceRecord;
   };
   error?: string;
 }

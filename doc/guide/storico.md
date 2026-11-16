@@ -6,7 +6,7 @@
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
-- **Storico / snapshots**: `app/dashboard/history/page.tsx`, `components/history/*` (+ `tiles/*`), pure `lib/utils/{storicoSummary,storicoNarrative,snapshotAssetBreakdown,historyComposition,snapshotUserFields}.ts` (`preserveUserAuthoredSnapshotFields` = i campi che nessuna pipeline ricalcola, portati attraverso la sostituzione; `summarizeLaborMetrics` + `laborWindowsOf` = il recap Lavoro sulle finestre del Driver; `buildDriverLedger` + `reconcileRemainder` = le righe che sommano, all'euro; `isFlowDominated` = un Δ che è un flusso), `lib/utils/growthDrivers.ts` (the Driver's parts, over `lib/utils/marketEffect.ts` shared with the Panoramica), `lib/services/{chartService,snapshotService}.ts`, `components/CreateManualSnapshotModal.tsx` over `lib/utils/manualSnapshotAmounts.ts`, `components/dashboard/LaborMetricsChart.tsx`, shared `components/ui/{tile-method-note,series-legend}.tsx` + `lib/hooks/useRovingFocus.ts`; specs `e2e/history{,.mobile}.spec.ts`; collection `monthly-snapshots`
+- **Storico / snapshots**: `app/dashboard/history/page.tsx`, `components/history/*` (+ `tiles/*`), pure `lib/utils/{storicoSummary,storicoNarrative,snapshotAssetBreakdown,historyComposition,snapshotUserFields,snapshotDocument}.ts` (`preserveUserAuthoredSnapshotFields` = i campi che nessuna pipeline ricalcola, portati attraverso la sostituzione; `summarizeLaborMetrics` + `laborWindowsOf` = il recap Lavoro sulle finestre del Driver; `buildDriverLedger` + `reconcileRemainder` = le righe che sommano, all'euro; `isFlowDominated` = un Δ che è un flusso), `lib/utils/growthDrivers.ts` (the Driver's parts, over `lib/utils/marketEffect.ts` shared with the Panoramica), `lib/services/{chartService,snapshotService}.ts`, `components/CreateManualSnapshotModal.tsx` over `lib/utils/manualSnapshotAmounts.ts`, `components/dashboard/LaborMetricsChart.tsx`, shared `components/ui/{tile-method-note,series-legend}.tsx` + `lib/hooks/useRovingFocus.ts`; specs `e2e/history{,.mobile}.spec.ts`; collection `monthly-snapshots`
 - **Suites to run after a change here — Storico** (moved from `AGENTS.md` § Commands on 2026-09-30): `storicoSummary`, `storicoNarrative` (with `describeStoricoClosedAnswers`, the landscape index), `tabletComposition`, `snapshotAssetBreakdown`, `chartService`, `historyComposition`, `growthDrivers` · **Browser** `e2e/history{,.mobile}.spec.ts`
 
 ## History and Snapshot Baselines
@@ -22,18 +22,35 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **`byAsset.price` is RAW NATIVE CURRENCY**, so `totalValue ≠ quantity × price` for USD/GBp/real-estate; the per-unit EUR
   figure is `u = totalValue / quantity`, and attribution is `priceEffect = q_prev·(u_curr−u_prev)` + `quantityEffect =
   (q_curr−q_prev)·u_curr` (sum = Δ exactly). **A row at quantity 0 is a CLOSED position** (2026-09-06): the cron writes every asset, sold ones included, and read as present its unit value is 0 — a 14.830 € sale printed as «prezzo −14.830 €» on the real account (Xtrackers Overnight, agosto 2026). `attributeSelectedChange` now treats `quantity ≤ 0` as absent on both sides, so the sale is all quantity and the rebuy from that row a pure open; the row itself is still listed at 0 €.
-- **A snapshot document has two natures, and only one of them is recomputed.** The figures
-  (`totalNetWorth`, `byAssetClass`, `byAsset`, `assetAllocation`, `pension`…) are derived from the assets on every
-  write; the **note** the user types on Storico is derived from nothing. Both writers replace the document with a bare
-  `.set()` — correct for the figures, since a Firestore `merge` keeps the `byAssetClass` key of an asset class that has
-  LEFT the portfolio, a snapshot that can never go back down — so the note has to ride across the replace explicitly:
-  `preserveUserAuthoredSnapshotFields` (`lib/utils/snapshotUserFields.ts`), called by
-  `app/api/portfolio/snapshot/route.ts` and `.../snapshot/manual/route.ts`. Until 2026-09-07 neither did, and since the
-  cron runs DAILY on the CURRENT month a note typed there was erased the same evening — a note on a PAST month
-  survived, which is why the bug read as «dopo qualche giorno». **A new `MonthlySnapshot` field that no pipeline
-  derives goes in `SNAPSHOT_USER_AUTHORED_FIELDS` or the cron eats it too.** Both snapshot writers REPLACE the
-  document, so a new `MonthlySnapshot` field the pipeline does not recompute goes in `SNAPSHOT_USER_AUTHORED_FIELDS`
-  or the daily cron erases it (AGENTS.md § *Firestore Writes*).
+- **A snapshot document has three natures** (F07, 2026-11-16, `doc/snapshot-integri/README.md`): the **figures**
+  (`totalNetWorth`, `byAssetClass`, `byAsset`, `assetAllocation`, `pension`…), recomputed on every write; the **note**
+  the user types on Storico, derived from nothing; the **record of the write** — `writtenBy` (`cron` · `button` ·
+  `manual` · `dummy`), `writtenByUid`, `createdAt` (the FIRST write of the month), `updatedAt` (the last write of the
+  figures), `prices` (what the price refresh did) and `previous` (the version a replacement by hand archived). ONE
+  builder assembles the whole document for every writer: `buildSnapshotDocument` (`lib/utils/snapshotDocument.ts`,
+  pure, SDK-free); no other code assembles a snapshot object. Every write is a bare `.set()` — correct for the figures,
+  since a Firestore `merge` keeps the `byAssetClass` key of an asset class that has LEFT the portfolio — so the note
+  rides across the replace through `preserveUserAuthoredSnapshotFields` (`lib/utils/snapshotUserFields.ts`), called
+  by the builder. Until 2026-09-07 neither writer did, and since the cron runs DAILY on the CURRENT month a note typed
+  there was erased the same evening. **A new `MonthlySnapshot` field that no pipeline derives goes in
+  `SNAPSHOT_USER_AUTHORED_FIELDS` or the cron eats it** (AGENTS.md § *Firestore Writes*); it stays `['note']`.
+- **The capture instant is `snapshotCapturedAt`** (`updatedAt ?? createdAt`), never `createdAt` alone: after F07
+  `createdAt` of the running month is its first evening (Rendimenti's flow cutoff reads the helper,
+  `doc/rendimenti-misura/README.md` § 5.4). A document written before 2026-11 has no `writtenBy`, `updatedAt` or
+  `prices` and reads as before: no footer, no warning (no backfill, D-SN10).
+- **Who writes what.** The automatic route (`POST /api/portfolio/snapshot`, the cron and «Crea snapshot») writes the
+  CURRENT month only — a `year`/`month` in its body is a 400 — and never archives. A closed month is written only by
+  hand (`.../snapshot/manual`): on a month with figures it answers 409 unless the dialog sends `replace: true`, and then
+  the stored document goes whole to `monthly-snapshots/{id}/versions/{autoId}`; `.../snapshot/restore` swaps it back (a
+  restore is undone by a second restore). The note writer (`updateSnapshotNote`) is an `updateDoc` of `{ note }` and
+  cannot create a document: on a month without a snapshot it fails with «Questo mese non ha uno snapshot». The
+  test-data generator builds with `writtenBy: 'dummy'`, writes without merge and skips every month that already holds a
+  snapshot. `firestore.rules` lets the client write only the note and test data on a free id (RI17, published by hand).
+- **A month built on stale or jumped prices says so, for good** (D-SN7): Valore per strumento appends one sentence to
+  its reading (`withSnapshotPriceReading` over `describeSnapshotPrices`, RI14: `partial` · `failed` · an anomaly ≥ 30%
+  · the oldest market price more than 7 days before the capture) and its footer names the writer
+  (`describeSnapshotAuthorship`: «Scritto dall'aggiornamento automatico il 31 ottobre alle 19:02.»). The Storico
+  verdict is untouched.
 - **TWR neutralises a cash flow only when the net-worth drop and the flow land in the SAME monthly snapshot** — the fix
   is data entry, never re-bucketing cash flows or excluding cash (doc/guide/rendimenti.md § Per-page blind spots has the mirror case).
 - **Two CAGR formulas, intentionally different**: Storico's verdict = `(endNW/startNW)^(12/months) − 1` (wealth growth, said «versamenti inclusi»),

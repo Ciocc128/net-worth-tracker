@@ -6,6 +6,15 @@ import {
   isinSchema,
   tickerSchema,
   snapshotRequestSchema,
+  manualSnapshotSchema,
+  snapshotRestoreSchema,
+  hallOfFameRecalculateSchema,
+  pricesUpdateSchema,
+  assetDeleteSchema,
+  assetIdParamSchema,
+  assistantMemoryPatchSchema,
+  assistantMemoryDeleteSchema,
+  assistantStreamRequestSchema,
   dividendDataSchema,
   assetTransactionDataSchema,
   assetTransactionUpdateSchema,
@@ -67,11 +76,19 @@ describe('snapshotRequestSchema', () => {
     expect(
       snapshotRequestSchema.safeParse({
         userId: 'user-1',
-        year: 2025,
-        month: 6,
         cronSecret: 'secret',
       }).success
     ).toBe(true);
+  });
+
+  // RI6 (doc/snapshot-integri/README.md § 5.3): the target is always the current month; a caller
+  // naming one is refused, never silently given another.
+  it.each([
+    ['a year', { year: 2025 }],
+    ['a month', { month: 6 }],
+    ['any other key', { fenicottero: true }],
+  ])('rejects %s (strict)', (_label, extra) => {
+    expect(snapshotRequestSchema.safeParse({ userId: 'user-1', ...extra }).success).toBe(false);
   });
 
   it('rejects empty userId', () => {
@@ -226,5 +243,57 @@ describe('parseOr400', () => {
       // userId is missing, month is out of range — both should appear in fieldErrors
       expect(body.details.fieldErrors).toBeDefined();
     }
+  });
+});
+
+// AV1 — doc/snapshot-integri/README.md § 5.9: each schema takes a valid body, refuses a wrong type
+// and an unknown key.
+describe('AV1 — the strict schemas of A5', () => {
+  const validManual = {
+    userId: 'u', year: 2026, month: 10, totalNetWorth: 10000, liquidNetWorth: 7000, illiquidNetWorth: 3000,
+    byAssetClass: { equity: 6000, bonds: 4000 }, byAsset: [{ assetId: 'a', ticker: 'FENI', name: 'Fenicottero', quantity: 1, price: 10000, totalValue: 10000 }],
+  };
+  const cases: Array<[string, { safeParse: (v: unknown) => { success: boolean } }, Record<string, unknown>, Record<string, unknown>]> = [
+    ['manual snapshot', manualSnapshotSchema, validManual, { totalNetWorth: 'abc' }],
+    ['restore', snapshotRestoreSchema, { userId: 'u', year: 2026, month: 10 }, { month: 1.5 }],
+    ['hall-of-fame/recalculate', hallOfFameRecalculateSchema, { userId: 'u' }, { userId: 42 }],
+    ['prices/update', pricesUpdateSchema, { userId: 'u' }, { userId: null }],
+    ['assets/[assetId] DELETE', assetDeleteSchema, { userId: 'u' }, { userId: [] }],
+    ['memory PATCH', assistantMemoryPatchSchema, { userId: 'u', item: { id: 'i', text: 'Ornitorinco', category: 'goal', status: 'active' } }, { action: 'deleteEverything' }],
+    ['memory DELETE', assistantMemoryDeleteSchema, { userId: 'u', itemId: 'i' }, { resetAll: 'yes' }],
+    ['stream', assistantStreamRequestSchema, { userId: 'u', mode: 'chat', prompt: 'Ciao', chatContext: 'month', month: { year: 2026, month: 3 } }, { mode: 'fenicottero' }],
+  ];
+
+  it.each(cases)('%s: valid, wrong type, unknown key', (_label, schema, valid, wrong) => {
+    expect(schema.safeParse(valid).success).toBe(true);
+    expect(schema.safeParse({ ...valid, ...wrong }).success).toBe(false);
+    expect(schema.safeParse({ ...valid, fenicottero: true }).success).toBe(false);
+  });
+
+  it('the manual snapshot refuses the percentages it used to receive, an unknown class, 501 rows', () => {
+    expect(manualSnapshotSchema.safeParse({ ...validManual, assetAllocation: { equity: 60 } }).success).toBe(false);
+    expect(manualSnapshotSchema.safeParse({ ...validManual, byAssetClass: { fenicottero: 10000 } }).success).toBe(false);
+    const row = validManual.byAsset[0];
+    expect(manualSnapshotSchema.safeParse({ ...validManual, byAsset: Array.from({ length: 501 }, () => row) }).success).toBe(false);
+    // A net worth below zero is legal (loans).
+    expect(manualSnapshotSchema.safeParse({ ...validManual, totalNetWorth: -500, liquidNetWorth: -500, illiquidNetWorth: 0, byAssetClass: { cash: -500 } }).success).toBe(true);
+  });
+
+  it('the stream prompt: 8.000 characters pass, 8.001 and a blank one do not', () => {
+    const body = { userId: 'u', mode: 'chat' };
+    expect(assistantStreamRequestSchema.safeParse({ ...body, prompt: 'a'.repeat(8000) }).success).toBe(true);
+    expect(assistantStreamRequestSchema.safeParse({ ...body, prompt: 'a'.repeat(8001) }).success).toBe(false);
+    expect(assistantStreamRequestSchema.safeParse({ ...body, prompt: '   ' }).success).toBe(false);
+  });
+
+  it('a memory item cannot carry fields the panel never sends', () => {
+    expect(assistantMemoryPatchSchema.safeParse({ userId: 'u', item: { id: 'i', text: 'x', category: 'goal', userId: 'stranger' } }).success).toBe(false);
+  });
+
+  it('the asset id of a path', () => {
+    expect(assetIdParamSchema.safeParse('asset-1').success).toBe(true);
+    expect(assetIdParamSchema.safeParse('').success).toBe(false);
+    expect(assetIdParamSchema.safeParse('a/b').success).toBe(false);
+    expect(assetIdParamSchema.safeParse('x'.repeat(201)).success).toBe(false);
   });
 });

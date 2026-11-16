@@ -1,6 +1,8 @@
 import 'server-only';
 import { z } from 'zod';
 import { NextResponse } from 'next/server';
+import { ASSET_CLASS_SEQUENCE } from '@/lib/utils/allocationUtils';
+import type { AssetClass } from '@/types/assets';
 
 /**
  * Server-side input validation schemas (SEC-3).
@@ -33,12 +35,168 @@ export const tickerSchema = z
  */
 const isoDateSchema = z.string().min(1).pipe(z.coerce.date());
 
-export const snapshotRequestSchema = z.object({
-  userId: z.string().min(1),
-  year: z.number().int().min(2000).max(2100).optional(),
-  month: z.number().int().min(1).max(12).optional(),
-  cronSecret: z.string().optional(),
-});
+/**
+ * POST /api/portfolio/snapshot — the automatic writer (doc/snapshot-integri/README.md RI6). STRICT:
+ * a `year`/`month` (or any other key) is a 400, never silently dropped — a caller naming March 2024
+ * must not get the current month rewritten and a 200. The target is always the current month.
+ */
+export const snapshotRequestSchema = z
+  .object({
+    userId: z.string().min(1),
+    cronSecret: z.string().optional(),
+  })
+  .strict();
+
+const finiteNumber = z.number().finite();
+const snapshotYearSchema = z.number().int().min(1900).max(2100);
+const snapshotMonthSchema = z.number().int().min(1).max(12);
+
+/**
+ * POST /api/portfolio/snapshot/manual (doc/snapshot-integri/README.md RI7, A5). Strict: the
+ * percentages (`assetAllocation`) and `createdAt` the dialog used to send are refused — the builder
+ * derives the first and stamps the second. A net worth below zero is legal (loans). The coherence
+ * of the sums and the future month are the route's checks (RI8), after this one.
+ */
+export const manualSnapshotSchema = z
+  .object({
+    userId: z.string().min(1),
+    year: snapshotYearSchema,
+    month: snapshotMonthSchema,
+    totalNetWorth: finiteNumber,
+    liquidNetWorth: finiteNumber,
+    illiquidNetWorth: finiteNumber,
+    byAssetClass: z.partialRecord(z.enum(ASSET_CLASS_SEQUENCE as [AssetClass, ...AssetClass[]]), finiteNumber),
+    byAsset: z
+      .array(
+        z
+          .object({
+            assetId: z.string().min(1).max(200),
+            ticker: z.string().max(200),
+            name: z.string().max(200),
+            quantity: finiteNumber,
+            price: finiteNumber,
+            totalValue: finiteNumber,
+          })
+          .strict()
+      )
+      .max(500)
+      .optional(),
+    replace: z.boolean().optional(),
+  })
+  .strict();
+
+/** POST /api/portfolio/snapshot/restore (RI10): the month whose previous version comes back. */
+export const snapshotRestoreSchema = z
+  .object({
+    userId: z.string().min(1),
+    year: snapshotYearSchema,
+    month: snapshotMonthSchema,
+  })
+  .strict();
+
+// ─── A5: the five routes that read their body unchecked (doc/snapshot-integri/README.md § 5.9) ──
+
+const accountOnlySchema = z.object({ userId: z.string().min(1) }).strict();
+
+/** POST /api/hall-of-fame/recalculate. */
+export const hallOfFameRecalculateSchema = accountOnlySchema;
+/** POST /api/prices/update. */
+export const pricesUpdateSchema = accountOnlySchema;
+/** DELETE /api/assets/[assetId]: the body; the path's id is `assetIdParamSchema`. */
+export const assetDeleteSchema = accountOnlySchema;
+/** The `[assetId]` of a path: non-empty, at most 200 characters, never a path. */
+export const assetIdParamSchema = z.string().min(1).max(200).regex(/^[^/]+$/, 'Invalid asset id');
+
+const shortId = z.string().min(1).max(200);
+const assistantText = z.string().max(2000);
+
+/** `AssistantPreferences` (types/assistant.ts), every key optional: a PATCH sends only what changed. */
+const assistantPreferencesSchema = z
+  .object({
+    responseStyle: z.enum(['balanced', 'concise', 'deep']),
+    includeMacroContext: z.boolean(),
+    memoryEnabled: z.boolean(),
+    includeDummySnapshots: z.boolean(),
+  })
+  .partial()
+  .strict();
+
+/** The edit of a memory item from the panel: the text, the category, the status. */
+const assistantMemoryItemPatchSchema = z
+  .object({
+    id: shortId,
+    text: assistantText.min(1),
+    category: z.enum(['goal', 'preference', 'risk', 'fact']),
+    status: z.enum(['active', 'completed', 'archived']).optional(),
+  })
+  .strict();
+
+const assistantGoalEvaluationSchema = z
+  .object({
+    matched: z.boolean(),
+    metricValue: z.number().finite().nullable(),
+    targetValue: z.number().finite(),
+    unit: z.enum(['eur', 'percent']),
+    evaluatedAgainst: z.enum(['cash', 'liquid_net_worth', 'total_net_worth', 'asset_class_value', 'sub_category_value', 'asset_class_percentage']),
+    evaluatedPeriod: z.object({ year: snapshotYearSchema, month: snapshotMonthSchema }).strict().optional(),
+    deadlinePassed: z.boolean().optional(),
+    summary: assistantText,
+  })
+  .strict();
+
+const assistantMemorySuggestionSchema = z
+  .object({
+    id: shortId,
+    itemId: shortId,
+    type: z.literal('complete_goal'),
+    status: z.enum(['pending', 'ignored', 'accepted']),
+    evidenceSummary: assistantText,
+    evaluation: assistantGoalEvaluationSchema,
+  })
+  .strict();
+
+/** PATCH /api/ai/assistant/memory. */
+export const assistantMemoryPatchSchema = z
+  .object({
+    userId: z.string().min(1),
+    action: z.enum(['acceptSuggestion', 'ignoreSuggestion', 'reactivateGoal']).optional(),
+    suggestionId: shortId.optional(),
+    itemId: shortId.optional(),
+    preferences: assistantPreferencesSchema.optional(),
+    item: assistantMemoryItemPatchSchema.optional(),
+    suggestion: assistantMemorySuggestionSchema.optional(),
+  })
+  .strict();
+
+/** DELETE /api/ai/assistant/memory. */
+export const assistantMemoryDeleteSchema = z
+  .object({
+    userId: z.string().min(1),
+    itemId: shortId.optional(),
+    resetAll: z.boolean().optional(),
+  })
+  .strict();
+
+/** The stream prompt's cap (D-SN11): F04 may lower it with the limits of A3. */
+export const ASSISTANT_PROMPT_MAX_LENGTH = 8000;
+
+/** POST /api/ai/assistant/stream. */
+export const assistantStreamRequestSchema = z
+  .object({
+    userId: z.string().min(1),
+    mode: z.enum(['month_analysis', 'year_analysis', 'ytd_analysis', 'history_analysis', 'chat']),
+    prompt: z
+      .string()
+      .max(ASSISTANT_PROMPT_MAX_LENGTH)
+      .refine((value) => value.trim().length > 0, 'Il messaggio è vuoto'),
+    threadId: shortId.optional(),
+    month: z.object({ year: snapshotYearSchema, month: snapshotMonthSchema }).strict().optional(),
+    year: snapshotYearSchema.optional(),
+    chatContext: z.enum(['none', 'month', 'year', 'ytd', 'history']).optional(),
+    // Partial: the route lays it over the defaults (`getDefaultAssistantPreferences`).
+    preferences: assistantPreferencesSchema.optional(),
+  })
+  .strict();
 
 /**
  * POST /api/dividends/sync-expenses: the account and the category, nothing else

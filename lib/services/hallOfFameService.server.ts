@@ -7,6 +7,7 @@ import {
   calculateMonthlyRecords,
   calculateYearlyRecords,
 } from '@/lib/utils/hallOfFameRecords';
+import { snapshotFromData } from '@/lib/utils/snapshotDocument';
 
 const COLLECTION_NAME = 'hall-of-fame';
 const SNAPSHOTS_COLLECTION = 'monthly-snapshots';
@@ -24,13 +25,7 @@ async function getUserSnapshotsServer(userId: string): Promise<MonthlySnapshot[]
       .orderBy('month', 'asc')
       .get();
 
-    return snapshotsSnapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        ...data,
-        createdAt: toDate(data.createdAt),
-      };
-    }) as MonthlySnapshot[];
+    return snapshotsSnapshot.docs.map((doc) => snapshotFromData(doc.data()));
   } catch (error) {
     console.error('Error getting snapshots (server):', error);
     throw error;

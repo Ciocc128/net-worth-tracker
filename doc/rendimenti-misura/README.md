@@ -12,8 +12,8 @@
 > casi T4–T6 in `__tests__/returnFlows.test.ts`, `CACHE_MATH_VERSION` `v9-fork`, PR #182). Passo 2 (B4, B9)
 > implementato lo stesso giorno (`subPeriodFlow`/`subPeriodReturn` in `lib/utils/cashFlowMap.ts`, casi T1–T3, T7–T9 in
 > `__tests__/returnFormula.test.ts`, `v10-fork`); il punto aperto della cella di un buco è chiuso con la proposta della
-> § 9 («in N mesi (da …)», «senza snapshot, conta in …»). Il giorno di cattura si legge da `createdAt`; quando F07 aggiunge `snapshotCapturedAt`, `resolveFlowCutoff`
-> lo leggerà al suo posto.
+> § 9 («in N mesi (da …)», «senza snapshot, conta in …»). Il giorno di cattura si legge con `snapshotCapturedAt`
+> (F07, `doc/snapshot-integri/README.md` RI4, 2026-11-16): `updatedAt`, altrimenti `createdAt`.
 
 ## 1. In breve
 
@@ -185,13 +185,14 @@ Quando lo snapshot che chiude il periodo è quello del **mese in corso**, le rig
 flusso fino al suo **giorno di cattura**:
 
 ```
-mese in corso   limite = fine del giorno italiano di snapshot.createdAt
+mese in corso   limite = fine del giorno italiano di snapshotCapturedAt(snapshot)
 mese chiuso     limite = fine del mese (come oggi)
 ```
 
 - Il mese è «in corso» quando oggi cade nel mese dello snapshot.
-- `createdAt` è l'istante dell'ultima scrittura (`app/api/portfolio/snapshot/route.ts`: `Timestamp.now()` a ogni
-  riscrittura). Assente → il giorno di oggi.
+- Il giorno di cattura è l'ultima scrittura delle cifre: `snapshotCapturedAt` (`lib/utils/snapshotDocument.ts`)
+  legge `updatedAt` e, su un documento scritto prima di F07, `createdAt`. Da F07 `createdAt` è la PRIMA scrittura del
+  mese (RI3): letto da solo fermerebbe i flussi al primo giorno. Assente → il giorno di oggi.
 - Un mese chiuso conta sempre il mese intero, anche se il suo snapshot è stato scritto prima dell'ultimo giorno:
   una riga degli ultimi giorni muove il saldo nel mese dopo, e contarla nel suo mese fa sì che i due mesi si
   compensino.

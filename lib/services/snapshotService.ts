@@ -16,7 +16,7 @@
 import {
   collection,
   doc,
-  setDoc,
+  updateDoc,
   getDocs,
   query,
   where,
@@ -25,6 +25,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { MonthlySnapshot } from '@/types/assets';
+import { snapshotFromData } from '@/lib/utils/snapshotDocument';
+import { userFacingError } from '@/lib/utils/dialogNarrative';
 
 const SNAPSHOTS_COLLECTION = 'monthly-snapshots';
 
@@ -53,10 +55,9 @@ export async function getUserSnapshots(
 
     const querySnapshot = await getDocs(q);
 
-    return querySnapshot.docs.map((doc) => ({
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate() || new Date(),
-    })) as MonthlySnapshot[];
+    // `createdAt` and `updatedAt` as Dates (snapshotDocument.ts): read the capture instant through
+    // `snapshotCapturedAt`, never `createdAt` alone (RI4).
+    return querySnapshot.docs.map((doc) => snapshotFromData(doc.data()));
   } catch (error) {
     console.error('Error getting snapshots:', error);
     throw new Error('Failed to fetch snapshots');
@@ -135,14 +136,16 @@ export function calculateYearlyChange(
 /**
  * Update or delete a note from a monthly snapshot
  *
- * Uses setDoc with merge: true to handle both create and update cases safely.
- * This allows adding notes even if the snapshot document doesn't exist yet.
+ * `updateDoc` with the note ALONE (doc/snapshot-integri/README.md RI16): the client may annotate
+ * a snapshot and nothing else (`firestore.rules`, RI17). On a month without a snapshot it fails —
+ * the old `setDoc` + merge created a `{ note, userId }` document there, a «snapshot» without
+ * figures that several readers did not expect.
  *
  * @param userId - User ID
  * @param year - Snapshot year
  * @param month - Snapshot month (1-12)
  * @param note - Note text (empty string deletes the note)
- * @throws Error if note exceeds 500 characters
+ * @throws Error if note exceeds 500 characters; «Questo mese non ha uno snapshot» on a free month
  */
 export async function updateSnapshotNote(
   userId: string,
@@ -160,26 +163,12 @@ export async function updateSnapshotNote(
   const snapshotId = `${userId}-${year}-${month}`;
   const snapshotRef = doc(db, SNAPSHOTS_COLLECTION, snapshotId);
 
-  // Use setDoc with merge: true to handle both create and update cases
-  // This prevents overwriting existing snapshot data and satisfies Firestore security rules
-  // Include userId field to allow document creation if snapshot doesn't exist yet
-  if (trimmedNote.length === 0) {
-    await setDoc(
-      snapshotRef,
-      {
-        note: deleteField(), // Firestore special value to remove field
-        userId: userId,
-      },
-      { merge: true }
-    );
-  } else {
-    await setDoc(
-      snapshotRef,
-      {
-        note: trimmedNote,
-        userId: userId,
-      },
-      { merge: true }
-    );
+  try {
+    await updateDoc(snapshotRef, { note: trimmedNote.length === 0 ? deleteField() : trimmedNote });
+  } catch (error) {
+    if ((error as { code?: unknown })?.code === 'not-found') {
+      throw userFacingError('Questo mese non ha uno snapshot');
+    }
+    throw error;
   }
 }

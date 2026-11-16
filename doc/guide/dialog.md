@@ -102,6 +102,15 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **In light mode `--card` and `--background` are both `oklch(1 0 0)`**, so a test that proves a modal is «lifted» by
   comparing it with the page background passes only in dark mode. What separates it there is the border and the Float
   shadow; assert the modal's surface equals a TILE's instead.
+- **A dialog that would overwrite something says so before the button does** (F07, 2026-11-16,
+  `components/CreateManualSnapshotModal.tsx`, `doc/snapshot-integri/README.md` § 5.8): when the chosen month already
+  has a snapshot — read from the snapshots the page holds, no new read — the reading names who wrote it
+  (`describeExistingSnapshot`: «Ottobre 2026 ha già uno snapshot, scritto dall'aggiornamento automatico il 31 ottobre
+  alle 19:02. Se lo sostituisci, quella versione resta recuperabile da qui.»), the primary button reads «Sostituisci»
+  and sends `replace: true`; a month with a kept version shows a row «Versione precedente: 31 ottobre, 19:02.» with
+  «Ripristina». The server's 409 (a stale page) turns the dialog into the same step instead of an error. The toast
+  after a replacement carries «Annulla», which calls the restore. The request is built before the `try` and the
+  fetches are module-level helpers (React Compiler).
 
 ## Dialog Form Reset
 - The reset `useEffect` must include `open` in its deps and start with `if (!open) return`. It holds ONLY the

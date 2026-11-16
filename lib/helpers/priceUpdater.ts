@@ -8,7 +8,8 @@ import { getBondPriceByIsin } from '@/lib/services/borsaItalianaBondScraperServi
 import { convertToEur } from '@/lib/services/currencyConversionService';
 import { resolveBondPrice } from '@/lib/utils/bondPricing';
 import { latestIndexationCoefficient, resolveInflationIndexation } from '@/lib/utils/couponUtils';
-import { Asset } from '@/types/assets';
+import { Asset, SnapshotPriceAnomaly, SnapshotPriceFailure } from '@/types/assets';
+import { readInstant, SNAPSHOT_PRICE_JUMP_PCT, SNAPSHOT_PRICE_STALE_DAYS } from '@/lib/utils/snapshotDocument';
 
 /**
  * A Borsa Italiana quote (% of par) as euro per unit for this bond: the ONE pricing rule of
@@ -27,8 +28,45 @@ function bondQuoteToEurPerUnit(bond: Asset, quote: number, now: Date): number {
 
 export interface PriceUpdateResult {
   updated: number;
+  /** The tickers whose price was NOT written (`/api/prices/update` reads it). */
   failed: string[];
   message: string;
+  /**
+   * RI11 — what went wrong, per asset: `quote` (no usable quote from any source), `fx` (the price
+   * was written but its euro value is stale), `write` (the Firestore update threw).
+   */
+  failures: SnapshotPriceFailure[];
+  /** RI12 — the prices written that jumped ≥ 30% from a recent stored one. */
+  anomalies: SnapshotPriceAnomaly[];
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * RI12 — a jump. The stored price is a baseline only when it is positive, recent (≤ 7 days) and in
+ * the same currency as the new one; then `|new / old − 1| ≥ 30%` is an anomaly. The price is
+ * written anyway (D-SN5): a real fall must be accepted, a unit error (×100) must be seen.
+ *
+ * @param asset - The stored asset (its `currentPrice`, `currency`, `lastPriceUpdate`)
+ * @param price - The new price, already in the stored unit (a bond's euro per unit, a GBp quote ÷100)
+ * @param currency - The new price's currency; undefined = the asset's own (a bond)
+ * @param now - The instant of the update
+ * @returns The anomaly, or null
+ */
+export function detectPriceJump(
+  asset: Pick<Asset, 'id' | 'ticker' | 'currentPrice' | 'currency' | 'lastPriceUpdate'>,
+  price: number,
+  currency: string | undefined,
+  now: Date
+): SnapshotPriceAnomaly | null {
+  const previousPrice = asset.currentPrice;
+  if (!(typeof previousPrice === 'number' && previousPrice > 0) || !(price > 0)) return null;
+  const last = readInstant(asset.lastPriceUpdate);
+  if (!last || now.getTime() - last.getTime() > SNAPSHOT_PRICE_STALE_DAYS * DAY_MS) return null;
+  if (currency !== undefined && (asset.currency ?? '').toUpperCase() !== currency.toUpperCase()) return null;
+  const changePct = (price / previousPrice - 1) * 100;
+  if (Math.abs(changePct) < SNAPSHOT_PRICE_JUMP_PCT) return null;
+  return { assetId: asset.id, ticker: asset.ticker, previousPrice, price, changePct };
 }
 
 /**
@@ -55,6 +93,8 @@ export async function updateUserAssetPrices(
         updated: 0,
         failed: [],
         message: 'No assets found',
+        failures: [],
+        anomalies: [],
       };
     }
 
@@ -84,6 +124,8 @@ export async function updateUserAssetPrices(
         updated: 0,
         failed: [],
         message: 'No assets require price updates',
+        failures: [],
+        anomalies: [],
       };
     }
 
@@ -106,53 +148,65 @@ export async function updateUserAssetPrices(
     // Track results
     const updated: string[] = [];
     const failed: string[] = [];
+    const failures: SnapshotPriceFailure[] = [];
+    const anomalies: SnapshotPriceAnomaly[] = [];
+    const now = new Date();
+    const fail = (asset: Asset, reason: SnapshotPriceFailure['reason']) => {
+      if (reason !== 'fx') failed.push(asset.ticker);
+      failures.push({ assetId: asset.id, ticker: asset.ticker, reason });
+    };
+    const noteJump = (asset: Asset, price: number, currency: string | undefined) => {
+      const jump = detectPriceJump(asset, price, currency, now);
+      if (jump) anomalies.push(jump);
+    };
 
     // Process bonds via Borsa Italiana scraper (with Yahoo Finance fallback)
     for (const bond of bondsWithIsin) {
+      console.log(`[Bond Update] Processing ${bond.ticker} (ISIN: ${bond.isin})`);
+      let adjustedPrice: number | null = null;
+      let source = '';
       try {
-        console.log(`[Bond Update] Processing ${bond.ticker} (ISIN: ${bond.isin})`);
-
         // Try Borsa Italiana scraper first
         const bondPrice = await getBondPriceByIsin(bond.isin);
-
         if (bondPrice && bondPrice.price && bondPrice.price > 0) {
           // Bond prices from Borsa Italiana are quoted as % of par (e.g. 104.2 = 104.2%): convert
           // to EUR per unit so that totalValue = currentPrice × quantity is correct.
-          const adjustedPrice = bondQuoteToEurPerUnit(bond, bondPrice.price, new Date());
-
-          const assetRef = adminDb.collection('assets').doc(bond.id);
-          await assetRef.update({
-            currentPrice: adjustedPrice,
-            lastPriceUpdate: new Date(),
-            updatedAt: new Date(),
-          });
-          updated.push(`${bond.ticker} (BI-${bondPrice.priceType})`);
-          console.log(`[Bond Update] ${bond.ticker}: Updated from Borsa Italiana (${bondPrice.priceType}): ${bondPrice.price}% → €${adjustedPrice}`);
+          adjustedPrice = bondQuoteToEurPerUnit(bond, bondPrice.price, now);
+          source = `BI-${bondPrice.priceType}`;
         } else {
           // Fallback to Yahoo Finance
           console.log(`[Bond Update] ${bond.ticker}: Borsa Italiana returned null, falling back to Yahoo Finance`);
           const quote = await getQuote(bond.ticker);
-
           if (quote && quote.price !== null && quote.price > 0) {
             // Same % → EUR conversion for Yahoo Finance fallback
-            const adjustedPrice = bondQuoteToEurPerUnit(bond, quote.price, new Date());
-
-            const assetRef = adminDb.collection('assets').doc(bond.id);
-            await assetRef.update({
-              currentPrice: adjustedPrice,
-              lastPriceUpdate: new Date(),
-              updatedAt: new Date(),
-            });
-            updated.push(`${bond.ticker} (YF-fallback)`);
-            console.log(`[Bond Update] ${bond.ticker}: Updated from Yahoo Finance fallback: ${quote.price}% → €${adjustedPrice}`);
-          } else {
-            failed.push(bond.ticker);
-            console.warn(`[Bond Update] ${bond.ticker}: Both Borsa Italiana and Yahoo Finance failed`);
+            adjustedPrice = bondQuoteToEurPerUnit(bond, quote.price, now);
+            source = 'YF-fallback';
           }
         }
       } catch (error) {
+        console.error(`[Bond Update] Error fetching ${bond.ticker}:`, error);
+      }
+
+      if (adjustedPrice === null || !(adjustedPrice > 0)) {
+        console.warn(`[Bond Update] ${bond.ticker}: Both Borsa Italiana and Yahoo Finance failed`);
+        fail(bond, 'quote');
+        continue;
+      }
+
+      try {
+        const assetRef = adminDb.collection('assets').doc(bond.id);
+        await assetRef.update({
+          currentPrice: adjustedPrice,
+          lastPriceUpdate: now,
+          updatedAt: now,
+        });
+        // Compared in euro per unit, the unit both prices are stored in.
+        noteJump(bond, adjustedPrice, undefined);
+        updated.push(`${bond.ticker} (${source})`);
+        console.log(`[Bond Update] ${bond.ticker}: Updated (${source}) → €${adjustedPrice}`);
+      } catch (error) {
         console.error(`[Bond Update] Error updating ${bond.ticker}:`, error);
-        failed.push(bond.ticker);
+        fail(bond, 'write');
       }
     }
 
@@ -186,10 +240,11 @@ export async function updateUserAssetPrices(
           const updatePayload: Record<string, unknown> = {
             currentPrice: normalizedPrice,
             currency: normalizedCurrency,
-            lastPriceUpdate: new Date(),
-            updatedAt: new Date(),
+            lastPriceUpdate: now,
+            updatedAt: now,
           };
 
+          let fxFailed = false;
           if (normalizedCurrency && normalizedCurrency.toUpperCase() !== 'EUR') {
             try {
               updatePayload.currentPriceEur = await convertToEur(normalizedPrice, normalizedCurrency);
@@ -197,19 +252,22 @@ export async function updateUserAssetPrices(
               // FX conversion failure must not abort the price update.
               // The stale or missing currentPriceEur means the portfolio total
               // will fall back to the native price, which is wrong but recoverable
-              // on the next successful price update.
+              // on the next successful price update — and the snapshot records it (RI11).
               console.warn(`[Price Update] FX conversion failed for ${asset.ticker} (${normalizedCurrency}→EUR):`, fxError);
+              fxFailed = true;
             }
           }
 
           await assetRef.update(updatePayload);
+          noteJump(asset, normalizedPrice, normalizedCurrency);
           updated.push(asset.ticker);
+          if (fxFailed) fail(asset, 'fx');
         } catch (error) {
           console.error(`Failed to update ${asset.ticker}:`, error);
-          failed.push(asset.ticker);
+          fail(asset, 'write');
         }
       } else {
-        failed.push(asset.ticker);
+        fail(asset, 'quote');
       }
     }
 
@@ -217,6 +275,8 @@ export async function updateUserAssetPrices(
       updated: updated.length,
       failed,
       message: `Updated ${updated.length} assets, ${failed.length} failed`,
+      failures,
+      anomalies,
     };
   } catch (error) {
     console.error('Error updating prices:', error);

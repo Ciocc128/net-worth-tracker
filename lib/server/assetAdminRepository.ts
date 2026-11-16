@@ -3,6 +3,7 @@ import { Asset, MonthlySnapshot } from '@/types/assets';
 import { toDate } from '@/lib/utils/dateHelpers';
 import { ASSET_TRANSACTIONS_COLLECTION, type AssetTransaction } from '@/types/assetTransactions';
 import type { PensionContribution } from '@/types/pension';
+import { snapshotFromData } from '@/lib/utils/snapshotDocument';
 
 /**
  * Fetch all assets for a user using Firebase Admin SDK (server-side only).
@@ -45,10 +46,7 @@ export async function getUserSnapshotsAdmin(userId: string): Promise<MonthlySnap
       .where('userId', '==', userId)
       .get();
 
-    return querySnapshot.docs.map(doc => ({
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate() || new Date(),
-    })) as MonthlySnapshot[];
+    return querySnapshot.docs.map(doc => snapshotFromData(doc.data()));
   } catch (error) {
     console.error('[getUserSnapshotsAdmin] Error fetching snapshots:', error);
     throw new Error('Failed to fetch snapshots');
