@@ -24,8 +24,11 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { getSharedAccounts } from '@/lib/services/accountAccessService';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase/config';
+import { useAuth, waitForPendingRegistration } from '@/contexts/AuthContext';
+import { getSharedAccounts, isViewerAdmitted } from '@/lib/services/accountAccessService';
+import { LOGIN_REASON_NOT_ALLOWED } from '@/lib/utils/authNarrative';
 import { AccessibleAccount } from '@/types/account';
 
 interface ActiveAccountContextType {
@@ -156,6 +159,32 @@ export function ActiveAccountProvider({
         if (cancelled) return;
         setDiscovery({ viewerId, sharedAccounts: [] });
         setSelection({ viewerId, ownerId: viewerId });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewerId]);
+
+  // RU7 (doc/sicurezza/S2-utenti-ammessi.md, D-SI15): a signed-in user the server never admitted
+  // is signed out and told why on /login. Once per viewer, never in front of the shell, and ONLY
+  // on a read that answered «no document»: a failed read (offline, the rules not yet published)
+  // is not a refusal. No branch for the demo: a deployment with a demo admits its user (RU8).
+  useEffect(() => {
+    if (!viewerId) return;
+
+    let cancelled = false;
+
+    waitForPendingRegistration()
+      .then(() => isViewerAdmitted(viewerId))
+      .then(async (admitted) => {
+        if (cancelled || admitted) return;
+        await signOut(auth);
+        // A full navigation: the reason must reach /login whatever ProtectedRoute does on sign-out.
+        window.location.replace(`/login?reason=${LOGIN_REASON_NOT_ALLOWED}`);
+      })
+      .catch((error) => {
+        console.warn('[ActiveAccount] Could not read the admission; assuming nothing:', error);
       });
 
     return () => {

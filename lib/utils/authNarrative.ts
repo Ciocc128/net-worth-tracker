@@ -180,7 +180,13 @@ const AUTH_ERROR_TEXT: Record<string, string> = {
   'auth/popup-blocked': 'Il browser ha bloccato la finestra di Google. Consenti i popup e riprova.',
   'registration/not-allowed':
     'Questa email non è abilitata alla registrazione. Non è stato creato nessun profilo.',
+  // S2 RU7: a valid sign-in whose user the server never admitted (or took off the list).
+  'account/not-allowed':
+    'Questo account non è abilitato a usare l’app. Chiedi a chi la gestisce di abilitarlo.',
 };
+
+/** The `?reason=` of /login that carries a sign-out the app did on its own (RU7). */
+export const LOGIN_REASON_NOT_ALLOWED = 'not-allowed';
 
 /** Translates whatever was thrown into one sentence, never into the provider's own words. */
 export function describeAuthError(error: unknown): string {

@@ -16,15 +16,13 @@
  *   2. Create Firestore document with user data (email, displayName, createdAt)
  *   3. Set default asset allocation (60% equity, 40% bonds)
  *
- * - Registration validation:
- *   - Server-side whitelist checked via /api/auth/check-registration
- *   - For Google OAuth: validation happens AFTER signInWithPopup (Firebase limitation)
- *   - If registration denied: cleanup both Auth user AND orphan Firestore doc
- *
- * - Race condition handling:
- *   - Google OAuth can succeed but registration check fail
- *   - Must cleanup orphan Firestore documents to allow retry
- *   - See signInWithGoogle() for detailed cleanup logic
+ * - Registration validation (doc/sicurezza/S2-utenti-ammessi.md RU2):
+ *   - email/password: /api/auth/check-registration BEFORE the Auth user exists (no orphan on a
+ *     refused email), then /api/auth/activate right after it, BEFORE any Firestore write
+ *   - Google: /api/auth/activate after signInWithPopup (Firebase cannot ask first)
+ *   - The activation writes allowed-users/{uid} on the server; without it the rules deny every
+ *     read and write, so a refused user cannot leave an orphan document: only the Auth user is
+ *     deleted (else signed out)
  */
 'use client';
 
@@ -43,10 +41,11 @@ import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   signInWithPopup,
+  getAdditionalUserInfo,
   GoogleAuthProvider,
   updateProfile,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, deleteDoc, type DocumentReference } from 'firebase/firestore';
+import { doc, setDoc, getDoc, type DocumentReference } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase/config';
 import { User } from '@/types/assets';
 import { getDefaultTargets, setSettings } from '@/lib/services/assetAllocationService';
@@ -129,47 +128,75 @@ async function completeDisplayName(
 }
 
 /**
- * The registration half of `signInWithGoogle`, for a Google user with no `users/{uid}` document:
- * check the whitelist, clean up on a refusal, create the document and the default allocation.
+ * The registration in flight, if any. Between the Auth user's creation and the activation the
+ * user is signed in but not admitted yet: the not-admitted check (RU7, `ActiveAccountProvider`)
+ * waits for this promise instead of signing out someone who is registering.
+ */
+let pendingRegistration: Promise<unknown> | null = null;
+
+/** Resolves when no registration is in flight (never rejects). */
+export function waitForPendingRegistration(): Promise<void> {
+  const current = pendingRegistration;
+  return current ? current.then(() => undefined, () => undefined) : Promise.resolve();
+}
+
+function trackRegistration<T>(work: Promise<T>): Promise<T> {
+  pendingRegistration = work;
+  const clear = () => {
+    if (pendingRegistration === work) pendingRegistration = null;
+  };
+  work.then(clear, clear);
+  return work;
+}
+
+/**
+ * Ask the server to admit the user just created (`POST /api/auth/activate`, RU2). On a refusal
+ * the Auth user is deleted (else signed out) and the refusal is thrown with its code.
+ */
+async function activateNewUser(firebaseUser: FirebaseUser): Promise<void> {
+  let response: Response;
+  try {
+    const idToken = await firebaseUser.getIdToken();
+    response = await fetch('/api/auth/activate', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+  } catch {
+    await discardRefusedUser(firebaseUser);
+    throw withCode('Unable to verify registration permissions.', 'auth/network-request-failed');
+  }
+
+  if (!response.ok) {
+    // Why delete? Firebase Auth succeeded but the server refused: without the cleanup the
+    // email stays taken by a user who can do nothing, and a later allowed retry fails.
+    await discardRefusedUser(firebaseUser);
+    const body = await response.json().catch(() => ({}));
+    throw withCode(
+      body.message || 'Registrations are currently closed.',
+      typeof body.code === 'string' ? body.code : 'registration/not-allowed',
+    );
+  }
+}
+
+async function discardRefusedUser(firebaseUser: FirebaseUser): Promise<void> {
+  try {
+    await firebaseUser.delete();
+  } catch (deleteError) {
+    console.error('[CLEANUP_ERROR]', deleteError);
+    // Prevents a stuck state where the user sees authenticated UI but has no permissions.
+    await firebaseSignOut(auth);
+  }
+}
+
+/**
+ * The registration half of `signInWithGoogle`, for a new Google user (or one with no `users/{uid}`
+ * document): activate on the server, clean up on a refusal, create the document and the default
+ * allocation.
  * Module-level because it throws inside a try: keeps `AuthProvider` compilable by the React Compiler.
  */
 async function registerGoogleUser(googleUser: FirebaseUser, userRef: DocumentReference): Promise<void> {
   try {
-    const response = await fetch('/api/auth/check-registration', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: googleUser.email }),
-    });
-
-    if (!response.ok) {
-      // Registration is not allowed - cleanup everything
-      // Why cleanup? Race condition: Firebase Auth succeeded but registration denied.
-      // Without cleanup, user can't retry (Auth user exists but Firestore doesn't).
-      // We must delete BOTH Auth user AND any orphan Firestore doc.
-      try {
-        // First, check if a Firestore document was created (race condition)
-        // Another process might have created it between our check and now
-        const orphanDocSnap = await getDoc(userRef);
-        if (orphanDocSnap.exists()) {
-          await deleteDoc(userRef);
-          console.log(`[CLEANUP] Deleted orphan Firestore document for user: ${googleUser.uid}`);
-        }
-
-        // Delete the Firebase Auth user
-        await googleUser.delete();
-      } catch (deleteError) {
-        console.error('[CLEANUP_ERROR]', deleteError);
-        // If we couldn't delete the user, sign them out
-        // Prevents stuck state where user sees authenticated UI but has no permissions
-        await firebaseSignOut(auth);
-      }
-
-      const body = await response.json().catch(() => ({}));
-      throw withCode(
-        body.message || 'Registrations are currently closed.',
-        typeof body.code === 'string' ? body.code : 'registration/not-allowed',
-      );
-    }
+    await activateNewUser(googleUser);
 
     // Registration is allowed - wait for token refresh first
     console.log('[AuthContext] Google OAuth: Waiting for authentication token refresh...');
@@ -235,19 +262,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Unblock on what Auth already knows — nothing is awaited in front of the shell. React
-      // batches the two calls into ONE commit, so the sidebar's profile and the page arrive
-      // together (the benchmark's auth marker counts on it, scripts/perfBenchmark.mjs).
-      setUser({
-        uid: firebaseUser.uid,
-        email: firebaseUser.email,
-        displayName: firebaseUser.displayName,
-      });
-      setLoading(false);
+      const reveal = () => {
+        // Unblock on what Auth already knows — nothing is awaited in front of the shell. React
+        // batches the two calls into ONE commit, so the sidebar's profile and the page arrive
+        // together (the benchmark's auth marker counts on it, scripts/perfBenchmark.mjs).
+        setUser({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+        });
+        setLoading(false);
 
-      if (!firebaseUser.displayName) {
-        void completeDisplayName(firebaseUser, setUser);
+        if (!firebaseUser.displayName) {
+          void completeDisplayName(firebaseUser, setUser);
+        }
+      };
+
+      // A registration in flight (S2 RU2): the user exists in Auth but the server has not admitted
+      // it yet, so every read would be denied. The pages see the user only once the activation has
+      // answered — and not at all when it refused and deleted the user.
+      if (pendingRegistration) {
+        void waitForPendingRegistration().then(() => {
+          if (auth.currentUser?.uid === firebaseUser.uid) reveal();
+        });
+        return;
       }
+      reveal();
     });
 
     return () => unsubscribe();
@@ -263,9 +303,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /**
    * Register new user with email and password
    *
-   * Two-step process:
    * 1. Check registration permissions (server-side whitelist)
-   * 2. Create Firebase Auth user
+   * 2. Create Firebase Auth user and activate it on the server (allowed-users/{uid})
    * 3. Create Firestore user document
    * 4. Set default asset allocation
    */
@@ -294,8 +333,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
     }
 
-    // Step 2: Create Firebase Auth user
-    const { user: firebaseUser } = await createUserWithEmailAndPassword(auth, email, password);
+    // Step 2: Create Firebase Auth user, then have the SERVER admit it (RU2) before any
+    // Firestore write: without allowed-users/{uid} the rules deny them all.
+    const { user: firebaseUser } = await trackRegistration(
+      createUserWithEmailAndPassword(auth, email, password).then(async (credential) => {
+        await activateNewUser(credential.user);
+        return credential;
+      }),
+    );
 
     // Step 3: Wait for Auth token refresh to ensure Firestore permissions are synchronized
     // This prevents PERMISSION_DENIED errors when creating user documents
@@ -328,30 +373,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /**
    * Sign in or register with Google OAuth
    *
-   * Complex flow with race condition handling:
    * 1. Trigger Google OAuth popup (Firebase limitation: cannot validate before this)
-   * 2. Check if Firestore document exists (determines new vs returning user)
-   * 3. For new users: validate registration permissions
-   * 4. If denied: cleanup both Firebase Auth user AND any orphan Firestore doc
-   * 5. If allowed: create Firestore document and set default allocation
+   * 2. A new Auth user is a registration: activate on the server (RU2); refused → the Auth user
+   *    is deleted, so the person can retry once allowed
+   * 3. A returning user goes on as before; one who is not admitted is signed out by RU7
    *
-   * Why registration check happens AFTER OAuth?
+   * Why the activation happens AFTER OAuth?
    * Firebase signInWithPopup creates Auth user immediately - we can't prevent this.
-   * We must cleanup if registration is denied to allow user to retry later.
    */
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
-    const result = await signInWithPopup(auth, provider);
+    await trackRegistration(
+      (async () => {
+        const result = await signInWithPopup(auth, provider);
+        const userRef = doc(db, 'users', result.user.uid);
 
-    // Check if this is a new user (first time signing in with Google)
-    // Why check Firestore doc existence? If it doesn't exist, this is a registration.
-    const userRef = doc(db, 'users', result.user.uid);
-    const userSnap = await getDoc(userRef);
+        // A brand-new Auth user is a registration: the server decides (RU2).
+        if (getAdditionalUserInfo(result)?.isNewUser) {
+          await registerGoogleUser(result.user, userRef);
+          return;
+        }
 
-    // If user doesn't exist, this is a registration, so check permissions
-    if (!userSnap.exists() && result.user.email) {
-      await registerGoogleUser(result.user, userRef);
-    }
+        // A returning user. Not admitted → the read is denied and the not-admitted check (RU7)
+        // signs them out with the reason; never delete an account that already existed.
+        let userSnap;
+        try {
+          userSnap = await getDoc(userRef);
+        } catch {
+          return;
+        }
+        // Admitted, but the profile was never written (an interrupted registration): finish it.
+        if (!userSnap.exists() && result.user.email) {
+          await registerGoogleUser(result.user, userRef);
+        }
+      })(),
+    );
   };
 
   /**
