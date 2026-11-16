@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase/admin';
-import { Timestamp } from 'firebase-admin/firestore';
 import { updateHallOfFame } from '@/lib/services/hallOfFameService.server';
 import { invalidateDashboardOverviewSummaryServer } from '@/lib/services/dashboardOverviewInvalidation.server';
 import {
@@ -8,186 +7,139 @@ import {
   getApiAuthErrorResponse,
   requireFirebaseAuth,
 } from '@/lib/server/apiAuth';
-import { preserveUserAuthoredSnapshotFields } from '@/lib/utils/snapshotUserFields';
+import { manualSnapshotSchema, parseOr400 } from '@/lib/server/validation';
+import { getItalyMonthYear } from '@/lib/utils/dateHelpers';
+import { describeManualSnapshotIncoherence } from '@/lib/utils/manualSnapshotAmounts';
+import {
+  buildSnapshotDocument,
+  snapshotCapturedAt,
+  snapshotHasFigures,
+} from '@/lib/utils/snapshotDocument';
+import type { SnapshotPreviousVersion, SnapshotWriter } from '@/types/assets';
+
+/** A replacement without `replace: true` (RI9): nothing written, the dialog names who wrote the month. */
+class SnapshotExistsError extends Error {
+  constructor(readonly existing: { writtenBy?: SnapshotWriter; updatedAt?: string }) {
+    super('snapshot_exists');
+  }
+}
 
 /**
  * POST /api/portfolio/snapshot/manual
  *
- * Create manual snapshot with explicit data (no automatic calculations)
+ * Create a snapshot with explicit, declared figures (no price fetching, no calculation) — the only
+ * writer of a CLOSED month (doc/snapshot-integri/README.md § 5.3–5.4).
  *
  * Use Case:
- *   - Import historical snapshots from external sources
- *   - Override automated snapshot calculations
- *   - Bulk snapshot creation from CSV imports
+ *   - Enter history from before the app (a month with no snapshot)
+ *   - Correct a month by hand: an explicit replacement, the replaced version kept
  *
- * Differences from /api/portfolio/snapshot:
- *   - Requires complete snapshot data in request body
- *   - No price fetching or calculation steps
- *   - More extensive validation (all fields required)
- *   - Always triggers Hall of Fame update (server-side)
+ * Order: token → schema (strict, `manualSnapshotSchema`) → `assertCanAccessAccount` → coherence
+ * (RI8: classes and liquid + illiquid sum to the total, ± 0,01) → not a future month.
  *
- * Request Body (all fields required):
+ * Request Body:
  *   {
  *     userId: string,
- *     year: number,              // 1900-2100
- *     month: number,             // 1-12
- *     totalNetWorth: number,
+ *     year: number,              // integer 1900-2100
+ *     month: number,             // integer 1-12, not after the current Italian month
+ *     totalNetWorth: number,     // finite; below zero is legal (loans)
  *     liquidNetWorth: number,
  *     illiquidNetWorth: number,
- *     byAssetClass: { [key: string]: number },
- *     assetAllocation: { [key: string]: number },
- *     byAsset?: Array<{
- *       assetId: string,
- *       ticker: string,
- *       name: string,
- *       quantity: number,
- *       price: number,
- *       totalValue: number
- *     }>
+ *     byAssetClass: { [assetClass]: number },   // keys among ASSET_CLASS_SEQUENCE
+ *     byAsset?: Array<{ assetId, ticker, name, quantity, price, totalValue }>,  // ≤ 500 rows
+ *     replace?: boolean          // required to replace a month that already has figures
  *   }
+ *   `assetAllocation` is derived (never received); `createdAt`/`updatedAt` are stamped.
  *
- * Response:
- *   {
- *     success: boolean,
- *     snapshotId: string,  // Format: "{userId}-{year}-{MM}"
- *     message: string
- *   }
+ * Replacement (RI9), in one transaction:
+ *   - the month has figures and no `replace` → 409 { error: 'snapshot_exists', existing: { writtenBy, updatedAt } }
+ *   - with `replace: true` → the stored document is copied whole to `{id}/versions/{autoId}` with
+ *     `archivedAt`/`archivedByUid`, the new one points at it (`previous`); the note rides across.
+ *   A legacy note-only document is not «existing»: it is completed, its note kept.
+ *
+ * Response: { success, snapshotId, message, replaced }
  *
  * Related:
- *   - portfolio/snapshot/route.ts: Automated snapshot creation
- *   - hallOfFameService.server.ts: Triggered on success
+ *   - portfolio/snapshot/route.ts: the automatic writer (current month only)
+ *   - portfolio/snapshot/restore/route.ts: the undo of a replacement
+ *   - lib/utils/snapshotDocument.ts: the one builder
  */
 export async function POST(request: NextRequest) {
   try {
     const decodedToken = await requireFirebaseAuth(request);
-    const body = await request.json();
-    const {
-      userId,
-      year,
-      month,
-      totalNetWorth,
-      liquidNetWorth,
-      illiquidNetWorth,
-      byAssetClass,
-      byAsset,
-      assetAllocation,
-    } = body;
-
-    // ========== Required Field Validation ==========
-    //
-    // Manual snapshots require all data upfront (no automatic calculation)
-    // Validation order: Basic fields → Numeric fields → Object fields → Ranges
+    const parsed = parseOr400(manualSnapshotSchema, await request.json());
+    if (!parsed.ok) return parsed.response;
+    const { userId, year, month, totalNetWorth, liquidNetWorth, illiquidNetWorth, byAsset, replace } = parsed.data;
+    const byAssetClass = parsed.data.byAssetClass as Record<string, number>;
     await assertCanAccessAccount(decodedToken, userId);
 
-    if (!year || !month) {
-      return NextResponse.json(
-        { error: 'year and month are required' },
-        { status: 400 }
-      );
+    const incoherence = describeManualSnapshotIncoherence({ totalNetWorth, liquidNetWorth, illiquidNetWorth, byAssetClass });
+    if (incoherence) return NextResponse.json({ error: incoherence }, { status: 400 });
+
+    // The current month is allowed (an account with no market-priced asset has no other door,
+    // D-SN9); a month after it is not a photograph of anything.
+    const today = getItalyMonthYear();
+    if (year > today.year || (year === today.year && month > today.month)) {
+      return NextResponse.json({ error: 'Un mese futuro non ha uno snapshot' }, { status: 400 });
     }
 
-    if (totalNetWorth === undefined || totalNetWorth === null) {
-      return NextResponse.json(
-        { error: 'totalNetWorth is required' },
-        { status: 400 }
-      );
-    }
-
-    if (liquidNetWorth === undefined || liquidNetWorth === null) {
-      return NextResponse.json(
-        { error: 'liquidNetWorth is required' },
-        { status: 400 }
-      );
-    }
-
-    if (illiquidNetWorth === undefined || illiquidNetWorth === null) {
-      return NextResponse.json(
-        { error: 'illiquidNetWorth is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!byAssetClass || typeof byAssetClass !== 'object') {
-      return NextResponse.json(
-        { error: 'byAssetClass is required and must be an object' },
-        { status: 400 }
-      );
-    }
-
-    if (!assetAllocation || typeof assetAllocation !== 'object') {
-      return NextResponse.json(
-        { error: 'assetAllocation is required and must be an object' },
-        { status: 400 }
-      );
-    }
-
-    // ========== Range Validation ==========
-    //
-    // Year range validation: 1900-2100
-    //
-    // Why these bounds?
-    //   - 1900: Reasonable lower bound for historical financial data
-    //   - 2100: Future-proofing without allowing absurd values (year 9999)
-    //   - Prevents: Typos (202 instead of 2024), date parsing errors
-    //
-    // Edge case: Year 2100 will need updating
-    // TODO(2099-01-01): Extend upper bound to 2200
-    if (year < 1900 || year > 2100) {
-      return NextResponse.json(
-        { error: 'Invalid year' },
-        { status: 400 }
-      );
-    }
-
-    if (month < 1 || month > 12) {
-      return NextResponse.json(
-        { error: 'Invalid month (must be 1-12)' },
-        { status: 400 }
-      );
-    }
-
-    // Snapshot document ID format: "{userId}-{year}-{M}"
-    //
-    // Examples:
-    //   user123-2024-1
-    //   user123-2024-12
-    //
-    // Design considerations:
-    //   - Composite key enables:
-    //     - One snapshot per user per month (automatic upsert)
-    //     - Efficient queries by userId prefix
-    //   - Month NOT zero-padded: format is "2024-1" not "2024-01"
-    //   - Sorting uses year/month fields, not lexicographic ID comparison
-    //   - Alternative considered: Auto-generated IDs
-    //     Rejected: Would allow duplicate snapshots per month
+    // Snapshot document ID format: "{userId}-{year}-{M}" — month NOT zero-padded ("2024-1"), one
+    // document per user per month; sorting reads the year/month fields, never the id.
     const snapshotId = `${userId}-${year}-${month}`;
-
-    // Create snapshot object
-    const snapshot = {
-      userId,
-      year,
-      month,
-      totalNetWorth,
-      liquidNetWorth,
-      illiquidNetWorth,
-      byAssetClass,
-      byAsset: byAsset || [],
-      assetAllocation,
-      createdAt: Timestamp.now(),
-    };
-
-    // Save to Firestore
-    //
-    // A manual snapshot can land on ANY month, including one the user has annotated on
-    // Storico. The write stays a full replace of the declared figures, but the note is
-    // carried over — nothing recomputes it (see `snapshotUserFields.ts`).
     const snapshotRef = adminDb.collection('monthly-snapshots').doc(snapshotId);
-    const existingSnapshotDocument = await snapshotRef.get();
+    const now = new Date();
 
-    await snapshotRef.set(
-      preserveUserAuthoredSnapshotFields(snapshot, existingSnapshotDocument.data())
-    );
-    await invalidateDashboardOverviewSummaryServer(userId, 'manual_snapshot_created');
+    let replaced: boolean;
+    try {
+      replaced = await adminDb.runTransaction(async (transaction) => {
+        const existingSnapshot = await transaction.get(snapshotRef);
+        const existing = existingSnapshot.data() as Record<string, unknown> | undefined;
+        const hasFigures = snapshotHasFigures(existing);
+        const existingCapturedAt = hasFigures ? snapshotCapturedAt(existing as { createdAt: Date; updatedAt?: unknown }) : null;
+        const existingWriter = existing?.writtenBy as SnapshotWriter | undefined;
+
+        if (hasFigures && replace !== true) {
+          throw new SnapshotExistsError({
+            ...(existingWriter ? { writtenBy: existingWriter } : {}),
+            ...(existingCapturedAt ? { updatedAt: existingCapturedAt.toISOString() } : {}),
+          });
+        }
+
+        let previous: SnapshotPreviousVersion | undefined;
+        if (hasFigures) {
+          const versionRef = snapshotRef.collection('versions').doc();
+          transaction.set(versionRef, { ...existing, archivedAt: now, archivedByUid: decodedToken.uid });
+          previous = {
+            versionId: versionRef.id,
+            archivedAt: now.toISOString(),
+            ...(existingWriter ? { writtenBy: existingWriter } : {}),
+            ...(existingCapturedAt ? { updatedAt: existingCapturedAt.toISOString() } : {}),
+          };
+        }
+
+        transaction.set(
+          snapshotRef,
+          buildSnapshotDocument({
+            // No `fireNetWorth`, no `pension`: this form does not measure them, and absent means
+            // «unknown» to every reader (types/assets.ts). No `prices`: declared, not priced.
+            figures: { userId, year, month, totalNetWorth, liquidNetWorth, illiquidNetWorth, byAssetClass, byAsset: byAsset ?? [] },
+            writtenBy: 'manual',
+            writtenByUid: decodedToken.uid,
+            now,
+            // The note and the month's first `createdAt` ride across; `previous` names the version just archived.
+            existing,
+            previous,
+          })
+        );
+        return hasFigures;
+      });
+    } catch (error) {
+      if (error instanceof SnapshotExistsError) {
+        return NextResponse.json({ error: 'snapshot_exists', existing: error.existing }, { status: 409 });
+      }
+      throw error;
+    }
+    await invalidateDashboardOverviewSummaryServer(userId, replaced ? 'manual_snapshot_replaced' : 'manual_snapshot_created');
 
     // Update Hall of Fame rankings after snapshot creation
     //
@@ -211,7 +163,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       snapshotId,
-      message: 'Manual snapshot created successfully',
+      replaced,
+      message: replaced ? 'Manual snapshot replaced' : 'Manual snapshot created successfully',
     });
   } catch (error) {
     const authErrorResponse = getApiAuthErrorResponse(error);

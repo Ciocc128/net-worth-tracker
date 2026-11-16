@@ -1,6 +1,8 @@
 import 'server-only';
 import { z } from 'zod';
 import { NextResponse } from 'next/server';
+import { ASSET_CLASS_SEQUENCE } from '@/lib/utils/allocationUtils';
+import type { AssetClass } from '@/types/assets';
 
 /**
  * Server-side input validation schemas (SEC-3).
@@ -33,12 +35,64 @@ export const tickerSchema = z
  */
 const isoDateSchema = z.string().min(1).pipe(z.coerce.date());
 
-export const snapshotRequestSchema = z.object({
-  userId: z.string().min(1),
-  year: z.number().int().min(2000).max(2100).optional(),
-  month: z.number().int().min(1).max(12).optional(),
-  cronSecret: z.string().optional(),
-});
+/**
+ * POST /api/portfolio/snapshot — the automatic writer (doc/snapshot-integri/README.md RI6). STRICT:
+ * a `year`/`month` (or any other key) is a 400, never silently dropped — a caller naming March 2024
+ * must not get the current month rewritten and a 200. The target is always the current month.
+ */
+export const snapshotRequestSchema = z
+  .object({
+    userId: z.string().min(1),
+    cronSecret: z.string().optional(),
+  })
+  .strict();
+
+const finiteNumber = z.number().finite();
+const snapshotYearSchema = z.number().int().min(1900).max(2100);
+const snapshotMonthSchema = z.number().int().min(1).max(12);
+
+/**
+ * POST /api/portfolio/snapshot/manual (doc/snapshot-integri/README.md RI7, A5). Strict: the
+ * percentages (`assetAllocation`) and `createdAt` the dialog used to send are refused — the builder
+ * derives the first and stamps the second. A net worth below zero is legal (loans). The coherence
+ * of the sums and the future month are the route's checks (RI8), after this one.
+ */
+export const manualSnapshotSchema = z
+  .object({
+    userId: z.string().min(1),
+    year: snapshotYearSchema,
+    month: snapshotMonthSchema,
+    totalNetWorth: finiteNumber,
+    liquidNetWorth: finiteNumber,
+    illiquidNetWorth: finiteNumber,
+    byAssetClass: z.partialRecord(z.enum(ASSET_CLASS_SEQUENCE as [AssetClass, ...AssetClass[]]), finiteNumber),
+    byAsset: z
+      .array(
+        z
+          .object({
+            assetId: z.string().min(1).max(200),
+            ticker: z.string().max(200),
+            name: z.string().max(200),
+            quantity: finiteNumber,
+            price: finiteNumber,
+            totalValue: finiteNumber,
+          })
+          .strict()
+      )
+      .max(500)
+      .optional(),
+    replace: z.boolean().optional(),
+  })
+  .strict();
+
+/** POST /api/portfolio/snapshot/restore (RI10): the month whose previous version comes back. */
+export const snapshotRestoreSchema = z
+  .object({
+    userId: z.string().min(1),
+    year: snapshotYearSchema,
+    month: snapshotMonthSchema,
+  })
+  .strict();
 
 /**
  * POST /api/dividends/sync-expenses: the account and the category, nothing else

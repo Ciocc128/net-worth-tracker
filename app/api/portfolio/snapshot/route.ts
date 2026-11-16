@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase/admin';
-import { Asset, MonthlySnapshot } from '@/types/assets';
+import { Asset } from '@/types/assets';
 import {
   calculateAssetValue,
   calculateTotalValue,
@@ -10,7 +9,7 @@ import {
   calculateFIRENetWorth,
 } from '@/lib/services/assetService';
 import { calculateCurrentAllocation } from '@/lib/services/assetAllocationService';
-import { updateUserAssetPrices } from '@/lib/helpers/priceUpdater';
+import { updateUserAssetPrices, type PriceUpdateResult } from '@/lib/helpers/priceUpdater';
 import {
   assertCanAccessAccount,
   getApiAuthErrorResponse,
@@ -20,20 +19,14 @@ import {
 import { snapshotRequestSchema, parseOr400 } from '@/lib/server/validation';
 import { invalidateDashboardOverviewSummaryServer } from '@/lib/services/dashboardOverviewInvalidation.server';
 import { settleDueBalances } from '@/lib/server/cashSettlement';
-import { preserveUserAuthoredSnapshotFields } from '@/lib/utils/snapshotUserFields';
+import { getItalyMonthYear } from '@/lib/utils/dateHelpers';
+import {
+  buildSnapshotDocument,
+  buildSnapshotPriceRecord,
+  snapshotHasFigures,
+} from '@/lib/utils/snapshotDocument';
 
 const SNAPSHOTS_COLLECTION = 'monthly-snapshots';
-
-function buildAllocationPercentages(
-  byAssetClass: Record<string, number>,
-  totalNetWorth: number
-): Record<string, number> {
-  const result: Record<string, number> = {};
-  for (const assetClass of Object.keys(byAssetClass)) {
-    result[assetClass] = totalNetWorth > 0 ? (byAssetClass[assetClass] / totalNetWorth) * 100 : 0;
-  }
-  return result;
-}
 
 function buildByAssetBreakdown(assets: Asset[]) {
   return assets.map((asset) => ({
@@ -57,13 +50,14 @@ function buildByAssetBreakdown(assets: Asset[]) {
  *   3. Allocation calculations
  *   4. Snapshot persistence
  *
- * Request Body:
+ * Request Body (strict: any other key, `year` and `month` included, is a 400 — RI6):
  *   {
  *     userId: string,
- *     year?: number,      // Optional: defaults to current Italy year
- *     month?: number,     // Optional: defaults to current Italy month (1-12)
  *     cronSecret?: string // Optional: for cron job authorization
  *   }
+ *
+ * The target is ALWAYS the current Italian month (doc/snapshot-integri/README.md § 5.3): a closed
+ * month is written only by hand, through /manual, which keeps the version it replaces.
  *
  * Snapshot Structure:
  *   - One document per user per month
@@ -71,9 +65,12 @@ function buildByAssetBreakdown(assets: Asset[]) {
  *   - Contains: net worth, allocations, per-asset breakdown
  *
  * Idempotency:
- *   - If snapshot exists for year/month: Updates (overwrites)
+ *   - If snapshot exists for the month: Updates (overwrites the figures, keeps `createdAt`, the note
+ *     and the `previous` pointer; never archives — it rewrites the running month every evening)
  *   - If new: Creates
- *   - Uses Firestore .set() (not .add()) for upsert behavior
+ *   - Read and write in ONE transaction (RI5): the cron and the button a second apart cannot both
+ *     believe they are the first
+ *   - Authorship: `writtenBy` 'cron' with a valid `cronSecret`, 'button' with a token (RI2)
  *
  * Hall of Fame Integration:
  *   - NOT called here (see lines 120-121)
@@ -91,7 +88,7 @@ export async function POST(request: NextRequest) {
     const requestBody = await request.json();
     const bodyResult = parseOr400(snapshotRequestSchema, requestBody);
     if (!bodyResult.ok) return bodyResult.response;
-    const { userId, year, month, cronSecret } = bodyResult.data;
+    const { userId, cronSecret } = bodyResult.data;
 
     // Verify cron secret if provided (for scheduled jobs)
     if (cronSecret && !verifyCronSecret(cronSecret)) {
@@ -104,9 +101,11 @@ export async function POST(request: NextRequest) {
     // Scheduled snapshots are authenticated with a shared secret because there is
     // no end-user Firebase session involved. All interactive callers must present
     // a Firebase ID token that matches the requested userId.
+    let writtenByUid: string | undefined;
     if (!cronSecret) {
       const decodedToken = await requireFirebaseAuth(request);
       await assertCanAccessAccount(decodedToken, userId);
+      writtenByUid = decodedToken.uid;
     } else if (!userId) {
       return NextResponse.json(
         { error: 'User ID is required' },
@@ -138,9 +137,13 @@ export async function POST(request: NextRequest) {
     // Alternative considered: Fail snapshot if prices fail
     //   Rejected: Creates brittleness in automated monthly snapshots
     //   Single API failure would break entire snapshot creation
+    //
+    // What the update did is no longer only a log line: it goes into the snapshot's `prices` record
+    // (RI13), so a month built on a stale or jumped price says so for good (C4).
     console.log(`Updating prices for user ${userId}...`);
+    let priceUpdateResult: PriceUpdateResult | null = null;
     try {
-      const priceUpdateResult = await updateUserAssetPrices(userId);
+      priceUpdateResult = await updateUserAssetPrices(userId);
       console.log(`Price update result: ${priceUpdateResult.message}`);
     } catch (error) {
       console.error('Error updating prices:', error);
@@ -164,24 +167,10 @@ export async function POST(request: NextRequest) {
       ...doc.data(),
     })) as Asset[];
 
-    // Use Italy timezone for month/year calculation
-    //
-    // Critical for consistent snapshot timing:
-    //   - Server runs in UTC (Vercel default)
-    //   - Cron triggers at 00:00 UTC = 01:00 or 02:00 CET (depends on DST)
-    //   - Without timezone adjustment: Snapshot created for "yesterday" in Italy
-    //
-    // Example without adjustment:
-    //   Cron runs: 2024-03-01 00:30 UTC
-    //   UTC month: March (3)
-    //   Italy time: 2024-02-29 01:30 CET (still February!)
-    //   Result: Would create March snapshot before February ends in Italy
-    //
-    // getItalyMonthYear() ensures snapshots align with Italian investor's
-    // local calendar month boundaries
-    const { month: currentMonth, year: currentYear } = (await import('@/lib/utils/dateHelpers')).getItalyMonthYear();
-    const snapshotYear = year ?? currentYear;
-    const snapshotMonth = month ?? currentMonth;
+    // Use Italy timezone for month/year calculation: the server runs in UTC, and the evening cron
+    // of the last day (19:00 in Italy) must write the Italian month, not the UTC one. ALWAYS the
+    // current month (RI6): the request cannot name another.
+    const { month: snapshotMonth, year: snapshotYear } = getItalyMonthYear();
 
     const totalNetWorth = calculateTotalValue(assets);
     const liquidNetWorth = calculateLiquidNetWorth(assets);
@@ -189,12 +178,8 @@ export async function POST(request: NextRequest) {
     const fireNetWorth = calculateFIRENetWorth(assets, false);
     const allocation = calculateCurrentAllocation(assets);
 
-    // Convert absolute allocation values to percentages for historical charts.
-    // Why store both absolute and percentage:
-    //   - byAssetClass: absolute values for net worth calculations
-    //   - assetAllocation: percentages for allocation drift charts over time
-    // Kept percentages for backward compatibility (early versions stored only percentages).
-    const assetAllocation = buildAllocationPercentages(allocation.byAssetClass, totalNetWorth);
+    // The percentages (`assetAllocation`) are derived by the builder from `byAssetClass` and the
+    // total (lib/utils/snapshotDocument.ts): kept for the allocation drift charts.
     const byAsset = buildByAssetBreakdown(assets);
 
     // Freeze what the pension funds contributed to `byAssetClass` above.
@@ -210,49 +195,51 @@ export async function POST(request: NextRequest) {
     );
 
     const snapshotId = `${userId}-${snapshotYear}-${snapshotMonth}`;
+    const prices = buildSnapshotPriceRecord(assets, priceUpdateResult);
+    const snapshotRef = adminDb.collection(SNAPSHOTS_COLLECTION).doc(snapshotId);
 
-    // Check if snapshot already exists
-    const existingSnapshotDocumentRef = adminDb
-      .collection(SNAPSHOTS_COLLECTION)
-      .doc(snapshotId);
-    const existingSnapshotDocument = await existingSnapshotDocumentRef.get();
-
-    const monthlySnapshotDocument: Omit<MonthlySnapshot, 'createdAt'> & {
-      createdAt: FirebaseFirestore.Timestamp;
-    } = {
-      userId,
-      year: snapshotYear,
-      month: snapshotMonth,
-      totalNetWorth,
-      liquidNetWorth,
-      illiquidNetWorth,
-      fireNetWorth,
-      byAssetClass: allocation.byAssetClass,
-      byAsset,
-      pension: {
-        totalValue: pensionAllocation.totalValue,
-        byAssetClass: pensionAllocation.byAssetClass,
-      },
-      assetAllocation,
-      createdAt: Timestamp.now(),
-    };
-
-    // Save snapshot
+    // Save snapshot, read-then-write in one transaction (RI5).
     //
     // `.set()` without merge REPLACES the document, which is what the recomputed fields
     // want (a merge would keep the `byAssetClass` key of a class that left the portfolio).
     // The user's note is not recomputed by anything, so it has to ride across the replace:
     // this cron runs DAILY on the CURRENT month, so a bare replace erased the note the
-    // evening it was written (Storico, 2026-09-07). See `snapshotUserFields.ts`.
-    await existingSnapshotDocumentRef.set(
-      preserveUserAuthoredSnapshotFields(
-        monthlySnapshotDocument,
-        existingSnapshotDocument.data()
-      )
-    );
+    // evening it was written (Storico, 2026-09-07). The builder carries it, and `createdAt`
+    // of the month's first write (snapshotDocument.ts, RI1–RI3).
+    const now = new Date();
+    const existed = await adminDb.runTransaction(async (transaction) => {
+      const existingSnapshot = await transaction.get(snapshotRef);
+      const existing = existingSnapshot.data() as Record<string, unknown> | undefined;
+      transaction.set(
+        snapshotRef,
+        buildSnapshotDocument({
+          figures: {
+            userId,
+            year: snapshotYear,
+            month: snapshotMonth,
+            totalNetWorth,
+            liquidNetWorth,
+            illiquidNetWorth,
+            fireNetWorth,
+            byAssetClass: allocation.byAssetClass,
+            byAsset,
+            pension: {
+              totalValue: pensionAllocation.totalValue,
+              byAssetClass: pensionAllocation.byAssetClass,
+            },
+          },
+          writtenBy: cronSecret ? 'cron' : 'button',
+          writtenByUid,
+          now,
+          prices,
+          existing,
+        })
+      );
+      return snapshotHasFigures(existing);
+    });
     await invalidateDashboardOverviewSummaryServer(
       userId,
-      existingSnapshotDocument.exists ? 'snapshot_overwritten' : 'snapshot_created'
+      existed ? 'snapshot_overwritten' : 'snapshot_created'
     );
 
     // Hall of Fame Integration: Client-side trigger pattern
@@ -275,7 +262,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: existingSnapshotDocument.exists
+      message: existed
         ? 'Snapshot aggiornato con successo'
         : 'Snapshot creato con successo',
       snapshotId,
@@ -285,6 +272,7 @@ export async function POST(request: NextRequest) {
         totalNetWorth,
         liquidNetWorth,
         assetsCount: assets.length,
+        prices,
       },
     });
   } catch (error) {
