@@ -6,8 +6,9 @@ A5, M7), label `epic-review-fable`. Sources: the security review of 2026-11-11 (
 for R3 and R5) and the data-model review (`review-modello-dati/parte-1-tipi-e-documenti.md`, M7). Pages:
 <https://claude.ai/artifact/2hwcn9rwBnE2iJyKtqxprx>, <https://claude.ai/artifact/WU1QvVw5iUgYRojErZgJva>.
 
-Nothing in the app yet: this is the spec, written on 2026-11-14 on `main` = `ec6d115`. **One implementation PR.**
-Decisions confirmed by the owner on 2026-11-15 (§ 8): spec ready.
+Spec written on 2026-11-14 on `main` = `ec6d115`; decisions confirmed by the owner on 2026-11-15 (§ 8).
+**Implemented on 2026-11-16** in one PR (branch `claude/project-thread-s2zii2`): what changed against the text of the
+spec, and where each test lives, is § 10. The rules (RI17) are published by hand after the merge (P5).
 
 Sibling specs not on `main` yet, referenced where they overlap:
 
@@ -444,3 +445,31 @@ data block is a small follow-up once `prices` exists.
 versions; a future «delete my account» must delete the sub-collection too. No such feature exists today.
 
 **P5 — Publishing the rules** is the owner's step after the merge; the PR says so in its first lines.
+
+## 10. Implementazione (2026-11-16)
+
+**Where the tests of § 6 live.** SR1–SR5 in `__tests__/snapshotRoute.test.ts` (over `helpers/adminFake.ts`, not the
+mocks of `apiAuthRoutes.test.ts`, so the transaction and the stored Timestamps are real); SR6 in
+`apiAuthRoutes.test.ts`, as written. SM1–SM7 **and RS1–RS3** in `__tests__/manualSnapshotRoute.test.ts` (one fixture
+for both routes). SD1–SD5 plus RI13 and the words of § 5.8 in `__tests__/snapshotDocument.test.ts`; PU1–PU3 in
+`__tests__/priceUpdater.test.ts`; SN1 and DG1 in `__tests__/snapshotClientWriters.test.ts`; AV1 in
+`__tests__/serverValidation.test.ts`; the F08 cutoff on `updatedAt` in `__tests__/returnFlows.test.ts`. SR1, SR4, SM1
+and SM5 were run red on `main`'s routes first (SM1 with the `assetAllocation` the old route required).
+`routeAuthorization.table.ts` gains the restore row and valid bodies for the manual route and the stream.
+
+**Differences from the text, all small:**
+
+- A replacement by hand keeps the month's first `createdAt` (RI3 read literally: the document is the same month);
+  its own write is `updatedAt`. The restore writes back the version's own `createdAt`, as RI10 says.
+- Percentages print in the app's style, without the thousands dot: «+9900%», not «+9.900%» (`formatSignedPercentIt`).
+- Storico's anomaly sentence says «dall'aggiornamento precedente» instead of «in un giorno»: the baseline can be up to
+  seven days old (RI12), and «in un giorno» would claim what the record does not know.
+- Two sentences the table of § 5.8 did not list, because RI14 makes them warnings: the toast for a stale oldest price
+  («Il prezzo più vecchio, quello di XYZ, è del 12 ottobre.») and one sentence for several anomalies («I prezzi di
+  SWDA, ABC sono cambiati di oltre il 30% dall'ultimo: controllali in Patrimonio.»).
+- After a restore the toast reads «Snapshot di ottobre 2026 ripristinato.»; the test-data toast adds «N mesi avevano
+  già uno snapshot e sono rimasti com'erano.» (RI18).
+- `fx` failures do not enter the legacy `failed: string[]` of `/api/prices/update`: the price WAS written; they are in
+  `failures` and make the month `partial`.
+- The memory PATCH schema refuses on `item` every key the panel never sends (`structuredGoal`, `userId`…): the
+  structure is the server's to extract.

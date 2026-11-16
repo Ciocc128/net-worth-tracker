@@ -26,6 +26,13 @@
   readable table with the review's notes is `doc/sicurezza/README.md` § 5.
 - Server-owned materialized docs are mutated only via a private authenticated route; cron routes use `CRON_SECRET`, and
   `/api/portfolio/snapshot` must keep accepting `cronSecret`.
+- **The automatic snapshot route writes the current Italian month and nothing else** (F07, 2026-11-16,
+  `doc/snapshot-integri/README.md` § 5.3): `snapshotRequestSchema` is `{ userId, cronSecret? }` and STRICT — a `year`
+  or `month` is a 400 before any price update, never silently dropped. A closed month has one writer, the manual
+  route (409 on a month with figures unless `replace: true`; the replaced document kept in `versions/`), and one undo,
+  `POST /api/portfolio/snapshot/restore` (kind `owner`). All three read and write in ONE `runTransaction`, and every
+  snapshot goes through `buildSnapshotDocument`, which stamps `writtenBy` from the credential (`cron` with the secret,
+  `button` with a token on the automatic route, `manual` on the manual one) and the token's uid.
 - **Validation**: `lib/server/validation.ts` owns the reusable schemas and `parseOr400` — never cast with `as { … }`
   first, coerce dates with `z.coerce.date()` (behind a string when they come from a request, below), and validate
   **Firestore-originated** inputs at the service entry point too.
@@ -34,6 +41,11 @@
   an epoch instead of 400 — every request date in the file goes through it (yields, dividends, transactions), pinned by
   the «a null date» case of `__tests__/performanceYieldsRoute.test.ts` and the date cases of `serverValidation.test.ts`.
   Tests that touch a `server-only` module need `vi.mock('server-only', () => ({}))`.
+  **A body schema is STRICT** (F07, A5): `.strict()`, so an unknown key is a 400 rather than a field silently read
+  or dropped; the order is token → schema → `assertCanAccessAccount`, so an unauthenticated caller still gets 401 and a
+  row of the route table needs a body that passes the schema (or RA3 reads a 400). The manual snapshot, the restore,
+  `hall-of-fame/recalculate`, `prices/update`, `assets/[assetId]` DELETE (and its path id), the assistant's memory
+  PATCH/DELETE and stream (prompt ≤ 8.000 characters, D-SN11) are the worked examples.
 - **A route's latency is a `Server-Timing` header** (`lib/server/serverTiming.ts`; five routes since 2026-10-05: overview,
   yields, dividend stats, instrument profiles, assistant threads): `startTiming()` at the handler's top, `mark('auth')`
   after `assertCanAccessAccount`, `mark('db')` after ONE round of reads, `mark('compute')` before the response; a service
