@@ -32,6 +32,7 @@ import {
 import {
   AssistantMemoryItem,
   AssistantMonthContextBundle,
+  AssistantPreferences,
   AssistantStreamEvent,
   AssistantStreamRequest,
 } from '@/types/assistant';
@@ -152,7 +153,8 @@ export async function POST(request: NextRequest) {
 
     const parsed = parseOr400(assistantStreamRequestSchema, await request.json());
     if (!parsed.ok) return parsed.response;
-    const body: AssistantStreamRequest = parsed.data;
+    // `preferences` may be partial: it is laid over the defaults below.
+    const body = parsed.data as Omit<AssistantStreamRequest, 'preferences'> & { preferences?: Partial<AssistantPreferences> };
     await assertCanAccessAccount(decodedToken, body.userId);
 
     const rateLimitResult = checkRateLimit(

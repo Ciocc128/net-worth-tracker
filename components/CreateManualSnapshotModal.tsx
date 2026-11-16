@@ -13,13 +13,26 @@
  * Validation: Three-stage pipeline ensures data integrity
  * - Stage 1: Parse inputs to numbers
  * - Stage 2: Validate individual fields
- * - Stage 3: Cross-validate sums (±0.01 floating-point tolerance)
+ * - Stage 3: Cross-validate sums (±0.01 floating-point tolerance) — the SAME check the server runs
+ *   (`describeManualSnapshotIncoherence`, doc/snapshot-integri/README.md RI8)
+ *
+ * Replacement (§ 5.8, D-SN3): when the chosen month already has a snapshot (read from the snapshots
+ * the page holds; the server's 409 guards a stale page), the reading names who wrote it, the
+ * primary button reads «Sostituisci» and sends `replace: true`; the replaced version is kept and a
+ * row «Versione precedente: …» offers «Ripristina». The toast after a replacement has «Annulla».
  */
 'use client';
 
 import { useState } from 'react';
+import type { MonthlySnapshot, SnapshotWriter } from '@/types/assets';
+import {
+  describeExistingSnapshot,
+  describePreviousVersion,
+  formatSnapshotMonth,
+  snapshotHasFigures,
+} from '@/lib/utils/snapshotDocument';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
-import { describeWriteError, type ModalStatus } from '@/lib/utils/dialogNarrative';
+import { describeWriteError, userFacingError, type ModalStatus } from '@/lib/utils/dialogNarrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,7 +41,7 @@ import { toast } from 'sonner';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ASSET_CLASS_LABELS, ASSET_CLASS_SEQUENCE } from '@/lib/utils/allocationUtils';
-import { emptyClassAmounts, parseAmount, sumClassAmounts } from '@/lib/utils/manualSnapshotAmounts';
+import { describeManualSnapshotIncoherence, emptyClassAmounts, parseAmount, sumClassAmounts } from '@/lib/utils/manualSnapshotAmounts';
 import { Plus, Trash2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MONTH_NAMES } from '@/lib/constants/months';
@@ -37,7 +50,17 @@ interface CreateManualSnapshotModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userId: string;
+  /** The snapshots the page already holds: the dialog knows the existing months without a read. */
+  snapshots?: MonthlySnapshot[];
   onSuccess?: () => void;
+}
+
+/** What the dialog knows of a month that already has a snapshot. */
+interface ExistingMonth {
+  writtenBy?: SnapshotWriter;
+  updatedAt?: unknown;
+  createdAt?: unknown;
+  previous?: MonthlySnapshot['previous'];
 }
 
 interface AssetEntry {
@@ -49,21 +72,59 @@ interface AssetEntry {
   totalValue: number;
 }
 
+type ManualSnapshotOutcome =
+  | { kind: 'written'; replaced: boolean }
+  | { kind: 'exists'; existing: ExistingMonth };
+
 /**
- * Throws the server's message when the snapshot was refused. Module-level so the component holds
- * no `throw` inside its try: the React Compiler cannot lower one there.
+ * Posts the month and reads the answer: written, or «it already has one» (409, a stale page).
+ * Any other refusal throws the server's message. Module-level so the component holds no `throw`
+ * inside its try: the React Compiler cannot lower one there.
  */
-async function assertSnapshotCreated(response: Response): Promise<void> {
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Errore durante la creazione dello snapshot');
+async function postManualSnapshot(body: Record<string, unknown>): Promise<ManualSnapshotOutcome> {
+  const response = await authenticatedFetch('/api/portfolio/snapshot/manual', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json().catch(() => null);
+  if (response.status === 409 && payload?.error === 'snapshot_exists') {
+    return { kind: 'exists', existing: payload.existing ?? {} };
   }
+  if (!response.ok) {
+    // A 400 «Invalid request» comes from a tab of the previous build (the request's shape changed).
+    const message = payload?.error === 'Invalid request'
+      ? 'La pagina è di una versione precedente: ricaricala e riprova.'
+      : payload?.error || 'Errore durante la creazione dello snapshot';
+    throw userFacingError(message);
+  }
+  return { kind: 'written', replaced: payload?.replaced === true };
+}
+
+/** POST /api/portfolio/snapshot/restore: the previous version of the month comes back (a swap). */
+async function postSnapshotRestore(userId: string, year: number, month: number): Promise<void> {
+  const response = await authenticatedFetch('/api/portfolio/snapshot/restore', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, year, month }),
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw userFacingError(payload?.error || 'Il ripristino non è riuscito');
+  }
+}
+
+/** The month as the page holds it, when it has figures. */
+function findExistingMonth(snapshots: MonthlySnapshot[], year: number, month: number): ExistingMonth | null {
+  const found = snapshots.find((snapshot) => snapshot.year === year && snapshot.month === month);
+  return found && snapshotHasFigures(found as unknown as Record<string, unknown>) ? found : null;
 }
 
 export function CreateManualSnapshotModal({
   open,
   onOpenChange,
   userId,
+  snapshots = [],
   onSuccess,
 }: CreateManualSnapshotModalProps) {
   const currentDate = new Date();
@@ -81,6 +142,16 @@ export function CreateManualSnapshotModal({
 
   const [isCreating, setIsCreating] = useState(false);
   const [status, setStatus] = useState<ModalStatus>({ phase: 'idle' });
+  // The server's 409 on a month the page did not know about (another tab wrote it): `year-month` → what it said.
+  const [serverExisting, setServerExisting] = useState<{ key: string; existing: ExistingMonth } | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  const yearValue = parseInt(year);
+  const monthValue = parseInt(month);
+  const monthKey = `${yearValue}-${monthValue}`;
+  const existing =
+    findExistingMonth(snapshots, yearValue, monthValue) ?? (serverExisting?.key === monthKey ? serverExisting.existing : null);
+  const previous = findExistingMonth(snapshots, yearValue, monthValue)?.previous ?? null;
 
   const addAsset = () => {
     setAssets([
@@ -115,16 +186,6 @@ export function CreateManualSnapshotModal({
     }
 
     setAssets(updatedAssets);
-  };
-
-  const calculateAssetAllocation = (total: number, byAssetClass: Record<string, number>) => {
-    const allocation: Record<string, number> = {};
-    if (total > 0) {
-      Object.entries(byAssetClass).forEach(([assetClass, value]) => {
-        allocation[assetClass] = (value / total) * 100;
-      });
-    }
-    return allocation;
   };
 
   const handleCreate = async () => {
@@ -169,66 +230,89 @@ export function CreateManualSnapshotModal({
       if (value > 0) byAssetClass[assetClass] = value;
     }
 
-    // Validate asset class sum
-    const assetClassSum = sumClassAmounts(byClass);
-    if (Math.abs(assetClassSum - totalNW) > 0.01) {
-      setStatus({ phase: 'error', message:
-        `Le classi sommano a ${cachedFormatCurrencyEUR(assetClassSum)}, il patrimonio totale è ${cachedFormatCurrencyEUR(totalNW)}: i due devono coincidere.`
-      });
+    // The two sums, the same check (and sentence) as the server's (RI8)
+    const incoherence = describeManualSnapshotIncoherence({
+      totalNetWorth: totalNW,
+      liquidNetWorth: liquidNW,
+      illiquidNetWorth: illiquidNW,
+      byAssetClass,
+    });
+    if (incoherence) {
+      setStatus({ phase: 'error', message: incoherence });
       return;
     }
-
-    // Validate liquidity sum
-    if (Math.abs(liquidNW + illiquidNW - totalNW) > 0.01) {
-      setStatus({ phase: 'error', message:
-        `Liquido e illiquido sommano a ${cachedFormatCurrencyEUR(liquidNW + illiquidNW)}, il patrimonio totale è ${cachedFormatCurrencyEUR(totalNW)}: i due devono coincidere.`
-      });
-      return;
-    }
-
-    // Calculate asset allocation
-    const assetAllocation = calculateAssetAllocation(totalNW, byAssetClass);
 
     setIsCreating(true);
 
+    // Built before the try (React Compiler): `assetAllocation` and `createdAt` are no longer sent —
+    // the server derives the first and stamps the second (RI7).
+    const request = {
+      userId,
+      year: yearNum,
+      month: monthNum,
+      totalNetWorth: totalNW,
+      liquidNetWorth: liquidNW,
+      illiquidNetWorth: illiquidNW,
+      byAssetClass,
+      byAsset: assets,
+      ...(existing ? { replace: true } : {}),
+    };
+    const monthLabel = formatSnapshotMonth(yearNum, monthNum);
+
     try {
-      // Create snapshot document
-      const snapshot = {
-        userId,
-        year: yearNum,
-        month: monthNum,
-        totalNetWorth: totalNW,
-        liquidNetWorth: liquidNW,
-        illiquidNetWorth: illiquidNW,
-        byAssetClass,
-        byAsset: assets,
-        assetAllocation,
-        createdAt: new Date(),
-      };
-
-      // Save to Firestore
-      const response = await authenticatedFetch('/api/portfolio/snapshot/manual', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(snapshot),
-      });
-
-      await assertSnapshotCreated(response);
-
-      toast.success('Snapshot creato');
-      onOpenChange(false);
-      if (onSuccess) onSuccess();
-
-      // Reset form
-      resetForm();
+      const outcome = await postManualSnapshot(request);
+      handleOutcome(outcome, yearNum, monthNum, monthLabel);
     } catch (error) {
       console.error('Error creating manual snapshot:', error);
       setStatus({ phase: 'error', message: describeWriteError(error) });
     }
     // After the try/catch, not in a `finally`: the React Compiler cannot lower try/finally.
     setIsCreating(false);
+  };
+
+  const restore = async (restoreYear: number, restoreMonth: number) => {
+    const monthLabel = formatSnapshotMonth(restoreYear, restoreMonth);
+    await postSnapshotRestore(userId, restoreYear, restoreMonth);
+    toast.success(`Snapshot di ${monthLabel} ripristinato.`);
+    if (onSuccess) onSuccess();
+  };
+
+  /** The answer of the server: a stale page shows the replacement step; a write closes the dialog. */
+  const handleOutcome = (outcome: ManualSnapshotOutcome, outcomeYear: number, outcomeMonth: number, monthLabel: string) => {
+    if (outcome.kind === 'exists') {
+      setServerExisting({ key: `${outcomeYear}-${outcomeMonth}`, existing: outcome.existing });
+      setStatus({ phase: 'idle' });
+      return;
+    }
+    if (outcome.replaced) {
+      toast.success(`Snapshot di ${monthLabel} sostituito.`, {
+        duration: 10000,
+        action: {
+          label: 'Annulla',
+          onClick: () => {
+            restore(outcomeYear, outcomeMonth).catch((error) => toast.error(describeWriteError(error)));
+          },
+        },
+      });
+    } else {
+      toast.success('Snapshot creato');
+    }
+    onOpenChange(false);
+    if (onSuccess) onSuccess();
+    resetForm();
+  };
+
+  const handleRestore = async () => {
+    setIsRestoring(true);
+    try {
+      await restore(yearValue, monthValue);
+      onOpenChange(false);
+      resetForm();
+    } catch (error) {
+      console.error('Error restoring snapshot:', error);
+      setStatus({ phase: 'error', message: describeWriteError(error) });
+    }
+    setIsRestoring(false);
   };
 
   const resetForm = () => {
@@ -240,6 +324,8 @@ export function CreateManualSnapshotModal({
     setIlliquidNetWorth('');
     setByClass(emptyClassAmounts());
     setAssets([]);
+    setServerExisting(null);
+    setStatus({ phase: 'idle' });
   };
 
   return (
@@ -251,7 +337,9 @@ export function CreateManualSnapshotModal({
       reading={
         status.phase === 'error'
           ? { narrative: [{ text: status.message ?? '' }], tone: 'negative' }
-          : 'Uno snapshot manuale entra nello Storico come tutti gli altri: le classi devono sommare al patrimonio totale, o il mese risulterebbe incoerente ovunque.'
+          : existing && Number.isFinite(yearValue) && monthValue >= 1 && monthValue <= 12
+            ? describeExistingSnapshot(yearValue, monthValue, existing)
+            : 'Uno snapshot manuale entra nello Storico come tutti gli altri: le classi devono sommare al patrimonio totale, o il mese risulterebbe incoerente ovunque.'
       }
       width="lg"
       footer={
@@ -259,8 +347,8 @@ export function CreateManualSnapshotModal({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isCreating}>
             Annulla
           </Button>
-          <Button onClick={handleCreate} disabled={isCreating}>
-            {isCreating ? 'Creazione...' : 'Crea snapshot'}
+          <Button onClick={handleCreate} disabled={isCreating || isRestoring}>
+            {isCreating ? (existing ? 'Sostituzione...' : 'Creazione...') : existing ? 'Sostituisci' : 'Crea snapshot'}
           </Button>
         </>
       }
@@ -304,6 +392,15 @@ export function CreateManualSnapshotModal({
                 </Select>
               </div>
             </div>
+
+            {previous && (
+              <div className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+                <p className="text-sm text-muted-foreground">{describePreviousVersion(previous, yearValue)}</p>
+                <Button type="button" variant="outline" size="sm" onClick={handleRestore} disabled={isRestoring || isCreating}>
+                  {isRestoring ? 'Ripristino...' : 'Ripristina'}
+                </Button>
+              </div>
+            )}
 
             <div className="grid gap-2">
               <Label htmlFor="total-net-worth">Patrimonio totale (€) *</Label>
