@@ -24,6 +24,7 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { allowUser } from './lib/allowUser';
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
   console.error('Refusing to seed: FIRESTORE_EMULATOR_HOST is not set. Run this via `npm run e2e:seed:hof`.');
@@ -120,6 +121,8 @@ async function seedAuthUser(): Promise<void> {
       throw error;
     }
   }
+  // F04 (S2 RU6): without allowed-users/{uid} the rules and the API refuse the account.
+  await allowUser(db, HOF_UID, HOF_EMAIL, 'seed');
 }
 
 async function clearPreviousRun(): Promise<void> {

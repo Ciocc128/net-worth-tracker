@@ -42,6 +42,7 @@ if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR !== 'true') {
 const { initializeApp: initAdminApp } = await import('firebase-admin/app');
 const { getFirestore: getAdminFirestore } = await import('firebase-admin/firestore');
 const { getAuth: getAdminAuth } = await import('firebase-admin/auth');
+const { allowUser } = await import('./lib/allowUser');
 const { signInWithEmailAndPassword } = await import('firebase/auth');
 const { auth } = await import('@/lib/firebase/config');
 
@@ -107,6 +108,8 @@ async function seedAuthUser(): Promise<void> {
       throw error;
     }
   }
+  // F04 (S2 RU6): without allowed-users/{uid} the rules and the API refuse the account.
+  await allowUser(adminDb, TEST_UID, TEST_EMAIL, 'seed');
 }
 
 async function seedAssets(): Promise<void> {

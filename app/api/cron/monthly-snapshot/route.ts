@@ -21,6 +21,7 @@ import { isWeeklyBudgetDayItaly, buildAndSendWeeklyBudget } from '@/lib/server/w
 import { evaluateActiveGoals } from '@/lib/server/assistant/goalEvaluationService';
 import { captureBudgetHistory } from '@/lib/server/budgetHistoryService';
 import { verifyCronSecret } from '@/lib/server/apiAuth';
+import { ALLOWED_USERS_COLLECTION } from '@/types/account';
 import { createVaultClient, readVaultConfig } from '@/lib/server/wiki/githubVault';
 import { retryPendingTheBull } from '@/lib/server/wiki/thebullCompiler';
 import { exportToVault } from '@/lib/server/wiki/vaultExport';
@@ -80,8 +81,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get all users
-    const usersRef = adminDb.collection('users');
+    // Every ADMITTED user (doc/sicurezza/S2-utenti-ammessi.md RU5): `users/{uid}` is a profile a
+    // client writes; it no longer decides who is processed.
+    const usersRef = adminDb.collection(ALLOWED_USERS_COLLECTION);
     const usersSnapshot = await usersRef.get();
 
     if (usersSnapshot.empty) {

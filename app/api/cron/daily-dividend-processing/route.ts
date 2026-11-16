@@ -8,6 +8,7 @@ import {
   runNextCouponScheduling,
 } from '@/lib/server/dividendProcessor';
 import { verifyCronSecret } from '@/lib/server/apiAuth';
+import { ALLOWED_USERS_COLLECTION } from '@/types/account';
 import { getItalyDayBoundsUtc } from '@/lib/utils/dateHelpers';
 
 /**
@@ -34,7 +35,8 @@ export async function GET(request: NextRequest) {
 
     console.log('Starting daily dividend processing cron job...');
 
-    const usersSnapshot = await adminDb.collection('users').get();
+    // Every ADMITTED user (doc/sicurezza/S2-utenti-ammessi.md RU5); the three phases read only the id.
+    const usersSnapshot = await adminDb.collection(ALLOWED_USERS_COLLECTION).get();
 
     if (usersSnapshot.empty) {
       return NextResponse.json({

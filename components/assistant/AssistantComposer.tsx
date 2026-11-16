@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { Square, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { ASSISTANT_PROMPT_MAX_LENGTH } from '@/lib/constants/assistantPrompts';
 
 interface AssistantComposerProps {
   draft: string;
@@ -68,6 +69,7 @@ export function AssistantComposer({
           aria-label="Scrivi un messaggio all'assistente"
           disabled={isStreaming}
           rows={1}
+          maxLength={ASSISTANT_PROMPT_MAX_LENGTH}
           className={cn(
             'flex-1 resize-none rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-foreground',
             'placeholder:text-muted-foreground',

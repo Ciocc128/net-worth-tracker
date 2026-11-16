@@ -30,6 +30,7 @@
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { allowUser } from './lib/allowUser';
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
   console.error(
@@ -218,6 +219,8 @@ async function seedAuthUser(uid: string, email: string): Promise<void> {
     await auth.updateUser(uid, { email, password: TEST_PASSWORD });
   }
   console.info(`  ✓ Auth user ${email}`);
+  // F04 (S2 RU6): without allowed-users/{uid} the rules and the API refuse the account.
+  await allowUser(db, uid, email, 'seed');
 }
 
 /**

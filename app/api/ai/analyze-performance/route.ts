@@ -3,7 +3,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { formatTimePeriodLabel } from '@/lib/utils/formatters';
-import { PerformanceMetrics, TimePeriod } from '@/types/performance';
+import type { TimePeriod } from '@/types/performance';
+import { parseOr400, performanceAnalysisRequestSchema, type PerformanceAnalysisRequest } from '@/lib/server/validation';
 import {
   assertCanAccessAccount,
   getApiAuthErrorResponse,
@@ -256,8 +257,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const requestBody = await request.json();
-    const { userId, metrics: performanceMetrics, timePeriod } = requestBody;
+    // RU10 (A3): only the 22 fields the prompt reads, typed — before the rate limit, so a malformed
+    // body neither reaches Anthropic nor spends the caller's quota.
+    const parsed = parseOr400(performanceAnalysisRequestSchema, await request.json());
+    if (!parsed.ok) return parsed.response;
+    const { userId, metrics: performanceMetrics, timePeriod } = parsed.data;
 
     await assertCanAccessAccount(decodedToken, userId);
 
@@ -273,18 +277,6 @@ export async function POST(request: NextRequest) {
           status: 429,
           headers: { 'Retry-After': String(rateLimitResult.retryAfterSeconds) },
         }
-      );
-    }
-
-    if (!userId || !performanceMetrics || !timePeriod) {
-      console.error('[API /ai/analyze-performance] Missing parameters:', {
-        userId: !!userId,
-        metrics: !!performanceMetrics,
-        timePeriod: !!timePeriod,
-      });
-      return NextResponse.json(
-        { error: 'Missing required parameters: userId, metrics, timePeriod' },
-        { status: 400 }
       );
     }
 
@@ -350,16 +342,16 @@ export async function POST(request: NextRequest) {
  * - Markdown formatting requested (bold, bullet points) for better readability
  * - Includes translated period label + date range for better context
  *
- * @param metrics - PerformanceMetrics object with all calculated metrics
+ * @param metrics - the 22 validated fields of PerformanceMetrics (RU10)
  * @param timePeriod - TimePeriod string (YTD, 1Y, 3Y, 5Y, ALL, CUSTOM)
  * @returns Formatted Italian prompt string
  */
 function buildAnalysisPrompt(
-  performanceMetrics: PerformanceMetrics,
-  timePeriod: string,
+  performanceMetrics: PerformanceAnalysisRequest['metrics'],
+  timePeriod: TimePeriod,
 ): string {
   // Format period label in Italian with date range for context
-  const periodLabel = formatTimePeriodLabel(timePeriod as TimePeriod, performanceMetrics);
+  const periodLabel = formatTimePeriodLabel(timePeriod, performanceMetrics);
   const dateRange = `(${format(performanceMetrics.startDate, 'dd/MM/yyyy', { locale: it })} - ${format(performanceMetrics.endDate, 'dd/MM/yyyy', { locale: it })})`;
 
   // Include current date to help Claude contextualize the analysis period

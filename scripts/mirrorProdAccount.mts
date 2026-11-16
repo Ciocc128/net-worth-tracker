@@ -19,6 +19,7 @@
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { allowUser, disallowUser } from './lib/allowUser';
 
 /** Overridable (`MIRROR_UID=… npm run mirror:remove`) to clear a mirror seeded under another id. */
 export const MIRROR_UID = process.env.MIRROR_UID || 'prod-mirror';
@@ -113,6 +114,8 @@ async function childSeed() {
   } catch {
     await auth.createUser({ uid: MIRROR_UID, email: MIRROR_EMAIL, password: MIRROR_PASSWORD, displayName: 'Mirror' });
   }
+  // F04 (S2 RU6): without allowed-users/{uid} the rules and the API refuse the account.
+  await allowUser(db, MIRROR_UID, MIRROR_EMAIL, 'seed');
 
   let batch = db.batch();
   let pending = 0;
@@ -172,6 +175,7 @@ async function removeRows(db: FirebaseFirestore.Firestore) {
     if (snap.size > 0) console.info(`removed ${c}: ${snap.size}`);
   }
   for (const c of PER_USER_DOCS) await db.collection(c).doc(MIRROR_UID).delete();
+  await disallowUser(db, MIRROR_UID);
 }
 
 try {

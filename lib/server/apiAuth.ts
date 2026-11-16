@@ -2,27 +2,46 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHash, timingSafeEqual } from 'crypto';
 import { DecodedIdToken } from 'firebase-admin/auth';
 import { adminAuth, adminDb } from '@/lib/firebase/admin';
-import { ACCOUNT_ACCESS_COLLECTION } from '@/types/account';
+import { ACCOUNT_ACCESS_COLLECTION, ALLOWED_USERS_COLLECTION } from '@/types/account';
 
 class ApiAuthError extends Error {
   status: number;
+  /** A stable code the client maps to its own sentence (`lib/utils/authNarrative.ts`). */
+  code?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = 'ApiAuthError';
     this.status = status;
+    this.code = code;
   }
 }
 
+/** The 403 of a valid token whose user the server never admitted (S2 RU4). */
+export const ACCOUNT_NOT_ALLOWED_CODE = 'account/not-allowed';
+
 /**
- * Verify the Firebase ID token attached to a private API request.
- *
- * Why this exists:
- * - App Router route handlers use the Admin SDK, which bypasses Firestore rules
- * - Any route that trusts client-provided userId/resource IDs must authenticate first
- * - Centralizing this avoids slightly different auth checks across handlers
+ * How long a POSITIVE answer of `allowed-users/{uid}` is remembered in this function instance
+ * (D-SI13). A negative one never is: an activation takes effect at the next request, a removal
+ * within this window.
  */
-export async function requireFirebaseAuth(
+export const ALLOWED_USER_MEMORY_MS = 60_000;
+
+// uid → the instant (ms) the admission was read. One Map per instance, like `rateLimit.ts`.
+const admittedAt = new Map<string, number>();
+
+/** Tests only: forget every remembered admission. */
+export function resetAllowedUserMemory(): void {
+  admittedAt.clear();
+}
+
+/**
+ * Verify the Firebase ID token WITHOUT asking for the list of admitted users.
+ *
+ * Only `POST /api/auth/activate` calls it directly: it is the one private route that must accept
+ * a user who is not admitted yet (S2 RU2). Every other route goes through `requireFirebaseAuth`.
+ */
+export async function verifyFirebaseToken(
   request: NextRequest
 ): Promise<DecodedIdToken> {
   const authorization = request.headers.get('authorization');
@@ -43,6 +62,43 @@ export async function requireFirebaseAuth(
     console.error('[apiAuth] Failed to verify Firebase ID token:', error);
     throw new ApiAuthError(401, 'Invalid or expired Firebase ID token');
   }
+}
+
+/**
+ * Enforce that the server admitted `uid` (`allowed-users/{uid}` exists, S2 RU4).
+ *
+ * @throws ApiAuthError(403, code `account/not-allowed`) when the document is missing
+ */
+export async function assertAllowedUser(uid: string): Promise<void> {
+  const remembered = admittedAt.get(uid);
+  if (remembered !== undefined && Date.now() - remembered < ALLOWED_USER_MEMORY_MS) {
+    return;
+  }
+
+  const snap = await adminDb.collection(ALLOWED_USERS_COLLECTION).doc(uid).get();
+  if (!snap.exists) {
+    admittedAt.delete(uid);
+    throw new ApiAuthError(403, 'Account non abilitato', ACCOUNT_NOT_ALLOWED_CODE);
+  }
+  admittedAt.set(uid, Date.now());
+}
+
+/**
+ * Verify the Firebase ID token attached to a private API request AND that the server admitted
+ * its user (doc/sicurezza/S2-utenti-ammessi.md RU4).
+ *
+ * Why this exists:
+ * - App Router route handlers use the Admin SDK, which bypasses Firestore rules
+ * - Any route that trusts client-provided userId/resource IDs must authenticate first
+ * - Centralizing this avoids slightly different auth checks across handlers
+ * - Being a Firebase Auth user is not enough: only an `allowed-users/{uid}` document is
+ */
+export async function requireFirebaseAuth(
+  request: NextRequest
+): Promise<DecodedIdToken> {
+  const decodedToken = await verifyFirebaseToken(request);
+  await assertAllowedUser(decodedToken.uid);
+  return decodedToken;
 }
 
 /**
@@ -114,7 +170,10 @@ export function verifyCronSecret(provided: string | null | undefined): boolean {
 
 export function getApiAuthErrorResponse(error: unknown): NextResponse | null {
   if (error instanceof ApiAuthError) {
-    return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      error.code ? { error: error.message, code: error.code } : { error: error.message },
+      { status: error.status }
+    );
   }
 
   return null;

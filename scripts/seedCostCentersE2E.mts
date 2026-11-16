@@ -39,6 +39,7 @@
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { allowUser } from './lib/allowUser';
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
   console.error(
@@ -109,6 +110,8 @@ async function seedAccount(): Promise<void> {
     await auth.createUser({ uid: UID, email: EMAIL, password: PASSWORD, emailVerified: true });
   }
   console.info(`  ✓ account ${EMAIL}`);
+  // F04 (S2 RU6): without allowed-users/{uid} the rules and the API refuse the account.
+  await allowUser(db, UID, EMAIL, 'seed');
 }
 
 async function removeLeftovers(): Promise<void> {
