@@ -33,6 +33,7 @@ vi.mock('@/lib/firebase/admin', () => ({
   adminAuth: { verifyIdToken: verifyIdTokenMock },
   adminDb: {
     collection: (name: string) => {
+      if (name === 'allowed-users') return { doc: () => ({ get: async () => ({ exists: true, data: () => ({}) }) }) } as never; // F04: every persona admitted
       const filters: [string, unknown][] = [];
       const snapshotOf = (id: string) => {
         const data = collections[name].get(id);

@@ -84,6 +84,7 @@ vi.mock('@/lib/firebase/admin', () => {
     adminAuth: { verifyIdToken: verifyIdTokenMock },
     adminDb: {
       collection: vi.fn((name: string) => {
+        if (name === 'allowed-users') return { doc: vi.fn(() => ({ get: vi.fn(async () => ({ exists: true, data: () => ({}) })) })) }; // F04: every persona admitted
         if (name === 'account-access') return { doc: vi.fn(() => ({ get: accountAccessGetMock })) };
         return query(name);
       }),

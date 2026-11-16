@@ -69,6 +69,7 @@ vi.mock('@/lib/firebase/admin', () => ({
     // whose get/set proxy the same doc mocks the rest of the file already asserts on.
     runTransaction: runTransactionMock,
     collection: vi.fn((name: string) => {
+      if (name === 'allowed-users') return { doc: vi.fn(() => ({ get: vi.fn(async () => ({ exists: true, data: () => ({}) })) })) }; // F04: every persona admitted
       const createQueryChain = (finalGetMock: ReturnType<typeof vi.fn>) => {
         const chain = {
           where: vi.fn(() => chain),

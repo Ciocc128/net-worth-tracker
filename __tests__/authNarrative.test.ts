@@ -285,3 +285,11 @@ describe('describeUnmetRequirements', () => {
     );
   });
 });
+
+describe('AN1 — the sentence of a user the server never admitted (S2 RU7)', () => {
+  it('says the account is not enabled and who can enable it', () => {
+    expect(describeAuthError({ code: 'account/not-allowed' })).toBe(
+      'Questo account non è abilitato a usare l’app. Chiedi a chi la gestisce di abilitarlo.',
+    );
+  });
+});

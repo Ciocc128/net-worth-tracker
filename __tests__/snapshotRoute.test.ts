@@ -52,6 +52,7 @@ afterAll(() => {
 
 beforeEach(() => {
   fake.reset();
+  fake.allow('owner-1', 'member-1', 'stranger');
   updateUserAssetPricesMock.mockReset();
   updateUserAssetPricesMock.mockResolvedValue({ updated: 1, failed: [], message: 'ok', failures: [], anomalies: [] });
   fake.set('assets/asset-feni', {

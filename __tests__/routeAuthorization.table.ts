@@ -11,7 +11,9 @@
  * - `owner`: the account comes from the request and passes `assertCanAccessAccount`.
  * - `resource`: the account is the `userId` of a stored document, then `assertCanAccessAccount`.
  * - `viewer`: only the token's uid; no account in the request.
- * - `token`: any valid token, no account data.
+ * - `token`: any valid token of an ADMITTED user (F04, `allowed-users/{uid}`), no account data;
+ *   `owner`, `resource` and `viewer` imply admitted too (RA6).
+ * - `activation`: a valid token, the list NOT asked — only `auth/activate`, the door into it.
  * - `secret`: a shared secret, compared in constant time.
  * - `public`: no credential.
  *
@@ -20,7 +22,7 @@
  * cannot be called hermetically is exempted HERE with its reason (`exempt`), never silently.
  */
 
-export type RouteKind = 'owner' | 'resource' | 'viewer' | 'token' | 'secret' | 'public';
+export type RouteKind = 'owner' | 'resource' | 'viewer' | 'token' | 'activation' | 'secret' | 'public';
 export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export interface RouteRequest {
@@ -50,18 +52,26 @@ export interface RouteRow {
 const body = (fields: Record<string, unknown>) => (account: string): RouteRequest => ({ body: { userId: account, ...fields } });
 const query = (fields: Record<string, string> = {}) => (account: string): RouteRequest => ({ query: { userId: account, ...fields } });
 
+/** The 22 fields `analyze-performance` reads (RU10): a body its schema accepts, so the row reaches the account check. */
+const analysisMetrics = {
+  roi: 5, cagr: 5, timeWeightedReturn: 5, moneyWeightedReturn: 5, volatility: 10, sharpeRatio: 1, maxDrawdown: -10,
+  drawdownDuration: 3, recoveryTime: 2, yocGross: null, yocNet: null, currentYield: null, currentYieldNet: null,
+  startNetWorth: 2500, endNetWorth: 2600, netCashFlow: 50, numberOfMonths: 3, measuredFlowMonths: 0,
+  startDate: '2026-01-31T12:00:00.000Z', endDate: '2026-03-31T12:00:00.000Z', maxDrawdownDate: '02/26', flowSource: 'cashflow',
+};
+
 export const ROUTE_TABLE: RouteRow[] = [
   // Sharing management: always the caller's own account.
   { route: 'account/members', method: 'GET', kind: 'viewer', request: () => ({}) },
-  { route: 'account/members', method: 'POST', kind: 'viewer', request: () => ({ body: { email: 'fenicottero@example.com' } }), note: 'A2, F04' },
+  { route: 'account/members', method: 'POST', kind: 'viewer', request: () => ({ body: { email: 'fenicottero@example.com' } }), note: 'A2, F04 S2b' },
   { route: 'account/members', method: 'DELETE', kind: 'viewer', request: () => ({ query: { memberUid: 'member-x' } }) },
 
-  { route: 'ai/analyze-performance', method: 'POST', kind: 'owner', request: body({ metrics: {}, timePeriod: 'YTD' }), note: 'A3, F04' },
+  { route: 'ai/analyze-performance', method: 'POST', kind: 'owner', request: body({ metrics: analysisMetrics, timePeriod: 'YTD' }), note: 'RU10: schema on `metrics`, then the account' },
   { route: 'ai/assistant/context', method: 'GET', kind: 'owner', request: query({ mode: 'month_analysis', year: '2026', month: '3' }) },
   { route: 'ai/assistant/memory', method: 'GET', kind: 'owner', request: query() },
   { route: 'ai/assistant/memory', method: 'PATCH', kind: 'owner', request: body({ action: 'acceptSuggestion', suggestionId: 's-1', itemId: 'i-1' }) },
   { route: 'ai/assistant/memory', method: 'DELETE', kind: 'owner', request: body({ itemId: 'i-1' }) },
-  { route: 'ai/assistant/stream', method: 'POST', kind: 'owner', request: body({ mode: 'month_analysis', prompt: 'Ornitorinco', month: { year: 2026, month: 3 } }), note: 'A3, F04; strict schema A5, F07' },
+  { route: 'ai/assistant/stream', method: 'POST', kind: 'owner', request: body({ mode: 'month_analysis', prompt: 'Ornitorinco', month: { year: 2026, month: 3 } }), note: 'strict schema A5, F07; prompt ≤ 8000, RU11' },
   { route: 'ai/assistant/threads', method: 'GET', kind: 'owner', request: query() },
   { route: 'ai/assistant/threads/[threadId]', method: 'GET', kind: 'owner', request: (account) => ({ query: { userId: account }, params: { threadId: 'thread-1' } }) },
   { route: 'ai/assistant/threads/[threadId]', method: 'DELETE', kind: 'owner', request: (account) => ({ query: { userId: account }, params: { threadId: 'thread-1' } }) },
@@ -74,11 +84,12 @@ export const ROUTE_TABLE: RouteRow[] = [
   { route: 'asset-transactions/backfill-average-cost-eur', method: 'POST', kind: 'owner', request: body({}) },
   { route: 'assets/[assetId]', method: 'DELETE', kind: 'owner', request: (account) => ({ body: { userId: account }, params: { assetId: `asset-${account}` } }), note: 'RS6b' },
 
+  { route: 'auth/activate', method: 'POST', kind: 'activation', request: () => ({}), note: 'RU2: the token’s email, never a body' },
   { route: 'auth/check-registration', method: 'POST', kind: 'public', request: () => ({ body: { email: 'fenicottero@example.com' } }), note: 'A7' },
 
-  { route: 'benchmarks/ecb-rates', method: 'GET', kind: 'token', request: () => ({}), note: 'A3, F04' },
-  { route: 'benchmarks/fx-rates', method: 'GET', kind: 'token', request: () => ({}), note: 'A3, F04' },
-  { route: 'benchmarks/returns', method: 'GET', kind: 'token', request: () => ({ query: { benchmarkId: 'msci-world' } }), note: 'A3, F04' },
+  { route: 'benchmarks/ecb-rates', method: 'GET', kind: 'token', request: () => ({}) },
+  { route: 'benchmarks/fx-rates', method: 'GET', kind: 'token', request: () => ({}) },
+  { route: 'benchmarks/returns', method: 'GET', kind: 'token', request: () => ({ query: { benchmarkId: 'msci-world' } }) },
 
   { route: 'cron/daily-dividend-processing', method: 'GET', kind: 'secret', secret: { env: 'CRON_SECRET', in: 'header' }, request: () => ({}) },
   { route: 'cron/monthly-snapshot', method: 'GET', kind: 'secret', secret: { env: 'CRON_SECRET', in: 'header' }, request: () => ({}) },
@@ -119,10 +130,10 @@ export const ROUTE_TABLE: RouteRow[] = [
   },
   { route: 'portfolio/snapshot/restore', method: 'POST', kind: 'owner', request: body({ year: 2026, month: 3 }), note: 'F07 RI10: the undo of a replacement' },
 
-  { route: 'prices/quote', method: 'GET', kind: 'token', request: () => ({ query: { ticker: 'VWCE.DE' } }), note: 'A3, F04' },
-  { route: 'prices/bond-quote', method: 'GET', kind: 'token', request: () => ({ query: { isin: 'IT0005083057' } }), note: 'A3, F04' },
+  { route: 'prices/quote', method: 'GET', kind: 'token', request: () => ({ query: { ticker: 'VWCE.DE' } }) },
+  { route: 'prices/bond-quote', method: 'GET', kind: 'token', request: () => ({ query: { isin: 'IT0005083057' } }) },
   { route: 'prices/update', method: 'POST', kind: 'owner', request: body({}) },
 
-  { route: 'user/monthly-email/send', method: 'POST', kind: 'viewer', request: () => ({ body: { periodType: 'monthly' } }), note: 'A3, F04' },
+  { route: 'user/monthly-email/send', method: 'POST', kind: 'viewer', request: () => ({ body: { periodType: 'monthly' } }), note: 'on the helper, 5 sends an hour, RU9' },
   { route: 'wiki/ingest', method: 'POST', kind: 'secret', secret: { env: 'WIKI_INGEST_SECRET', in: 'header' }, request: () => ({ body: {} }) },
 ];

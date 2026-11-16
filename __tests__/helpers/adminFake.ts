@@ -226,6 +226,13 @@ export const fake = {
   },
   get: (path: string) => docs.get(path),
   set: (path: string, data: Data) => void docs.set(path, data),
+  /**
+   * Admit `uids` (doc/sicurezza/S2-utenti-ammessi.md RU1): since F04 `requireFirebaseAuth` refuses
+   * a valid token whose `allowed-users/{uid}` is missing, so a route test admits its personas.
+   */
+  allow: (...uids: string[]) => {
+    for (const uid of uids) docs.set(`allowed-users/${uid}`, { uid, email: `${uid}@example.com`, source: 'seed' });
+  },
 };
 
 /** A request header for `uid`'s token. */

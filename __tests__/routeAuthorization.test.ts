@@ -22,6 +22,7 @@ vi.mock('@/lib/firebase/config', () => ({ auth: { currentUser: null }, db: {} })
 vi.mock('@/lib/firebase/admin', async () => (await import('./helpers/adminFake')).adminModule);
 
 import { fake, bearer } from './helpers/adminFake';
+import { resetAllowedUserMemory } from '@/lib/server/apiAuth';
 import { ROUTE_TABLE, type RouteRow } from './routeAuthorization.table';
 
 const API_DIR = path.resolve(__dirname, '..', 'app', 'api');
@@ -66,6 +67,8 @@ function seedAccounts() {
     fake.set(`expenseCategories/cat-${account}`, { userId: account, name: 'Fenicottero', type: 'income', subCategories: [] });
   }
   fake.set('account-access/owner-1', { memberUids: ['member-1'] });
+  // F04 (S2 RU1): the three personas are admitted; `outsider` has a valid token and no document.
+  fake.allow('owner-1', 'stranger', 'member-1');
 }
 
 type Credential = { uid: string } | { secret: string } | null;
@@ -117,6 +120,7 @@ afterAll(() => {
 
 beforeEach(() => {
   fake.reset();
+  resetAllowedUserMemory();
   seedAccounts();
   fake.clearLog();
 });
@@ -133,7 +137,8 @@ describe('RA1 — the table and the files agree', () => {
 
 const protectedRows = ROUTE_TABLE.filter((row) => row.kind !== 'public');
 const accountRows = ROUTE_TABLE.filter((row) => row.kind === 'owner' || row.kind === 'resource');
-const ownTokenRows = ROUTE_TABLE.filter((row) => ['owner', 'resource', 'viewer', 'token'].includes(row.kind));
+const admittedRows = ROUTE_TABLE.filter((row) => ['owner', 'resource', 'viewer', 'token'].includes(row.kind));
+const ownTokenRows = ROUTE_TABLE.filter((row) => ['owner', 'resource', 'viewer', 'token', 'activation'].includes(row.kind));
 const viewerRows = ROUTE_TABLE.filter((row) => row.kind === 'viewer');
 const secretRows = ROUTE_TABLE.filter((row) => row.kind === 'secret');
 
@@ -179,4 +184,18 @@ describe('RA5 — a viewer route never touches the account named in the request'
     await call(row, 'stranger', { uid: 'stranger' }, { userId: 'owner-1' });
     expect([...fake.reads, ...fake.writes].filter((docPath) => docPath.includes('owner-1'))).toEqual([]);
   }, 20_000);
+});
+
+describe('RA6 — a valid token of a user the server never admitted is refused everywhere (F04, S2 RU4)', () => {
+  it.each(admittedRows.map((row) => [keyOf(row), row] as const))('%s', async (_key, row) => {
+    // The outsider aims at its OWN account: the refusal must come from the list, not the account check.
+    const status = await call(row, 'outsider', { uid: 'outsider' });
+    expect(status).toBe(403);
+    expect(fake.writes).toEqual([]);
+    expect(fake.reads).toEqual(['allowed-users/outsider']);
+  });
+
+  it('the activation row is exempt by kind: it is the door into the list', () => {
+    expect(ROUTE_TABLE.filter((row) => row.kind === 'activation').map(keyOf)).toEqual(['auth/activate POST']);
+  });
 });
