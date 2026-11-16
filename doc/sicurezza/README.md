@@ -8,7 +8,7 @@ C3). This dossier collects the corrections of that review, one stage per Todoist
 | Stage | Card | What | State |
 | --- | --- | --- | --- |
 | **S1 «chi può agire per chi»** | F02 (A1 + A4 + the authorization table) | this file, §§ 1–9 | implemented 2026-11-15 (§ 10) |
-| S2 | F04 (allowed users: R1, A3, A2) | to be written by its own thread | — |
+| **S2 «utenti ammessi lato server»** | F04 (allowed users: R1, A3, A2) | [`S2-utenti-ammessi.md`](S2-utenti-ammessi.md) | S2a (list, rules, crons, A3) implemented 2026-11-16; S2b (the invitation, A2) next |
 | S3 | F11 (rules suite, R2–R4, S1) | to be written by its own thread | — |
 
 Read at `main` = `ec6d115`: 38 `route.ts` files under `app/api/`, 46 handlers.
@@ -118,7 +118,7 @@ of a document the server has just read. Every `route.ts` × method is a row of
 **Kinds.** `owner`: the account comes from the request and passes `assertCanAccessAccount` (the owner or a member of
 `account-access/{owner}.memberUids`, `lib/server/apiAuth.ts:64-95`). `resource`: the account is the `userId` of a
 stored document, then `assertCanAccessAccount`. `viewer`: only the token's uid, no account in the request. `token`:
-any valid token, no account data. `secret`: a shared secret compared in constant time. `public`: no credential.
+any valid token of an ADMITTED user, no account data (S2: `owner`, `resource`, `viewer` imply admitted too). `activation`: a valid token, the list not asked — only `auth/activate`. `secret`: a shared secret compared in constant time. `public`: no credential.
 
 «Ids» = every identifier the client supplies besides the account, and where its owner is checked — the column that
 would have shown A1. «Test» = a Vitest file imports the route today.
@@ -128,12 +128,12 @@ would have shown A1. «Test» = a Vitest file imports the route today.
 | `account/members` | GET | viewer | token uid | — | yes | |
 | `account/members` | POST | viewer | token uid | `email` → none: returns that user's uid | yes | **A2**, F04 |
 | `account/members` | DELETE | viewer | token uid | `memberUid` → removed from the caller's own doc only | yes | |
-| `ai/analyze-performance` | POST | owner | body `userId` | `metrics`, `timePeriod` unvalidated (no id) | yes | A3, F04 |
+| `ai/analyze-performance` | POST | owner | body `userId` | `metrics`, `timePeriod` → `performanceAnalysisRequestSchema` (22 fields, S2 RU10) | yes | |
 | `ai/assistant/context` | GET | owner | query `userId` | — | yes | |
 | `ai/assistant/memory` | GET | owner | query `userId` | — | yes | |
 | `ai/assistant/memory` | PATCH | owner | body `userId` | item / suggestion id → looked up inside `assistantMemory/{userId}` | yes | |
 | `ai/assistant/memory` | DELETE | owner | body `userId` | as PATCH | yes | |
-| `ai/assistant/stream` | POST | owner | body `userId` | `threadId` → `getAssistantThread` compares `thread.userId` (`lib/server/assistant/store.ts:259`) | yes | A3, F04 |
+| `ai/assistant/stream` | POST | owner | body `userId` | `threadId` → `getAssistantThread` compares `thread.userId` (`lib/server/assistant/store.ts:259`) | yes | prompt ≤ 8000 (S2 RU11) |
 | `ai/assistant/threads` | GET | owner | query `userId` | `after` cursor → `store.ts:212` | yes | |
 | `ai/assistant/threads/[threadId]` | GET, DELETE | owner | query `userId` | `threadId` → `store.ts:259` | yes | |
 | `asset-transactions` | POST | owner | body `userId` | `assetId`, `linkedCashAssetId` → `getLedgerAssetCurrencyOrThrow` (`lib/server/assetTransactionUseCase.ts:165-175`) and the cash-account check (`:231`), 404 | yes | |
@@ -142,10 +142,11 @@ would have shown A1. «Test» = a Vitest file imports the route today.
 | `asset-transactions/migrate` | POST | owner | body `userId` | — | yes | |
 | `asset-transactions/backfill-average-cost-eur` | POST | owner | body `userId` | — | yes | |
 | `assets/[assetId]` | DELETE | owner | body `userId` | `assetId` → `asset.userId !== userId` → 403 (`route.ts:74`); future dividends by `assetId` only | **no** | **RS6b** |
+| `auth/activate` | POST | activation | token uid | — (no body: the policy judges the token's email, S2 RU2) | yes | F04 |
 | `auth/check-registration` | POST | public | — | `email` | **no** | A7 |
-| `benchmarks/ecb-rates` | GET | token | — | — | **no** | A3, F04 |
-| `benchmarks/fx-rates` | GET | token | — | — | **no** | A3, F04 |
-| `benchmarks/returns` | GET | token | — | — | **no** | A3, F04 |
+| `benchmarks/ecb-rates` | GET | token | — | — | **no** | |
+| `benchmarks/fx-rates` | GET | token | — | — | **no** | |
+| `benchmarks/returns` | GET | token | — | — | **no** | |
 | `cron/daily-dividend-processing` | GET | secret | every user | — (`CRON_SECRET`, `apiAuth.ts:105`) | yes | |
 | `cron/monthly-snapshot` | GET | secret | every user | — (`CRON_SECRET`) | yes | |
 | `dashboard/overview` | GET | owner | query `userId` | — | yes | |
@@ -164,10 +165,10 @@ would have shown A1. «Test» = a Vitest file imports the route today.
 | `portfolio/instrument-profiles` | GET | owner | query `userId` | `assetIds` → picked among the account's assets | **no** | |
 | `portfolio/snapshot` | POST | owner **or** secret | body `userId` | — (`cronSecret` in the body skips the token, `route.ts:97-110`) | yes | |
 | `portfolio/snapshot/manual` | POST | owner | body `userId` | — (the document id is built from `userId`) | **no** | A5, F07 |
-| `prices/quote` | GET | token | — | `ticker` → schema | yes | A3, F04 |
-| `prices/bond-quote` | GET | token | — | `isin` → schema | yes | A3, F04 |
+| `prices/quote` | GET | token | — | `ticker` → schema | yes | |
+| `prices/bond-quote` | GET | token | — | `isin` → schema | yes | |
 | `prices/update` | POST | owner | body `userId` | — | yes | |
-| `user/monthly-email/send` | POST | viewer | token uid | — (own `verifyIdToken`, not the helper, `route.ts:30-37`) | **no** | A3, F04 |
+| `user/monthly-email/send` | POST | viewer | token uid | — (on the helper, 5 sends an hour, S2 RU9) | yes | |
 | `wiki/ingest` | POST | secret | the vault | — (`WIKI_INGEST_SECRET`) | yes | |
 
 Reading of the table: of 46 handlers, 30 are `owner` (one of them also accepts the cron secret), 2 `resource`,

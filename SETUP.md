@@ -222,9 +222,20 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ### Step 5: Create Your First User
 
-1. Navigate to `/register`
-2. Create an account with email/password or Google sign-in
-3. Log in and start adding your assets!
+Being a Firebase Auth user is not enough: the server must ADMIT the user (`allowed-users/{uid}`,
+`doc/sicurezza/S2-utenti-ammessi.md`). Two ways in:
+
+- **By registration**: with a registration policy that allows the email (registrations open, or
+  `NEXT_PUBLIC_REGISTRATION_WHITELIST_ENABLED=true` and the email in `REGISTRATION_WHITELIST`), `/register` creates the
+  Auth user and `POST /api/auth/activate` admits it.
+- **By script**, for an Auth user that already exists (the owner's first account, a migration):
+  `npm run users:allow -- <email>` against production (Admin credentials of `.env.local`), or
+  `npm run users:allow:emulator -- <email>` against the emulators. `--remove <email>` takes a user off the list,
+  `--list` prints it.
+
+**Keep registrations closed on a private deployment** (`NEXT_PUBLIC_REGISTRATIONS_ENABLED=false` in Production and
+Preview, then redeploy): with both registration flags at their defaults the policy allows every email, and the
+activation would admit whoever signs up. Then log in and start adding your assets!
 
 ### Step 5b (Optional): Shared account — delegated access
 
@@ -232,7 +243,8 @@ A second user can be granted full co-owner read/write on your account (Impostazi
 Condivisione account). Three prerequisites, in this order, or the add fails:
 
 1. **The guest must be in the whitelist**: add their email to `REGISTRATION_WHITELIST`
-   (with `NEXT_PUBLIC_REGISTRATION_WHITELIST_ENABLED=true`) so they can register at all.
+   (with `NEXT_PUBLIC_REGISTRATION_WHITELIST_ENABLED=true`) so they can register at all — and so the server
+   admits them (Step 5). An existing Auth user is admitted with `npm run users:allow -- <email>`.
 2. **The guest must register first**: the add resolves their email to a Firebase UID, and
    a non-existent user returns a 404 («La persona deve prima registrarsi»). Have them
    complete `/register` before you add them.

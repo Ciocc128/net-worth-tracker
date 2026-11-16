@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   runDividendScraping: vi.fn(async () => ({ assetsScraped: 0, newDividends: 0, errors: 0 })),
   runExpenseCreation: vi.fn(async () => ({ processedCount: 0, errorCount: 0 })),
   runNextCouponScheduling: vi.fn(async () => ({ scheduled: 0, skipped: 0, errors: 0 })),
-  evaluateActiveGoals: vi.fn(async () => ({ skippedReason: 'no-goals' })),
+  evaluateActiveGoals: vi.fn<(userId: string) => Promise<{ skippedReason: string }>>(async () => ({ skippedReason: 'no-goals' })),
 }));
 
 vi.mock('@/lib/server/dividendProcessor', () => ({
@@ -51,7 +51,7 @@ vi.mock('@/lib/server/wiki/vaultExport', () => ({ exportToVault: vi.fn() }));
 
 import { fake } from './helpers/adminFake';
 
-const fetchMock = vi.fn(async () => new Response(JSON.stringify({ success: true, snapshotId: 's-1' })));
+const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => new Response(JSON.stringify({ success: true, snapshotId: 's-1' })));
 
 beforeAll(() => {
   vi.stubGlobal('fetch', fetchMock);
@@ -93,7 +93,7 @@ describe('CR1 — the crons process only the admitted users', () => {
 
     const snapshotBodies = fetchMock.mock.calls
       .filter((call) => String(call[0]).endsWith('/api/portfolio/snapshot'))
-      .map((call) => JSON.parse(String((call[1] as RequestInit).body)).userId);
+      .map((call) => JSON.parse(String(call[1]!.body)).userId);
     expect(snapshotBodies).toEqual(['owner-1']);
     expect(mocks.evaluateActiveGoals.mock.calls.map((call) => call[0])).toEqual(['owner-1']);
   }, 60_000);

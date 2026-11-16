@@ -3,8 +3,8 @@
 Fork only. Second stage of the dossier `doc/sicurezza/README.md` (S1 = F02, on its own branch until its PR; the
 implementation PR of this stage fills the row «S2» of that file's stage table and links here). Source: the security
 review of 2026-11-11, points **R1** (`review-sicurezza/parte-1-regole-firestore.md`), **A3** and **A2**
-(`parte-2-api-route.md`), page <https://claude.ai/artifact/2hwcn9rwBnE2iJyKtqxprx>. Nothing in the app yet: this is
-the spec, ready on 2026-11-15. Read at `main` = `ec6d115`. Decisions continue S1's series (D-SI1–D-SI9) from **D-SI10**.
+(`parte-2-api-route.md`), page <https://claude.ai/artifact/2hwcn9rwBnE2iJyKtqxprx>. Spec ready on 2026-11-15;
+**S2a (RU1–RU11) implemented on 2026-11-16** (§ 10); S2b (RU12–RU17) follows in its own PR. Read at `main` = `ec6d115`. Decisions continue S1's series (D-SI1–D-SI9) from **D-SI10**.
 
 State on 2026-11-15: Firebase sign-up was switched off in the console on 11/11; two Auth users exist (the owner and
 a PAC test user that F01 deletes). The door is closed by a console switch; rules, API and crons still accept any
@@ -362,3 +362,47 @@ the owner with them; none was objected to.
 - **F11** inherits RP1–RP5 as cases of its suite, and the rule that every new collection uses `isAllowedUser()`
   through `isOwner` / `canAccess`.
 - **A6** (counters on Firestore) will move the email limit of RU9 with the two AI limits.
+
+## 10. Implementazione S2a (2026-11-16)
+
+What was built, rule by rule, and where it departs from §§ 4–6.
+
+- **RU1, RU4** — `ALLOWED_USERS_COLLECTION`, `AllowedUser`, `AllowedUserSource` in `types/account.ts`;
+  `verifyFirebaseToken`, `assertAllowedUser`, `requireFirebaseAuth` = both, `ACCOUNT_NOT_ALLOWED_CODE`,
+  `ALLOWED_USER_MEMORY_MS` and `resetAllowedUserMemory` (tests only) in `lib/server/apiAuth.ts`;
+  `getApiAuthErrorResponse` adds `code` when the error carries one.
+- **RU2** — `app/api/auth/activate/route.ts`. Client (`contexts/AuthContext.tsx`): `activateNewUser` after
+  `createUserWithEmailAndPassword` and for a brand-new Google user. Three additions to the spec, all on the client:
+  (a) the Google path decides «registration» by `getAdditionalUserInfo(result).isNewUser`, not by `users/{uid}`
+  missing — with the new rules a user who is not admitted cannot even read that document, and an EXISTING account
+  that is off the list must never be deleted (it is signed out by RU7 instead); an admitted user without a profile
+  still finishes the registration as before; (b) the orphan-document cleanup is gone: a refused user cannot write;
+  (c) while a registration is in flight (`trackRegistration`), `onAuthStateChanged` holds the user back until the
+  activation answers, so no page reads Firestore with a token the list does not know yet, and RU7 cannot sign out a
+  user who is registering (`waitForPendingRegistration`).
+- **RU3** — `firestore.rules`: `isAllowedUser()` in place of `isAuthenticated()` (six uses), block `allowed-users/{uid}`
+  with `get` for its own uid only.
+- **RU5** — both crons read `allowed-users`.
+- **RU6** — `scripts/lib/allowUser.ts` (`allowUser`, `disallowUser`), `scripts/usersAllow.mts` with
+  `npm run users:allow` (production) and `npm run users:allow:emulator` (an addition: the same script with the emulator
+  variables, as `mirror:remove` has them); the nine seeds and `mirrorProdAccount.mts` admit their account,
+  `mirror:remove` takes the mirror off the list.
+- **RU7** — `isViewerAdmitted` in `lib/services/accountAccessService.ts`, the effect in `ActiveAccountProvider`, the
+  entry `account/not-allowed` and `LOGIN_REASON_NOT_ALLOWED` in `lib/utils/authNarrative.ts`, the reading on
+  `/login?reason=not-allowed` (read from `window.location` after mount, so the page stays static). The sentence uses the
+  typographic apostrophe of the module («l’app»).
+- **RU9** — the email route on the helper, 5 sends an hour (`${uid}:email-send`), no `details`.
+- **RU10** — `performanceAnalysisRequestSchema` (not strict: unknown keys dropped) through `parseOr400` before the
+  account check and the rate limit; `buildAnalysisPrompt` takes the parsed metrics.
+- **RU11** — F07 had already put the strict schema and the 8000 cap on the stream (D-SN11). Added: the 400 says
+  «La domanda è troppo lunga (massimo 8000 caratteri).» before the schema's generic one, and
+  `ASSISTANT_PROMPT_MAX_LENGTH` moved to `lib/constants/assistantPrompts.ts` (client-safe), read by the schema and by
+  the composer's `maxLength`.
+- **Tests** — AU1–AU4 `apiAuth.test.ts`, AC1–AC5 `activateRoute.test.ts`, RA6 (+ kind `activation`) in
+  `routeAuthorization.{table,test}.ts`, CR1 `cronAllowedUsers.test.ts`, ME1–ME3 `monthlyEmailSendRoute.test.ts`, AP1–AP2
+  in `analyzePerformanceRoute.test.ts`, AS1–AS2 in `assistantRoutes.test.ts` (the stream's tests live there), AN1 in
+  `authNarrative.test.ts`. AU1–AU3, RA6 (43 rows) and CR1 seen red with `requireFirebaseAuth` and the crons as on
+  `main`. The route tests that already existed admit their personas (`fake.allow` in `helpers/adminFake.ts`, or an
+  `allowed-users` branch in the hand-written mocks).
+- **Still on the Mac** (CA3–CA6): the probe RP1–RP5 and `api-probe.mjs`, `test:e2e`, CA5 in the browser (once with
+  registrations off, once with the whitelist), `mobile:census`/`mobile:budget` and `perf:budget`.
