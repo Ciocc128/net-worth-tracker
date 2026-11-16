@@ -72,17 +72,20 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   override-only, the behaviour the emulator exercise script relies on.
 - **Coast FIRE is the same IA on a different question** — «posso smettere di versare?» — answered by the shortfall
   against `coastFireNumberToday`, with an inflow timeline that names the pension unlock and each state pension.
-- **The bridge model reuses the Coast walk, never a second formula.** `buildCoastFIRERetirementNeeds` takes
+- **The bridge model reuses the Coast rule, never a second formula.** `buildCoastFIRERetirementNeeds` takes
   `capitalInflows` (amounts AT the inflow year) and extends its horizon to `max(bridgeYears, max inflow year)` —
-  without the extension the FIRE-tab case (no state pensions → bridgeYears 0) silently drops the inflow. The
-  "reduction = A/(1+r)^y" invariant holds INSIDE the pension bridge; beyond it the extra discounted years change the
-  baseline too — that is the model, not a bug. Empty inflows leave the walk byte-identical.
+  without the extension the FIRE-tab case (no state pensions → bridgeYears 0) silently drops the inflow. **Since
+  FC-NF (2026-11-15, doc/fire-ipotesi/README.md § 23 RN1–RN5, audit H1)** the requirement is no longer a backward walk:
+  it is `n_0/SWR` minus what each later pension frees (`Δn/SWR` discounted at `ρ`) minus each arrival `A/(1+ρ)^y`,
+  floored by the waiting years' cost up to the last arrival (RN3, never above `n_0/SWR`). The walk financed the
+  waiting years at the real return instead of the SWR, so 1 € of fund moved the number by 12–16%; now 1 € moves it by
+  1 €. "Reduction = A/(1+ρ)^y" (C3) holds wherever the floor does not bind; no pension and no fund = expenses ÷ SWR.
 - **`respectPensionLockInFire` governs the WHOLE FIRE page** (Calcolatore, Coast, What If via its baseline, Monte
   Carlo): each tab subtracts the locked total from its starting capital AND passes the inflows — doing only the
   subtraction reintroduces the "sottratto per sempre" bug the bridge model replaced. Monte Carlo adds inflows at
   TODAY's value (no deterministic fund growth inside a stochastic run, declared in the form's read-only row), order
-  inflow → return → withdrawal. With growth = discount rate the bridge number is insensitive to the unlock year until
-  the floor binds, which is why the FIRE tab aggregates multi-fund unlocks on the LATEST year.
+  inflow → return → withdrawal. The fund grows to its unlock and is discounted at the same `ρ` (RN4), so it enters the
+  number at its value of the year read and the bridge number is insensitive to the unlock year until the floor binds, which is why the FIRE tab aggregates multi-fund unlocks on the LATEST year.
 - **Config-first collapse: decide ONCE after the form has settled.** A "collapsed if already configured" panel cannot key
   on the transient `hasUnsavedChanges` — use a `useRef` seeded-flag set when `!isLoadingSettings && !hasUnsavedChanges`,
   and gate the temp-sync effect on `!isLoadingSettings` (not `if (settings)`).
@@ -170,7 +173,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **THE ONE RULE of the requirement is `resolveFireRequirement`** (2026-09-24, `fireService.ts`): what the free
   capital must hold at year t so that, retiring then, the expenses are covered — the state pensions taken off from
   their start, the tax on withdrawals added on what the portfolio funds, the locked fund arriving at its unlock. It is
-  the Coast walk (`buildCoastFIRERetirementNeeds`) run from year t as the retirement day (`currentAge = età + t`,
+  `buildCoastFIRERetirementNeeds` (RN2–RN3 since FC-NF; `ρ` = `flowsRealReturnRate` when passed, else the scenario's
+  real, RN4) read from year t as the retirement day (`currentAge = età + t`,
   `currentDate = oggi + t`, expenses in year-t euro), with the new `portfolioNeedMultiplier` = 1/(1 − g_t·τ) on
   `max(E − P, 0)` — applied to what the portfolio funds, NEVER to the pensions, which arrive net. With nothing in it
   is expenses ÷ SWR; with the fund alone it is `calculateFireBridgeNumber`'s figure (kept, same walk). The walk
@@ -185,7 +189,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   (pinned); with the bridge the fan lands on the walk's year BEFORE the unlock (pinned); after it the two diverge by
   the compartment's growth (the walk merges the grown fund, the fan injects today's value — the documented model).
 - **The state pensions are the Coast tab's, dated by the saved age** (`settings.coastFirePensions`,
-  `coastFireTaxBrackets`, `userAge`): net through the IRPEF brackets and deflated with the scenario's inflation —
+  `coastFireTaxBrackets`, `userAge`): net through the IRPEF brackets; **since FC-NF the gross is at today's prices** as the INPS simulator «La mia pensione futura» gives it, never divided by the inflation (RN7, D-FC4/D-FC5: a saved figure is re-read as it is; `grossAnnualFutureNominal` is gone) (the default IRPEF brackets are the ones in force from 2026 — 23% up to 28.000 €, 33% up to 50.000 €, 43% above (`DEFAULT_COAST_FIRE_TAX_BRACKETS`, FC-IR, doc/fire-ipotesi/README.md § 23 RN8); a saved list equal to the old 2022 defaults (15.000/23, 28.000/25, 50.000/35, 43) reads as the new ones in `normalizeCoastFireTaxBrackets` (D-FC7) and Firestore follows at the next save of the brackets; any other saved list stays) —
   `calculateCoastFireNetRealAnnualPension`, the SAME figure the Afflussi tile prints. **No age places no pension**
   and the Base di calcolo says so («non considerate: manca l'età in Coast FIRE › Ipotesi»); none saved is the row's
   «nessuna in Coast FIRE › Ipotesi: il numero le esclude» — never a silent «as if no pension». `FireTargetHonest`
@@ -381,6 +385,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 - **ONE model of dated flows** (`DatedFlow`, `types/assets.ts`; saved in `fireDatedFlows`, at most 20; validation in `lib/utils/datedFlowValidation.ts`, shared by the dialog and the save): recurring expense/income, lump in/out, anchored to a year, an age or the FIRE year (`afterYears`, recurring only), in today's euro or fixed nominal (a fixed one needs an end). The Calcolatore's Parametri carries the section «Flussi nel tempo» (`FireDatedFlowsSection` + `DatedFlowDialog`, a PREVIEW until «Salva», `form.datedFlows`), the state pensions listed read-only after the flows (D-F4: they stay in Coast FIRE › Ipotesi).
 - **`lib/utils/datedFlows.ts` is the ONE reading** (pure): `resolveDatedFlows` (RF1: windows from the year offset, the age needs `userAge`, an excluded flow carries its reason), `buildFlowSchedule` per scenario (its own π: `savingsDelta` RF3, `lump`, `needDelta` RF4, `horizon`), `flowsRequirementAdjustment` (RF5). `useFireDatedFlows(draft?)` is the hook (settings + assets + the instalments of the «Mutuo» tile) the Calcolatore (draft) and Coast (saved list) share.
+- **The permanent part of the flows starts the year they stop changing (RN6, FC-NF, audit H4)**: in `FlowSchedule.horizon` a recurring flow's start counts as `first − 1`, so an income forever from the FIRE is `δ/SWR` (350.000 € for 6.000 € on 20.000 €, not 351.290) and a net pension and the same income dated from the same year give one requirement; ends and lumps as before.
 - **THE RULE of the requirement with flows (RF5, D-F7)**: the flows are SUMMED to `resolveFireRequirement`'s base figure — temporary parts at the real return, the permanent part (equal for every year after the last start/end `J`) at the SWR, a year's surplus of income over the need is NOT reinvested (`max(0, E − P + n)`), outflows carry the tax multiplier. Never extend the backward walk of `buildCoastFIRERetirementNeeds` to the last flow: with a real return above the SWR that LOWERS the requirement (a child would take it from 750.000 to 732.000 €). Without flows the figure is identical (`flows` absent or empty). A pure extra expense never lowers the requirement. **The flows are discounted at the Base's real return in all three scenarios** (owner, 2026-10-05, `flowsRealReturnRate` on `resolveFireRequirement`, trailing parameter of `calculateCoastFIREMetrics`): at each scenario's own rate a lower return made a future inheritance or rent worth MORE, so with dated inflows the bear reached FIRE before the base (collaudo fixture: 2030 against 2031) — the spending is valued at the SWR, the same in every scenario, and the flows now at one rate too; the scenarios differ in the capital's growth (and Coast in the growth to the target) only. Absent the field, the scenario's own rate: the single-scenario callers (Calcolatore's number, What If, Coast's own tab line on the Base) read the same figure as before.
 - **The deterministic walk (RF6)**: `calculateFIREProjection(…, flows?: FireFlowsInput)` — the year-0 lump is starting capital, the saving of year t gets `Δs_t` until FIRE, lumps enter EVERY year (also after FIRE, like the fund), a negative move sells at the portfolio's gain share (`applyCashMove`, no tax in the accumulation), the capital may go below zero. `calculateFIRESensitivityMatrix` takes the same list (it varies expenses and saving, not the flows). Età obiettivo and the lever read it through `fireWalk`.
 - **«Già nel Cashflow di oggi»** (D-F6): a recurring flow active today is already in the saving, and in the plan's expenses ONLY when those come from the Cashflow (`planExpensesFromCashflow` = `expenses.origin === 'cashflow'`); typed by hand, the flows add on top (the Parametri help says to type it without the mortgage).

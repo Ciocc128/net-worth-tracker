@@ -10,6 +10,10 @@
  * and instrument — so this reader returns only that, as `DividendReceipt`, and nothing a page
  * could misuse.
  *
+ * Since 2026-11-15 (F08, doc/rendimenti-misura § 5.3) the receipt carries gross, tax and the synced
+ * row too: Rendimenti counts a distribution GROSS, its tax as a withdrawal, and an income row named
+ * by a record is not counted twice.
+ *
  * The query carries the `userId` constraint the rules require (`allow read: if canAccess(
  * resource.data.userId)`): without it the list is refused as a whole, at any size.
  */
@@ -36,12 +40,30 @@ export async function getDividendReceipts(ownerId: string): Promise<DividendRece
     const data = doc.data();
     const paymentDate = data.paymentDate?.toDate?.();
     if (!(paymentDate instanceof Date)) continue;
-    receipts.push({
-      assetId: data.assetId as string,
-      paymentDate,
-      netAmount: Number(data.netAmount ?? 0),
-      netAmountEur: typeof data.netAmountEur === 'number' ? data.netAmountEur : undefined,
-    });
+    receipts.push(toDividendReceipt(data, paymentDate));
   }
   return receipts;
+}
+
+const optionalNumber = (value: unknown): number | undefined => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
+
+/**
+ * A dividend document's fields as a receipt. (The server's `Dividend` from the Admin reader is
+ * already a `DividendReceipt` by shape: the periodic email passes it as is.)
+ *
+ * @param data - The document's fields (client or Admin SDK)
+ * @param paymentDate - Its payment date, already converted
+ */
+function toDividendReceipt(data: Record<string, unknown>, paymentDate: Date): DividendReceipt {
+  return {
+    assetId: data.assetId as string,
+    paymentDate,
+    netAmount: Number(data.netAmount ?? 0),
+    netAmountEur: optionalNumber(data.netAmountEur),
+    grossAmount: optionalNumber(data.grossAmount),
+    grossAmountEur: optionalNumber(data.grossAmountEur),
+    taxAmount: optionalNumber(data.taxAmount),
+    taxAmountEur: optionalNumber(data.taxAmountEur),
+    expenseId: typeof data.expenseId === 'string' && data.expenseId !== '' ? data.expenseId : undefined,
+  };
 }

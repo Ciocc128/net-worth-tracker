@@ -43,6 +43,8 @@ import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 
 interface ValoreStrumentoTileProps {
   reading: Narrative | null;
+  /** «Scritto dall'aggiornamento automatico il 31 ottobre alle 19:02.» — who wrote the month; null before 2026-11. */
+  authorship?: string | null;
   months: SnapshotMonthOption[];
   activeMonthKey: string | null;
   onMonthChange: (key: string) => void;
@@ -238,6 +240,7 @@ function SortHead({ label, sortKey, sort, onSort, className }: { label: string; 
 
 export function ValoreStrumentoTile({
   reading,
+  authorship = null,
   months,
   activeMonthKey,
   onMonthChange,
@@ -428,9 +431,14 @@ export function ValoreStrumentoTile({
         subject="Valore per strumento"
         summary={
           breakdown && rows.length > 0
-            ? hasSelection
-              ? 'Valori congelati nello snapshot del mese, mai ricalcolati.'
-              : "Valori congelati nello snapshot del mese, mai ricalcolati. Spunta uno o più strumenti per sommarne il valore e seguirne l'andamento."
+            ? [
+                authorship,
+                hasSelection
+                  ? 'Valori congelati nello snapshot del mese, mai ricalcolati.'
+                  : "Valori congelati nello snapshot del mese, mai ricalcolati. Spunta uno o più strumenti per sommarne il valore e seguirne l'andamento.",
+              ]
+                .filter(Boolean)
+                .join(' ')
             : undefined
         }
       >

@@ -151,7 +151,7 @@ export interface CoastFIREPensionBreakdown {
   startDate: string | null;
   startAge: number;
   yearsUntilStart: number;
-  grossAnnualFutureNominal: number;
+  /** RN7: the gross a year, at today's prices (monthly × months, as the INPS simulator gives it). */
   grossAnnualRealAtStart: number;
   netAnnualRealAtStart: number;
   isActiveAtRetirement: boolean;
@@ -196,11 +196,20 @@ interface MonthlyExpenseAggregate {
 const EXPENSE_MULTIPLIERS = [0.8, 0.9, 1.0, 1.1, 1.2] as const;
 const SAVINGS_MULTIPLIERS = [0.75, 1.0, 1.25, 1.5] as const;
 const SAVINGS_FALLBACK_VALUES = [0, 5000, 10000, 20000] as const;
+// RN8 (doc/fire-ipotesi/README.md § 23.6): the ordinary IRPEF brackets in force from tax year 2026
+// (art. 11 TUIR as amended by L. 199/2025) — 23% up to 28.000 €, 33% up to 50.000 €, 43% above.
 const DEFAULT_COAST_FIRE_TAX_BRACKETS: CoastFireTaxBracket[] = [
-  { id: 'irpef-23', upTo: 15000, rate: 23 },
-  { id: 'irpef-25', upTo: 28000, rate: 25 },
-  { id: 'irpef-35', upTo: 50000, rate: 35 },
+  { id: 'irpef-23', upTo: 28000, rate: 23 },
+  { id: 'irpef-33', upTo: 50000, rate: 33 },
   { id: 'irpef-43', upTo: null, rate: 43 },
+];
+// The defaults before RN8 (the 2022 brackets). A saved list equal to them, once normalised, was never
+// touched by the user: it reads as the current defaults (D-FC7), and Firestore follows at the next save.
+const LEGACY_DEFAULT_COAST_FIRE_TAX_BRACKETS: ReadonlyArray<Pick<CoastFireTaxBracket, 'upTo' | 'rate'>> = [
+  { upTo: 15000, rate: 23 },
+  { upTo: 28000, rate: 25 },
+  { upTo: 50000, rate: 35 },
+  { upTo: null, rate: 43 },
 ];
 
 interface CoastFIRERetirementNeeds {
@@ -341,6 +350,14 @@ export function normalizeCoastFireTaxBrackets(
     rate: topRate,
   });
 
+  const isLegacyDefault =
+    normalized.length === LEGACY_DEFAULT_COAST_FIRE_TAX_BRACKETS.length &&
+    normalized.every((bracket, index) => {
+      const legacy = LEGACY_DEFAULT_COAST_FIRE_TAX_BRACKETS[index];
+      return bracket.upTo === legacy.upTo && bracket.rate === legacy.rate;
+    });
+  if (isLegacyDefault) return getDefaultCoastFireTaxBrackets();
+
   return normalized;
 }
 
@@ -455,7 +472,9 @@ export function calculateProgressiveTax(
 export function calculateCoastFireNetRealAnnualPension(
   pension: CoastFirePensionInput,
   currentAge: number,
-  inflationRate: number,
+  // RN7 (doc/fire-ipotesi/README.md § 23.6, D-FC4/D-FC5): the gross is already at today's prices, as the INPS
+  // simulator «La mia pensione futura» gives it, so no inflation divides it. Kept for the callers' signature.
+  _inflationRate: number,
   taxBrackets: CoastFireTaxBracket[],
   currentDate: Date = new Date()
 ): CoastFIREPensionBreakdown {
@@ -468,7 +487,6 @@ export function calculateCoastFireNetRealAnnualPension(
       startDate: pension.startDate ?? null,
       startAge: pension.startAge ?? currentAge,
       yearsUntilStart: 0,
-      grossAnnualFutureNominal: 0,
       grossAnnualRealAtStart: 0,
       netAnnualRealAtStart: 0,
       isActiveAtRetirement: false,
@@ -480,11 +498,8 @@ export function calculateCoastFireNetRealAnnualPension(
     resolvedStart.startDate !== null
       ? Math.max(calculateYearsDifference(resolvedStart.startDate, currentDate), 0)
       : Math.max(resolvedStart.startAge - currentAge, 0);
-  const grossAnnualFutureNominal = normalizedPension.grossMonthlyAmount * normalizedPension.monthsPerYear;
-  const inflationMultiplier =
-    yearsUntilStart > 0 ? Math.pow(1 + (inflationRate / 100), yearsUntilStart) : 1;
-  const grossAnnualRealAtStart =
-    inflationMultiplier > 0 ? grossAnnualFutureNominal / inflationMultiplier : grossAnnualFutureNominal;
+  // The brackets apply at constant prices too, on the same gross (as before, on the deflated one).
+  const grossAnnualRealAtStart = normalizedPension.grossMonthlyAmount * normalizedPension.monthsPerYear;
   const annualTax = calculateProgressiveTax(grossAnnualRealAtStart, taxBrackets);
 
   return {
@@ -493,7 +508,6 @@ export function calculateCoastFireNetRealAnnualPension(
     startDate: resolvedStart.startDateIso,
     startAge: resolvedStart.startAge,
     yearsUntilStart,
-    grossAnnualFutureNominal,
     grossAnnualRealAtStart,
     netAnnualRealAtStart: Math.max(grossAnnualRealAtStart - annualTax, 0),
     isActiveAtRetirement: false,
@@ -1051,11 +1065,11 @@ export function getDefaultScenarios(): FIREProjectionScenarios {
  * still compound enough to reach the full retirement FIRE number by the target
  * retirement age?
  *
- * `capitalInflows` lets the backward walk model capital that ARRIVES at a given year
- * (a pension fund unlocking): at that year the required capital drops by the inflow amount
- * (floored at 0) before the discounting continues, so an inflow A at year y reduces the
- * capital required at retirement by exactly A / (1 + realReturn)^y (floor permitting).
- * Exported for the bridge-model invariant tests; absent/empty inflows leave the walk byte-identical.
+ * The requirement at retirement is RN2–RN3 (doc/fire-ipotesi/README.md § 23.6): the full need ÷ SWR, minus
+ * what each later pension frees (its capital ÷ SWR discounted at `realReturnRate`, the `ρ` of RN4) and minus
+ * each capital that ARRIVES (`capitalInflows`, a pension fund unlocking: `A / (1 + ρ)^y`), floored by the
+ * waiting years' cost up to the last arrival (never above the number with nothing arriving).
+ * Exported for the bridge-model invariant tests; absent/empty inflows and no pensions give expenses ÷ SWR.
  */
 export function buildCoastFIRERetirementNeeds(
   annualExpenses: number,
@@ -1136,37 +1150,38 @@ export function buildCoastFIRERetirementNeeds(
   const maxInflowYear = inflowsByYear.size > 0 ? Math.max(...inflowsByYear.keys()) : 0;
   const walkYears = Math.max(bridgeYears, maxInflowYear);
 
-  // The farthest inflow lands at the walk horizon itself, before any discounting.
-  retirementCapitalRequired = Math.max(
-    retirementCapitalRequired - (inflowsByYear.get(walkYears) ?? 0),
-    0
-  );
-
-  // Work backward from the last pension start date. The model is annual, so a
-  // pension that starts even a few months after the target retirement date
-  // still requires funding the full bridge year.
-  for (let step = walkYears - 1; step >= 0; step -= 1) {
+  // RN1–RN3 (doc/fire-ipotesi/README.md § 23.6, D-FC2/D-FC3): ONE formula, the rule of RF5. The full need
+  // `n_0 / s` holds today's spending forever, as with no pension; a pension starting `t` years after
+  // retirement frees `(n_{t−1} − n_t) / s` from then on, worth today that capital discounted at `ρ`; a capital
+  // arriving at year `y` is worth `I_y / (1 + ρ)^y`. The waiting years are never financed at `ρ` instead of the
+  // SWR (audit H1: the old backward walk moved the number by 12–16% as soon as 1 € of fund appeared).
+  const activePensionsAt = (step: number): number => {
     const age = retirementAge + step;
     const bridgeDate = addYearsToDate(retirementDate, step);
-    const activePensionsAtAge = pensionBreakdown
+    return pensionBreakdown
       .filter((pension) => {
         const pensionStartDate = parseIsoDate(pension.startDate ?? undefined);
         return pensionStartDate ? pensionStartDate <= bridgeDate : pension.startAge <= age;
       })
       .reduce((sum, pension) => sum + pension.netAnnualRealAtStart, 0);
-    const annualPortfolioNeedAtAge = Math.max(annualExpenses - activePensionsAtAge, 0) * multiplier;
+  };
+  const needAt = (step: number): number => Math.max(annualExpenses - activePensionsAt(step), 0) * multiplier;
+  const discount = (years: number): number => (yearlyGrowthFactor > 0 ? Math.pow(yearlyGrowthFactor, years) : 1);
+  const perpetual = (annual: number): number => (withdrawalRateDecimal > 0 ? annual / withdrawalRateDecimal : 0);
 
-    retirementCapitalRequired =
-      yearlyGrowthFactor > 0
-        ? (retirementCapitalRequired + annualPortfolioNeedAtAge) / yearlyGrowthFactor
-        : retirementCapitalRequired + annualPortfolioNeedAtAge;
-    // The inflow at this year reduces the requirement AFTER the year has been discounted, so
-    // its effect on the retirement-day capital is exactly amount / (1+r)^year (invariant C3).
-    retirementCapitalRequired = Math.max(
-      retirementCapitalRequired - (inflowsByYear.get(step) ?? 0),
-      0
-    );
+  const needs = Array.from({ length: walkYears + 1 }, (_, step) => needAt(step));
+  const fullRequirement = perpetual(needs[0]);
+  let requirement = fullRequirement;
+  for (let step = 1; step <= walkYears; step += 1) {
+    requirement -= perpetual(needs[step - 1] - needs[step]) / discount(step);
   }
+  for (const [year, amount] of inflowsByYear) requirement -= amount / discount(year);
+
+  // RN3: with a capital still to arrive, the free capital must at least pay the waiting years — never above the
+  // number with no fund, so the floor cannot reopen the jump of audit H1.
+  let bridgeFloor = 0;
+  for (let step = 0; step < maxInflowYear; step += 1) bridgeFloor += needs[step] / discount(step + 1);
+  retirementCapitalRequired = Math.max(requirement, Math.min(bridgeFloor, fullRequirement), 0);
 
   return {
     walkYears,
@@ -1215,7 +1230,10 @@ export function calculateCoastFIREMetrics(
 ): CoastFIREMetrics {
   const yearsToRetirement = Math.max(retirementAge - currentAge, 0);
   const capitalAtRetirement = growValueByRealReturn(currentNetWorth, realReturnRate, yearsToRetirement);
-  const portfolioNeedMultiplier = withdrawalTax ? resolveTaxMultiplier(resolveGainShare(capitalAtRetirement, withdrawalTax.basisToday), withdrawalTax.rate) : 1;
+  // RN9 (doc/fire-ipotesi/README.md § 23.6, audit H3): the gain share compares the capital and today's NOMINAL basis
+  // in one unit — the capital grown at the real return is brought back to nominal euro of the target year.
+  const nominalCapitalAtRetirement = capitalAtRetirement * Math.pow(1 + inflationRate / 100, yearsToRetirement);
+  const portfolioNeedMultiplier = withdrawalTax ? resolveTaxMultiplier(resolveGainShare(nominalCapitalAtRetirement, withdrawalTax.basisToday), withdrawalTax.rate) : 1;
   const retirementNeeds = buildCoastFIRERetirementNeeds(
     annualExpenses,
     withdrawalRate,
@@ -1414,9 +1432,13 @@ export function calculateCoastFIREProjection(
   const normalizedPensions = normalizeCoastFirePensions(pensions);
   const normalizedTaxBrackets = normalizeCoastFireTaxBrackets(taxBrackets);
   const yearsToRetirement = Math.max(retirementAge - currentAge, 0);
-  const multiplierFor = (realReturnRate: number): number =>
+  // RN9: the gain share on the capital in nominal euro of the target year, as today's basis is nominal.
+  const multiplierFor = (realReturnRate: number, inflationRate: number): number =>
     withdrawalTax
-      ? resolveTaxMultiplier(resolveGainShare(growValueByRealReturn(currentNetWorth, realReturnRate, yearsToRetirement), withdrawalTax.basisToday), withdrawalTax.rate)
+      ? resolveTaxMultiplier(
+          resolveGainShare(growValueByRealReturn(currentNetWorth, realReturnRate, yearsToRetirement) * Math.pow(1 + inflationRate / 100, yearsToRetirement), withdrawalTax.basisToday),
+          withdrawalTax.rate
+        )
       : 1;
 
   const bearNeeds = buildCoastFIRERetirementNeeds(
@@ -1430,7 +1452,7 @@ export function calculateCoastFIREProjection(
     normalizedTaxBrackets,
     currentDate,
     toRetirementWalkInflows(capitalInflowsToday, yearsToRetirement, bearRealReturn),
-    multiplierFor(bearRealReturn)
+    multiplierFor(bearRealReturn, scenarios.bear.inflationRate)
   );
   const baseNeeds = buildCoastFIRERetirementNeeds(
     annualExpenses,
@@ -1443,7 +1465,7 @@ export function calculateCoastFIREProjection(
     normalizedTaxBrackets,
     currentDate,
     toRetirementWalkInflows(capitalInflowsToday, yearsToRetirement, baseRealReturn),
-    multiplierFor(baseRealReturn)
+    multiplierFor(baseRealReturn, scenarios.base.inflationRate)
   );
   const bullNeeds = buildCoastFIRERetirementNeeds(
     annualExpenses,
@@ -1456,7 +1478,7 @@ export function calculateCoastFIREProjection(
     normalizedTaxBrackets,
     currentDate,
     toRetirementWalkInflows(capitalInflowsToday, yearsToRetirement, bullRealReturn),
-    multiplierFor(bullRealReturn)
+    multiplierFor(bullRealReturn, scenarios.bull.inflationRate)
   );
 
   const result = {
@@ -1713,9 +1735,9 @@ export interface FireRequirement {
  * THE ONE RULE of the FIRE requirement: what the free capital must hold at a given year so
  * that, retiring then, the expenses are covered — the pensions taken off from their start, the
  * tax on withdrawals added on what the portfolio funds, the locked fund arriving at its unlock.
- * It is the Coast walk (`buildCoastFIRERetirementNeeds`) run from that year as the retirement
- * day: with no pension considered and no fund it is expenses × gross-up ÷ SWR, and with the fund
- * alone it is `calculateFireBridgeNumber`'s figure — one formula, never a second one per case.
+ * It is `buildCoastFIRERetirementNeeds` (RN2–RN3, doc/fire-ipotesi/README.md § 23.6) read from that year
+ * as the retirement day: with no pension considered and no fund it is expenses × gross-up ÷ SWR, and a
+ * pension or a fund only takes off what they free, discounted at `ρ` (RN4) — one formula, never a second one.
  */
 export function resolveFireRequirement(input: FireRequirementInput): FireRequirement {
   const wrDecimal = input.withdrawalRate / 100;
@@ -1727,11 +1749,15 @@ export function resolveFireRequirement(input: FireRequirementInput): FireRequire
   const age = input.honest?.userAge;
   const pensionsConsidered = pensions.length > 0 && age !== undefined && Number.isFinite(age);
 
+  // RN4: ONE discount rate `ρ` for what the pensions and the fund free — the Base's real return when the walk
+  // passes it (as for the flows, RF5), else the scenario's. The fund grows to its unlock and is discounted at the
+  // same `ρ`, so it enters at its value of the year read, whatever the scenario.
+  const discountRate = input.flowsRealReturnRate ?? realReturnRate;
   const inflows: CapitalInflow[] = [];
   if (input.bridge && input.bridge.compartmentValue > 0 && input.bridge.yearsToUnlock > 0) {
     const yearsToUnlock = Math.round(input.bridge.yearsToUnlock);
     if (yearsToUnlock > 0) {
-      inflows.push({ yearsFromRetirement: yearsToUnlock, amount: input.bridge.compartmentValue * Math.pow(1 + realReturnRate / 100, yearsToUnlock) });
+      inflows.push({ yearsFromRetirement: yearsToUnlock, amount: input.bridge.compartmentValue * Math.pow(1 + discountRate / 100, yearsToUnlock) });
     }
   }
 
@@ -1761,7 +1787,7 @@ export function resolveFireRequirement(input: FireRequirementInput): FireRequire
     input.withdrawalRate,
     ageAtYear,
     ageAtYear,
-    realReturnRate,
+    discountRate,
     input.scenario.inflationRate,
     pensionsConsidered ? pensions : [],
     input.honest ? normalizeCoastFireTaxBrackets(input.honest.taxBrackets) : DEFAULT_COAST_FIRE_TAX_BRACKETS,

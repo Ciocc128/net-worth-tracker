@@ -386,7 +386,7 @@ export interface IdealAllocationSettings {
 export interface CoastFirePensionInput {
   id: string;
   label: string;
-  grossMonthlyAmount: number; // Monthly gross pension, nominal future amount from the source estimate
+  grossMonthlyAmount: number; // Monthly gross pension at TODAY's prices, as the INPS simulator gives it (RN7, doc/fire-ipotesi/README.md § 23)
   monthsPerYear: number; // Annual payment count (e.g. 13 in Italy)
   startDate?: string; // Retirement start date in YYYY-MM-DD format
   startAge?: number; // Legacy fallback kept for backward compatibility with previously saved rows
@@ -631,8 +631,58 @@ export interface MonthlySnapshot {
   assetAllocation: {
     [assetClass: string]: number;
   };
+  /** The FIRST write of the document (doc/snapshot-integri/README.md RI3); before 2026-11, the last rewrite. */
   createdAt: Date;
   note?: string; // Optional note to document significant financial events (max 500 characters)
+  /**
+   * Authorship (C1, RI2). Absent = written before 2026-11 («origine non registrata», D-SN10): no
+   * backfill, a reader says nothing rather than inventing a writer.
+   */
+  writtenBy?: SnapshotWriter;
+  /** The token's uid (the member's own when a member writes for the owner); absent for the cron. */
+  writtenByUid?: string;
+  /** The last write of the FIGURES (RI3); read the capture instant through `snapshotCapturedAt`. */
+  updatedAt?: Date;
+  /** What the price refresh did before an automatic write (C4, RI13); absent on a manual snapshot. */
+  prices?: SnapshotPriceRecord;
+  /** The version a replacement by hand archived (RI9), restorable from the manual dialog. */
+  previous?: SnapshotPreviousVersion;
+}
+
+/** Who wrote a snapshot's figures: the evening cron, «Crea snapshot», the manual dialog, the test-data generator. */
+export type SnapshotWriter = 'cron' | 'button' | 'manual' | 'dummy';
+
+export type SnapshotPriceFailureReason = 'quote' | 'fx' | 'write';
+
+export interface SnapshotPriceFailure {
+  assetId: string;
+  ticker: string;
+  reason: SnapshotPriceFailureReason;
+}
+
+export interface SnapshotPriceAnomaly {
+  assetId: string;
+  ticker: string;
+  previousPrice: number;
+  price: number;
+  changePct: number;
+}
+
+/** doc/snapshot-integri/README.md § 5.1, RI13. */
+export interface SnapshotPriceRecord {
+  status: 'fresh' | 'partial' | 'failed' | 'none';
+  failed: SnapshotPriceFailure[];
+  anomalies: SnapshotPriceAnomaly[];
+  /** The market-priced asset with the earliest `lastPriceUpdate`, `at` an ISO instant. */
+  oldest: { assetId: string; ticker: string; at: string } | null;
+}
+
+/** A pointer to `monthly-snapshots/{id}/versions/{versionId}` (RI9); instants as ISO strings. */
+export interface SnapshotPreviousVersion {
+  versionId: string;
+  archivedAt: string;
+  writtenBy?: SnapshotWriter;
+  updatedAt?: string;
 }
 
 // Monte Carlo Simulation Types

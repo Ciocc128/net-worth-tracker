@@ -28,7 +28,7 @@ import type { PerformanceInputs, PerformanceSetup } from '@/lib/services/perform
 import type { PerformanceData, PerformanceMetrics } from '@/types/performance';
 
 const OWNER = 'u1';
-const INPUTS: PerformanceInputs = { snapshots: [], settings: null, assets: [], contributions: [], trades: [] };
+const INPUTS: PerformanceInputs = { snapshots: [], settings: null, assets: [], contributions: [], trades: [], dividends: [] };
 const SETUP = { cacheKey: 'v8-key' } as PerformanceSetup;
 const PERIODS: PerformanceYieldPeriod[] = [
   { key: 'ytd', startDate: new Date('2026-01-01T00:00:00.000Z'), dividendEndDate: new Date('2026-10-04T10:00:00.000Z'), numberOfMonths: 9 },

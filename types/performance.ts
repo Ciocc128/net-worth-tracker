@@ -48,6 +48,25 @@ export interface CashFlowData {
    * Built by `resolvePerformanceBase`, merged by `mergePortfolioFlows`.
    */
   portfolioFlow?: number | null;
+  /**
+   * The cashflow branch's correction (doc/rendimenti-misura § 5.2, lib/utils/returnFlows.ts):
+   * `C_rows − T_sales − T_distributions` — a trade's fee row is a cost, not a withdrawal; a withheld
+   * tax is a withdrawal. Added to `netCashFlow` by `externalFlowOf` only in a month with no
+   * `portfolioFlow`. Absent means 0.
+   */
+  cashflowAdjustment?: number;
+  /**
+   * The measured branch's correction: `−D_gross`, the distributions whose payer is inside the base
+   * (return, not a deposit). Added to `portfolioFlow` by `externalFlowOf` only in a measured month.
+   * Absent means 0.
+   */
+  measuredAdjustment?: number;
+  /**
+   * The part of `pensionFlow` that is the funds' ENTRY into the base (kind `entry`): it arrives at
+   * its end-of-month value and weighs 0 in the mid-month formula (`subPeriodReturn`, § 5.6) and
+   * sits at month end in the IRR. Set by `mergePensionFlows`; absent means 0.
+   */
+  pensionEntryFlow?: number;
 }
 
 /** Which source produced a month's measured flow — the reading names it. */
@@ -233,6 +252,10 @@ export interface MonthlyReturnHeatmapData {
   months: {
     month: number; // 1-12 (Gen to Dic)
     return: number | null; // % return for that month (null if no data)
+    /** Months the return spans when it closes a gap in the snapshots (≥ 2); absent = one month. */
+    spanMonths?: number;
+    /** A month with no snapshot inside the period: its return lives in this later month's cell. */
+    countedIn?: { year: number; month: number };
   }[];
 }
 
@@ -245,6 +268,9 @@ export interface FirestoreCashFlowData {
   netCashFlow: number;
   pensionFlow?: number;
   portfolioFlow?: number | null;
+  cashflowAdjustment?: number;
+  measuredAdjustment?: number;
+  pensionEntryFlow?: number;
 }
 
 // Firestore-serialized version of PerformanceMetrics (Date fields → Timestamp)

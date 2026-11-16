@@ -6,6 +6,7 @@ import {
   requireFirebaseAuth,
 } from '@/lib/server/apiAuth';
 import { invalidateDashboardOverviewSummaryServer } from '@/lib/services/dashboardOverviewInvalidation.server';
+import { parseOr400, pricesUpdateSchema } from '@/lib/server/validation';
 
 /**
  * POST /api/prices/update
@@ -33,8 +34,9 @@ export async function POST(request: NextRequest) {
   try {
     const decodedToken = await requireFirebaseAuth(request);
     // Get user ID from request
-    const body = await request.json();
-    const { userId } = body;
+    const parsed = parseOr400(pricesUpdateSchema, await request.json());
+    if (!parsed.ok) return parsed.response;
+    const { userId } = parsed.data;
 
     await assertCanAccessAccount(decodedToken, userId);
 

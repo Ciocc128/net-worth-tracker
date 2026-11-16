@@ -125,7 +125,7 @@ describe('createExpenseFromDividend', () => {
     expect(balanceOf('directa')).toBe(4033.37);
 
     // The give-back lands on the cent too: back to the balance before the credit, exactly.
-    await deleteExpenseForDividend('div-1', expenseId);
+    await deleteExpenseForDividend('div-1', expenseId, 'u1');
     expect(balanceOf('directa')).toBe(4033.3);
   });
 
@@ -216,7 +216,7 @@ describe('deleteExpenseForDividend', () => {
     seed({ assetAccount: 'directa' });
     const expenseId = await createExpenseFromDividend(dividend(), 'cat-1', 'Dividendi', undefined, undefined, NOW);
 
-    await deleteExpenseForDividend('div-1', expenseId);
+    await deleteExpenseForDividend('div-1', expenseId, 'u1');
 
     expect(rowOf(expenseId)).toBeUndefined();
     expect(balanceOf('directa')).toBeCloseTo(1000, 9);
@@ -226,7 +226,7 @@ describe('deleteExpenseForDividend', () => {
     fake.docs.set('expenses/exp-1', { userId: 'u1', type: 'income', amount: 10 });
     fake.docs.set('dividends/div-1', { userId: 'u1', expenseId: 'exp-1' });
 
-    await deleteExpenseForDividend('div-1', 'exp-1');
+    await deleteExpenseForDividend('div-1', 'exp-1', 'u1');
 
     expect(rowOf('exp-1')).toBeUndefined();
     expect(fake.dividendUpdateMock).toHaveBeenCalledOnce();
@@ -251,7 +251,7 @@ describe('the overview summary', () => {
       dividend({ paymentDate: LAST_SPRING }), 'cat-1', 'Dividendi', undefined, undefined, NOW,
     );
     await updateExpenseFromDividend(dividend({ paymentDate: LAST_SPRING, netAmount: 20 }), expenseId, 'Dividendi');
-    await deleteExpenseForDividend('div-1', expenseId);
+    await deleteExpenseForDividend('div-1', expenseId, 'u1');
 
     expect(vi.mocked(invalidateDashboardOverviewSummaryServer).mock.calls).toEqual([
       ['u1', 'dividend_income_created'],
@@ -284,5 +284,60 @@ describe('updateDividend expenseId handling', () => {
     await updateDividend('div-1', { expenseId: 'exp-9' });
 
     expect((fake.dividendUpdateMock.mock.calls[0][0] as Record<string, unknown>).expenseId).toBe('exp-9');
+  });
+});
+
+// A4 and the second defence of A1 (doc/sicurezza/README.md § 4 RS4–RS5, § 6 DI1–DI3): the row
+// and the balance are only ever written in the account of the stored dividend.
+describe('the account of the dividend is the only one touched', () => {
+  it('DI1 — createExpenseFromDividend refuses an object whose userId differs from the stored dividend', async () => {
+    seed({ assetAccount: 'directa' });
+    fake.docs.set('assets/u2-cash', { userId: 'u2', type: 'cash', assetClass: 'cash', currency: 'EUR', quantity: 8000 });
+    fake.docs.set('assetAllocationTargets/u2', { dividendCashAssetId: 'u2-cash' });
+    const before = [...fake.docs.keys()].filter((key) => key.startsWith('expenses/')).length;
+
+    await expect(
+      createExpenseFromDividend(dividend({ userId: 'u2', netAmount: 2500 }), 'cat-1', 'Dividendi', undefined, undefined, NOW),
+    ).rejects.toThrow();
+
+    expect([...fake.docs.keys()].filter((key) => key.startsWith('expenses/')).length).toBe(before);
+    expect(balanceOf('u2-cash')).toBe(8000);
+    expect(balanceOf('directa')).toBe(1000);
+    expect(fake.docs.get('dividends/div-1')?.expenseId).toBeUndefined();
+  });
+
+  it('DI1b — createExpenseFromDividend refuses a dividend that is not stored at all', async () => {
+    seed({ assetAccount: 'directa' });
+
+    await expect(
+      createExpenseFromDividend(dividend({ id: 'div-ghost' }), 'cat-1', 'Dividendi', undefined, undefined, NOW),
+    ).rejects.toThrow();
+
+    expect(balanceOf('directa')).toBe(1000);
+    expect(fake.docs.has('dividends/div-ghost')).toBe(false);
+  });
+
+  it('DI2 — deleteExpenseForDividend leaves a row of another account and its balance, and drops the false link', async () => {
+    fake.docs.set('assets/u2-cash', { userId: 'u2', type: 'cash', assetClass: 'cash', currency: 'EUR', quantity: 8050 });
+    fake.docs.set('expenses/exp-x', { userId: 'u2', type: 'income', amount: 50, linkedCashAssetId: 'u2-cash' });
+    fake.docs.set('dividends/div-1', { userId: 'u1', expenseId: 'exp-x' });
+
+    await deleteExpenseForDividend('div-1', 'exp-x', 'u1');
+
+    expect(rowOf('exp-x')).toMatchObject({ userId: 'u2', amount: 50 });
+    expect(balanceOf('u2-cash')).toBe(8050);
+    const payload = fake.dividendUpdateMock.mock.calls[0][0] as Record<string, unknown>;
+    expect((payload.expenseId as FieldValue).isEqual(FieldValue.delete())).toBe(true);
+  });
+
+  it('DI3 — updateExpenseFromDividend refuses a row of another account and leaves it as it was', async () => {
+    fake.docs.set('assets/u2-cash', { userId: 'u2', type: 'cash', assetClass: 'cash', currency: 'EUR', quantity: 8050 });
+    const original = { userId: 'u2', type: 'income', amount: 50, notes: 'Ornitorinco', linkedCashAssetId: 'u2-cash' };
+    fake.docs.set('expenses/exp-x', { ...original });
+
+    await expect(updateExpenseFromDividend(dividend({ netAmount: 2500 }), 'exp-x', 'Dividendi')).rejects.toThrow();
+
+    expect(rowOf('exp-x')).toEqual(original);
+    expect(balanceOf('u2-cash')).toBe(8050);
   });
 });

@@ -4,15 +4,35 @@
 
 ## Files
 
-- **Server layer**: `app/api/**/route.ts` (the cron routes `app/api/cron/monthly-snapshot/route.ts` and `app/api/cron/daily-dividend-processing/route.ts`, `/api/portfolio/snapshot`), `lib/server/*` (server-only: `apiAuth.ts` with `assertCanAccessAccount`, `validation.ts` with the reusable schemas, `isoDateSchema` and `parseOr400`, `serverTiming.ts` with `startTiming()` and `ServerTimingRecorder`), `lib/firebase/admin.ts` (the Admin SDK), `vercel.json`, `package.json` (`overrides`, `engines.node`); tests `__tests__/vercelConfig.test.ts`, `__tests__/serverCashSettlement.test.ts`, `__tests__/serverValidation.test.ts`, `__tests__/serverTiming.test.ts`, `__tests__/apiAuthRoutes.test.ts` and the route tests (`__tests__/{performanceYieldsRoute,dividendStatsRoute,instrumentProfilesRoute}.test.ts`), plus the throwaway emulator exercises `scripts/*.tmp.mts` of doc/guide/e2e-emulatori.md
+- **Server layer**: `app/api/**/route.ts` (the cron routes `app/api/cron/monthly-snapshot/route.ts` and `app/api/cron/daily-dividend-processing/route.ts`, `/api/portfolio/snapshot`), `lib/server/*` (server-only: `apiAuth.ts` with `assertCanAccessAccount`, `validation.ts` with the reusable schemas, `isoDateSchema` and `parseOr400`, `serverTiming.ts` with `startTiming()` and `ServerTimingRecorder`), `lib/firebase/admin.ts` (the Admin SDK), `vercel.json`, `package.json` (`overrides`, `engines.node`); tests `__tests__/vercelConfig.test.ts`, `__tests__/serverCashSettlement.test.ts`, `__tests__/serverValidation.test.ts`, `__tests__/serverTiming.test.ts`, `__tests__/apiAuthRoutes.test.ts`, the authorization table `__tests__/routeAuthorization.{table,test}.ts` over `__tests__/helpers/adminFake.ts`, and the route tests (`__tests__/{performanceYieldsRoute,dividendStatsRoute,instrumentProfilesRoute,syncExpensesRoute,dividendLinkedExpenseRoute,assetDeleteRoute}.test.ts`), plus the throwaway emulator exercises `scripts/*.tmp.mts` of doc/guide/e2e-emulatori.md
 
 ## Server Layer and API Authorization
 - Route = auth → validate → fetch → ownership check → delegate → return; no Firestore queries or business logic in the
   handler body. Firestore rules do not protect Admin SDK calls, so enforce record-level ownership after loading the doc.
 - **Owner-scoped routes authorize with `assertCanAccessAccount(decodedToken, ownerUserId)`**, never a fallback to
   `decodedToken.uid`; viewer-scoped routes (sharing management) just read the token uid.
+- **A route passes IDS to its service, and the service re-reads** (RS7, 2026-11-15, `doc/sicurezza/README.md` § 4): a
+  document that arrives in a request is never written, and never names the account it is written in. The account of
+  a write is one of two things — the `userId` verified by `assertCanAccessAccount`, or the `userId` of a document the
+  server has just read. Until 2026-11 `POST /api/dividends/sync-expenses` wrote income rows in whatever account each
+  dividend OBJECT in its body declared (A1): it now takes `{ userId, categoryId, subCategoryId? }` and reads the rest.
+- **Every `route.ts` × method is a row of `__tests__/routeAuthorization.table.ts`** (kind `owner` · `resource` ·
+  `viewer` · `token` · `secret` · `public`, and a request that REACHES the check). `__tests__/routeAuthorization.test.ts`
+  reads the handlers from disk and fails when one is missing from the table (RA1), when it answers anything but 401
+  without a credential (RA2), anything but 403 (or the row's declared 404) or writes anything for a stranger's token
+  aimed at another account (RA3), 401/403 to the account's own token or a member's (RA4), or when a `viewer` route
+  touches the account named in the request (RA5). The routes run for real over `__tests__/helpers/adminFake.ts`, an
+  in-memory Admin SDK that records every path read and written; `fetch` rejects. A new route is born with its row; the
+  readable table with the review's notes is `doc/sicurezza/README.md` § 5.
 - Server-owned materialized docs are mutated only via a private authenticated route; cron routes use `CRON_SECRET`, and
   `/api/portfolio/snapshot` must keep accepting `cronSecret`.
+- **The automatic snapshot route writes the current Italian month and nothing else** (F07, 2026-11-16,
+  `doc/snapshot-integri/README.md` § 5.3): `snapshotRequestSchema` is `{ userId, cronSecret? }` and STRICT — a `year`
+  or `month` is a 400 before any price update, never silently dropped. A closed month has one writer, the manual
+  route (409 on a month with figures unless `replace: true`; the replaced document kept in `versions/`), and one undo,
+  `POST /api/portfolio/snapshot/restore` (kind `owner`). All three read and write in ONE `runTransaction`, and every
+  snapshot goes through `buildSnapshotDocument`, which stamps `writtenBy` from the credential (`cron` with the secret,
+  `button` with a token on the automatic route, `manual` on the manual one) and the token's uid.
 - **Validation**: `lib/server/validation.ts` owns the reusable schemas and `parseOr400` — never cast with `as { … }`
   first, coerce dates with `z.coerce.date()` (behind a string when they come from a request, below), and validate
   **Firestore-originated** inputs at the service entry point too.
@@ -21,6 +41,11 @@
   an epoch instead of 400 — every request date in the file goes through it (yields, dividends, transactions), pinned by
   the «a null date» case of `__tests__/performanceYieldsRoute.test.ts` and the date cases of `serverValidation.test.ts`.
   Tests that touch a `server-only` module need `vi.mock('server-only', () => ({}))`.
+  **A body schema is STRICT** (F07, A5): `.strict()`, so an unknown key is a 400 rather than a field silently read
+  or dropped; the order is token → schema → `assertCanAccessAccount`, so an unauthenticated caller still gets 401 and a
+  row of the route table needs a body that passes the schema (or RA3 reads a 400). The manual snapshot, the restore,
+  `hall-of-fame/recalculate`, `prices/update`, `assets/[assetId]` DELETE (and its path id), the assistant's memory
+  PATCH/DELETE and stream (prompt ≤ 8.000 characters, D-SN11) are the worked examples.
 - **A route's latency is a `Server-Timing` header** (`lib/server/serverTiming.ts`; five routes since 2026-10-05: overview,
   yields, dividend stats, instrument profiles, assistant threads): `startTiming()` at the handler's top, `mark('auth')`
   after `assertCanAccessAccount`, `mark('db')` after ONE round of reads, `mark('compute')` before the response; a service

@@ -18,6 +18,7 @@ import {
   AssistantMemorySuggestion,
   AssistantPreferences,
 } from '@/types/assistant';
+import { assistantMemoryDeleteSchema, assistantMemoryPatchSchema, parseOr400 } from '@/lib/server/validation';
 
 type AssistantMemoryItemPatch = Partial<AssistantMemoryItem> &
   Pick<AssistantMemoryItem, 'id' | 'text' | 'category'>;
@@ -108,7 +109,9 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const decodedToken = await requireFirebaseAuth(request);
-    const body = (await request.json()) as {
+    const parsed = parseOr400(assistantMemoryPatchSchema, await request.json());
+    if (!parsed.ok) return parsed.response;
+    const body: {
       userId: string;
       preferences?: Partial<AssistantPreferences>;
       item?: AssistantMemoryItemPatch;
@@ -116,7 +119,7 @@ export async function PATCH(request: NextRequest) {
       action?: 'acceptSuggestion' | 'ignoreSuggestion' | 'reactivateGoal';
       suggestionId?: string;
       itemId?: string;
-    };
+    } = parsed.data;
 
     await assertCanAccessAccount(decodedToken, body.userId);
 
@@ -222,11 +225,9 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const decodedToken = await requireFirebaseAuth(request);
-    const body = (await request.json()) as {
-      userId: string;
-      itemId?: string;
-      resetAll?: boolean;
-    };
+    const parsed = parseOr400(assistantMemoryDeleteSchema, await request.json());
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
 
     await assertCanAccessAccount(decodedToken, body.userId);
 

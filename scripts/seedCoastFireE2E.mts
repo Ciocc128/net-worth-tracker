@@ -60,18 +60,20 @@ async function seedCoastFireSettings(): Promise<void> {
         includePrimaryResidenceInFIRE: false,
         coastFireRetirementAge: COAST_RETIREMENT_AGE,
         plannedAnnualExpenses: ANNUAL_EXPENSES,
+        // At today's prices since FC-NF (RN7, doc/fire-ipotesi/README.md § 23): 1.000 and 300 € a month are
+        // about the 2.200 and 600 € nominal at the start the fixture carried before, deflated at 2,5%.
         coastFirePensions: [
           {
             id: 'e2e-coast-pension-inps',
             label: 'Pensione INPS',
-            grossMonthlyAmount: 2200,
+            grossMonthlyAmount: 1000,
             monthsPerYear: 13,
             startDate: '2058-01-01',
           },
           {
             id: 'e2e-coast-pension-estera',
             label: 'Pensione estera',
-            grossMonthlyAmount: 600,
+            grossMonthlyAmount: 300,
             monthsPerYear: 12,
             startDate: '2052-06-01',
           },

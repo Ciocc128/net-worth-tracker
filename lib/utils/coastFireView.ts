@@ -1187,7 +1187,7 @@ export const COAST_INFLOWS_FOOTER: Narrative = [prose('Già contati nel numero C
 
 /** The method behind «Come si calcola» on the Afflussi tile, one paragraph each. */
 export const COAST_INFLOWS_METHOD: readonly string[] = [
-  'Ogni pensione statale entra dalla sua decorrenza, al netto IRPEF e deflazionata con lo scenario base: è la cifra netta reale che riduce il fabbisogno del portafoglio da quell\'anno.',
+  'Ogni pensione statale entra dalla sua decorrenza, al netto IRPEF, a prezzi di oggi: è la cifra netta che riduce il fabbisogno del portafoglio da quell\'anno.',
   'Il fondo pensione rientra al valore di oggi: il calcolo lo fa crescere da solo, quindi qui non è già cresciuto.',
   'I flussi datati sono quelli di Il mio piano che il numero conta: le una tantum da qui al target e ogni flusso dopo il target. Le spese ricorrenti prima del target le copre il lavoro.',
   'L\'ordine è cronologico; i segmenti sono uguali per scelta, non una scala del tempo.',
@@ -1303,12 +1303,12 @@ export function describeProfilo(hasUnsavedChanges: boolean): Narrative {
     : [prose("Salvate nel profilo: ogni modifica qui è un'anteprima finché non la salvi.")];
 }
 
-/** «2 pensioni: ognuna riduce il fabbisogno del portafoglio solo dalla sua decorrenza, al netto IRPEF e deflazionata.» */
+/** «2 pensioni: ognuna riduce il fabbisogno del portafoglio solo dalla sua decorrenza, al netto IRPEF, a prezzi di oggi.» */
 export function describePensioniStatali(pensionCount: number, incompleteCount: number): Narrative {
   if (pensionCount === 0) {
     return [prose('Nessuna pensione: il portafoglio sostiene per intero le spese anche dopo il target. Aggiungine una per ogni cassa.')];
   }
-  const head: Narrative = [figure(String(pensionCount)), prose(pensionCount === 1 ? ' pensione: riduce' : ' pensioni: ognuna riduce'), prose(' il fabbisogno del portafoglio solo dalla sua decorrenza, al netto IRPEF e deflazionata')];
+  const head: Narrative = [figure(String(pensionCount)), prose(pensionCount === 1 ? ' pensione: riduce' : ' pensioni: ognuna riduce'), prose(' il fabbisogno del portafoglio solo dalla sua decorrenza, al netto IRPEF, a prezzi di oggi')];
   if (incompleteCount > 0) {
     head.push(prose(incompleteCount === 1 ? '; una riga è incompleta e non entra nel calcolo.' : `; ${incompleteCount} righe sono incomplete e non entrano nel calcolo.`));
     return head;

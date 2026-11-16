@@ -47,6 +47,7 @@ import { computeGoalTrajectory } from '@/lib/utils/goalTrajectory';
 import { resolveFireAssumptions } from '@/lib/utils/fireAssumptions';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { getGoalDataAdmin } from '@/lib/server/goalData';
+import { snapshotFromData } from '@/lib/utils/snapshotDocument';
 
 const MAX_ALLOCATION_CHANGES = 5;
 
@@ -134,13 +135,7 @@ async function fetchSnapshots(userId: string): Promise<MonthlySnapshot[]> {
     .orderBy('month', 'asc')
     .get();
 
-  return snap.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      ...data,
-      createdAt: toDate(data.createdAt),
-    } as MonthlySnapshot;
-  });
+  return snap.docs.map((doc) => snapshotFromData(doc.data()));
 }
 
 async function fetchExpenses(

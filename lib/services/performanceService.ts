@@ -29,7 +29,29 @@ import { getAssetTransactions } from './assetTransactionService';
 import { readMarketAnchors } from './marketAnchorsReadService';
 import { resolveRiskFreeRate } from '@/lib/utils/riskFreeRate';
 import type { MonteCarloAnchors } from '@/lib/constants/monteCarloMarketDefaults';
-import { buildCashFlowMap, externalFlowOf, mergePensionFlows, mergePortfolioFlows, monthKey, monthKeyOf } from '@/lib/utils/cashFlowMap';
+import {
+  buildCashFlowMap,
+  buildFlowIndex,
+  externalFlowOf,
+  mergePensionFlows,
+  mergePortfolioFlows,
+  monthKey,
+  monthKeyOf,
+  monthlyEquivalentReturn,
+  subPeriodFlow,
+  subPeriodReturn,
+} from '@/lib/utils/cashFlowMap';
+import {
+  buildReturnFlowAdjustments,
+  capAtCutoff,
+  EMPTY_RETURN_FLOW_CONTEXT,
+  mergeReturnAdjustments,
+  resolveFlowCutoff,
+  returnFlowTokens,
+  type ReturnFlowContext,
+} from '@/lib/utils/returnFlows';
+import { getDividendReceipts } from './dividendReceiptsService';
+import type { DividendReceipt } from '@/lib/utils/performanceAttribution';
 import { removeUndefinedDeep } from '@/lib/utils/firestoreData';
 import { endOfMonthBound } from '@/lib/utils/dateHelpers';
 import { buildTwrIndex, computeDrawdownSeries, findMaxDrawdown } from '@/lib/utils/drawdownSeries';
@@ -56,7 +78,13 @@ const PERFORMANCE_CACHE_COLLECTION = 'performance-cache';
  * (`CashFlowData.portfolioFlow`), a non-positive starting value yields no return instead of a
  * flipped sign, a rolling CAGR that cannot be measured is null, the unread 36-month series is gone;
  * v8 = an instrument the snapshots meet for the first time enters at its value even when the
- * ledger covers it from an older trade date (`portfolioFlows.ts` § THE ENTRY MONTH).
+ * ledger covers it from an older trade date (`portfolioFlows.ts` § THE ENTRY MONTH);
+ * v9 = one definition in both flow branches, gross of tax and net of trading fees — a distribution
+ * paid inside the base is return, a withheld tax a withdrawal, a fee row a cost — and the running
+ * month's rows stop at the snapshot's capture day (`lib/utils/returnFlows.ts`,
+ * doc/rendimenti-misura § 5.1–5.4); v10 = one formula per sub-period, the flow at mid-period
+ * (modified Dietz, three guards) and every month of a snapshot gap in its flow, the IRR on the same
+ * instants (`subPeriodFlow`/`subPeriodReturn` in `lib/utils/cashFlowMap.ts`, § 5.5–5.6).
  *
  * FORK NOTE (2026-09-12): upstream reached its own `'v7'` independently, for a different math —
  * the two only fail to collide today because the two sides append a different SHAPE to the key
@@ -65,7 +93,7 @@ const PERFORMANCE_CACHE_COLLECTION = 'performance-cache';
  * The `-fork` suffix makes this fork's key permanently distinct from upstream's, regardless of
  * shape, so a merge can never read a stale cache entry as fresh; an upstream bump is carried as `v{n}-fork`.
  */
-const CACHE_MATH_VERSION = 'v8-fork';
+const CACHE_MATH_VERSION = 'v10-fork';
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -163,9 +191,12 @@ export function calculateCAGR(
  * and geometrically linking them. This is the preferred metric for comparing
  * investment performance.
  *
- * Algorithm:
- * 1. For each month, calculate: R = (End NW - Cash Flow) / Start NW - 1
+ * Algorithm (doc/rendimenti-misura § 5.5–5.6, since 2026-11-15):
+ * 1. For each SUB-PERIOD — one snapshot to the next, a gap included — the flow is every month's
+ *    flow in it (`subPeriodFlow`) and the return the mid-period Dietz `subPeriodReturn`.
  * 2. Link returns: TWR = [(1 + R1) × (1 + R2) × ... × (1 + Rn)] - 1
+ * A sub-period that lost more than its weighted capital (`1 + R ≤ 0`) makes the whole TWR null:
+ * a negative product raised to a power is not a return.
  *
  * @param snapshots - Monthly snapshots for the period (sorted chronologically)
  * @param cashFlows - Monthly cash flows
@@ -181,23 +212,18 @@ export function calculateTimeWeightedReturn(
 ): number | null {
   if (snapshots.length < 2) return null;
 
-  const cashFlowMap = buildCashFlowMap(cashFlows);
+  const flowIndex = buildFlowIndex(cashFlows);
 
   let linkedReturn = 1.0;
 
   for (let i = 1; i < snapshots.length; i++) {
     const prevSnapshot = snapshots[i - 1];
     const currSnapshot = snapshots[i];
-
-    const startNW = prevSnapshot.totalNetWorth;
-    const endNW = currSnapshot.totalNetWorth;
-
-    // Get cash flow for current month
-    const cashFlow = cashFlowMap.get(monthKey(currSnapshot.year, currSnapshot.month)) || 0;
-
-    // Calculate sub-period return: (End NW - Cash Flow) / Start NW - 1
-    if (startNW <= 0) continue; // No return from a non-positive starting value (a negative one would flip the sign)
-    const periodReturn = ((endNW - cashFlow) / startNW) - 1;
+    const { flow, entry } = subPeriodFlow(flowIndex, prevSnapshot, currSnapshot);
+    // Null = not measurable (a non-positive start, or weighted capital): skipped, as before.
+    const periodReturn = subPeriodReturn(prevSnapshot.totalNetWorth, currSnapshot.totalNetWorth, flow, entry);
+    if (periodReturn === null) continue;
+    if (1 + periodReturn <= 0) return null; // guard 3: more than the weighted capital lost
 
     // Link returns geometrically
     linkedReturn *= (1 + periodReturn);
@@ -299,9 +325,10 @@ function solveIrrByBisection(flows: DatedFlow[]): number | null {
  *
  * TIMELINE: t = 0 is the start of the period, where the starting valuation sits — NOT the first
  * month that happens to have movements, which is what the previous anchor used and which pulled
- * every flow forward whenever the early months were quiet. Month distances are counted as elapsed
- * months, so a flow in the first month of the period sits at t = 0 alongside the starting value, and
- * the final value sits at t = numberOfMonths.
+ * every flow forward whenever the early months were quiet. A month's flow sits at its MIDDLE
+ * (t + 0,5 months), the instant the TWR's mid-period Dietz assumes, and the pension funds' entry at
+ * its end (t + 1); the final value sits at t = numberOfMonths (since 2026-11-15, D-RM6 — before, a
+ * flow sat at the START of its month and IRR and TWR disagreed on a one-month period).
  *
  * WHY IT DIFFERS FROM TWR: TWR neutralises cash flows to judge the strategy; IRR keeps them to judge
  * the outcome for this investor. Paying in right before a rally makes IRR beat TWR, and vice versa.
@@ -325,11 +352,16 @@ export function calculateIRR(
   const flows: DatedFlow[] = [{ amount: -startNW, monthsFromStart: 0 }];
 
   for (const cf of cashFlows) {
-    const monthsFromStart = monthsElapsed(periodStart, cf.date);
+    const monthStart = monthsElapsed(periodStart, cf.date);
     // A flow dated outside the measured window would be discounted over a time it did not spend
     // invested; the callers already filter by the same window, so this is a guard, not a policy.
-    if (monthsFromStart < 0 || monthsFromStart > numberOfMonths) continue;
-    flows.push({ amount: -externalFlowOf(cf), monthsFromStart });
+    if (monthStart < 0 || monthStart >= numberOfMonths) continue;
+    // The SAME instants as the TWR (doc/rendimenti-misura § 5.6, D-RM6): a month's flow at mid-month,
+    // the pension funds' entry at month end (it arrives at its end-of-month value).
+    const entry = cf.pensionEntryFlow ?? 0;
+    const flow = externalFlowOf(cf) - entry;
+    if (flow !== 0) flows.push({ amount: -flow, monthsFromStart: monthStart + 0.5 });
+    if (entry !== 0) flows.push({ amount: -entry, monthsFromStart: monthStart + 1 });
   }
 
   flows.push({ amount: endNW, monthsFromStart: numberOfMonths });
@@ -396,7 +428,7 @@ const MIN_RETURNS_FOR_VOLATILITY = 3;
  * Calculate annualized volatility from monthly snapshots
  *
  * Uses the SAME cash-flow-adjusted monthly returns as the heatmap and the drawdown index — the
- * whole series, unfiltered. There used to be a ±50% cut here (and only here), meant to drop spikes
+ * whole series, unfiltered — one observation per sub-period, the monthly equivalent over a gap. There used to be a ±50% cut here (and only here), meant to drop spikes
  * caused by large contributions. It was solving a problem the formula had already solved: the
  * return is `(V_end − CF) / V_start − 1`, so a TRACKED contribution is neutralised before it can
  * become a spike, however large. What the cut actually removed was of two kinds, and both were
@@ -421,20 +453,19 @@ export function calculateVolatility(
 ): number | null {
   if (snapshots.length < 2) return null;
 
-  const cashFlowMap = buildCashFlowMap(cashFlows);
+  const flowIndex = buildFlowIndex(cashFlows);
 
   const monthlyReturns: number[] = [];
 
   for (let i = 1; i < snapshots.length; i++) {
-    const prevNW = snapshots[i - 1].totalNetWorth;
-    const currNW = snapshots[i].totalNetWorth;
-
-    if (prevNW <= 0) continue;
-
-    const cashFlow = cashFlowMap.get(monthKey(snapshots[i].year, snapshots[i].month)) || 0;
-
-    // Monthly return = (End NW - Cash Flow) / Start NW - 1
-    monthlyReturns.push(((currNW - cashFlow) / prevNW - 1) * 100);
+    const { flow, entry, months } = subPeriodFlow(flowIndex, snapshots[i - 1], snapshots[i]);
+    const r = subPeriodReturn(snapshots[i - 1].totalNetWorth, snapshots[i].totalNetWorth, flow, entry);
+    if (r === null) continue;
+    // A gap of k months is ONE observation, its monthly equivalent (§ 5.5, D-RM5); a gap that lost
+    // more than its weighted capital has none, and the period's volatility cannot be measured.
+    const monthly = monthlyEquivalentReturn(r, months);
+    if (monthly === null) return null;
+    monthlyReturns.push(monthly * 100);
   }
 
   if (monthlyReturns.length < MIN_RETURNS_FOR_VOLATILITY) return null;
@@ -705,74 +736,6 @@ export function selectSnapshotsForMetrics(
 }
 
 /**
- * Aggregate monthly cash flows from expenses
- * Separates dividend income from other income for accurate performance calculations.
- *
- * Dividend income is excluded from netCashFlow because it represents portfolio returns,
- * not external contributions. Including it would distort ROI, CAGR, and TWR calculations.
- *
- * @param userId - User ID for fetching expenses
- * @param startDate - Start date for expense range
- * @param endDate - End date for expense range
- * @param dividendCategoryId - Category ID for dividend income (from user settings)
- * @returns Array of monthly cash flow data with separated dividend income
- */
-async function getCashFlowsForPeriod(
-  userId: string,
-  startDate: Date,
-  endDate: Date,
-  dividendCategoryId?: string
-): Promise<CashFlowData[]> {
-  const expenses = await getExpensesByDateRange(userId, startDate, endDate);
-
-  // Group expenses by month
-  const monthlyMap = new Map<string, { income: number; expenses: number; dividendIncome: number }>();
-
-  expenses.forEach(expense => {
-    // Transfers are net-zero for portfolio metrics — skip before touching the map
-    // so a transfer-only month never creates a spurious empty cashflow entry.
-    if (expense.type === 'transfer') return;
-
-    const date = expense.date;
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-    if (!monthlyMap.has(key)) {
-      monthlyMap.set(key, { income: 0, expenses: 0, dividendIncome: 0 });
-    }
-
-    const entry = monthlyMap.get(key)!;
-
-    // Separate dividend income from other income
-    if (expense.type === 'income') {
-      if (dividendCategoryId && expense.categoryId === dividendCategoryId) {
-        // Dividend income (portfolio return)
-        entry.dividendIncome += expense.amount;
-      } else {
-        // External income (salary, bonus, gifts)
-        entry.income += expense.amount;
-      }
-    } else {
-      entry.expenses += Math.abs(expense.amount);
-    }
-  });
-
-  // Convert to CashFlowData array
-  const cashFlows: CashFlowData[] = [];
-  monthlyMap.forEach((value, key) => {
-    const [year, month] = key.split('-').map(Number);
-    cashFlows.push({
-      date: new Date(year, month - 1, 1),
-      income: value.income,
-      expenses: value.expenses,
-      dividendIncome: value.dividendIncome,
-      netCashFlow: value.income - value.expenses, // Excludes dividends (they are portfolio returns, not contributions)
-    });
-  });
-
-  return cashFlows.sort((a, b) => a.date.getTime() - b.date.getTime());
-}
-
-/**
  * Build cash flows from a pre-fetched expense array (in-memory filtering)
  * This eliminates N Firestore queries in rolling period calculations
  * Separates dividend income from other income for accurate performance calculations
@@ -795,7 +758,7 @@ export function getCashFlowsFromExpenses(
     return date >= startDate && date <= endDate;
   });
 
-  // Group expenses by month (same logic as getCashFlowsForPeriod)
+  // Group expenses by month
   const monthlyMap = new Map<string, { income: number; expenses: number; dividendIncome: number }>();
 
   filtered.forEach(expense => {
@@ -918,6 +881,10 @@ export function resolveYieldPeriods(snapshots: MonthlySnapshot[], now: Date): Pe
  * @param portfolioFlows - The measured boundary flows from `resolvePerformanceBase` (any period):
  *   for the months they cover they REPLACE the cashflow's savings in every formula
  *   (`externalFlowOf`); empty when the base is the whole net worth.
+ * @param returnFlows - The registry, the ledger and the base's exclusions the two branch corrections
+ *   read (`lib/utils/returnFlows.ts`, doc/rendimenti-misura § 5.2): without them a distribution on a
+ *   subset base reads as a deposit and a sale's withheld tax as a loss. `resolvePerformanceSetup`
+ *   builds it for the page; the PDF and the email build their own from the same inputs.
  */
 export async function calculatePerformanceForPeriod(
   userId: string,
@@ -929,7 +896,8 @@ export async function calculatePerformanceForPeriod(
   preFetchedExpenses?: Expense[],
   dividendCategoryId?: string,
   pensionFlows: PensionBoundaryFlow[] = [],
-  portfolioFlows: PortfolioBoundaryFlow[] = []
+  portfolioFlows: PortfolioBoundaryFlow[] = [],
+  returnFlows: ReturnFlowContext = EMPTY_RETURN_FLOW_CONTEXT
 ): Promise<PerformanceMetrics> {
   // One clock for the whole computation: period selection, the nominal start recorded in the
   // payload and the dividend cap must not disagree because they each called new Date().
@@ -1035,12 +1003,22 @@ export async function calculatePerformanceForPeriod(
 
   // Get cash flows for period - use pre-fetched if available, otherwise fetch — then the pension
   // funds' boundary flows, on their own channel, so the series every formula reads is complete.
-  const expenseCashFlows = preFetchedExpenses
-    ? getCashFlowsFromExpenses(preFetchedExpenses, startDate, endDate, dividendCategoryId)
-    : await getCashFlowsForPeriod(userId, startDate, endDate, dividendCategoryId);
-  // The measured boundary flows first (they replace the savings month by month), then the pension
-  // channel on top: `externalFlowOf` reads `(portfolioFlow ?? netCashFlow) + pensionFlow`.
-  const cashFlows = mergePensionFlows(mergePortfolioFlows(expenseCashFlows, portfolioFlows, startDate, endDate), pensionFlows, startDate, endDate);
+  // The running month's rows count up to the snapshot's capture day (B3, doc/rendimenti-misura
+  // § 5.4): a salary in the calendar for the 27th is not in the balances of the 10th. A closed
+  // month counts whole. The measured and the pension flows come from the snapshots: no cap.
+  const flowEndDate = capAtCutoff(endDate, resolveFlowCutoff(allSnapshots, now));
+  const expenses = preFetchedExpenses ?? (await getExpensesByDateRange(userId, startDate, endDate));
+  const expenseCashFlows = getCashFlowsFromExpenses(expenses, startDate, flowEndDate, dividendCategoryId);
+  // The measured boundary flows first (they replace the savings month by month), then each
+  // branch's correction (gross of tax, net of fees, a distribution inside the base is return), then
+  // the pension channel on top — `externalFlowOf` reads them in that order.
+  const adjustments = buildReturnFlowAdjustments(expenses, returnFlows, dividendCategoryId, startDate, flowEndDate);
+  const cashFlows = mergePensionFlows(
+    mergeReturnAdjustments(mergePortfolioFlows(expenseCashFlows, portfolioFlows, startDate, endDate), adjustments),
+    pensionFlows,
+    startDate,
+    endDate
+  );
 
   // Calculate net cash flow totals
   let totalContributions = 0;
@@ -1345,6 +1323,9 @@ function hashTokens(tokens: string[]): string {
  *  - the risk-free rate, which moves every Sharpe ratio and the hero verdict built on it;
  *  - the dividend income category, which decides what counts as a contribution instead of a
  *    portfolio return — it reclassifies cash flows, so it changes ROI, CAGR, TWR and IRR too;
+ *  - the dividend registry (payer, gross, tax, synced row, by month), the sales' withheld tax, the
+ *    base's exclusions and the running month's capture day — what the two branch corrections read
+ *    (`returnFlowTokens`, doc/rendimenti-misura § 6);
  *  - `CACHE_MATH_VERSION`, the manual lever for when the MATH changes but the inputs do not — the
  *    only case no input signature can detect. See its declaration for when to bump it.
  *
@@ -1363,6 +1344,9 @@ export function buildCacheKey(inputs: {
   base: Pick<PerformanceBaseResolution, 'options' | 'pensionEntryMonth' | 'pensionFlows' | 'portfolioFlows'>;
   riskFreeRate: number;
   dividendCategoryId?: string;
+  /** The registry, the sale taxes and the running month's cap the branch corrections read (F08). */
+  returnFlows?: ReturnFlowContext;
+  cutoff?: Date | null;
 }): string {
   const { snapshots, base, riskFreeRate, dividendCategoryId } = inputs;
 
@@ -1373,7 +1357,7 @@ export function buildCacheKey(inputs: {
   const flowsSignature = base.pensionFlows.map((flow) => `${flow.month}${flow.kind[0]}${Math.round(flow.amount)}`).join(',') || 'none';
   const measuredSignature = hashTokens(base.portfolioFlows.map((flow) => `${flow.month}:${Math.round(flow.amount)}${flow.source[0]}`));
   const baseSignature = `p${base.options.includePensionFunds ? 1 : 0}e${base.options.includeExcludedAssets ? 1 : 0}c${base.options.excludeCash ? 1 : 0}-pe${base.pensionEntryMonth ?? 'none'}-pf${flowsSignature}-mf${base.portfolioFlows.length}${measuredSignature}`;
-  const settingsSignature = `r${riskFreeRate}d${dividendCategoryId ?? 'none'}`;
+  const settingsSignature = `r${riskFreeRate}d${dividendCategoryId ?? 'none'}-rf${hashTokens(returnFlowTokens(inputs.returnFlows ?? EMPTY_RETURN_FLOW_CONTEXT, inputs.cutoff ?? null))}`;
 
   if (snapshots.length === 0) return `${CACHE_MATH_VERSION}-0-${baseSignature}-${settingsSignature}`;
 
@@ -1393,7 +1377,7 @@ export function buildCacheKey(inputs: {
 }
 
 /**
- * What the metrics are computed from, besides the expenses: the five collections
+ * What the metrics are computed from, besides the expenses: the six collections
  * `resolvePerformanceBase` reads. The settings are `null` when the document does not exist yet.
  */
 export interface PerformanceInputs {
@@ -1402,26 +1386,29 @@ export interface PerformanceInputs {
   assets: Asset[];
   contributions: PensionContribution[];
   trades: AssetTransaction[];
+  /** The dividend registry: a distribution paid inside the base is return, its tax a withdrawal (F08). */
+  dividends: DividendReceipt[];
   /** The ECB anchors the risk-free estimate reads when the settings hold no typed rate; absent = the frozen ones. */
   anchors?: MonteCarloAnchors;
 }
 
 /**
- * Read the five input collections in parallel, for a caller that did not bring them.
+ * Read the six input collections in parallel, for a caller that did not bring them.
  *
  * The ledger read is not guarded: a registry that cannot be read is a failed load (the page's
  * isError branch), never an empty one silently measured from the quantities alone.
  */
 async function readPerformanceInputs(userId: string): Promise<PerformanceInputs> {
-  const [snapshots, settings, assets, contributions, trades, anchors] = await Promise.all([
+  const [snapshots, settings, assets, contributions, trades, dividends, anchors] = await Promise.all([
     getUserSnapshots(userId),
     getSettings(userId),
     getAllAssets(userId),
     getPensionContributions(userId),
     getAssetTransactions(userId),
+    getDividendReceipts(userId),
     readMarketAnchors(),
   ]);
-  return { snapshots, settings, assets, contributions, trades, anchors };
+  return { snapshots, settings, assets, contributions, trades, dividends, anchors };
 }
 
 /** What the inputs decide before any metric is computed: the base, the two settings, the cache key. */
@@ -1429,6 +1416,8 @@ export interface PerformanceSetup {
   base: PerformanceBaseResolution;
   riskFreeRate: number;
   dividendCategoryId: string | undefined;
+  /** What the two branch corrections read (`lib/utils/returnFlows.ts`): registry, ledger, the base's exclusions. */
+  returnFlows: ReturnFlowContext;
   /** `buildCacheKey` over the above: equal keys mean equal pre-computed metrics. */
   cacheKey: string;
 }
@@ -1456,8 +1445,11 @@ export function resolvePerformanceSetup(inputs: PerformanceInputs): PerformanceS
   const riskFreeRate = resolveRiskFreeRate(settings?.riskFreeRate, inputs.anchors).value;
   const dividendCategoryId = settings?.dividendIncomeCategoryId;
 
-  const cacheKey = buildCacheKey({ snapshots: base.snapshots, base, riskFreeRate, dividendCategoryId });
-  return { base, riskFreeRate, dividendCategoryId, cacheKey };
+  const returnFlows: ReturnFlowContext = { dividends: inputs.dividends ?? [], trades, excludedAssetIds: base.excludedAssetIds };
+  const cutoff = resolveFlowCutoff(base.snapshots, new Date());
+
+  const cacheKey = buildCacheKey({ snapshots: base.snapshots, base, riskFreeRate, dividendCategoryId, returnFlows, cutoff });
+  return { base, riskFreeRate, dividendCategoryId, returnFlows, cacheKey };
 }
 
 /**
@@ -1481,7 +1473,7 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
   // ==== STEP 1: The inputs — the caller's, or read here in parallel ====
   const resolvedInputs = inputs ?? (await readPerformanceInputs(userId));
 
-  const { base, riskFreeRate, dividendCategoryId, cacheKey } = resolvePerformanceSetup(resolvedInputs);
+  const { base, riskFreeRate, dividendCategoryId, returnFlows, cacheKey } = resolvePerformanceSetup(resolvedInputs);
   const { snapshots, pensionFlows, portfolioFlows } = base;
 
   // ==== STEP 2: Check cache before fetching expenses ====
@@ -1518,11 +1510,11 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
 
   // ==== STEP 4: Calculate metrics for all time periods ====
   const periodOf = (period: TimePeriod) =>
-    calculatePerformanceForPeriod(userId, snapshots, period, riskFreeRate, undefined, undefined, allExpenses, dividendCategoryId, pensionFlows, portfolioFlows);
+    calculatePerformanceForPeriod(userId, snapshots, period, riskFreeRate, undefined, undefined, allExpenses, dividendCategoryId, pensionFlows, portfolioFlows, returnFlows);
   const [ytd, oneYear, threeYear, fiveYear, allTime] = await Promise.all([periodOf('YTD'), periodOf('1Y'), periodOf('3Y'), periodOf('5Y'), periodOf('ALL')]);
 
   // ==== STEP 5: Calculate the rolling 12-month windows (reuse allExpenses — no extra Firestore queries) ====
-  const rolling12M = await calculateRollingPeriods(userId, snapshots, 12, riskFreeRate, dividendCategoryId, allExpenses, pensionFlows, portfolioFlows);
+  const rolling12M = await calculateRollingPeriods(userId, snapshots, 12, riskFreeRate, dividendCategoryId, allExpenses, pensionFlows, portfolioFlows, returnFlows);
 
   const result: PerformanceData = {
     ytd,
@@ -1579,7 +1571,8 @@ export async function calculateRollingPeriods(
   dividendCategoryId?: string,
   prefetchedExpenses?: Expense[],
   pensionFlows: PensionBoundaryFlow[] = [],
-  portfolioFlows: PortfolioBoundaryFlow[] = []
+  portfolioFlows: PortfolioBoundaryFlow[] = [],
+  returnFlows: ReturnFlowContext = EMPTY_RETURN_FLOW_CONTEXT
 ): Promise<RollingPeriodPerformance[]> {
   const sortedSnapshots = [...allSnapshots]
     .sort((a, b) => {
@@ -1600,6 +1593,9 @@ export async function calculateRollingPeriods(
   const allExpenses = prefetchedExpenses ?? await getExpensesByDateRange(userId, overallStartDate, overallEndDate);
 
   const rollingPeriods: RollingPeriodPerformance[] = [];
+  // The running month's cap (doc/rendimenti-misura § 5.4), one for every window: only the last
+  // window can reach the running month.
+  const cutoff = resolveFlowCutoff(sortedSnapshots, new Date());
 
   for (let i = windowMonths; i < sortedSnapshots.length; i++) {
     const endSnapshot = sortedSnapshots[i];
@@ -1615,8 +1611,12 @@ export async function calculateRollingPeriods(
     // Get snapshots and cash flows for this window
     const windowSnapshots = sortedSnapshots.slice(i - windowMonths, i + 1);
     // OPTIMIZATION: Use in-memory filtering instead of Firestore query
+    const flowEndDate = capAtCutoff(periodEndDate, cutoff);
     const cashFlows = mergePensionFlows(
-      mergePortfolioFlows(getCashFlowsFromExpenses(allExpenses, periodStartDate, periodEndDate, dividendCategoryId), portfolioFlows, periodStartDate, periodEndDate),
+      mergeReturnAdjustments(
+        mergePortfolioFlows(getCashFlowsFromExpenses(allExpenses, periodStartDate, flowEndDate, dividendCategoryId), portfolioFlows, periodStartDate, periodEndDate),
+        buildReturnFlowAdjustments(allExpenses, returnFlows, dividendCategoryId, periodStartDate, flowEndDate)
+      ),
       pensionFlows,
       periodStartDate,
       periodEndDate
@@ -1702,9 +1702,15 @@ export function preparePerformanceChartData(
 
   let cumulativeContributions = 0;
   const cashFlowMap = buildCashFlowMap(cashFlows);
+  const flowIndex = buildFlowIndex(cashFlows);
 
   return chartSnapshots.map(snapshot => {
-    const cashFlow = cashFlowMap.get(monthKey(snapshot.year, snapshot.month)) || 0;
+    // Every month since the previous snapshot (a gap's too, § 5.5); the series' first snapshot, when
+    // drawn, keeps its own month's flow as before.
+    const position = sortedSnapshots.indexOf(snapshot);
+    const cashFlow = position > 0
+      ? subPeriodFlow(flowIndex, sortedSnapshots[position - 1], snapshot).flow
+      : cashFlowMap.get(monthKey(snapshot.year, snapshot.month)) || 0;
     cumulativeContributions += cashFlow;
 
     return {
@@ -1720,9 +1726,15 @@ export function preparePerformanceChartData(
 
 /**
  * Prepare monthly returns heatmap data
- * Calculates month-over-month returns adjusted for cash flows
+ * Calculates sub-period returns adjusted for cash flows — the SAME `r` the TWR chains
+ * (`subPeriodReturn`, mid-period Dietz, doc/rendimenti-misura § 5.6), so chaining the cells gives
+ * the period's TWR.
  *
- * Formula: monthlyReturn = ((current NW - cash flow) / previous NW - 1) × 100
+ * A GAP in the snapshots (§ 5.5, D-RM5) is one sub-period: its return sits in the cell of the
+ * month that closes it, with `spanMonths`; the months without a snapshot stay empty and carry
+ * `countedIn`, the month whose cell holds them. Nothing is interpolated. A cell whose sub-period
+ * lost more than its weighted capital still shows `r` (below −100%): only the chained figures
+ * become «non misurabile».
  *
  * @param snapshots - Monthly snapshots (will be sorted chronologically)
  * @param cashFlows - Monthly cash flows
@@ -1734,76 +1746,49 @@ export function prepareMonthlyReturnsHeatmap(
 ): MonthlyReturnHeatmapData[] {
   if (snapshots.length < 2) return [];
 
-  // Sort snapshots chronologically
   const sortedSnapshots = [...snapshots].sort((a, b) => {
     if (a.year !== b.year) return a.year - b.year;
     return a.month - b.month;
   });
 
-  const cashFlowMap = buildCashFlowMap(cashFlows);
+  const flowIndex = buildFlowIndex(cashFlows);
 
-  // Calculate monthly returns
-  const monthlyReturnsMap = new Map<string, number>(); // key: "YYYY-MM", value: return %
+  type Cell = { return: number | null; spanMonths?: number; countedIn?: { year: number; month: number } };
+  const cells = new Map<string, Cell>(); // key: "YYYY-MM"
+  const yearsShown = new Set<number>();
 
   for (let i = 1; i < sortedSnapshots.length; i++) {
     const prevSnapshot = sortedSnapshots[i - 1];
     const currSnapshot = sortedSnapshots[i];
+    const { flow, entry, months } = subPeriodFlow(flowIndex, prevSnapshot, currSnapshot);
+    const r = subPeriodReturn(prevSnapshot.totalNetWorth, currSnapshot.totalNetWorth, flow, entry);
+    if (r === null) continue; // not measurable: the cell stays empty
 
-    const startNW = prevSnapshot.totalNetWorth;
-    const endNW = currSnapshot.totalNetWorth;
-
-    if (startNW <= 0) continue; // No return from a non-positive starting value (a negative one would flip the sign)
-
-    // Get cash flow for current month
-    const cfKey = monthKey(currSnapshot.year, currSnapshot.month);
-    const cashFlow = cashFlowMap.get(cfKey) || 0;
-
-    // Calculate monthly return: (End NW - Cash Flow) / Start NW - 1
-    const monthlyReturn = ((endNW - cashFlow) / startNW - 1) * 100;
-
-    monthlyReturnsMap.set(cfKey, monthlyReturn);
+    const closing = { year: currSnapshot.year, month: currSnapshot.month };
+    cells.set(monthKey(closing.year, closing.month), { return: r * 100, ...(months > 1 ? { spanMonths: months } : {}) });
+    yearsShown.add(closing.year);
+    // The months of the gap: empty, pointing at the cell that holds them.
+    for (let step = 1; step < months; step++) {
+      const absolute = prevSnapshot.year * 12 + (prevSnapshot.month - 1) + step;
+      const year = Math.floor(absolute / 12);
+      const month = (absolute % 12) + 1;
+      cells.set(monthKey(year, month), { return: null, countedIn: closing });
+      yearsShown.add(year);
+    }
   }
 
-  // Group by year and organize by month
-  const yearMap = new Map<number, Map<number, number | null>>();
-
-  // Initialize years only from months that have a calculated return.
-  // This excludes the baseline snapshot (e.g., Dec 2025 for YTD)
-  // which is only used as starting value, not displayed in the heatmap
-  monthlyReturnsMap.forEach((_, key) => {
-    const year = Number(key.split('-')[0]);
-    if (!yearMap.has(year)) {
-      yearMap.set(year, new Map());
-    }
-  });
-
-  // Populate monthly returns
-  monthlyReturnsMap.forEach((returnValue, key) => {
-    const [year, month] = key.split('-').map(Number);
-    const yearData = yearMap.get(year);
-    if (yearData) {
-      yearData.set(month, returnValue);
-    }
-  });
-
-  // Convert to output format
-  const heatmapData: MonthlyReturnHeatmapData[] = [];
-
-  Array.from(yearMap.entries())
-    .sort((a, b) => a[0] - b[0]) // Sort by year ascending
-    .forEach(([year, monthsMap]) => {
-      const months = [];
-      for (let month = 1; month <= 12; month++) {
-        months.push({
-          month,
-          return: monthsMap.get(month) ?? null, // null if no data for that month
-        });
-      }
-
-      heatmapData.push({ year, months });
-    });
-
-  return heatmapData;
+  // Years only from measured sub-periods (and their gaps): the baseline snapshot's month (e.g.
+  // Dec 2025 for YTD) is only the starting value, never a cell.
+  return [...yearsShown]
+    .sort((a, b) => a - b)
+    .map((year) => ({
+      year,
+      months: Array.from({ length: 12 }, (_, index) => {
+        const month = index + 1;
+        const cell = cells.get(monthKey(year, month));
+        return { month, return: cell?.return ?? null, ...(cell?.spanMonths ? { spanMonths: cell.spanMonths } : {}), ...(cell?.countedIn ? { countedIn: cell.countedIn } : {}) };
+      }),
+    }));
 }
 
 /**

@@ -23,7 +23,8 @@ import { MONTH_NAMES } from '@/lib/constants/months';
 import { MONTH_NAMES_SHORT } from '@/lib/utils/period';
 import { articleForPercent, atThePercent, monthWithPrepositionA } from '@/lib/utils/patrimonioNarrative';
 import type { Narrative, NarrativeSegment, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
-import type { DoublingMode, DoublingTimeSummary } from '@/types/assets';
+import type { DoublingMode, DoublingTimeSummary, MonthlySnapshot } from '@/types/assets';
+import { describeSnapshotPrices, snapshotCapturedAt } from '@/lib/utils/snapshotDocument';
 import type { CompositionCut, CompositionSeries } from '@/lib/utils/historyComposition';
 import type { RowAnswerMap } from '@/components/ui/row-answers';
 import { runningSinceMonth, STORICO_SECTION_IDS, type AllTimeHigh, type DoublingProjection, type DriverYear, type GrowthPace, type GrowthSummary, type LaborMetrics, type MonthlyMoves, type OtherIncomeCategory, type PeriodMonth } from '@/lib/utils/storicoSummary';
@@ -559,6 +560,19 @@ export function describeMonthBreakdown(breakdown: MonthAssetBreakdown | null): N
     signedFlow(change.quantityEffect),
     prose(' dalle quantità (acquisti, vendite e versamenti).'),
   ];
+}
+
+/**
+ * The month's reading with what its price record says (doc/snapshot-integri/README.md RI14, D-SN7):
+ * «Quel giorno 2 prezzi non si sono aggiornati (VWCE, BTP-30): il mese usa gli ultimi noti.» after
+ * the breakdown sentence, for good. A month without a warning — or written before 2026-11, or by
+ * hand — reads exactly as before. The Storico verdict is untouched.
+ */
+export function withSnapshotPriceReading(reading: Narrative | null, snapshot: MonthlySnapshot | null): Narrative | null {
+  if (!reading || !snapshot) return reading;
+  const prices = describeSnapshotPrices(snapshot.prices, snapshotCapturedAt(snapshot));
+  if (!prices.reading) return reading;
+  return [...reading, prose(` ${prices.reading}`)];
 }
 
 /** «giu» when the previous month is in the same year as the read one, «dic 2025» otherwise — the Δ column's header. */

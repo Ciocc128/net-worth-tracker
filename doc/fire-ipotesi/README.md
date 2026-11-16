@@ -3193,3 +3193,298 @@ tempo» di Il mio piano. Nessuna formula cambia: i flussi salvati li leggono gi�
 | WP-E | Piano con 20 flussi | bottone spento, motivo scritto |
 
 Test: `__tests__/whatIfToPlan.test.ts` (WP1–WP4); la parte visiva va nel collaudo sul Mac.
+
+---
+
+## 23. Correzioni dalla review dei calcoli (card F10; task FC-Q2, FC-IR, FC-NF)
+
+Dalla review Fable dell'11–12/11/2026: `audit-calcoli/audit-calcoli-parte-3.md` (E1), `parte-4.md` (H1–H4),
+`salute-test/parte-3-qualita.md` (Q2), in Library. Base di codice letta: `main` a `ec6d115` (15/11/2026).
+
+> **Nomi.** In questa sezione «audit H1», «audit H2», «audit E1» sono i difetti della review, **non** le task H1, H2 ed
+> E1 di § 10 e § 15. Le task di questa sezione si chiamano FC-Q2, FC-IR, FC-NF; le regole RN*, le decisioni D-FC*.
+
+### 23.1 Obiettivo
+
+1. Il capitale di partenza delle cinque schede (`fireCapital.ts`) ha un suo test, prima di toccare il resto (Q2).
+2. Il numero FIRE non salta quando nel piano entra una pensione o un fondo bloccato: un fondo da 1 € o una pensione da
+   un centesimo lo lasciano dov'era (audit H1).
+3. La pensione si scrive come la dà l'INPS: lorda, a prezzi di oggi (audit H2).
+4. Gli scaglioni IRPEF predefiniti sono quelli in vigore (audit E1).
+5. Due difetti minori dello stesso motore, se confermati: l'entrata per sempre dal FIRE vale quanto una spesa più
+   bassa (audit H4) e Coast confronta plusvalenza e costo nella stessa unità (audit H3).
+
+### 23.2 Stato di partenza (verificato nel codice, 15/11/2026)
+
+- **Q2.** `lib/utils/fireCapital.ts` (215 righe, RK1–RK6, RE1–RE5) non ha `__tests__/fireCapital.test.ts`. Lo importano
+  solo `fireMortgages` e `loanBases`; con tutti i test FIRE sopravvivono 7 mutazioni su 15, alle righe 109 (quota di
+  una gamba composita), 141 (`t >= 100`), 145 (`C > 0`), 157 (`fundShortfall`), 166 (quota di una gamba di liquidità
+  inclusa), 176 (`legShare`), 188 (`amount <= 0`); la riga 204 (`cash: L − used`) è scoperta per lo stesso motivo.
+- **Audit H1.** `resolveFireRequirement` (`fireService.ts:1720`) ha due strade. Senza pensioni e senza fondo:
+  `spesa × m ÷ SWR`. Con una pensione considerata o un fondo: `buildCoastFIRERetirementNeeds` (`:1060`), che parte dal
+  fabbisogno a regime ÷ SWR e torna indietro anno per anno con `(R + fabbisogno) ÷ (1 + r)` (`:1148–1169`). Gli anni
+  di attesa sono quindi finanziati al rendimento reale `r`, non all'SWR: con `r` = 5% e 20 anni il numero scende da
+  500.000 a 437.688 € qualunque sia l'importo; con `r` = 2,94% sale a 579.192 €. La stessa funzione serve Coast
+  (`calculateCoastFIREMetrics`, `calculateCoastFIREProjection`), il What If, la Base di calcolo (`fireBaseLedger.ts`),
+  Età obiettivo e l'anno FIRE da cui parte «Dopo il FIRE». D-F7 (§ 12.8) ha già scartato questa strada per i flussi.
+- **Audit H2.** `calculateCoastFireNetRealAnnualPension` (`:455`) legge `grossMonthlyAmount × monthsPerYear` come euro
+  dell'anno di decorrenza e lo divide per `(1 + π)^anni` (`:483–487`); l'IRPEF è calcolata sul lordo già deflazionato.
+  Il testo lo dichiara: `FirePlanBlock.tsx:344` («lordo mensile nominale alla decorrenza»), `:416`,
+  `CoastDettaglio.tsx:150, 171, 205, 208, 237`, `types/assets.ts:389`.
+- **Audit E1.** `DEFAULT_COAST_FIRE_TAX_BRACKETS` (`fireService.ts:199–204`): 23% fino a 15.000 €, 25% fino a
+  28.000 €, 35% fino a 50.000 €, 43% oltre. Gli scaglioni si scrivono su Firestore (`coastFireTaxBrackets`) **solo**
+  quando l'utente li cambia in Impostazioni › Simulazioni (`settingsDraft.ts:634`, `taxBracketsDirty`); altrimenti
+  `normalizeCoastFireTaxBrackets(undefined)` restituisce i predefiniti. Li legge anche Previdenza
+  (`PensionOverview.tsx:169`, sempre i predefiniti) per il risparmio fiscale della deduzione.
+- **Audit H4.** `flowsRequirementAdjustment` (`datedFlows.ts:352`): `J = horizon(T)` è l'anno in cui l'ultimo flusso
+  **inizia** o finisce. Per un'entrata per sempre dal primo anno `J = 1`: il primo anno è scontato a `r` e la rendita
+  parte dal secondo, cioè `δ·(1 + 1/SWR)/(1 + r)` invece di `δ/SWR`.
+- **Audit H3.** `calculateCoastFIREMetrics` (`:1217–1218`): `resolveGainShare(capitalAtRetirement, basisToday)` con il
+  capitale cresciuto al rendimento **reale** e il costo di carico nominale di oggi.
+
+### 23.3 Fonti (consultate il 15/11/2026)
+
+- **IRPEF.** Dal periodo d'imposta 2026: 23% fino a 28.000 €, 33% oltre 28.000 e fino a 50.000 €, 43% oltre
+  (art. 11 c. 1 TUIR, lett. b modificata dalla legge 30/12/2025 n. 199, art. 1 c. 3; il c. 4 sterilizza il beneficio
+  sopra 200.000 € di reddito, fuori dal modello). Fonti lette: [EcNews](https://www.ecnews.it/lavoro/news-del-giorno/legge-bilancio-2026-revisione-aliquote-irpef/),
+  [Fisco7](https://www.fisco7.it/2026/01/legge-di-bilancio-aliquota-dal-35-al-33-riduzione-complicata-dellirpef/),
+  [Edotto](https://edotto.com/articolo/nuova-irpef-e-detassazione-le-novita-della-legge-di-bilancio-2026), concordi.
+  **Normattiva e Gazzetta Ufficiale non sono raggiungibili dal cloud** (host fuori dalla rete consentita): il testo
+  primario non è stato letto.
+- **Disegno di legge di bilancio 2027** (in Parlamento, non legge): per il **solo 2027** il secondo scaglione
+  salirebbe a 55.000 € (comma 5-bis, in luogo delle aliquote ordinarie, che restano quelle sopra). Fonti:
+  [Diritto.it](https://www.diritto.it/?p=252858), [Altroconsumo](https://www.altroconsumo.it/soldi/imposte-e-tasse/news/irpef-2027).
+  Non entra nei predefiniti (D-FC6).
+- **Simulatore INPS «La mia pensione futura».** Importo lordo, a moneta costante (non incorpora l'inflazione futura)
+  secondo [PMI.it](https://www.pmi.it/card/la-mia-pensione-guida-al-servizio-inps-online/doc/7) e
+  [BusinessOnline](https://www.businessonline.it/news/come-leggere-le-voci-e-capire-i-significati-e-calcoli-del-servizio-la-mia-pensione-futura-inps-spiegazione-con-esempi_n74279.html).
+  **Il sito INPS non è raggiungibile dal cloud**: la dicitura ufficiale non è stata letta (punto aperto PA-1).
+
+### 23.4 Perimetro
+
+Incluso: `fireCapital.test.ts`; la regola del requisito con pensioni e fondo (RN1–RN5) in tutte le schede che la
+leggono; il significato del campo pensione e i suoi testi; i predefiniti IRPEF e la lettura dei vecchi predefiniti
+salvati; audit H4 e H3 (D-FC8, D-FC9).
+
+Escluso: detrazioni da pensione, addizionali regionali e comunali (limite dichiarato, resta); indicizzazione degli
+scaglioni; IRPEF sui redditi dei flussi datati (D-F8); il motore Monte Carlo (legge la pensione netta dalla stessa
+funzione, non cambia formula); E2 del Driver (altra card); la regola del capitale (Q2 è solo test: se un caso di
+§ 23.9 fallisce, ci si ferma e si chiede).
+
+### 23.5 Casi d'uso
+
+| # | Caso | Oggi | Dopo |
+| --- | --- | --- | --- |
+| U1 | Aggiungo al piano un fondo bloccato quasi vuoto | il numero FIRE scende del 12% | resta dov'era, meno il valore del fondo |
+| U2 | Copio dal simulatore INPS «1.500 € lordi al mese» a 67 anni | l'app la deflaziona: 13.123 € l'anno | 19.500 € l'anno di oggi |
+| U3 | Non ho mai toccato gli scaglioni | pensione netta con le aliquote del 2022 | con quelle in vigore |
+| U4 | Ho gli scaglioni vecchi salvati identici ai predefiniti di prima | restano i vecchi | letti come i nuovi predefiniti |
+| U5 | Ho scritto scaglioni miei | restano | restano |
+| U6 | Scenario Bear con rendimento reale sotto l'SWR e un fondo | il numero sale del 16% | come U1 |
+| U7 | Fondo bloccato più grande del numero FIRE | conta il costo degli anni di attesa | lo stesso (RN3) |
+
+### 23.6 Regole di calcolo
+
+Notazione, nell'unità dell'anno letto: `E` spesa, `s` SWR, `m` moltiplicatore della tassa sui prelievi, `P_t` pensioni
+nette attive `t` anni dopo il ritiro (`t = 0…H`), `I_y` capitale che arriva all'anno `y` (fondo allo sblocco),
+`H = walkYears`, `ρ` il tasso reale di sconto.
+
+**RN1 — Fabbisogno per anno.** `n_t = max(E − P_t, 0)·m`. Le pensioni iniziano e non finiscono, quindi `n_t` non cresce.
+
+**RN2 — Requisito** (sostituisce la camminata all'indietro di `buildCoastFIRERetirementNeeds`):
+
+```
+N = n_0/s − Σ_{t=1..H} (n_{t−1} − n_t)/s/(1+ρ)^t − Σ_y I_y/(1+ρ)^y
+```
+
+Il capitale `n_0/s` regge la spesa di oggi per sempre, come senza pensioni. Una pensione che parte tra `t` anni libera
+da allora il capitale `Δn/s`: vale oggi quel capitale scontato a `ρ`. Un fondo vale il suo importo all'arrivo scontato
+a `ρ`. È la stessa regola di RF5 (permanente all'SWR, differito al rendimento reale): una pensione netta `p` da un
+anno e la stessa cifra scritta come entrata datata per sempre dallo stesso anno danno lo stesso numero (con RN6).
+
+**RN3 — Pavimento del ponte.** Con un capitale in arrivo, il capitale libero deve almeno pagare gli anni di attesa:
+
+```
+B = Σ_{t=0..H_I−1} n_t/(1+ρ)^(t+1)        // H_I = anno dell'ultimo arrivo; 0 senza arrivi → B = 0
+R = max(N, min(B, n_0/s), 0)
+```
+
+`min(B, n_0/s)`: il pavimento non supera mai il numero senza fondo, così non riapre il salto di audit H1.
+
+**RN4 — Tasso di sconto.** `ρ` = `flowsRealReturnRate` quando è passato (il rendimento reale Base nei tre scenari,
+decisione del 05/10/2026 per RF5), altrimenti il reale dello scenario. Il fondo cresce fino allo sblocco e si sconta
+allo stesso `ρ`: nel Calcolatore entra quindi **al suo valore dell'anno letto**, qualunque sia il rendimento
+(`I_y/(1+ρ)^y = valore del comparto`). Gli scenari differiscono solo per la crescita del capitale.
+
+**RN5 — Cosa non cambia.** Senza pensioni considerate e senza fondo: `E·m/s`, identico. `steadyStatePortfolioNeed`,
+`walkYears`, `inflowAtHorizon`, il dettaglio delle pensioni e le tappe di Coast (RCO1–RCO3: «a regime» resta
+`S_H`, «ne avrai» resta per margine, D-CO3) non cambiano definizione; cambia `R_T` e quindi `C`. L'invariante C3
+(«un arrivo `A` all'anno `y` abbassa il requisito di `A/(1+ρ)^y`») resta vero finché RN3 non scatta. Il criterio CO2
+di § 17.8 («`Z_H` coincide con la corsa in avanti») vale solo con `ρ = s`: con `ρ > s` la corsa in avanti arriva sopra
+`Z_H`. Il test va riscritto così.
+
+**RN6 — Entrata o spesa per sempre nei flussi (audit H4, con D-FC8).** In RF5 la parte permanente parte dall'anno in
+cui i flussi smettono di cambiare: l'inizio di un flusso ricorrente conta per `J` come `inizio − 1` (la fine e le una
+tantum come oggi). Così un flusso per sempre dal primo anno dà `δ/s`, e una spesa a termine non cambia.
+
+**RN7 — Pensione a prezzi di oggi (audit H2).** `lordo annuo = grossMonthlyAmount × monthsPerYear`, già in euro di
+oggi: nessuna divisione per l'inflazione. `netto = lordo − IRPEF(lordo)` con gli scaglioni del piano. Gli scaglioni
+valgono quindi a prezzi costanti (come oggi: l'imposta era già calcolata sul lordo deflazionato).
+`CoastFIREPensionBreakdown.grossAnnualFutureNominal` esce; `grossAnnualRealAtStart` è il lordo annuo.
+
+**RN8 — Scaglioni predefiniti (audit E1).** 23% fino a 28.000 €, 33% fino a 50.000 €, 43% oltre. Una lista salvata che,
+normalizzata, coincide con i predefiniti di prima (15.000/23, 28.000/25, 50.000/35, oltre/43) è letta come «mai
+toccata» e vale i nuovi predefiniti (`normalizeCoastFireTaxBrackets`); Firestore si aggiorna al primo salvataggio degli
+scaglioni. Ogni altra lista salvata resta.
+
+**RN9 — Coast, quota di plusvalenza (audit H3, con D-FC9).** La quota al traguardo si legge sul capitale **nominale**:
+`resolveGainShare(K·(1+r)^T·(1+π)^T, costo di oggi)`.
+
+### 23.7 Cosa vede l'utente (oggi → proposta)
+
+| Dove | Oggi | Proposta |
+| --- | --- | --- |
+| Il mio piano › Pensioni, a lato del titolo | «lordo mensile nominale alla decorrenza» | «lordo mensile, a prezzi di oggi» |
+| Il mio piano › Pensioni, nota | «Lordo stimato alla decorrenza, in euro di quell'anno (nominale futuro); 13 mensilità con la tredicesima. …» | «Lordo al mese come lo dà il simulatore INPS «La mia pensione futura», a prezzi di oggi; 13 mensilità con la tredicesima. …» |
+| Coast › Dettaglio, colonna | «Lordo nominale» | «Lordo annuo» |
+| Coast › Dettaglio, note «Importo lordo mensile» e «Deflazione» | due note | una: «Importo lordo mensile. A prezzi di oggi, come nel simulatore INPS; l'IRPEF si calcola su questa cifra.» |
+| Impostazioni › Simulazioni › Scaglioni | quattro righe | tre righe (per chi non li ha cambiati) |
+| Base di calcolo, righe Pensioni e Fondo | cifre della camminata | cifre di RN2: il fondo è il suo valore di oggi con il segno meno |
+
+Nessun elemento nuovo, nessun avviso: solo testi e cifre. Niente bozzetto oltre questa tabella.
+
+### 23.8 Decisioni
+
+| ID | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| D-FC1 | **Presa** (card F10, 14/11) | Correggere audit H1, coerente con D-F7. | Lasciare la camminata: toglie il margine dell'SWR solo a chi ha una pensione. |
+| D-FC2 | **Presa** (15/11/2026) | Regola RN2: numero pieno all'SWR, meno il valore scontato di ciò che pensioni e fondo liberano. È la formula «consistent» dello script dell'audit e quella di RF5. | (a) Due vasi: spesa coperta dopo ÷ SWR più gli anni di attesa a `r`: più basso di RN2 con `r > s` (374.000 contro 403.000 € nel caso dell'audit), meno prudente e diverso da RF5. (b) `max` tra numero pieno e camminata: con `r < s` resta il salto. |
+| D-FC3 | **Presa** (15/11/2026) | Pavimento RN3 per il fondo grande. | Solo `max(N, 0)`: con un fondo oltre il numero FIRE il requisito andrebbe a zero e gli anni di attesa resterebbero scoperti. |
+| D-FC4 | **Presa** (card F10) | La pensione si scrive lorda, come la dà l'INPS, a prezzi di oggi (RN7). | Tenere il nominale futuro: nessuno ha quel numero. |
+| D-FC5 | **Presa** (15/11/2026: la cifra del piano viene dal simulatore INPS, PA-3 chiuso) | I valori già salvati si rileggono **così come sono** a prezzi di oggi, senza conversione e senza campo nuovo. Vale se il numero salvato viene dal simulatore INPS. | (a) Convertire il salvato dividendolo per l'inflazione: giusto solo se era davvero un nominale futuro. (b) Campo `priceBasis` con avviso e scelta per riga: interfaccia nuova per due utenti. |
+| D-FC6 | **Presa** (15/11/2026) | Predefiniti = scaglioni ordinari in vigore (RN8). La deroga del solo 2027, se diventa legge, non entra: le pensioni partono decenni dopo. | Seguire ogni anno la legge di bilancio: il predefinito cambierebbe per una misura di un anno. |
+| D-FC7 | **Presa** (15/11/2026) | I vecchi predefiniti salvati si riconoscono e si leggono come nuovi (RN8), senza guardare i dati di produzione. | Controllare il piano di Giorgio sul mirror e correggerlo a mano: serve il Mac e non copre il secondo account. |
+| D-FC8 | **Presa** (15/11/2026) | Correggere anche audit H4 (RN6). | Lasciarlo: pensione e stessa entrata datata darebbero numeri diversi di `(1+s)/(1+r)`. |
+| D-FC9 | **Presa** (15/11/2026) | Correggere anche audit H3 (RN9). | Lasciarlo: Coast sottostima la tassa del 3% nel caso dell'audit. |
+| D-FC10 | **Presa** (15/11/2026) | Tre PR in ordine: FC-Q2 (solo test), FC-IR (scaglioni), FC-NF (RN1–RN7, RN9). | Una sola PR: il test del capitale deve essere verde su `main` prima che cambino i numeri. |
+
+### 23.9 Criteri di accettazione (valori di riferimento verificabili)
+
+Tolleranza ± 0,01 € salvo dove detto. Cifre inventate e tonde (WORKFLOW § 1 regola 7).
+
+**Q2 — `__tests__/fireCapital.test.ts`.** Esempio comune di § 11.8. Devono essere affermati, ognuno con il valore a
+mano: K2, K3 (con `cashToInvestPct`), K5, K6, K7, K8, K9, K10 di § 11.8; E1–E9, E11, E12 di § 14.8; e in più:
+
+| # | Caso | Atteso | Riga coperta |
+| --- | --- | --- | --- |
+| Q-1 | Strumento composito 100.000 €: 60% Azioni, 40% Obbligazioni, incluso, senza target | `N` = 100.000; `legShare` 1 e 1; gambe da 60.000 e 40.000 in `weightsInput.legs` | 109 |
+| Q-2 | Composito 100.000 €: 80% Azioni, 20% Liquidità; target Liquidità 0, fondo 0 | `C` = 20.000, `C_in` = 0, `X` = 20.000, `U` = 20.000, capitale 100.000; `legShare` della gamba di liquidità = 1 | 166, 176 |
+| Q-3 | Come Q-2 con fondo 15.000 | `U` = 5.000, capitale 85.000, `legShare` liquidità = 0,25, `outside.cash` = 15.000 | 166, 176, 204 |
+| Q-4 | Esempio comune, `F` = 30.000 | `legShare` del conto incluso = 0,5 e del deposito escluso = 0,5; `outside.cash` = 30.000 | 165, 166, 204 |
+| Q-5 | Target Liquidità 100%, conto incluso 60.000 €, ETF 400.000 € | `C_in` = 60.000, `X` = 0 | 141 |
+| Q-6 | Nessun conto di liquidità incluso (`C` = 0), target Liquidità 10% | `C_in` = 0, `X` = 0, `P` = `N` | 145 |
+| Q-7 | `F` = 60.000 con `L` = 60.000 / `F` = 80.000 / nessun fondo | `fundShortfall` 0 / 20.000 / 0 | 157 |
+| Q-8 | Esempio comune senza fondo (`U` = 0) | il deposito escluso non entra nel profilo fiscale: costo 310.000 € su 400.000 € | 188 |
+| Q-9 | Strumento nel fondo bloccato (`lockedAssetIds`) | conta in `netWorth`, non nel capitale né in `outside` | 100 |
+| Q-10 | Casa 250.000 € e crypto 10.000 € | `outside.realestate` 250.000, `outside.crypto` 10.000, capitale invariato | 110 |
+
+Fatto quando: le 15 mutazioni di `salute-test/mutazioni.json` su `fireCapital.ts` falliscono tutte.
+
+*Esito (FC-Q2, 15/11/2026).* `__tests__/fireCapital.test.ts`, 30 casi: 13 mutazioni su 15 falliscono. Le altre due sono
+**equivalenti**, nessun ingresso le distingue: riga 145 (`C >= 0`): con `C = 0` anche `C_in` è 0, quindi `X` vale 0 in
+entrambe le forme; riga 188 (`amount < 0`): uno strumento con `amount = 0` entra con quantità 0 e
+`resolvePortfolioTaxProfile` lo salta. Q-5 ha un secondo caso senza strumenti fuori dalla Liquidità (`N = 0`): è il
+solo che distingue `t >= 100` da `t > 100` (con `N > 0` il ramo dà `C` comunque). Q-7 ha un fondo sotto `L`: il solo
+che distingue `&&` da `||` alla riga 157.
+
+**Audit E1 — scaglioni.**
+
+| # | Lordo annuo | IRPEF attesa (nuovi) | Prima |
+| --- | --- | --- | --- |
+| IR-1 | 15.000 € | 3.450 € | 3.450 € |
+| IR-2 | 26.000 € | 5.980 € | 6.200 € |
+| IR-3 | 28.000 € | 6.440 € | 6.700 € |
+| IR-4 | 40.000 € | 10.400 € | 10.900 € |
+| IR-5 | 50.000 € | 13.700 € | 14.400 € |
+| IR-6 | 60.000 € | 18.000 € | 18.700 € |
+| IR-7 | Salvati 15.000/23, 28.000/25, 50.000/35, oltre/43 | letti come i tre nuovi | |
+| IR-8 | Salvati 15.000/23, 28.000/25, 50.000/35, oltre/45 | restano quattro | |
+
+**Audit H2 — pensione.** 1.500 € × 13, decorrenza tra 20 anni, inflazione 2%, scaglioni nuovi:
+
+| # | Voce | Atteso | Prima (scaglioni vecchi) |
+| --- | --- | --- | --- |
+| PE-1 | Lordo annuo | 19.500 € | 13.122,94 € |
+| PE-2 | Netto annuo | 15.015 € | 10.104,66 € |
+| PE-3 | Stessa pensione, inflazione 3% | 15.015 € (non dipende dall'inflazione) | |
+
+**Audit H1 — requisito.** Spesa 20.000 €, SWR 4%, `ρ` = 5% (crescita 7,1%, inflazione 2%), 20 anni, senza tassa:
+
+| # | Caso | Atteso | Prima |
+| --- | --- | --- | --- |
+| NF-1 | Nessuna pensione, nessun fondo | 500.000 € | 500.000 € |
+| NF-2 | Fondo bloccato da 1 € | 499.999 € | 437.688 € |
+| NF-3 | Pensione da 0,01 € × 13 | 500.000 € a meno di 1 € | 437.688 € |
+| NF-4 | Fondo da 1 €, crescita 5% (`ρ` = 2,94%) | 499.999 € | 579.192 € |
+| NF-5 | Fondo da 100.000 € | 400.000 € | |
+| NF-6 | Pensione di PE-2 (15.015 € netti) | 500.000 − 375.375 ÷ 1,05^20 = 358.525,11 € | |
+| NF-7 | Pensione di PE-2 e fondo da 50.000 € | 308.525,11 € | |
+| NF-8 | NF-6 con tassa: quota di plusvalenza 40%, aliquota 26% (`m` = 1,116071) | 400.139,63 € | |
+| NF-9 | Due pensioni nette: 15.015 € da 20 anni, 3.000 € da 25 | 336.377,40 € | |
+| NF-10 | Pensione netta sopra la spesa (28.930 €) | 500.000 − 500.000 ÷ 1,05^20 = 311.555,26 € | |
+| NF-11 | Fondo da 600.000 € (RN3) | 20.000 × a(5%, 20) = 249.244,21 € | |
+| NF-12 | Fondo da 450.000 € (RN3: `N` = 50.000 < `B`) | 249.244,21 € | |
+| NF-13 | Continuità: fondo 100.000 € letto un anno prima e all'anno dello sblocco | capitale libero richiesto + fondo = 500.000 € in entrambi | |
+| NF-14 | Base di calcolo con NF-7 | 500.000 − 141.475 − 50.000 = 308.525 €, somma al centesimo | |
+| NF-15 | Coast: età 40, obiettivo 60, pensione di PE-2 a 67, reale 4,902% | al traguardo 231.477,86 €; Coast oggi 88.886,81 € | |
+| NF-16 | Coerenza con RF5 (con RN6): pensione netta 6.000 € da 10 anni contro entrata datata 6.000 € per sempre dallo stesso anno | stesso requisito | |
+
+**Audit H4 e H3.**
+
+| # | Caso | Atteso | Prima |
+| --- | --- | --- | --- |
+| FL-1 | Entrata 6.000 € per sempre dal FIRE, spesa 20.000 € | 350.000 € | 351.290 € |
+| FL-2 | Spesa 5.000 € per 10 anni dal FIRE (reale 4,902%) | 538.793,16 € (invariato) | 538.793,16 € |
+| FL-3 | Le tre una tantum e la spesa a 8 anni di `parte-4.md` | invariati | |
+| CO-1 | Coast: 200.000 € con costo 150.000 €, 20 anni, 7% e 2%, aliquota 26% | quota 80,62%; al traguardo 632.597,73 € | 613.588 € |
+
+Script di partenza: `audit-calcoli/script/fire2.test.ts` e `driver-fire.test.ts` in Library, da portare in `__tests__/`
+con i valori di questa tabella (D-T3).
+
+### 23.10 Task
+
+**FC-Q2 — test del capitale** (impl; solo `__tests__/fireCapital.test.ts`, nessun file di `lib/`). Verde su `main`
+di oggi: se un caso non torna, fermarsi e scriverlo nel thread.
+
+**FC-IR — scaglioni** (impl). `DEFAULT_COAST_FIRE_TAX_BRACKETS`, il riconoscimento dei vecchi predefiniti in
+`normalizeCoastFireTaxBrackets`, IR-1…IR-8; i test che citano 6.200 € o i quattro scaglioni; `doc/guide/fire.md`,
+`fire-coast.md`, `previdenza.md` (il risparmio fiscale della deduzione cambia con gli scaglioni), `impostazioni.md`.
+
+**Esito (15/11/2026).** FC-IR e FC-NF scritti nello stesso thread: `__tests__/fireRequirementRules.test.ts` afferma
+PE-1…PE-3, NF-1…NF-16, FL-1…FL-3 e CO-1; IR-1…IR-8 in `fireService.test.ts`. Due scelte di lettura: in NF-16 «dallo
+stesso anno» è la pensione attiva dal passo 10 contro il flusso ancorato al FIRE con 10 anni dopo (entrambi l'11° anno
+di prelievo); in Coast › Dettaglio la colonna «Lordo reale» esce con «Lordo nominale», perché ora sarebbe la stessa cifra
+di «Lordo annuo». Le pensioni della fixture Coast (unit ed E2E) passano a prezzi di oggi: 1.000 € e 300 € al mese al
+posto di 2.200 € e 600 € nominali alla decorrenza.
+
+**FC-NF — numero FIRE e pensione** (impl; dopo FC-Q2 e FC-IR). RN1–RN5 in `buildCoastFIRERetirementNeeds` (una
+formula sola, niente seconda strada), RN7 in `calculateCoastFireNetRealAnnualPension` e nei testi di § 23.7, RN6 e RN9. **Prima di toccare RN7 serve la risposta a PA-3 (D-FC5)**: senza, fermarsi e chiedere nel thread. Test da riscrivere: `fireService`, `coastStages` (CO2), `fireBaseLedger`, `whatIfService`,
+`datedFlows`, `datedFlowsEngines`, `goalFire`, `monteCarloService` dove citano cifre della camminata. Guide:
+`fire.md`, `fire-coast.md`, `fire-what-if.md`, `fire-monte-carlo.md`. CLAUDE.md: una riga «Latest». Sul Mac, dopo:
+`test:e2e` delle spec FIRE e il giro guidato sul mirror (numero FIRE prima e dopo, con il piano vero).
+
+### 23.11 Punti aperti
+
+- **PA-1.** La dicitura dell'INPS sul prospetto di «La mia pensione futura» (prezzi costanti, lordo, mensilità) non è
+  stata letta alla fonte: la conferma chi ha il prospetto davanti. Se l'importo fosse nominale, D-FC4 va riaperta.
+- **PA-2.** Testo primario dell'art. 11 TUIR non letto (rete): le tre fonti secondarie concordano.
+- **PA-3.** ~~Quale numero c'è oggi nel campo pensione del piano vero decide D-FC5.~~ Chiuso il 15/11/2026: viene dal simulatore INPS.
+
+### 23.12 Rischi
+
+- Il numero FIRE del piano vero **sale** quando `ρ > s` (toglie lo sconto degli anni di attesa) e **scende** per la
+  pensione letta a prezzi di oggi e per gli scaglioni nuovi: i tre effetti si vedono insieme. Il giro guidato li
+  mostra separati con la Base di calcolo prima e dopo.
+- L'anno FIRE del Calcolatore si sposta, e con lui il punto di partenza di «Dopo il FIRE» e gli effetti degli
+  Obiettivi: è voluto.
+- RN8 cambia anche il risparmio fiscale mostrato in Previdenza.

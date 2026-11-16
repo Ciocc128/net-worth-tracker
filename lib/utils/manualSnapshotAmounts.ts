@@ -15,6 +15,7 @@
  */
 
 import { ASSET_CLASS_SEQUENCE } from '@/lib/utils/allocationUtils';
+import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 
 /** One entry per asset class, every field starting at '0'. */
 export function emptyClassAmounts(): Record<string, string> {
@@ -38,4 +39,32 @@ export function parseAmount(raw: string | undefined): number {
  */
 export function sumClassAmounts(amounts: Record<string, string>): number {
   return ASSET_CLASS_SEQUENCE.reduce((total, assetClass) => total + parseAmount(amounts[assetClass]), 0);
+}
+
+/** The figures a manual snapshot declares, as the coherence check reads them. */
+export interface ManualSnapshotTotals {
+  totalNetWorth: number;
+  liquidNetWorth: number;
+  illiquidNetWorth: number;
+  byAssetClass: Partial<Record<string, number>>;
+}
+
+/** The tolerance of both sums, in euro: floating-point rounding, never a real gap. */
+export const MANUAL_SNAPSHOT_TOLERANCE = 0.01;
+
+/**
+ * RI8 — the two sums a month must satisfy, on the server as in the dialog: the classes sum to the
+ * total, liquid plus illiquid sum to the total (± 0,01). Returns the Italian sentence the dialog
+ * shows, or null when the month is coherent.
+ */
+export function describeManualSnapshotIncoherence(totals: ManualSnapshotTotals): string | null {
+  const classSum = ASSET_CLASS_SEQUENCE.reduce((sum, assetClass) => sum + (totals.byAssetClass[assetClass] ?? 0), 0);
+  if (Math.abs(classSum - totals.totalNetWorth) > MANUAL_SNAPSHOT_TOLERANCE) {
+    return `Le classi sommano a ${cachedFormatCurrencyEUR(classSum)}, il patrimonio totale è ${cachedFormatCurrencyEUR(totals.totalNetWorth)}: i due devono coincidere.`;
+  }
+  const split = totals.liquidNetWorth + totals.illiquidNetWorth;
+  if (Math.abs(split - totals.totalNetWorth) > MANUAL_SNAPSHOT_TOLERANCE) {
+    return `Liquido e illiquido sommano a ${cachedFormatCurrencyEUR(split)}, il patrimonio totale è ${cachedFormatCurrencyEUR(totals.totalNetWorth)}: i due devono coincidere.`;
+  }
+  return null;
 }

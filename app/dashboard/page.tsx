@@ -12,7 +12,8 @@ import { Button } from '@/components/ui/button';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Camera } from 'lucide-react';
 import { toast } from 'sonner';
-import { useCreateSnapshot } from '@/lib/hooks/useSnapshots';
+import { useCreateSnapshot, type CreateSnapshotResponse } from '@/lib/hooks/useSnapshots';
+import { describeSnapshotPrices } from '@/lib/utils/snapshotDocument';
 import { DASHBOARD_OVERVIEW_STALE_TIME_MS, useDashboardOverview } from '@/lib/hooks/useDashboardOverview';
 import { useFreshness } from '@/lib/hooks/useFreshness';
 import { SavingsRateBadge } from '@/components/ui/SavingsRateBadge';
@@ -167,6 +168,18 @@ const CHECKED_PERIOD_SELECTOR = '[role="radiogroup"][aria-label="Periodo del gra
 const tileGridEntrance = { played: false };
 
 // Module-level so the page's try block holds no conditional: keeps it compilable by the React Compiler.
+/**
+ * The toast after «Crea snapshot» (doc/snapshot-integri/README.md § 5.8, D-SN7): as before when
+ * the prices refreshed, a warning that names the failed or jumped prices otherwise. Module-level so
+ * the handler's try holds no conditional (React Compiler).
+ */
+function showSnapshotResultToast(result: CreateSnapshotResponse): void {
+  const head = result.message.startsWith('Snapshot creato') ? 'Snapshot creato' : 'Snapshot aggiornato';
+  const prices = describeSnapshotPrices(result.data?.prices, new Date(), head);
+  if (prices.toast) toast.warning(prices.toast, { duration: 10000 });
+  else toast.success(result.message);
+}
+
 function resolveSnapshotDialogOrigin(reducedMotion: boolean | null, trigger: HTMLElement): string | undefined {
   return reducedMotion ? undefined : resolveCenteredModalOrigin(trigger.getBoundingClientRect());
 }
@@ -339,7 +352,7 @@ export default function DashboardPage() {
       toast.loading('Aggiornamento prezzi e creazione snapshot...', { id: 'snapshot-creation' });
       const result = await createSnapshotMutation.mutateAsync({});
       toast.dismiss('snapshot-creation');
-      toast.success(result.message);
+      showSnapshotResultToast(result);
       try {
         await updateHallOfFame(ownerId);
       } catch {

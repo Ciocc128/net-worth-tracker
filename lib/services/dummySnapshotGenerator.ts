@@ -1,6 +1,7 @@
 import { collection, doc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
-import type { MonthlySnapshot } from '@/types/assets';
+import { getUserSnapshots } from '@/lib/services/snapshotService';
+import { buildSnapshotDocument, type SnapshotDocument } from '@/lib/utils/snapshotDocument';
 import type { Expense, ExpenseCategory, ExpenseType } from '@/types/expenses';
 
 interface DummySnapshotParams {
@@ -46,10 +47,21 @@ function getRandomGrowthRate(targetRate: number, volatility: number): number {
   return targetRate + (z0 * volatility);
 }
 
+/** What the generator did: months written, and months skipped because they already held a snapshot. */
+export interface DummySnapshotResult {
+  written: number;
+  skipped: number;
+}
+
 /**
  * Generates dummy monthly snapshots for testing purposes
+ *
+ * Built by the one builder (`writtenBy: 'dummy'`, `isDummy: true`) and written with `setDoc`
+ * WITHOUT merge, never over a month that already holds a snapshot — real or test
+ * (doc/snapshot-integri/README.md RI18): the rules let the client create test data only on a free
+ * id (RI17), and a merge used to lay test figures over a real month.
  */
-export async function generateDummySnapshots(params: DummySnapshotParams): Promise<void> {
+export async function generateDummySnapshots(params: DummySnapshotParams): Promise<DummySnapshotResult> {
   const {
     userId,
     initialNetWorth,
@@ -59,8 +71,10 @@ export async function generateDummySnapshots(params: DummySnapshotParams): Promi
     averageMonthlyExpenses,
   } = params;
 
-  const snapshots: MonthlySnapshot[] = [];
+  const snapshots: SnapshotDocument[] = [];
   const currentDate = new Date();
+  const taken = new Set((await getUserSnapshots(userId)).map((snapshot) => `${snapshot.year}-${snapshot.month}`));
+  let skipped = 0;
 
   // Create dummy categories for expenses if income/expenses generation is enabled
   let categoriesByType: Map<ExpenseType, ExpenseCategory[]> | undefined;
@@ -159,18 +173,6 @@ export async function generateDummySnapshots(params: DummySnapshotParams): Promi
       carry: 0,
     };
 
-    // Calculate allocation percentages based on actual values (will vary over time)
-    const assetAllocation = {
-      equity: totalNetWorth > 0 ? (equity / totalNetWorth) * 100 : 0,
-      bonds: totalNetWorth > 0 ? (bonds / totalNetWorth) * 100 : 0,
-      crypto: totalNetWorth > 0 ? (crypto / totalNetWorth) * 100 : 0,
-      realestate: totalNetWorth > 0 ? (realestate / totalNetWorth) * 100 : 0,
-      cash: totalNetWorth > 0 ? (cash / totalNetWorth) * 100 : 0,
-      commodity: 0,
-      trendFollowing: 0,
-      carry: 0,
-    };
-
     // Generate individual asset snapshots
     const byAsset = DUMMY_ASSETS.map((asset, index) => {
       const assetClassValue = byAssetClass[asset.assetClass as keyof typeof byAssetClass];
@@ -203,22 +205,28 @@ export async function generateDummySnapshots(params: DummySnapshotParams): Promi
       };
     });
 
-    // Create the snapshot
-    const snapshot: MonthlySnapshot = {
-      userId,
-      year,
-      month,
+    // Create the snapshot (the builder derives `assetAllocation` from the classes)
+    const snapshot = buildSnapshotDocument({
+      figures: {
+        userId,
+        year,
+        month,
+        totalNetWorth: Math.round(totalNetWorth * 100) / 100,
+        liquidNetWorth: Math.round(liquidNetWorth * 100) / 100,
+        illiquidNetWorth: Math.round(illiquidNetWorth * 100) / 100,
+        byAssetClass,
+        byAsset,
+      },
+      writtenBy: 'dummy',
+      now: new Date(),
       isDummy: true, // Mark as dummy/test data
-      totalNetWorth: Math.round(totalNetWorth * 100) / 100,
-      liquidNetWorth: Math.round(liquidNetWorth * 100) / 100,
-      illiquidNetWorth: Math.round(illiquidNetWorth * 100) / 100,
-      byAssetClass,
-      byAsset,
-      assetAllocation,
-      createdAt: new Date(),
-    };
+    });
 
-    snapshots.push(snapshot);
+    if (taken.has(`${year}-${month}`)) {
+      skipped += 1;
+    } else {
+      snapshots.push(snapshot);
+    }
 
     // Generate expenses and income for this month if enabled
     if (categoriesByType && averageMonthlyIncome !== undefined && averageMonthlyExpenses !== undefined) {
@@ -240,8 +248,10 @@ export async function generateDummySnapshots(params: DummySnapshotParams): Promi
     const docId = `${snapshot.userId}-${snapshot.year}-${snapshot.month}`;
     const docRef = doc(snapshotsCollection, docId);
 
-    await setDoc(docRef, snapshot, { merge: true });
+    await setDoc(docRef, snapshot);
   }
+
+  return { written: snapshots.length, skipped };
 }
 
 // Standard dummy categories for expense generation
@@ -441,4 +451,19 @@ async function generateMonthlyExpenses(
     const docRef = doc(expensesCollection, expense.id);
     await setDoc(docRef, expense, { merge: true });
   }
+}
+
+/**
+ * The toast after a generation: «22 snapshot fittizi creati con successo! 2 mesi avevano già uno
+ * snapshot e sono rimasti com'erano.» (RI18: the modal says how many months it skipped.)
+ */
+export function describeDummySnapshotResult(result: DummySnapshotResult, withExpenses: boolean): string {
+  const head = withExpenses
+    ? `${result.written} snapshot e dati di spese/entrate creati con successo!`
+    : `${result.written} snapshot fittizi creati con successo!`;
+  if (result.skipped === 0) return head;
+  const skipped = result.skipped === 1
+    ? "1 mese aveva già uno snapshot ed è rimasto com'era."
+    : `${result.skipped} mesi avevano già uno snapshot e sono rimasti com'erano.`;
+  return `${head} ${skipped}`;
 }

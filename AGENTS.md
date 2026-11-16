@@ -273,6 +273,12 @@ holds it): how it was learned is `git log`'s.
   rewrites only the CURRENT month). Keep the replace and carry the hand-written fields across it
   (`preserveUserAuthoredSnapshotFields`, pinned by `__tests__/apiAuthRoutes.test.ts` → *keeps the Storico note of the
   snapshot it overwrites*); `merge: true` is the wrong fix whenever the doc holds a MAP the pipeline recomputes.
+- **A monthly snapshot has ONE builder** (`buildSnapshotDocument`, `lib/utils/snapshotDocument.ts`, F07 2026-11-16):
+  every writer — the automatic route, the manual route, the test-data generator — assembles the document through it,
+  which stamps `writtenBy`/`writtenByUid`, keeps the first `createdAt`, stamps `updatedAt` and carries the note and the
+  `previous` pointer. Read the capture instant with `snapshotCapturedAt`, never `createdAt`. From the client only the
+  note (`updateDoc { note }`) and test data on a free id are writable (`firestore.rules`, RI17); a real snapshot is the
+  server's, and a closed month is written only by hand, its replaced version kept in `versions/`.
 
 ### Firestore Queries and the Rules
 - **A `list` must carry the constraint the rule needs, or it is refused entirely**: every collection guarded by `allow
@@ -287,7 +293,7 @@ holds it): how it was learned is `git log`'s.
   snapshot series, the base signature, the risk-free rate, the dividend category; a 6h TTL covers what the key cannot;
   reads/writes `try/catch` fire-and-forget; `Date` ↔ `Timestamp` field-by-field, never JSON). **A figure whose inputs
   the key does not cover stays OUT of the document** (2026-10-04, Rendimenti's dividend yields —
-  doc/guide/rendimenti.md). **A changed FORMULA is the one input no signature sees — bump `CACHE_MATH_VERSION`** (`v8`);
+  doc/guide/rendimenti.md). **A changed FORMULA is the one input no signature sees — bump `CACHE_MATH_VERSION`** (`v10`);
   verifying by hand, press **Aggiorna** (`forceRefresh`) first; a new optional field needs no bump if paired with
   `?force=true`; wire «Aggiorna» to `refresh()`, never to a bare `refetch()`.
 - **Global shared cache** (benchmark, FX, ECB): natural key as doc id, no `userId`, `read: isAuthenticated(); write:
@@ -315,6 +321,7 @@ holds it): how it was learned is `git log`'s.
 
 ### Server Layer and API Authorization → `doc/guide/server.md`
 - Route = auth → validate → fetch → ownership check → delegate → return, with no Firestore queries or business logic in the handler. The Admin SDK bypasses Firestore rules, so ownership is checked after the doc loads. **Owner-scoped routes call `assertCanAccessAccount(decodedToken, ownerUserId)`** and never fall back to `decodedToken.uid`.
+- **A route passes ids, never documents, and every handler is a row of `__tests__/routeAuthorization.table.ts`** (2026-11-15, `doc/sicurezza/README.md` S1): the account of a write is the verified `userId` or the `userId` of a document the server just read; a new `route.ts` fails `routeAuthorization.test.ts` until its row is added and it refuses a stranger.
 - **A date in a request is a STRING first** (2026-10-04): every request date goes through `isoDateSchema` + `parseOr400` in `lib/server/validation.ts`, never an `as { … }` cast. On its own, `z.coerce.date()` turns `null` into 1970-01-01, which gives a 200 instead of a 400. Pinned by `__tests__/performanceYieldsRoute.test.ts` and `serverValidation.test.ts`.
 - **A Vercel Function never `require()`s an ESM-only package, on any Node version** (2026-10-08, PR #436): `package.json` `overrides` → `jwks-rsa ^3.2.2` and `engines.node` `"24.x"`, held by `__tests__/vercelConfig.test.ts`. Grep a new server dependency's `require(` calls. The emulators cannot see this; only a real token on a deploy shows it.
 - **`tsc` does not protect a `server-only` module** (2026-09-06): importing one from a client page type-checks and only fails in the browser. Client pages read through a client reader (`lib/services/dividendReceiptsService.ts`), and tests mock it with `vi.mock('server-only', () => ({}))`.
@@ -448,7 +455,7 @@ file used to carry.
 - Il resto — the mobile composition (§ Composizione mobile), the Rendimento tile off the axis, `useDividendStats` without date bounds, the tab's ONE request (the stats answer carries the list, `useDividendRegistry`; `stats: null` keeps the list when a measure fails), every number from `dividendAnalytics.ts`, a scraped dividend's ONE floor (`lib/utils/dividendEligibility.ts`, 2026-09-13), the zero coupon (`hasCouponPayments`), the calendar, the form (`taxRate` proposal, picker) and the armed row delete, `computeDividendYieldMetrics`, the legacy `isInflationLinked`, provisional coupons, the running-window rule, `couponUtils` — in `doc/guide/cashflow-dividendi.md`.
 
 ### Storico · History and Snapshot Baselines → `doc/guide/storico.md`
-- The snapshot cron runs DAILY (the name lies) and both writers REPLACE the document: a new `MonthlySnapshot` field no pipeline recomputes goes in `SNAPSHOT_USER_AUTHORED_FIELDS` or the cron erases it (§ *Firestore Writes*).
+- The snapshot cron runs DAILY (the name lies) on the CURRENT month only, and every writer REPLACES the document through ONE builder (`buildSnapshotDocument`, F07): a new `MonthlySnapshot` field no pipeline recomputes goes in `SNAPSHOT_USER_AUTHORED_FIELDS` or the cron erases it (§ *Firestore Writes*); the capture instant is `snapshotCapturedAt`.
 - Reuse `byAsset.totalValue` for per-instrument history, never recompute; `byAsset.price` is RAW NATIVE currency (EUR unit value = `totalValue / quantity`).
 - The page's CAGR is WEALTH growth (`(endNW/startNW)^(12/months)−1`, «versamenti inclusi»), never Rendimenti's return; ONE linear pace (`summarizeGrowthPace`), do not compound it.
 - The Driver is SIX parts (`lib/utils/growthDrivers.ts`, 2026-09-19), its market MEASURED per instrument (`marketEffect.ts`) — never «Δ − risparmio»; Lavoro takes the Driver's windows AND parts. «Mutuo» reads the LOAN rows as a total since 2026-10-10 (a loan's `byAsset.totalValue` is minus its principal), the legacy property pairing beside it: the two cross the migration month without a jump.
@@ -465,6 +472,7 @@ file used to carry.
 ### Rendimenti → `doc/guide/rendimenti.md`
 - The base is resolved ONCE by `resolvePerformanceBase` for its THREE call sites (service, page, PDF). An exclusion read from `byAsset` MUST be backfilled across the pre-`byAsset` months (constant `E₀`) or it becomes a phantom crash.
 - The pension toggle WINS over a fund's `allocationRole`. A contribution is a flow iff it crosses the base's boundary; flows ride their own channels (`externalFlowOf`), `netCashFlow` stays the cashflow's savings.
+- **The return is gross of tax and net of trading fees in BOTH branches** (2026-11-15, F08, `lib/utils/returnFlows.ts`): a withheld tax is a withdrawal, a fee a cost, a distribution whose payer is inside the base is return; each branch's correction rides its own field (`cashflowAdjustment`, `measuredAdjustment`); the running month's rows stop at the snapshot's capture day (`resolveFlowCutoff`). ONE formula per sub-period (snapshot to snapshot, a gap included): mid-period Dietz `subPeriodReturn` over `subPeriodFlow`, read by TWR, volatility, heatmap, drawdown, «Capitale e mercato» and Attribuzione; the IRR on the same instants.
 - **The flows follow the base** (2026-09-07): with anything out of it, the months with `byAsset` on both snapshots neutralise the MEASURED boundary flows (`lib/utils/portfolioFlows.ts`); the ledger speaks for an instrument only once the base has SEEN it (2026-09-13).
 - The first snapshot of a period is the starting valuation, never a measured month; the page must NEVER re-derive the window from `new Date()` (`metrics.nominalPeriodStart`).
 - No silent filters inside a metric (`null` with a reason); the attribution (`performanceAttribution.ts`) is EURO and reconciled to the TWR numerator.

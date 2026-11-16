@@ -270,10 +270,11 @@ describe('Private API route auth', () => {
     getAllDividendsMock.mockResolvedValue([]);
     getDividendByIdMock.mockResolvedValue(null);
     updateUserAssetPricesMock.mockResolvedValue({
-      success: true,
+      updated: 1,
+      failed: [],
       message: 'ok',
-      updatedCount: 1,
-      failedTickers: [],
+      failures: [],
+      anomalies: [],
     });
 
     assetsWhereGetMock.mockResolvedValue({
@@ -589,10 +590,11 @@ describe('Private API route auth', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
-      success: true,
+      updated: 1,
+      failed: [],
       message: 'ok',
-      updatedCount: 1,
-      failedTickers: [],
+      failures: [],
+      anomalies: [],
     });
     expect(updateUserAssetPricesMock).toHaveBeenCalledWith('user-1');
   });
@@ -724,6 +726,8 @@ describe('Private API route auth', () => {
     expect(getBondPriceByIsinMock).not.toHaveBeenCalled();
   });
 
+  // SR6 (doc/snapshot-integri/README.md § 6): the automatic route takes no month at all (RI6); a
+  // `month: 13` is now refused by strictness, before any price update or write.
   it('returns 400 for snapshot with out-of-range month', async () => {
     const response = await snapshotRoute(
       createJsonRequest('http://localhost/api/portfolio/snapshot', {
@@ -739,6 +743,7 @@ describe('Private API route auth', () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({ error: 'Invalid request' });
     expect(snapshotDocSetMock).not.toHaveBeenCalled();
+    expect(updateUserAssetPricesMock).not.toHaveBeenCalled();
   });
 
   it('allows snapshot creation for cron callers using cronSecret without Firebase auth', async () => {
