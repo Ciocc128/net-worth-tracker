@@ -7,6 +7,7 @@ import {
   requireFirebaseAuth,
 } from '@/lib/server/apiAuth';
 import { invalidateDashboardOverviewSummaryServer } from '@/lib/services/dashboardOverviewInvalidation.server';
+import { assetDeleteSchema, assetIdParamSchema, parseOr400 } from '@/lib/server/validation';
 
 /**
  * DELETE /api/assets/[assetId]
@@ -53,11 +54,14 @@ export async function DELETE(
 ) {
   try {
     const decodedToken = await requireFirebaseAuth(request);
-    const { assetId } = await params;
+    const assetIdResult = parseOr400(assetIdParamSchema, (await params).assetId);
+    if (!assetIdResult.ok) return assetIdResult.response;
+    const assetId = assetIdResult.data;
 
-    // Get userId from request body
-    const body = await request.json();
-    const { userId } = body;
+    // Get userId from request body (strict schema, doc/snapshot-integri/README.md § 5.9)
+    const parsed = parseOr400(assetDeleteSchema, await request.json());
+    if (!parsed.ok) return parsed.response;
+    const { userId } = parsed.data;
     await assertCanAccessAccount(decodedToken, userId);
 
     // Verify asset exists and belongs to user

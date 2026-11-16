@@ -5,6 +5,7 @@ import {
   getApiAuthErrorResponse,
   requireFirebaseAuth,
 } from '@/lib/server/apiAuth';
+import { hallOfFameRecalculateSchema, parseOr400 } from '@/lib/server/validation';
 
 /**
  * POST /api/hall-of-fame/recalculate
@@ -34,8 +35,9 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const decodedToken = await requireFirebaseAuth(request);
-    const body = await request.json();
-    const { userId } = body;
+    const parsed = parseOr400(hallOfFameRecalculateSchema, await request.json());
+    if (!parsed.ok) return parsed.response;
+    const { userId } = parsed.data;
 
     await assertCanAccessAccount(decodedToken, userId);
 

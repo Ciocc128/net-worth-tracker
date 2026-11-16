@@ -61,7 +61,7 @@ export const ROUTE_TABLE: RouteRow[] = [
   { route: 'ai/assistant/memory', method: 'GET', kind: 'owner', request: query() },
   { route: 'ai/assistant/memory', method: 'PATCH', kind: 'owner', request: body({ action: 'acceptSuggestion', suggestionId: 's-1', itemId: 'i-1' }) },
   { route: 'ai/assistant/memory', method: 'DELETE', kind: 'owner', request: body({ itemId: 'i-1' }) },
-  { route: 'ai/assistant/stream', method: 'POST', kind: 'owner', request: body({ mode: 'month_analysis', prompt: 'Ornitorinco', month: 3, year: 2026 }), note: 'A3, F04' },
+  { route: 'ai/assistant/stream', method: 'POST', kind: 'owner', request: body({ mode: 'month_analysis', prompt: 'Ornitorinco', month: { year: 2026, month: 3 } }), note: 'A3, F04; strict schema A5, F07' },
   { route: 'ai/assistant/threads', method: 'GET', kind: 'owner', request: query() },
   { route: 'ai/assistant/threads/[threadId]', method: 'GET', kind: 'owner', request: (account) => ({ query: { userId: account }, params: { threadId: 'thread-1' } }) },
   { route: 'ai/assistant/threads/[threadId]', method: 'DELETE', kind: 'owner', request: (account) => ({ query: { userId: account }, params: { threadId: 'thread-1' } }) },
@@ -112,7 +112,12 @@ export const ROUTE_TABLE: RouteRow[] = [
   { route: 'portfolio/exposure', method: 'GET', kind: 'viewer', request: () => ({}), note: 'a delegate reads their own account (functional, out of S1)' },
   { route: 'portfolio/instrument-profiles', method: 'GET', kind: 'owner', request: (account) => ({ query: { userId: account, assetIds: `asset-${account}` } }) },
   { route: 'portfolio/snapshot', method: 'POST', kind: 'owner', request: body({}), note: 'also accepts `cronSecret` in the body instead of a token' },
-  { route: 'portfolio/snapshot/manual', method: 'POST', kind: 'owner', request: body({ year: 2026, month: 3, totalNetWorth: 2500 }), note: 'A5, F07' },
+  {
+    route: 'portfolio/snapshot/manual', method: 'POST', kind: 'owner',
+    request: body({ year: 2026, month: 3, totalNetWorth: 2500, liquidNetWorth: 2500, illiquidNetWorth: 0, byAssetClass: { equity: 2500 } }),
+    note: 'A5, F07: strict schema, then the account',
+  },
+  { route: 'portfolio/snapshot/restore', method: 'POST', kind: 'owner', request: body({ year: 2026, month: 3 }), note: 'F07 RI10: the undo of a replacement' },
 
   { route: 'prices/quote', method: 'GET', kind: 'token', request: () => ({ query: { ticker: 'VWCE.DE' } }), note: 'A3, F04' },
   { route: 'prices/bond-quote', method: 'GET', kind: 'token', request: () => ({ query: { isin: 'IT0005083057' } }), note: 'A3, F04' },

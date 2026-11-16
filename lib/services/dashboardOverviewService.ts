@@ -59,6 +59,7 @@ import {
   DASHBOARD_OVERVIEW_SUMMARY_COLLECTION,
   DASHBOARD_OVERVIEW_SUMMARY_TTL_MS,
 } from '@/lib/services/dashboardOverviewConstants';
+import { snapshotFromData } from '@/lib/utils/snapshotDocument';
 
 interface StoredDashboardOverviewSummary {
   userId: string;
@@ -113,14 +114,7 @@ async function getSnapshotsForUser(userId: string): Promise<MonthlySnapshot[]> {
     .orderBy('month', 'asc')
     .get();
 
-  return snapshot.docs.map((doc) => {
-    const data = doc.data();
-
-    return {
-      ...data,
-      createdAt: toDate(data.createdAt),
-    };
-  }) as MonthlySnapshot[];
+  return snapshot.docs.map((doc) => snapshotFromData(doc.data()));
 }
 
 async function getSettingsForUser(userId: string): Promise<AssetAllocationSettings | null> {

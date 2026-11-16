@@ -38,6 +38,7 @@ import {
 import { evaluateActiveGoals } from '@/lib/server/assistant/goalEvaluationService';
 import { adminDb } from '@/lib/firebase/admin';
 import { checkRateLimit } from '@/lib/server/rateLimit';
+import { assistantStreamRequestSchema, parseOr400 } from '@/lib/server/validation';
 
 const STREAM_RATE_LIMIT_MAX = 30;
 const STREAM_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
@@ -149,7 +150,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = (await request.json()) as AssistantStreamRequest;
+    const parsed = parseOr400(assistantStreamRequestSchema, await request.json());
+    if (!parsed.ok) return parsed.response;
+    const body: AssistantStreamRequest = parsed.data;
     await assertCanAccessAccount(decodedToken, body.userId);
 
     const rateLimitResult = checkRateLimit(
@@ -164,13 +167,6 @@ export async function POST(request: NextRequest) {
           status: 429,
           headers: { 'Retry-After': String(rateLimitResult.retryAfterSeconds) },
         }
-      );
-    }
-
-    if (!body.prompt?.trim() || !body.mode) {
-      return NextResponse.json(
-        { error: 'Sono richiesti userId, mode e prompt' },
-        { status: 400 }
       );
     }
 

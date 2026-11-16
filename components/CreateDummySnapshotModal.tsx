@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { generateDummySnapshots } from '@/lib/services/dummySnapshotGenerator';
+import { describeDummySnapshotResult, generateDummySnapshots } from '@/lib/services/dummySnapshotGenerator';
 import { toast } from 'sonner';
 
 interface CreateDummySnapshotModalProps {
@@ -100,12 +100,8 @@ export function CreateDummySnapshotModal({
     // `finally`: the React Compiler cannot lower conditionals in a try block, nor try/finally.
     const incomeToSeed = generateExpenses ? income : undefined;
     const expensesToSeed = generateExpenses ? expenses : undefined;
-    const message = generateExpenses
-      ? `${months} snapshot e dati di spese/entrate creati con successo!`
-      : `${months} snapshot fittizi creati con successo!`;
-
     try {
-      await generateDummySnapshots({
+      const result = await generateDummySnapshots({
         userId,
         initialNetWorth: netWorth,
         monthlyGrowthRate: growthRate,
@@ -114,7 +110,7 @@ export function CreateDummySnapshotModal({
         averageMonthlyExpenses: expensesToSeed,
       });
 
-      toast.success(message);
+      toast.success(describeDummySnapshotResult(result, generateExpenses));
       onOpenChange(false);
 
       // Reset form

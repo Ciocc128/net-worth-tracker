@@ -55,13 +55,21 @@ service cloud.firestore {
     }
 
     // Collezione monthly-snapshots - snapshot mensili del patrimonio
+    // (doc/snapshot-integri/README.md RI17, D-SN6). Ogni snapshot reale lo scrive il server
+    // (Admin SDK: cron, «Crea snapshot», snapshot manuale, ripristino), che le regole non vincolano.
+    // Dal client: leggere, scrivere la nota, e i dati di prova su un mese libero.
     match /monthly-snapshots/{snapshotId} {
       allow read: if canAccess(resource.data.userId);
-      allow create: if canAccess(request.resource.data.userId);
-      allow update: if canAccess(resource.data.userId) &&
-                       (!('userId' in request.resource.data) ||
-                        request.resource.data.userId == resource.data.userId);
-      allow delete: if canAccess(resource.data.userId);
+      // Solo dati di prova, su un id dell'account, mai sopra un documento esistente.
+      allow create: if canAccess(request.resource.data.userId)
+                    && request.resource.data.isDummy == true
+                    && snapshotId == request.resource.data.userId + '-'
+                       + string(request.resource.data.year) + '-' + string(request.resource.data.month);
+      // La nota, e nient'altro.
+      allow update: if canAccess(resource.data.userId)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['note']);
+      allow delete: if canAccess(resource.data.userId) && resource.data.isDummy == true;
+      // Le versioni (`versions/`) sono solo del server: nessun match, quindi negate.
     }
 
     // Collezione assetAllocationTargets - target di allocazione asset

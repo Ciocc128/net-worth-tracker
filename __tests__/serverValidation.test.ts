@@ -67,11 +67,19 @@ describe('snapshotRequestSchema', () => {
     expect(
       snapshotRequestSchema.safeParse({
         userId: 'user-1',
-        year: 2025,
-        month: 6,
         cronSecret: 'secret',
       }).success
     ).toBe(true);
+  });
+
+  // RI6 (doc/snapshot-integri/README.md § 5.3): the target is always the current month; a caller
+  // naming one is refused, never silently given another.
+  it.each([
+    ['a year', { year: 2025 }],
+    ['a month', { month: 6 }],
+    ['any other key', { fenicottero: true }],
+  ])('rejects %s (strict)', (_label, extra) => {
+    expect(snapshotRequestSchema.safeParse({ userId: 'user-1', ...extra }).success).toBe(false);
   });
 
   it('rejects empty userId', () => {
