@@ -6,13 +6,15 @@
     "node": "24.x"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "npm run dev:emulator",
+    "dev:prod": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
     "emulators": "node scripts/emulators.mjs",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-net-worth \"vitest run -c vitest.rules.config.ts\"",
     "emulators:seed": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-net-worth tsx scripts/seedEmulator.ts",
     "mirror:seed": "tsx scripts/mirrorProdAccount.mts seed",
     "users:allow": "tsx scripts/usersAllow.mts",
@@ -96,6 +98,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@playwright/test": "^1.62.1",
     "@react-pdf/types": "^2.11.1",
     "@storybook/addon-docs": "^10.4.1",

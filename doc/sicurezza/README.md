@@ -3,13 +3,13 @@
 Fork only. Source: the security review of 2026-11-11 (project Library `review-sicurezza/`, page
 <https://claude.ai/artifact/2hwcn9rwBnE2iJyKtqxprx>) and the test-health review (`salute-test/parte-2-copertura.md`,
 C3). This dossier collects the corrections of that review, one stage per Todoist card. S1 is implemented
-(2026-11-15); S2 and S3 are specs of their own.
+(2026-11-15); S2 and S3 follow.
 
 | Stage | Card | What | State |
 | --- | --- | --- | --- |
 | **S1 «chi può agire per chi»** | F02 (A1 + A4 + the authorization table) | this file, §§ 1–9 | implemented 2026-11-15 (§ 10) |
 | **S2 «utenti ammessi lato server»** | F04 (allowed users: R1, A3, A2) | [`S2-utenti-ammessi.md`](S2-utenti-ammessi.md) | S2a (list, rules, crons, A3) implemented 2026-11-16; S2b (the invitation, A2) next |
-| S3 | F11 (rules suite, R2–R4, S1) | to be written by its own thread | — |
+| **S3 «le regole hanno una suite»** | F11 (rules suite, R2–R5, S1) | [`S3-regole.md`](S3-regole.md) | implemented 2026-11-17 |
 
 Read at `main` = `ec6d115`: 38 `route.ts` files under `app/api/`, 46 handlers.
 

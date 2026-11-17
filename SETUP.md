@@ -215,8 +215,10 @@ RESEND_FROM_EMAIL=onboarding@resend.dev
 ### Step 4: Run the Development Server
 
 ```bash
-npm run dev
+npm run dev:prod
 ```
+
+> Since F11 (S1) `npm run dev` points at the **emulators** (same as `dev:emulator`, Step 6): the Admin key in `.env.local` bypasses every Firestore rule, so working on real data needs the explicit name `dev:prod`.
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
