@@ -98,8 +98,9 @@ test('opens with the verdict: three causes, three numbers, the year axis beside 
   expect(sentence).toContain(`il mercato ha reso ${TWR} (TWR)`);
   expect(sentence).toMatch(/nel 2026 il datore ha aggiunto 134[\s\u00a0]*€/);
   // The deductible 2026 contributions are 152,02 + 134,11 = 286,13 € (the TFR does not count); RAL
-  // 35.000 puts them entirely in the 35% bracket: 100,15 → «circa 100 €».
-  expect(sentence).toMatch(/il fisco restituisce circa 100[\s\u00a0]*€/);
+  // 35.000 puts them entirely in the 33% bracket (IRPEF 2026 defaults 23/28.000 · 33/50.000 · 43, F10
+  // FC-IR; the 35% bracket was the 2025 one): 94,43 → «circa 94 €».
+  expect(sentence).toMatch(/il fisco restituisce circa 94[\s\u00a0]*€/);
 
   // The verdict is the page's headline: 30px on desktop, above every tile.
   expect(await fontSizePx(verdict.getByRole('heading'))).toBe(30);
@@ -165,7 +166,7 @@ test('the year axis governs the annual tiles and the annual clauses, and leaves 
 
   // The verdict follows the axis for its annual clauses only: a closed year is said in the past.
   const sentence = (await page.getByRole('region', { name: 'Verdetto sul fondo pensione' }).textContent())?.replace(/ /g, ' ') ?? '';
-  expect(sentence).toMatch(/nel 2025 il fisco ha restituito circa 350[\s\u00a0]*€/);
+  expect(sentence).toMatch(/nel 2025 il fisco ha restituito circa 330[\s\u00a0]*€/);
   expect(sentence).not.toContain('il datore');
   expect(sentence).toContain(`il mercato ha reso ${TWR} (TWR)`);
 
