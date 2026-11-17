@@ -14,9 +14,9 @@ import {
   buildLoginVerdict,
   describeAuthError,
   describeLoginStatus,
-  LOGIN_REASON_NOT_ALLOWED,
   type AuthStatus,
 } from '@/lib/utils/authNarrative';
+import { LOGIN_REASON_NOT_ALLOWED } from '@/lib/utils/loginReason';
 
 /**
  * The demo credentials are the only thing that decides whether this page offers a demo:

@@ -185,9 +185,6 @@ const AUTH_ERROR_TEXT: Record<string, string> = {
     'Questo account non è abilitato a usare l’app. Chiedi a chi la gestisce di abilitarlo.',
 };
 
-/** The `?reason=` of /login that carries a sign-out the app did on its own (RU7). */
-export const LOGIN_REASON_NOT_ALLOWED = 'not-allowed';
-
 /** Translates whatever was thrown into one sentence, never into the provider's own words. */
 export function describeAuthError(error: unknown): string {
   const code =

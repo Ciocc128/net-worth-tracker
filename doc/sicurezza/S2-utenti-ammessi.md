@@ -388,7 +388,7 @@ What was built, rule by rule, and where it departs from §§ 4–6.
   variables, as `mirror:remove` has them); the nine seeds and `mirrorProdAccount.mts` admit their account,
   `mirror:remove` takes the mirror off the list.
 - **RU7** — `isViewerAdmitted` in `lib/services/accountAccessService.ts`, the effect in `ActiveAccountProvider`, the
-  entry `account/not-allowed` and `LOGIN_REASON_NOT_ALLOWED` in `lib/utils/authNarrative.ts`, the reading on
+  entry `account/not-allowed` in `lib/utils/authNarrative.ts` and `LOGIN_REASON_NOT_ALLOWED` in `lib/utils/loginReason.ts` (its own module, so the root layout does not pull the auth sentences), the reading on
   `/login?reason=not-allowed` (read from `window.location` after mount, so the page stays static). The sentence uses the
   typographic apostrophe of the module («l’app»).
 - **RU9** — the email route on the helper, 5 sends an hour (`${uid}:email-send`), no `details`.

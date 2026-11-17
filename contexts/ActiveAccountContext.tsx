@@ -28,7 +28,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import { useAuth, waitForPendingRegistration } from '@/contexts/AuthContext';
 import { getSharedAccounts, isViewerAdmitted } from '@/lib/services/accountAccessService';
-import { LOGIN_REASON_NOT_ALLOWED } from '@/lib/utils/authNarrative';
+import { LOGIN_REASON_NOT_ALLOWED } from '@/lib/utils/loginReason';
 import { AccessibleAccount } from '@/types/account';
 
 interface ActiveAccountContextType {
