@@ -7,6 +7,7 @@
  */
 import type { CoastFirePensionInput, DatedFlow } from '@/types/assets';
 import type { Settings } from '@/types/settings';
+import type { AssetAllocationSettings } from '@/types/assets';
 import {
   buildPensionDraftIssues,
   buildPensionSnapshotKey,
@@ -292,6 +293,16 @@ export function buildPlanPayload(
       pensionRitaLongUnemployment: form.ritaLongUnemployment,
     },
   };
+}
+
+/**
+ * M1: what «Salva il piano» hands to `setSettings`. ONLY the plan's own fields, never `targets` and never a copy of
+ * the cached document: with `targets` present `setSettings` rewrites the whole document, so a stale cache (a second
+ * device, the co-owner) would bring back old targets and drop `idealAllocation`, `monteCarloMarket`, … The merge branch
+ * writes just these keys and already turns an `undefined` clearable one into a delete.
+ */
+export function buildFirePlanWrite(payload: FirePlanPayload): AssetAllocationSettings {
+  return { ...payload } as unknown as AssetAllocationSettings;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

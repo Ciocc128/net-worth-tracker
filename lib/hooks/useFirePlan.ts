@@ -21,13 +21,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { queryKeys } from '@/lib/query/queryKeys';
-import { getDefaultTargets, setSettings } from '@/lib/services/assetAllocationService';
+import { setSettings } from '@/lib/services/assetAllocationService';
 import { describeWriteError } from '@/lib/utils/dialogNarrative';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import {
   FIRE_PLAN_FIELD_IDS,
   applyPlanOverlay,
   buildPlanOverlay,
+  buildFirePlanWrite,
   buildPlanPayload,
   isPlanDirty,
   planFormFromSettings,
@@ -35,6 +36,7 @@ import {
   planSeedKey,
   validateFirePlan,
   type FirePlanField,
+  type FirePlanPayload,
   type FirePlanForm,
   type FirePlanProblems,
 } from '@/lib/utils/firePlan';
@@ -101,7 +103,8 @@ export function useFirePlanDraft(): FirePlanState {
 
   const { saved: justSaved, flash: flashSaved } = useSavedFlash();
   const mutation = useMutation({
-    mutationFn: (payload: object) => setSettings(ownerId!, { ...(settings ?? {}), targets: settings?.targets || getDefaultTargets(), ...payload }),
+    // M1: only the plan's fields (merge branch), never the cached document or its targets.
+    mutationFn: (payload: FirePlanPayload) => setSettings(ownerId!, buildFirePlanWrite(payload)),
     onSuccess: () => {
       toast.success('Piano FIRE salvato');
       flashSaved();
