@@ -20,6 +20,7 @@ const PAST = Timestamp.fromDate(new Date('2020-03-10T12:00:00Z'));
 
 beforeEach(() => {
   fake.reset();
+  fake.allow('owner-1', 'member-1', 'stranger');
   fake.set('assets/asset-a', { userId: 'owner-1', type: 'etf', name: 'Ornitorinco ETF' });
   fake.set('dividends/own-future', { userId: 'owner-1', assetId: 'asset-a', exDate: FUTURE });
   fake.set('dividends/own-past', { userId: 'owner-1', assetId: 'asset-a', exDate: PAST });

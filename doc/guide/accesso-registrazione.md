@@ -6,7 +6,7 @@
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
-- **Accesso e Registrazione**: `app/{login,register}/page.tsx`, `components/auth/*`, pure `lib/utils/authNarrative.ts` and `lib/utils/authProfile.ts` (`resolveDisplayName`), `lib/server/registrationPolicy.ts` + `app/api/auth/check-registration/route.ts`, `contexts/AuthContext.tsx`, `components/ProtectedRoute.tsx`; tests `__tests__/{authNarrative,registrationPolicy,authProfile}.test.ts`
+- **Accesso e Registrazione**: `app/{login,register}/page.tsx`, `components/auth/*`, pure `lib/utils/authNarrative.ts` and `lib/utils/authProfile.ts` (`resolveDisplayName`), `lib/server/registrationPolicy.ts` + `app/api/auth/{check-registration,activate}/route.ts`, `contexts/AuthContext.tsx`, `components/ProtectedRoute.tsx`; tests `__tests__/{authNarrative,registrationPolicy,authProfile,activateRoute}.test.ts`
 - **Suites to run after a change here — Accesso / Registrazione** (moved from `AGENTS.md` § Commands on 2026-09-30): **Verdetti, letture ed errori** `authNarrative` · **Policy** `registrationPolicy` (i due devono restare d'accordo sulla precedenza whitelist/flag)
 
 ## Accesso e Registrazione (`app/login/page.tsx`, `app/register/page.tsx`, `components/auth/*`, `lib/utils/authNarrative.ts`)
@@ -42,6 +42,16 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `code` and leaves the page nothing to map. Use `withCode(message, code)` and, in a catch, rethrow an `Error` as is.
   The 403 of `/api/auth/check-registration` carries `code: 'registration/not-allowed'` for the same reason: the words
   live in the pure module, so a copy edit in the route can never change what the reader sees.
+- **A registration ends with the SERVER admitting the user** (F04, 2026-11-16, `doc/sicurezza/S2-utenti-ammessi.md`
+  RU2, RU7). `signUp` keeps the pre-check on `check-registration` (a refused email creates no Auth user), then right
+  after `createUserWithEmailAndPassword` calls `POST /api/auth/activate` with the new user's token, BEFORE any
+  Firestore write; a brand-new Google user (`getAdditionalUserInfo(result).isNewUser`) takes the same call. A 403 deletes
+  the Auth user (else signs out) and throws `registration/not-allowed`. While a registration is in flight
+  (`trackRegistration`), `onAuthStateChanged` holds the user back, so no page reads Firestore before the list has it.
+  A returning user who is not admitted is never deleted: `ActiveAccountProvider` reads `allowed-users/{viewer}` once
+  (`isViewerAdmitted`), and ONLY a read that answered «no document» signs out to `/login?reason=not-allowed`, where the
+  tile says `account/not-allowed` («Questo account non è abilitato a usare l’app…»). A failed read does nothing — and
+  that is also what happens between the deploy and the publication of the rules, when the old rules deny the read.
 - **`resolveRegistrationAccess` MIRRORS `isRegistrationAllowed` — deroga included.** With the whitelist on, a listed
   email registers even while `NEXT_PUBLIC_REGISTRATIONS_ENABLED` is `'false'` (SETUP.md → Step 5b relies on it to
   onboard a shared-account guest). So `whitelistEnabled` wins in BOTH directions and only "registrations off AND no
@@ -63,4 +73,4 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 ## Per-page blind spots
 
-- **Accesso e Registrazione**: no Playwright spec of the two pages themselves (the session's throwaway ones were deleted; `e2e/shell.boot*.spec.ts` cover the redirect of `/dashboard` without a session). `ProtectedRoute` has no spinner since 2026-09-28: it shows the layout's tile-grid skeleton while Auth resolves and keeps it through the redirect, so a signed-out reader sees one frame of empty dashboard chrome before `/login` — accepted (doc/guide/stati.md). The submit button stays ENABLED with the password rules unmet, as before the redesign — the refusal is the reading line, not a dead control. That reading lives in a **polite** `role="status"` even on failure: a node that switched to `role="alert"` would change identity in the accessibility tree and some screen readers announce nothing across the swap. On success the form stays frozen until the redirect (it used to re-enable). The outcome toasts are gone from both pages: the tile says the state. `describeAuthError` covers 14 codes and anything else takes the generic sentence, so a NEW Firebase cause is invisible until it is added. The whitelist stays a DEROGATION from `REGISTRATIONS_ENABLED=false` (SETUP.md → Step 5b depends on it): `resolveRegistrationAccess` mirrors that, it does not correct it.
+- **Accesso e Registrazione**: no Playwright spec of the two pages themselves (the session's throwaway ones were deleted; `e2e/shell.boot*.spec.ts` cover the redirect of `/dashboard` without a session). `ProtectedRoute` has no spinner since 2026-09-28: it shows the layout's tile-grid skeleton while Auth resolves and keeps it through the redirect, so a signed-out reader sees one frame of empty dashboard chrome before `/login` — accepted (doc/guide/stati.md). The submit button stays ENABLED with the password rules unmet, as before the redesign — the refusal is the reading line, not a dead control. That reading lives in a **polite** `role="status"` even on failure: a node that switched to `role="alert"` would change identity in the accessibility tree and some screen readers announce nothing across the swap. On success the form stays frozen until the redirect (it used to re-enable). The outcome toasts are gone from both pages: the tile says the state. `describeAuthError` covers 15 codes and anything else takes the generic sentence, so a NEW Firebase cause is invisible until it is added. The whitelist stays a DEROGATION from `REGISTRATIONS_ENABLED=false` (SETUP.md → Step 5b depends on it): `resolveRegistrationAccess` mirrors that, it does not correct it.

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { NextResponse } from 'next/server';
 import { ASSET_CLASS_SEQUENCE } from '@/lib/utils/allocationUtils';
 import type { AssetClass } from '@/types/assets';
+import { ASSISTANT_PROMPT_MAX_LENGTH } from '@/lib/constants/assistantPrompts';
 
 /**
  * Server-side input validation schemas (SEC-3).
@@ -177,8 +178,8 @@ export const assistantMemoryDeleteSchema = z
   })
   .strict();
 
-/** The stream prompt's cap (D-SN11): F04 may lower it with the limits of A3. */
-export const ASSISTANT_PROMPT_MAX_LENGTH = 8000;
+/** The stream prompt's cap (D-SN11; kept by F04's limits of A3, RU11 / D-SI16), shared with the composer. */
+export { ASSISTANT_PROMPT_MAX_LENGTH };
 
 /** POST /api/ai/assistant/stream. */
 export const assistantStreamRequestSchema = z
@@ -197,6 +198,46 @@ export const assistantStreamRequestSchema = z
     preferences: assistantPreferencesSchema.optional(),
   })
   .strict();
+
+const nullableMetric = finiteNumber.nullable();
+
+/**
+ * POST /api/ai/analyze-performance (doc/sicurezza/S2-utenti-ammessi.md RU10, A3): `metrics` keeps
+ * ONLY the 22 fields `buildAnalysisPrompt` reads, every other key dropped (the client sends the
+ * whole `PerformanceMetrics`, `cashFlows` included). No free string longer than 20 characters can
+ * reach the prompt. Not strict on purpose: the extra keys of a real `PerformanceMetrics` are dropped,
+ * not refused.
+ */
+export const performanceAnalysisRequestSchema = z.object({
+  userId: z.string().min(1),
+  timePeriod: z.enum(['YTD', '1Y', '3Y', '5Y', 'ALL', 'ROLLING_12M', 'CUSTOM']),
+  metrics: z.object({
+    roi: nullableMetric,
+    cagr: nullableMetric,
+    timeWeightedReturn: nullableMetric,
+    moneyWeightedReturn: nullableMetric,
+    volatility: nullableMetric,
+    sharpeRatio: nullableMetric,
+    maxDrawdown: nullableMetric,
+    drawdownDuration: nullableMetric,
+    recoveryTime: nullableMetric,
+    yocGross: nullableMetric,
+    yocNet: nullableMetric,
+    currentYield: nullableMetric,
+    currentYieldNet: nullableMetric,
+    startNetWorth: finiteNumber,
+    endNetWorth: finiteNumber,
+    netCashFlow: finiteNumber,
+    numberOfMonths: finiteNumber,
+    measuredFlowMonths: finiteNumber,
+    startDate: isoDateSchema,
+    endDate: isoDateSchema,
+    maxDrawdownDate: z.string().max(20).optional(),
+    flowSource: z.enum(['cashflow', 'portfolio', 'mixed']),
+  }),
+});
+
+export type PerformanceAnalysisRequest = z.infer<typeof performanceAnalysisRequestSchema>;
 
 /**
  * POST /api/dividends/sync-expenses: the account and the category, nothing else

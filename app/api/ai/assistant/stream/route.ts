@@ -39,7 +39,7 @@ import {
 import { evaluateActiveGoals } from '@/lib/server/assistant/goalEvaluationService';
 import { adminDb } from '@/lib/firebase/admin';
 import { checkRateLimit } from '@/lib/server/rateLimit';
-import { assistantStreamRequestSchema, parseOr400 } from '@/lib/server/validation';
+import { ASSISTANT_PROMPT_MAX_LENGTH, assistantStreamRequestSchema, parseOr400 } from '@/lib/server/validation';
 
 const STREAM_RATE_LIMIT_MAX = 30;
 const STREAM_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
@@ -151,7 +151,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const parsed = parseOr400(assistantStreamRequestSchema, await request.json());
+    const rawBody: unknown = await request.json();
+    // RU11 (A3): the prompt's cap says itself in words, before the schema's generic 400.
+    const rawPrompt = (rawBody as { prompt?: unknown } | null)?.prompt;
+    if (typeof rawPrompt === 'string' && rawPrompt.length > ASSISTANT_PROMPT_MAX_LENGTH) {
+      return NextResponse.json(
+        { error: `La domanda è troppo lunga (massimo ${ASSISTANT_PROMPT_MAX_LENGTH} caratteri).` },
+        { status: 400 }
+      );
+    }
+    const parsed = parseOr400(assistantStreamRequestSchema, rawBody);
     if (!parsed.ok) return parsed.response;
     // `preferences` may be partial: it is laid over the defaults below.
     const body = parsed.data as Omit<AssistantStreamRequest, 'preferences'> & { preferences?: Partial<AssistantPreferences> };

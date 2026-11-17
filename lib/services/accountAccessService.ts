@@ -1,7 +1,8 @@
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import {
   ACCOUNT_ACCESS_COLLECTION,
+  ALLOWED_USERS_COLLECTION,
   AccountAccess,
   AccessibleAccount,
 } from '@/types/account';
@@ -35,4 +36,14 @@ export async function getSharedAccounts(
       isOwn: false,
     };
   });
+}
+
+/**
+ * Whether the server admitted `viewerId` (doc/sicurezza/S2-utenti-ammessi.md RU7): `true` or
+ * `false` only from a read that ANSWERED. A failed read (offline, a timeout, the rules not yet
+ * published) throws, and the caller must not take it as a refusal.
+ */
+export async function isViewerAdmitted(viewerId: string): Promise<boolean> {
+  const snap = await getDoc(doc(db, ALLOWED_USERS_COLLECTION, viewerId));
+  return snap.exists();
 }

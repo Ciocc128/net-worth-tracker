@@ -16,6 +16,24 @@
 export const ACCOUNT_ACCESS_COLLECTION = 'account-access';
 
 /**
+ * The users the SERVER admitted (doc/sicurezza/S2-utenti-ammessi.md RU1, F04): one document per
+ * uid, written only with the Admin SDK. Its existence is the whole rule — the Firestore rules
+ * (`isAllowedUser()`), `requireFirebaseAuth` and the two crons ask for it.
+ */
+export const ALLOWED_USERS_COLLECTION = 'allowed-users';
+
+/** How a user entered `allowed-users`: the activation route, `npm run users:allow`, a seed. */
+export type AllowedUserSource = 'registration' | 'script' | 'seed';
+
+/** The `allowed-users/{uid}` document; the fields are for the owner reading the console. */
+export interface AllowedUser {
+  uid: string;
+  email: string;
+  grantedAt: Date;
+  source: AllowedUserSource;
+}
+
+/**
  * A member granted access to an owner's account. `email`/`displayName` are
  * denormalized copies (from the member's Auth profile at grant time) kept only
  * for display in the owner's sharing settings — `uid` is the source of truth.

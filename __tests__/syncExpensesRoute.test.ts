@@ -74,6 +74,7 @@ const forgedDividend = (netAmount: number) => ({
 
 beforeEach(() => {
   fake.reset();
+  fake.allow('owner-1', 'member-1', 'stranger');
   // The victim: a default dividend account at 8000 and one row already in the cashflow.
   fake.set('assets/acc-owner', { userId: 'owner-1', type: 'cash', assetClass: 'cash', currency: 'EUR', quantity: 8000 });
   fake.set('assetAllocationTargets/owner-1', { dividendCashAssetId: 'acc-owner' });

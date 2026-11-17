@@ -84,7 +84,10 @@ vi.mock('@/lib/firebase/admin', () => {
 
   const adminDb = {
     collection: (name: string) => ({
-      doc: (id?: string) => makeDocRef(name, id ?? `auto-${++counter.next}`),
+      // F04: every persona admitted (requireFirebaseAuth reads allowed-users/{uid}).
+      doc: (id?: string) => name === 'allowed-users'
+        ? { id, get: async () => ({ exists: true, id, data: () => ({}) }) }
+        : makeDocRef(name, id ?? `auto-${++counter.next}`),
       where: (field: string, _op: string, value: unknown) => makeQuery(name, [{ field, value }]),
     }),
     batch: () => {

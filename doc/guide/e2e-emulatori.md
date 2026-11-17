@@ -38,6 +38,11 @@
   PowerShell resolved them (the cause was not isolated). The tell is an HTML 404 where the handler would answer 401 without a token. A second
   server beside another project's :3000 takes its port from the environment (`$env:PORT = '3200'; npm run
   dev:emulator`): PowerShell 5.1 eats the `--` of `npm run … -- -p 3200`.
+- **Every seed ADMITS the account it creates** (F04, 2026-11-16): since the rules ask for `allowed-users/{uid}`, an Auth
+  user without it reads nothing — every tile a failed read, every route 403 `account/not-allowed`. The nine seeds and
+  the mirror call `allowUser(db, uid, email, 'seed')` from `scripts/lib/allowUser.ts` right after `createUser`, and
+  `mirror:remove` deletes the mirror's document. A throwaway exercise that creates its own Auth user must do the same
+  (or `npm run users:allow:emulator -- <email>`); a spec that cannot read anything is, first, a seed that forgot.
 - **An exercise can drive the ROUTES** (`scripts/*.tmp.mts`): an ID token from the Auth emulator's
   `accounts:signInWithPassword`, the mutations over HTTP, fixtures and read-backs with the Admin SDK — the way to
   exercise a `server-only` module, which a script cannot import.

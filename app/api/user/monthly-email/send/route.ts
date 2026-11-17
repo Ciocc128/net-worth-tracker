@@ -7,13 +7,16 @@
  * automatically (e.g. April 19 2026 → March for quarterly, H2 2025 for semiannual, 2025 for yearly).
  * `periodType: 'weekly-budget'` sends the weekly budget status email for the current state instead.
  *
- * Auth: Firebase ID token via Authorization: Bearer <token>
+ * Auth: `requireFirebaseAuth` (a token of an ADMITTED user, doc/sicurezza/S2-utenti-ammessi.md RU9);
+ * at most EMAIL_SEND_LIMIT_MAX sends an hour per user, counted before the email (and its AI
+ * comment) is built.
  * Body: { periodType?: 'monthly' | 'quarterly' | 'semiannual' | 'yearly' | 'weekly-budget' }
  * Returns: { success: true } or error JSON
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase/admin';
+import { getApiAuthErrorResponse, requireFirebaseAuth } from '@/lib/server/apiAuth';
+import { checkRateLimit } from '@/lib/server/rateLimit';
 import {
   getSettingsAdmin,
   buildAndSendForPeriod,
@@ -25,16 +28,22 @@ import {
 import { buildAndSendWeeklyBudget } from '@/lib/server/weeklyBudgetEmailService';
 import { getItalyMonthYear } from '@/lib/utils/dateHelpers';
 
+/** RU9 (D-SI16): five sends an hour per user, in memory like the two AI routes (A6 moves all three). */
+const EMAIL_SEND_LIMIT_MAX = 5;
+const EMAIL_SEND_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const idToken = authHeader.slice(7);
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const decodedToken = await requireFirebaseAuth(request);
     const userId = decodedToken.uid;
+
+    const rateLimitResult = checkRateLimit(`${userId}:email-send`, EMAIL_SEND_LIMIT_MAX, EMAIL_SEND_LIMIT_WINDOW_MS);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: 'Hai raggiunto il limite di invii. Riprova più tardi.' },
+        { status: 429, headers: { 'Retry-After': String(rateLimitResult.retryAfterSeconds) } }
+      );
+    }
 
     // Parse optional body — default to monthly
     const body = await request.json().catch(() => ({})) as { periodType?: string };
@@ -113,10 +122,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const authResponse = getApiAuthErrorResponse(error);
+    if (authResponse) return authResponse;
     console.error('Error sending periodic email:', error);
-    return NextResponse.json(
-      { error: 'Failed to send email', details: (error as Error).message },
-      { status: 500 }
-    );
+    // No `details`: the message of a thrown error is server internals, not the caller's business.
+    return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
   }
 }

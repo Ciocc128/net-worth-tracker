@@ -36,6 +36,10 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `canAccess(request.resource.data.userId)`, `userPreferences` stays `isOwner`, `account-access` is **write:false**),
   `assertCanAccessAccount` on Admin routes, and the client substituting `ownerId`. **Rules changes are inert until
   deployed.**
+- **A member must be ADMITTED too** (F04, 2026-11-16): `isMemberOf` and `isOwner` both start from `isAllowedUser()`, so
+  a member without `allowed-users/{uid}` sees nothing of the shared account and gets 403 on every route; a member taken
+  off the list keeps their inert entry in `memberUids` until the owner revokes it. A deployment with a demo account
+  admits its user like any other (`npm run users:allow -- <demo email>`): there is no branch for the demo uid.
 - **Switching gotcha**: React Query keys namespace by the id passed in, but manual `useEffect` loaders (settings, history,
   performance, allocation, hall of fame) must include `ownerId` in their deps. The switcher must exist in BOTH the
   Sidebar and the `SecondaryMenuDrawer`, since portrait has no Sidebar.

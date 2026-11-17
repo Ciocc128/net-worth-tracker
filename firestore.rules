@@ -3,21 +3,25 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function: verifica se l'utente è autenticato
-    function isAuthenticated() {
-      return request.auth != null;
+    // Helper: l'utente è autenticato E ammesso dal server (doc/sicurezza/S2-utenti-ammessi.md RU3).
+    // Essere un utente Firebase Auth non basta: serve allowed-users/{uid}, che solo l'Admin SDK
+    // scrive (POST /api/auth/activate, npm run users:allow, i seed). Ogni nuova collezione passa
+    // da qui, tramite isOwner / canAccess.
+    function isAllowedUser() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/allowed-users/$(request.auth.uid));
     }
 
     // Helper function: verifica se l'utente è il proprietario
     function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+      return isAllowedUser() && request.auth.uid == userId;
     }
 
     // Helper: l'utente è un membro delegato dell'account di ownerUid.
     // Legge account-access/{ownerUid}.memberUids. Guardia exists() perché get()
     // su un documento inesistente ritorna null e l'accesso a .data fallirebbe.
     function isMemberOf(ownerUid) {
-      return isAuthenticated()
+      return isAllowedUser()
         && exists(/databases/$(database)/documents/account-access/$(ownerUid))
         && request.auth.uid in get(/databases/$(database)/documents/account-access/$(ownerUid)).data.memberUids;
     }
@@ -245,25 +249,25 @@ service cloud.firestore {
 
     // Collezione benchmark-cache - rendimenti storici dei portafogli modello (dato globale)
     // Document ID == benchmarkId (es. "60-40", "all-weather"); nessun campo userId.
-    // Leggibile da qualsiasi utente autenticato; scrivibile solo via Admin SDK (write: false).
+    // Leggibile da qualsiasi utente ammesso; scrivibile solo via Admin SDK (write: false).
     match /benchmark-cache/{benchmarkId} {
-      allow read: if isAuthenticated();
+      allow read: if isAllowedUser();
       allow write: if false;
     }
 
     // Collezione fx-rate-cache - tassi di cambio mensili USD/EUR (dato globale)
     // Document ID == "usd-eur"; nessun campo userId.
-    // Leggibile da qualsiasi utente autenticato; scrivibile solo via Admin SDK (write: false).
+    // Leggibile da qualsiasi utente ammesso; scrivibile solo via Admin SDK (write: false).
     match /fx-rate-cache/{docId} {
-      allow read: if isAuthenticated();
+      allow read: if isAllowedUser();
       allow write: if false;
     }
 
     // Collezione ecb-rate-cache - tassi BCE deposit facility mensili (dato globale)
     // Document ID == "deposit-rate"; nessun campo userId.
-    // Leggibile da qualsiasi utente autenticato; scrivibile solo via Admin SDK (write: false).
+    // Leggibile da qualsiasi utente ammesso; scrivibile solo via Admin SDK (write: false).
     match /ecb-rate-cache/{docId} {
-      allow read: if isAuthenticated();
+      allow read: if isAllowedUser();
       allow write: if false;
     }
 
@@ -301,8 +305,16 @@ service cloud.firestore {
     //   membro richiede la risoluzione email->uid lato server.
     match /account-access/{ownerUid} {
       allow read: if isOwner(ownerUid) ||
-                     (isAuthenticated() && request.auth.uid in resource.data.memberUids);
+                     (isAllowedUser() && request.auth.uid in resource.data.memberUids);
       allow write: if false;
+    }
+
+    // Collezione allowed-users - utenti ammessi dal server (doc id = uid, S2 RU1/RU3)
+    // Un utente può sapere solo se LUI è ammesso (il client lo legge per RU7); nessuna lista,
+    // nessuna scrittura dal client: la scrive solo l'Admin SDK.
+    match /allowed-users/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow list, write: if false;
     }
 
     // Blocca tutto il resto per sicurezza

@@ -9,6 +9,19 @@
 ## Server Layer and API Authorization
 - Route = auth → validate → fetch → ownership check → delegate → return; no Firestore queries or business logic in the
   handler body. Firestore rules do not protect Admin SDK calls, so enforce record-level ownership after loading the doc.
+- **Being a Firebase Auth user is not enough: the SERVER admits users** (F04, 2026-11-16,
+  `doc/sicurezza/S2-utenti-ammessi.md`). The list is `allowed-users/{uid}` (`ALLOWED_USERS_COLLECTION`,
+  `types/account.ts`), written only with the Admin SDK. `requireFirebaseAuth` = `verifyFirebaseToken` +
+  `assertAllowedUser(uid)`: a valid token without the document is **403 `account/not-allowed`** (the body carries the
+  code); a positive answer is remembered 60 s per instance (`ALLOWED_USER_MEMORY_MS`), a negative one never. Only
+  `POST /api/auth/activate` calls `verifyFirebaseToken` alone — it is the door into the list: the registration policy
+  (`isRegistrationAllowed`) judges the TOKEN's email, never a body, and writes `source: 'registration'`. The Firestore
+  rules ask the same (`isAllowedUser()` inside `isOwner`/`isMemberOf`/the global caches; `allowed-users/{uid}` is
+  readable only by its own uid), and the two crons walk `allowed-users`, not `users`. The owner manages the list with
+  `npm run users:allow -- <email>` · `--remove <email>` · `--list` (production with `.env.local`'s Admin key;
+  `users:allow:emulator` for the emulators); every seed admits its account through `scripts/lib/allowUser.ts`.
+  A route test admits its personas (`fake.allow(...)` in `__tests__/helpers/adminFake.ts`, or an `allowed-users`
+  branch in a hand-written mock); RA6 of the route table proves the 403 on every `owner`/`resource`/`viewer`/`token` row.
 - **Owner-scoped routes authorize with `assertCanAccessAccount(decodedToken, ownerUserId)`**, never a fallback to
   `decodedToken.uid`; viewer-scoped routes (sharing management) just read the token uid.
 - **A route passes IDS to its service, and the service re-reads** (RS7, 2026-11-15, `doc/sicurezza/README.md` § 4): a
@@ -17,11 +30,12 @@
   server has just read. Until 2026-11 `POST /api/dividends/sync-expenses` wrote income rows in whatever account each
   dividend OBJECT in its body declared (A1): it now takes `{ userId, categoryId, subCategoryId? }` and reads the rest.
 - **Every `route.ts` × method is a row of `__tests__/routeAuthorization.table.ts`** (kind `owner` · `resource` ·
-  `viewer` · `token` · `secret` · `public`, and a request that REACHES the check). `__tests__/routeAuthorization.test.ts`
+  `viewer` · `token` · `activation` · `secret` · `public`, and a request that REACHES the check). `__tests__/routeAuthorization.test.ts`
   reads the handlers from disk and fails when one is missing from the table (RA1), when it answers anything but 401
   without a credential (RA2), anything but 403 (or the row's declared 404) or writes anything for a stranger's token
   aimed at another account (RA3), 401/403 to the account's own token or a member's (RA4), or when a `viewer` route
-  touches the account named in the request (RA5). The routes run for real over `__tests__/helpers/adminFake.ts`, an
+  touches the account named in the request (RA5), or when a valid token of a user NOT admitted gets anything but 403,
+  writes, or reads more than `allowed-users/{uid}` (RA6, F04). The routes run for real over `__tests__/helpers/adminFake.ts`, an
   in-memory Admin SDK that records every path read and written; `fetch` rejects. A new route is born with its row; the
   readable table with the review's notes is `doc/sicurezza/README.md` § 5.
 - Server-owned materialized docs are mutated only via a private authenticated route; cron routes use `CRON_SECRET`, and
@@ -45,7 +59,13 @@
   or dropped; the order is token → schema → `assertCanAccessAccount`, so an unauthenticated caller still gets 401 and a
   row of the route table needs a body that passes the schema (or RA3 reads a 400). The manual snapshot, the restore,
   `hall-of-fame/recalculate`, `prices/update`, `assets/[assetId]` DELETE (and its path id), the assistant's memory
-  PATCH/DELETE and stream (prompt ≤ 8.000 characters, D-SN11) are the worked examples.
+  PATCH/DELETE and stream (prompt ≤ 8.000 characters, D-SN11; the 400 says it in words, and the composer has the same
+  `maxLength`, `ASSISTANT_PROMPT_MAX_LENGTH` in `lib/constants/assistantPrompts.ts`) are the worked examples. Not strict
+  on purpose: `performanceAnalysisRequestSchema` (F04 RU10) keeps the 22 fields of `metrics` the prompt reads and DROPS
+  the rest of the `PerformanceMetrics` the client sends — no free string over 20 characters reaches the prompt.
+- **`POST /api/user/monthly-email/send` sends at most 5 emails an hour per user** (F04 RU9, `checkRateLimit`
+  `${uid}:email-send`, counted before the email and its AI comment are built; 429 with `Retry-After`), and its 500
+  carries no `details`.
 - **A route's latency is a `Server-Timing` header** (`lib/server/serverTiming.ts`; five routes since 2026-10-05: overview,
   yields, dividend stats, instrument profiles, assistant threads): `startTiming()` at the handler's top, `mark('auth')`
   after `assertCanAccessAccount`, `mark('db')` after ONE round of reads, `mark('compute')` before the response; a service

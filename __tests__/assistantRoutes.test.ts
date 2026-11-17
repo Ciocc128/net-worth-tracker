@@ -60,6 +60,7 @@ vi.mock('@/lib/firebase/admin', () => ({
   },
   adminDb: {
     collection: vi.fn((name: string) => {
+      if (name === 'allowed-users') return { doc: vi.fn(() => ({ get: vi.fn(async () => ({ exists: true, data: () => ({}) })) })) }; // F04: every persona admitted
       // Delegated-access lookup performed by assertCanAccessAccount when the
       // caller's uid differs from the requested owner.
       if (name === 'account-access') {
@@ -693,5 +694,28 @@ describe('Assistant private API routes', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'Authenticated user does not have access to requested account',
     });
+  });
+
+  it.each([
+    ['AS1 — a prompt of 8001 characters is 400 and the model is not called', 8001, true],
+    ['AS2 — a prompt of 8000 characters is accepted', 8000, false],
+  ])('%s', async (_label, length, refused) => {
+    streamAssistantResponseMock.mockClear();
+    const response = await streamRoute(
+      createJsonRequest('http://localhost/api/ai/assistant/stream', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer valid-token' },
+        body: { userId: 'user-1', mode: 'chat', prompt: 'F'.repeat(length) },
+      })
+    );
+
+    if (refused) {
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: 'La domanda è troppo lunga (massimo 8000 caratteri).' });
+      expect(streamAssistantResponseMock).not.toHaveBeenCalled();
+    } else {
+      expect(response.status).not.toBe(400);
+      await response.text();
+    }
   });
 });

@@ -28,6 +28,7 @@ const params = (dividendId: string) => ({ params: Promise.resolve({ dividendId }
 
 beforeEach(() => {
   fake.reset();
+  fake.allow('owner-1', 'member-1', 'stranger');
   fake.set('assets/acc-owner', { userId: 'owner-1', type: 'cash', assetClass: 'cash', currency: 'EUR', quantity: 8000 });
   fake.set('expenses/exp-v', { ...VICTIM_ROW });
   // The stranger's own dividend, written (before the rule was closed) with a link to the victim's row.

@@ -16,6 +16,7 @@ import {
   describeLoginStatus,
   type AuthStatus,
 } from '@/lib/utils/authNarrative';
+import { LOGIN_REASON_NOT_ALLOWED } from '@/lib/utils/loginReason';
 
 /**
  * The demo credentials are the only thing that decides whether this page offers a demo:
@@ -36,6 +37,16 @@ export default function LoginPage() {
   const [pending, setPending] = useState<PendingSource | null>(null);
   const { signIn, signInWithGoogle, user, loading: authLoading } = useAuth();
   const router = useRouter();
+
+  // The app signed this reader out on its own (S2 RU7): the tile says why. Read from the URL after
+  // mount — `useSearchParams` would take the prerendered page out of the static shell.
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get('reason');
+    if (reason === LOGIN_REASON_NOT_ALLOWED) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one read of the URL after mount, never a loop
+      setStatus({ phase: 'error', message: describeAuthError({ code: 'account/not-allowed' }) });
+    }
+  }, []);
 
   // Redirect to dashboard once AuthContext has the user.
   // Why not router.push() immediately after signIn()? signInWithEmailAndPassword

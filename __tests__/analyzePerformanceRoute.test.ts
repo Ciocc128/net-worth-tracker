@@ -30,13 +30,15 @@ const OVERLOADED_ENVELOPE = {
   error: { type: 'overloaded_error', message: 'Overloaded' },
 };
 
-function buildRequest(): NextRequest {
+function buildRequest(
+  overrides: { timePeriod?: unknown; metrics?: Record<string, unknown> } = {},
+): NextRequest {
   return new NextRequest('http://localhost/api/ai/analyze-performance', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer token' },
     body: JSON.stringify({
       userId: 'user-1',
-      timePeriod: '1Y',
+      timePeriod: overrides.timePeriod ?? '1Y',
       metrics: {
         startDate: '2025-01-01T12:00:00.000Z',
         endDate: '2025-12-31T12:00:00.000Z',
@@ -50,7 +52,7 @@ function buildRequest(): NextRequest {
         volatility: 8,
         sharpeRatio: 0.6,
         maxDrawdown: -4,
-        maxDrawdownDate: '2025-04-30T12:00:00.000Z',
+        maxDrawdownDate: '04/25',
         drawdownDuration: 2,
         recoveryTime: 1,
         numberOfMonths: 12,
@@ -58,6 +60,9 @@ function buildRequest(): NextRequest {
         currentYieldNet: 1.5,
         yocGross: 2.2,
         yocNet: 1.7,
+        measuredFlowMonths: 0,
+        flowSource: 'cashflow',
+        ...overrides.metrics,
       },
     }),
   });
@@ -253,5 +258,37 @@ describe('POST /api/ai/analyze-performance server-side fallback', () => {
       { text: ' cresce.' },
       '[DONE]',
     ]);
+  });
+});
+
+describe('POST /api/ai/analyze-performance input (S2 RU10, A3)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('AP1 — keys the prompt does not read never reach it', async () => {
+    const create = vi.spyOn(Anthropic.Beta.Messages.prototype, 'create').mockResolvedValue((async function* () {
+      yield { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 1 } };
+    })() as never);
+
+    const response = await POST(buildRequest({
+      metrics: { note: 'Fenicottero', cashFlows: [{ date: '2025-03-31T12:00:00.000Z', income: 2500, expenses: 1120, note: 'Fenicottero' }] },
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(create.mock.calls[0][0])).not.toContain('Fenicottero');
+  });
+
+  it.each([
+    ['a metric that is not a number', { metrics: { roi: 'abc' } }],
+    ['an unknown period', { timePeriod: 'Fenicottero' }],
+    ['a drawdown date of 200 characters', { metrics: { maxDrawdownDate: 'F'.repeat(200) } }],
+  ])('AP2 — %s is 400 and Anthropic is not called', async (_label, overrides) => {
+    const create = vi.spyOn(Anthropic.Beta.Messages.prototype, 'create');
+    const response = await POST(buildRequest(overrides as { timePeriod?: unknown; metrics?: Record<string, unknown> }));
+    expect(response.status).toBe(400);
+    expect(create).not.toHaveBeenCalled();
   });
 });

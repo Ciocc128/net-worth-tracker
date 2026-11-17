@@ -78,6 +78,7 @@ afterAll(() => {
 
 beforeEach(() => {
   fake.reset();
+  fake.allow('owner-1', 'member-1', 'stranger');
   fake.set('account-access/owner-1', { memberUids: ['member-1'] });
   fake.clearLog();
 });

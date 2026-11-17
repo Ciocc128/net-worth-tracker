@@ -75,3 +75,10 @@ export const assistantPromptChips: AssistantPromptChip[] = [
     webContextHint: 'macro',
   },
 ];
+
+/**
+ * The longest prompt the assistant accepts, in characters (D-SN11, S2 RU11). The server's schema
+ * (`assistantStreamRequestSchema`) and the composer's `maxLength` read this one figure, so the
+ * limit is never discovered at the send.
+ */
+export const ASSISTANT_PROMPT_MAX_LENGTH = 8000;
