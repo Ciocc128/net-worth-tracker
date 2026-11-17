@@ -5,7 +5,7 @@
  *   npm run users:allow -- --remove <email>   # take them off the list
  *   npm run users:allow -- --list             # uid, email, date, source of every admitted user
  *
- * Against PRODUCTION by default, with the service account of `.env.local` (FIREBASE_ADMIN_*), like
+ * Against PRODUCTION by default (a write asks for the project id typed, F11 S1; `--list` only reads), with the service account of `.env.local` (FIREBASE_ADMIN_*), like
  * `mirror:seed`. With `FIRESTORE_EMULATOR_HOST` set (`npm run users:allow:emulator -- …`) it talks
  * to the emulators instead, and says so before doing anything.
  *
@@ -13,6 +13,7 @@
  */
 import { allowUser, disallowUser } from './lib/allowUser';
 import { ALLOWED_USERS_COLLECTION } from '../types/account';
+import { confirmProductionWrite } from './lib/confirmProduction';
 
 const args = process.argv.slice(2);
 const USAGE = 'usage: npm run users:allow -- <email> | --remove <email> | --list';
@@ -61,6 +62,10 @@ async function main() {
   if (!email || email.startsWith('--')) throw new Error(USAGE);
 
   const user = await getAuth(app).getUserByEmail(email);
+  // F11 S1: a write to production asks for the project id typed; the emulators do not.
+  if (!process.env.FIRESTORE_EMULATOR_HOST) {
+    await confirmProductionWrite(process.env.FIREBASE_ADMIN_PROJECT_ID ?? '', remove ? `users:allow --remove ${email}` : `users:allow ${email}`);
+  }
   if (remove) {
     await disallowUser(db, user.uid);
     console.info(`✓ tolto dalla lista: ${email} (${user.uid})`);

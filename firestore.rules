@@ -34,6 +34,16 @@ service cloud.firestore {
       return isOwner(ownerUid) || isMemberOf(ownerUid);
     }
 
+    // F11 R5 (doc/sicurezza/S3-regole.md): forma minima di una spesa dopo la scrittura. Tutto il client
+    // scrive `amount` come numero, `date` come Timestamp e `notes` come stringa; un tipo sbagliato o
+    // un testo enorme rompe grafici e totali. Resto dei campi libero.
+    function hasValidExpenseShape() {
+      let d = request.resource.data;
+      return d.amount is number
+        && d.date is timestamp
+        && (!('notes' in d) || d.notes == null || (d.notes is string && d.notes.size() <= 5000));
+    }
+
     // Collezione users - ogni utente può leggere e scrivere solo i propri dati
     match /users/{userId} {
       allow read: if isOwner(userId);
@@ -49,10 +59,9 @@ service cloud.firestore {
       // a cui ha accesso (non necessariamente il proprio uid)
       allow create: if canAccess(request.resource.data.userId);
 
-      // Aggiornamento: proprietario/membro e userId immutabile (se presente)
+      // Aggiornamento: proprietario/membro e userId immutabile (F11 R4: sempre presente e uguale)
       allow update: if canAccess(resource.data.userId) &&
-                       (!('userId' in request.resource.data) ||
-                        request.resource.data.userId == resource.data.userId);
+                       request.resource.data.userId == resource.data.userId;
 
       // Cancellazione: proprietario o membro delegato
       allow delete: if canAccess(resource.data.userId);
@@ -82,11 +91,11 @@ service cloud.firestore {
       // la lettura di documenti inesistenti (durante la registrazione, getDoc()
       // viene chiamato prima che il documento esista)
       allow read: if canAccess(targetId);
-      allow create: if canAccess(request.resource.data.userId);
-      allow update: if canAccess(resource.data.userId) &&
-                       (!('userId' in request.resource.data) ||
-                        request.resource.data.userId == resource.data.userId);
-      allow delete: if canAccess(resource.data.userId);
+      // F11 R2: create e update legano il campo all'id del documento (come budgets), così nessuno
+      // può occupare il documento di un altro account prima che esista.
+      allow create, update: if canAccess(targetId) &&
+                               request.resource.data.userId == targetId;
+      allow delete: if canAccess(targetId);
     }
 
     // Collezione expenses - tracciamento spese ed entrate
@@ -95,13 +104,13 @@ service cloud.firestore {
       allow read: if canAccess(resource.data.userId);
 
       // Creazione: un membro può creare spese timbrate con lo userId dell'account condiviso
-      allow create: if canAccess(request.resource.data.userId);
+      allow create: if canAccess(request.resource.data.userId) && hasValidExpenseShape();
 
-      // Aggiornamento: proprietario/membro e userId immutabile (se presente)
-      // Permette update parziali che non includono userId
+      // Aggiornamento: proprietario/membro e userId immutabile (F11 R4: sempre presente e uguale)
+      // Gli update parziali passano: request.resource.data è il documento dopo l'update, userId c'è.
       allow update: if canAccess(resource.data.userId) &&
-                       (!('userId' in request.resource.data) ||
-                        request.resource.data.userId == resource.data.userId);
+                       request.resource.data.userId == resource.data.userId &&
+                       hasValidExpenseShape();
 
       // Cancellazione: proprietario o membro delegato
       allow delete: if canAccess(resource.data.userId);
@@ -115,10 +124,9 @@ service cloud.firestore {
       // Creazione: un membro può creare categorie sull'account condiviso
       allow create: if canAccess(request.resource.data.userId);
 
-      // Aggiornamento: proprietario/membro e userId immutabile (se presente)
+      // Aggiornamento: proprietario/membro e userId immutabile (F11 R4: sempre presente e uguale)
       allow update: if canAccess(resource.data.userId) &&
-                       (!('userId' in request.resource.data) ||
-                        request.resource.data.userId == resource.data.userId);
+                       request.resource.data.userId == resource.data.userId;
 
       // Cancellazione: proprietario o membro delegato
       allow delete: if canAccess(resource.data.userId);
@@ -146,10 +154,9 @@ service cloud.firestore {
       // Creazione: un membro può creare contributi sull'account condiviso
       allow create: if canAccess(request.resource.data.userId);
 
-      // Aggiornamento: proprietario/membro e userId immutabile (se presente)
+      // Aggiornamento: proprietario/membro e userId immutabile (F11 R4: sempre presente e uguale)
       allow update: if canAccess(resource.data.userId) &&
-                       (!('userId' in request.resource.data) ||
-                        request.resource.data.userId == resource.data.userId);
+                       request.resource.data.userId == resource.data.userId;
 
       // Cancellazione: proprietario o membro delegato
       allow delete: if canAccess(resource.data.userId);
@@ -161,8 +168,7 @@ service cloud.firestore {
       allow read: if canAccess(resource.data.userId);
       allow create: if canAccess(request.resource.data.userId);
       allow update: if canAccess(resource.data.userId) &&
-                       (!('userId' in request.resource.data) ||
-                        request.resource.data.userId == resource.data.userId);
+                       request.resource.data.userId == resource.data.userId;
       allow delete: if canAccess(resource.data.userId);
     }
 
@@ -276,8 +282,7 @@ service cloud.firestore {
       allow read: if canAccess(resource.data.userId);
       allow create: if canAccess(request.resource.data.userId);
       allow update: if canAccess(resource.data.userId) &&
-                       (!('userId' in request.resource.data) ||
-                        request.resource.data.userId == resource.data.userId);
+                       request.resource.data.userId == resource.data.userId;
       allow delete: if canAccess(resource.data.userId);
     }
 

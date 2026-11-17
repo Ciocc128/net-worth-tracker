@@ -150,8 +150,8 @@ npm install
 cp .env.local.example .env.local
 # Edit .env.local with your Firebase credentials (see Prerequisites below)
 
-# Start development server
-npm run dev
+# Start development server against your real Firebase project
+npm run dev:prod   # (`npm run dev` points at the emulators since F11)
 # → http://localhost:3000
 ```
 
@@ -284,7 +284,8 @@ specs, their index and the 110 owner decisions are in `git log -- doc/mobile/`.
 ### Commands
 
 ```bash
-npm run dev        # Start dev server with hot-reload
+npm run dev        # Dev server on the emulators (see SETUP.md Step 6)
+npm run dev:prod   # Dev server on the real Firebase project
 npm run build      # Production build
 npm run start      # Start production server
 npm run lint       # Run ESLint
