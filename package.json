@@ -17,6 +17,8 @@
     "test:rules": "firebase emulators:exec --only firestore --project demo-net-worth \"vitest run -c vitest.rules.config.ts\"",
     "emulators:seed": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-net-worth tsx scripts/seedEmulator.ts",
     "mirror:seed": "tsx scripts/mirrorProdAccount.mts seed",
+    "dividends:check": "tsx scripts/checkDividendQuantities.mts",
+    "dividends:check:emulator": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-net-worth tsx scripts/checkDividendQuantities.mts",
     "users:allow": "tsx scripts/usersAllow.mts",
     "users:allow:emulator": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-net-worth tsx scripts/usersAllow.mts",
     "mirror:remove": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-net-worth tsx scripts/mirrorProdAccount.mts remove",
