@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   store: new Map<string, Record<string, unknown>>(),
   counter: { next: 0 },
   invalidate: vi.fn().mockResolvedValue(undefined),
+  syncOpenPayments: vi.fn().mockResolvedValue({ updated: 0, deleted: 0, created: 0 }),
 }));
 const store = mocks.store;
 const docKey = (collection: string, id: string) => `${collection}/${id}`;
@@ -40,6 +41,12 @@ vi.mock('@/lib/services/dashboardOverviewInvalidation.server', () => ({
 
 vi.mock('@/lib/server/assetAdminRepository', () => ({
   getUserAssetsAdmin: vi.fn(async () => []),
+}));
+
+// The dividends follow the ledger after the commit (doc/dividendi-quantita RQ7): mocked here,
+// its own behaviour is in dividendLedgerSync.test.ts.
+vi.mock('@/lib/server/dividendLedgerSync', () => ({
+  syncOpenPaymentsForAsset: (...args: unknown[]) => mocks.syncOpenPayments(...args),
 }));
 
 vi.mock('@/lib/firebase/admin', () => {
@@ -200,6 +207,22 @@ describe('assetTransactionUseCase — atomic write transaction', () => {
     expect(asset.averageCost).toBe(100);
     expect(asset.averageCostEur).toBe(100);
     expect(invalidateMock).toHaveBeenCalledWith(OWNER, 'asset_transaction_created');
+  });
+
+  it('CQ8: the open dividends follow the ledger after the commit, and a failure there never fails the trade (RQ8)', async () => {
+    seedAsset({ quantity: 0 });
+    mocks.syncOpenPayments.mockClear();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await createAssetTransaction(OWNER, { assetId: 'asset-1', type: 'buy', date: new Date(), quantity: 10, pricePerUnit: 100 });
+    expect(mocks.syncOpenPayments).toHaveBeenCalledWith(OWNER, 'asset-1');
+
+    mocks.syncOpenPayments.mockRejectedValueOnce(new Error('boom'));
+    const second = await createAssetTransaction(OWNER, { assetId: 'asset-1', type: 'buy', date: new Date(), quantity: 5, pricePerUnit: 100 });
+
+    expect(second.derived.quantity).toBe(15); // the trade is written and answered
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it('stores the settled balance to the cent, without the binary noise of the sum (2026-10-07)', async () => {

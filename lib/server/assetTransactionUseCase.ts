@@ -1,5 +1,6 @@
 import 'server-only';
 import { FieldValue } from 'firebase-admin/firestore';
+import { syncOpenPaymentsForAsset } from '@/lib/server/dividendLedgerSync';
 import type { Transaction, DocumentData, DocumentReference, DocumentSnapshot } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase/admin';
 import {
@@ -612,6 +613,19 @@ async function commitTradeMutation(
   return outcome;
 }
 
+/**
+ * RQ7/RQ8 (doc/dividendi-quantita): once the ledger write is committed, the instrument's open
+ * dividends and coupons follow the new position. OUTSIDE the transaction and never critical: the
+ * trade is already written, so a failure is logged and the daily cron re-checks on the payment day.
+ */
+async function syncDividendsAfterTrade(ownerId: string, assetId: string): Promise<void> {
+  try {
+    await syncOpenPaymentsForAsset(ownerId, assetId);
+  } catch (error) {
+    console.error('[assetTransactionUseCase] syncOpenPaymentsForAsset failed (non-critical):', error);
+  }
+}
+
 /** Splice the mutation into the existing trade list: append (create), replace (edit), drop (delete). */
 function buildNewSequence(existing: AssetTransaction[], plan: PreparedMutation): AssetTransaction[] {
   if (plan.op === 'set') {
@@ -642,6 +656,7 @@ export async function createAssetTransaction(
 ): Promise<TradeMutationResult> {
   const plan = await prepareCreate(ownerId, data);
   const commit = await commitTradeMutation(plan);
+  await syncDividendsAfterTrade(plan.ownerId, plan.assetId);
   return buildResult(plan, commit);
 }
 
@@ -652,6 +667,7 @@ export async function updateAssetTransaction(
 ): Promise<TradeMutationResult> {
   const plan = await prepareEdit(ownerId, transactionId, updates);
   const commit = await commitTradeMutation(plan);
+  await syncDividendsAfterTrade(plan.ownerId, plan.assetId);
   return buildResult(plan, commit);
 }
 
@@ -661,6 +677,7 @@ export async function deleteAssetTransaction(
 ): Promise<TradeMutationResult> {
   const plan = await prepareDelete(ownerId, transactionId);
   const commit = await commitTradeMutation(plan);
+  await syncDividendsAfterTrade(plan.ownerId, plan.assetId);
   return buildResult(plan, commit);
 }
 
@@ -694,6 +711,7 @@ export async function deleteAllAssetTransactionsForAsset(
     batch.delete(doc.ref);
   }
   await batch.commit();
+  await syncDividendsAfterTrade(ownerId, assetId);
   return snap.docs.length;
 }
 

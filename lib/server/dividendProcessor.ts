@@ -1,17 +1,23 @@
 import { adminDb } from '@/lib/firebase/admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { scrapeDividendsByIsin } from '@/lib/services/borsaItalianaScraperService';
-import { createDividend, isDuplicateDividend } from '@/lib/services/dividendService';
+import { createDividend, getDividendById, isDuplicateDividend } from '@/lib/services/dividendService';
+import { getAssetTransactionsForAssetAdmin } from '@/lib/server/assetAdminRepository';
+import { applyPaymentRecalculation } from '@/lib/server/dividendLedgerSync';
+import type { AssetTransaction } from '@/types/assetTransactions';
+import {
+  computeDividendAmounts,
+  entitledQuantity,
+  isZeroQuantity,
+  planPaymentRecalculation,
+} from '@/lib/utils/dividendEntitlement';
+import { buildCouponDividendData } from '@/lib/utils/couponRecord';
 import { createExpenseFromDividend } from '@/lib/services/dividendIncomeService';
 import { DividendFormData } from '@/types/dividend';
 import { ExpenseSubCategory } from '@/types/expenses';
 import { isDividendEligible } from '@/lib/utils/dividendEligibility';
 import { Asset, BondDetails } from '@/types/assets';
-import {
-  getFollowingCouponDate,
-  resolveCoupon,
-  buildCouponNote,
-} from '@/lib/utils/couponUtils';
+import { getFollowingCouponDate } from '@/lib/utils/couponUtils';
 
 /**
  * Lower-bound lookback (days) for the catch-up queries in Phases 2 and 3.
@@ -56,6 +62,50 @@ function toMillis(value: StoredDateValue): number {
  */
 function toJsDate(value: Date | Timestamp): Date {
   return value instanceof Date ? value : value.toDate();
+}
+
+type LedgerCacheEntry = { asset: Asset; transactions: AssetTransaction[] } | null;
+
+/**
+ * RQ9 — the payment-day re-check. Before the cron turns an app-generated payment into cashflow
+ * and account money, its quantity is read from the ledger again: the money that enters is always
+ * that of the quantity entitled, even when the hook after a ledger operation was skipped. Zero
+ * deletes the record (no row is written); another quantity updates it.
+ */
+async function reconcileWithLedger(
+  userId: string,
+  dividendId: string,
+  dividend: FirebaseFirestore.DocumentData,
+  cache: Map<string, LedgerCacheEntry>,
+  now: Date
+): Promise<'unchanged' | 'updated' | 'deleted'> {
+  let entry = cache.get(dividend.assetId);
+  if (entry === undefined) {
+    const assetDoc = await adminDb.collection('assets').doc(dividend.assetId).get();
+    entry = assetDoc.exists
+      ? {
+          asset: assetDoc.data() as Asset,
+          transactions: await getAssetTransactionsForAssetAdmin(userId, dividend.assetId),
+        }
+      : null;
+    cache.set(dividend.assetId, entry);
+  }
+  if (!entry) return 'unchanged';
+
+  const plan = planPaymentRecalculation({
+    dividend: {
+      dividendType: dividend.dividendType,
+      exDate: toJsDate(dividend.exDate),
+      paymentDate: toJsDate(dividend.paymentDate),
+      dividendPerShare: dividend.dividendPerShare,
+      quantity: dividend.quantity,
+    },
+    asset: entry.asset,
+    transactions: entry.transactions,
+    now,
+  });
+  await applyPaymentRecalculation(dividendId, dividend.currency, plan);
+  return plan.kind === 'delete' ? 'deleted' : plan.kind === 'update' ? 'updated' : 'unchanged';
 }
 
 export interface ScrapingResult {
@@ -136,24 +186,32 @@ export async function runDividendScraping(
 
           console.log(`Found ${scrapedDividends.length} total, ${relevantDividends.length} relevant dividends for ${asset.ticker}`);
 
+          // The quantity that was entitled at each ex-date comes from the ledger, read once per
+          // instrument (doc/dividendi-quantita RQ1–RQ5).
+          const transactions = await getAssetTransactionsForAssetAdmin(userId, asset.id);
+          const now = new Date();
+
           for (const scrapedDiv of relevantDividends) {
             try {
               const isDuplicate = await isDuplicateDividend(userId, asset.id, scrapedDiv.exDate);
               if (isDuplicate) continue;
 
-              const grossAmount = scrapedDiv.dividendPerShare * asset.quantity;
-              // Italian capital gains withholding tax (26%) — Legislative Decree 461/1997, Art. 27
-              const taxAmount = grossAmount * 0.26;
+              const quantity = entitledQuantity({
+                asset,
+                transactions,
+                referenceDate: scrapedDiv.exDate,
+                now,
+              });
+              if (isZeroQuantity(quantity)) continue; // nothing was held at the ex-date (RQ4)
 
+              // The instrument's rate (default 26%, Legislative Decree 461/1997, Art. 27) — RT1
               const dividendData: DividendFormData = {
                 assetId: asset.id,
                 exDate: scrapedDiv.exDate,
                 paymentDate: scrapedDiv.paymentDate,
                 dividendPerShare: scrapedDiv.dividendPerShare,
-                quantity: asset.quantity,
-                grossAmount,
-                taxAmount,
-                netAmount: grossAmount - taxAmount,
+                quantity,
+                ...computeDividendAmounts(scrapedDiv.dividendPerShare, quantity, asset),
                 currency: scrapedDiv.currency,
                 dividendType: scrapedDiv.dividendType,
                 isAutoGenerated: true,
@@ -266,10 +324,11 @@ export async function runExpenseCreation(
       }
 
       console.log(`Found ${dividendsSnapshot.size} candidate dividends for user ${userId}`);
+      const ledgerCache = new Map<string, LedgerCacheEntry>();
 
       for (const dividendDoc of dividendsSnapshot.docs) {
-        const dividend = dividendDoc.data();
         const dividendId = dividendDoc.id;
+        let dividend = dividendDoc.data();
 
         // Idempotency: skip if expense already created (covers cron retries and manual creation)
         if (dividend.expenseId) {
@@ -289,6 +348,31 @@ export async function runExpenseCreation(
         }
 
         try {
+          // RQ9: an app-generated payment not corrected by hand is re-read from the ledger first.
+          if (dividend.isAutoGenerated === true && dividend.manuallyEdited !== true) {
+            const outcome = await reconcileWithLedger(userId, dividendId, dividend, ledgerCache, new Date());
+            if (outcome === 'deleted') {
+              console.log(`Dividend ${dividendId} (${dividend.assetTicker}) no longer entitled: removed, no expense written`);
+              continue;
+            }
+            if (outcome === 'updated') {
+              const fresh = await getDividendById(dividendId);
+              if (!fresh) continue;
+              // Only the recomputed amounts: the stored dates stay Timestamps for the code below.
+              dividend = {
+                ...dividend,
+                quantity: fresh.quantity,
+                grossAmount: fresh.grossAmount,
+                taxAmount: fresh.taxAmount,
+                netAmount: fresh.netAmount,
+                grossAmountEur: fresh.grossAmountEur,
+                taxAmountEur: fresh.taxAmountEur,
+                netAmountEur: fresh.netAmountEur,
+                exchangeRate: fresh.exchangeRate,
+              };
+            }
+          }
+
           // Normalize Firestore Timestamps to Date for dividendIncomeService
           const dividendData = {
             id: dividendId,
@@ -423,11 +507,15 @@ export async function runNextCouponScheduling(
             continue;
           }
 
+          // A bond with no units pays nothing: no coupon is scheduled for it (the ledger hook
+          // makes the next one when units come back, RQ7).
+          if (asset.quantity <= 0) {
+            skipped++;
+            continue;
+          }
+
           const bd = asset.bondDetails;
           const maturityDate = toJsDate(bd.maturityDate);
-          const nominalValue = bd.nominalValue ?? 1;
-          // Use asset taxRate if set (e.g. 12.5% for BTPs), otherwise default 26%
-          const taxRate = asset.taxRate && asset.taxRate > 0 ? asset.taxRate : 26;
 
           // Walk forward one period at a time from the paid coupon, creating any
           // missing coupon until we land on (or confirm) the first future one.
@@ -450,28 +538,19 @@ export async function runNextCouponScheduling(
               continue;
             }
 
-            // Resolve via the shared pure layer so the cron matches the client scheduler.
-            // For inflation-linked bonds whose FOI rate for nextDate is not yet announced,
-            // this yields a PROVISIONAL coupon at the guaranteed fixed floor.
-            const resolved = resolveCoupon(nextDate, bd, nominalValue);
-            const gross = resolved.perShare * asset.quantity;
-            const tax = gross * (taxRate / 100);
-
+            // ONE builder, shared with the ledger hook (RQ7), so the cron and the hook cannot
+            // diverge. For inflation-linked bonds whose FOI rate for nextDate is not yet announced
+            // it yields a PROVISIONAL coupon at the guaranteed fixed floor. The units are today's
+            // (a forecast, RQ6): the ledger hook and the payment-day re-check keep them honest.
             const couponData: DividendFormData = {
-              assetId: coupon.assetId,
-              exDate: nextDate,
-              paymentDate: nextDate,
-              dividendPerShare: resolved.perShare,
-              quantity: asset.quantity,
-              grossAmount: gross,
-              taxAmount: tax,
-              netAmount: gross - tax,
+              ...buildCouponDividendData({
+                assetId: coupon.assetId,
+                asset,
+                bondDetails: bd,
+                paymentDate: nextDate,
+                quantity: asset.quantity,
+              }),
               currency: coupon.currency,
-              dividendType: 'coupon',
-              isAutoGenerated: true,
-              isProvisional: resolved.isProvisional,
-              notes: buildCouponNote(resolved, bd.couponFrequency),
-              costPerShare: asset.averageCost,
             };
 
             await createDividend(userId, couponData, coupon.assetTicker, coupon.assetName, asset.isin, true);

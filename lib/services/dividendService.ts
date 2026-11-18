@@ -290,7 +290,7 @@ export async function updateDividend(
   // expenseId is not a form field: only the income sync writes it, to link (or unlink)
   // the expense row it created for this dividend. Passing the key with `undefined` is
   // the unlink — see the delete sentinel below; omitting the key leaves the link alone.
-  updates: Partial<DividendFormData> & Pick<Dividend, 'expenseId'>
+  updates: Partial<DividendFormData> & Pick<Dividend, 'expenseId' | 'manuallyEdited'>
 ): Promise<void> {
   try {
     // Convert dates to Date objects if they're strings, then to Timestamps

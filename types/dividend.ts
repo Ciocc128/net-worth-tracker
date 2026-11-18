@@ -38,6 +38,10 @@ export interface Dividend {
   // filtered by ProvisionalCouponBanner — keep those in sync.
   isProvisional?: boolean;
   expenseId?: string; // Reference to corresponding expense entry (if synced)
+  // True once the owner changed an auto-generated record's quantity or amounts by hand (PUT). Such a
+  // record is never recomputed or deleted by the ledger hook or the cron (doc/dividendi-quantita RQ10).
+  // Absent = false; no migration.
+  manuallyEdited?: boolean;
   // Currency conversion fields (populated automatically if currency !== EUR)
   // Uses Frankfurter API with 24h cache. If conversion fails, these fields remain undefined.
   // Exchange rate format: 1 originalCurrency = X EUR (e.g., 1 USD = 0.92 EUR)
