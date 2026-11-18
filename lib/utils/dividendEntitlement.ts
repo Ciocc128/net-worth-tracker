@@ -155,3 +155,31 @@ export function findQuantityMismatches(
   }
   return result;
 }
+
+export type PaymentRecalculation =
+  | { kind: 'unchanged' }
+  | { kind: 'delete' }
+  | { kind: 'update'; quantity: number; grossAmount: number; taxAmount: number; netAmount: number };
+
+/**
+ * What an app-generated, not hand-corrected payment becomes when its entitled quantity is read
+ * again (RQ7.1–RQ7.4, RQ9): zero → delete, another quantity → new amounts, same → nothing.
+ * `dividendPerShare`, dates and notes never change.
+ */
+export function planPaymentRecalculation(input: {
+  dividend: Pick<Dividend, 'dividendType' | 'exDate' | 'paymentDate' | 'dividendPerShare' | 'quantity'>;
+  asset: Pick<Asset, 'quantity' | 'taxRate'>;
+  transactions: AssetTransaction[];
+  now: Date;
+}): PaymentRecalculation {
+  const { dividend, asset, transactions, now } = input;
+  const quantity = entitledQuantity({
+    asset,
+    transactions,
+    referenceDate: dividendReferenceDate(dividend),
+    now,
+  });
+  if (isZeroQuantity(quantity)) return { kind: 'delete' };
+  if (Math.abs(quantity - dividend.quantity) <= EPSILON) return { kind: 'unchanged' };
+  return { kind: 'update', quantity, ...computeDividendAmounts(dividend.dividendPerShare, quantity, asset) };
+}

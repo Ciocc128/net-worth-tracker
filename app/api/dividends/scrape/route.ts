@@ -6,7 +6,16 @@ import {
   createDividend,
   isDuplicateDividend,
   getDividendById,
+  getDividendsByAsset,
 } from '@/lib/services/dividendService';
+import { getAssetTransactionsForAssetAdmin } from '@/lib/server/assetAdminRepository';
+import {
+  computeDividendAmounts,
+  entitledQuantity,
+  findQuantityMismatches,
+  isZeroQuantity,
+  type QuantityMismatch,
+} from '@/lib/utils/dividendEntitlement';
 import { scrapeDividendsByIsin } from '@/lib/services/borsaItalianaScraperService';
 import { createExpenseFromDividend } from '@/lib/services/dividendIncomeService';
 import { DividendFormData } from '@/types/dividend';
@@ -142,8 +151,14 @@ export async function POST(request: NextRequest) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // The quantity entitled at each ex-date is read from the ledger, once for the instrument
+    // (doc/dividendi-quantita RQ1–RQ5). A payment with nothing entitled is counted in `filtered`.
+    const transactions = await getAssetTransactionsForAssetAdmin(userId, assetId);
+    const now = new Date();
+
     let created = 0;
     let skipped = 0;
+    let notEntitled = 0;
     const createdIds: string[] = [];
 
     for (const scrapedDiv of relevantDividends) {
@@ -157,10 +172,22 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Calculate amounts (assume user holds current quantity)
-        const grossAmount = scrapedDiv.dividendPerShare * asset.quantity;
-        const taxAmount = grossAmount * 0.26; // Italian withholding tax (26%)
-        const netAmount = grossAmount - taxAmount;
+        const quantity = entitledQuantity({
+          asset,
+          transactions,
+          referenceDate: scrapedDiv.exDate,
+          now,
+        });
+        if (isZeroQuantity(quantity)) {
+          notEntitled++;
+          continue;
+        }
+        // The instrument's withholding rate (default 26%), on the entitled quantity
+        const { grossAmount, taxAmount, netAmount } = computeDividendAmounts(
+          scrapedDiv.dividendPerShare,
+          quantity,
+          asset
+        );
 
         // Create dividend data
         const dividendData: DividendFormData = {
@@ -168,7 +195,7 @@ export async function POST(request: NextRequest) {
           exDate: scrapedDiv.exDate,
           paymentDate: scrapedDiv.paymentDate,
           dividendPerShare: scrapedDiv.dividendPerShare,
-          quantity: asset.quantity,
+          quantity,
           grossAmount,
           taxAmount,
           netAmount,
@@ -219,11 +246,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // RQ12–RQ13: the paid records whose quantity does not match the ledger. Read-only: the owner
+    // fixes them from the payment's dialog (D-DV4). Never fails the scrape.
+    let mismatches: QuantityMismatch[] = [];
+    try {
+      const stored = await getDividendsByAsset(userId, assetId);
+      mismatches = findQuantityMismatches(stored, transactions, asset, now);
+    } catch (mismatchError) {
+      console.error('Error listing quantity mismatches:', mismatchError);
+    }
+
     return NextResponse.json({
       success: true,
       message: `Successfully scraped and imported dividends for ${asset.ticker}`,
       scraped: scrapedDividends.length,
-      filtered: filteredOut,
+      filtered: filteredOut, // below the floor only: the tab's toast reads it as such
+      notEntitled,
+      mismatches,
       floorDate: toDate(floor.date).toISOString(),
       floorSource: floor.source,
       created,
