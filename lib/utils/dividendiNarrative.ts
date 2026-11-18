@@ -40,7 +40,7 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { articleForPercent, ofThePercent, pluralArticleFor } from '@/lib/utils/patrimonioNarrative';
 import type { DividendType } from '@/types/dividend';
-import { getItalyMonthYear } from '@/lib/utils/dateHelpers';
+import { getItalyDateIso, getItalyMonthYear } from '@/lib/utils/dateHelpers';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { MONTH_NAMES_SHORT } from '@/lib/utils/period';
 
@@ -376,6 +376,51 @@ export function describeFilteredDividends(filteredCount: number, assetsFlooredBy
       : `${filteredCount} dividendi non importati perché precedenti alla data in cui possiedi il titolo`;
   if (assetsFlooredByCreation === 0) return `${head}.`;
   return `${head}: per un titolo creato nell’app dopo l’acquisto, registra l’acquisto nel Registro operazioni con la sua data reale e scarica di nuovo.`;
+}
+
+/** One paid payment whose quantity is not the ledger's (the scrape route's `mismatches`, with its ticker). */
+export interface QuantityMismatchLine {
+  ticker: string;
+  dividendType: DividendType;
+  /** ISO date of the ex-date (the payment date for a coupon). */
+  referenceDate: string;
+  recordedQuantity: number;
+  entitledQuantity: number;
+}
+
+const MISMATCH_NAMED = 2;
+
+function italianDay(isoDate: string): string {
+  const [year, month, day] = getItalyDateIso(new Date(isoDate)).split('-');
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * The toast after «Scarica dividendi storici» when paid payments do not match the Registro
+ * operazioni (doc/dividendi-quantita RQ13): which ones, what was recorded and what was entitled,
+ * and where to fix — the app never rewrites a paid payment. At most two are named.
+ */
+export function describeQuantityMismatches(lines: QuantityMismatchLine[]): string | null {
+  if (lines.length === 0) return null;
+  const label = (line: QuantityMismatchLine) => {
+    const noun = line.dividendType === 'coupon' ? 'cedola' : line.dividendType === 'finalPremium' ? 'premio finale' : 'stacco';
+    return `${line.ticker}, ${noun} del ${italianDay(line.referenceDate)} (${formatNumber(line.recordedQuantity, 0)} registrate, ${formatNumber(line.entitledQuantity, 0)} di diritto)`;
+  };
+  const named = lines.slice(0, MISMATCH_NAMED).map(label);
+  const rest = lines.length - named.length;
+  const list = rest > 0 ? `${named.join('; ')} e altri ${rest}` : named.join(' e ');
+  const head =
+    lines.length === 1
+      ? '1 pagamento già incassato non torna con il Registro operazioni'
+      : `${lines.length} pagamenti già incassati non tornano con il Registro operazioni`;
+  return `${head}: ${list}. Apri il pagamento e correggi la quantità: la differenza si sposta sulla riga di cashflow e sul conto.`;
+}
+
+/** The toast for dividends not imported because nothing was held the day before the ex-date. */
+export function describeNotEntitledDividends(count: number): string | null {
+  if (count <= 0) return null;
+  const head = count === 1 ? '1 dividendo non importato' : `${count} dividendi non importati`;
+  return `${head}: non possedevi il titolo il giorno prima dello stacco.`;
 }
 
 /** The Affidabilità aside: the window, with the noun agreeing with the number in front of it. */
