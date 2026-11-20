@@ -23,7 +23,7 @@ test('without cashflow the four tiles keep their question and only the Traguardo
   await expect(verdict.getByRole('heading', { level: 2 })).toHaveText(EMPTY_HEADLINE, { timeout: 30_000 });
 
   // The Absence-Has-Three-Names Rule: the eyebrow stays exactly when the tile cannot answer.
-  const traguardo = page.getByRole('region', { name: 'Traguardo FIRE' });
+  const traguardo = page.getByRole('region', { name: 'Verso il FIRE' });
   await expect(traguardo).toBeVisible();
   for (const name of ['Base di calcolo del FIRE', 'Reddito passivo sostenibile', 'Scenari di mercato']) {
     await expect(page.getByRole('region', { name })).toBeVisible();

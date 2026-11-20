@@ -59,7 +59,7 @@ test('the verdict answers the question and the Traguardo carries a formatted sho
   // The state pensions are the Afflussi tile's, not the verdict's.
   await expect(verdict).not.toContainText('coprono insieme');
 
-  const traguardo = page.getByRole('region', { name: 'Traguardo Coast FIRE' });
+  const traguardo = page.getByRole('region', { name: 'Verso il FIRE (Coast)' });
   await expect(traguardo).toBeVisible();
   // The hero is the amount right under its sub-eyebrow — the shortfall, or the surplus.
   const hero = traguardo.locator('p:has-text("numero Coast FIRE") + span').first();
@@ -117,7 +117,7 @@ test('the Afflussi tile lists both state pensions and the fund unlock, in calend
 test('the Traguardo reads the same walk at three dates, each with what is needed, what there will be and the gap (CO1)', async ({ page }) => {
   await gotoCoast(page);
 
-  const traguardo = page.getByRole('region', { name: 'Traguardo Coast FIRE' });
+  const traguardo = page.getByRole('region', { name: 'Verso il FIRE (Coast)' });
   const stages = traguardo.getByRole('list', { name: 'Tappe del Coast FIRE' }).getByRole('listitem');
   // The fixture has a target age ahead and two pensions after it: today, at the target age, at steady state.
   await expect(stages).toHaveCount(3);

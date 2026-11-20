@@ -22,7 +22,7 @@ const DISCLOSURES = [/^Il mio piano/, /^Dettaglio/] as const;
 test('il tab Coast FIRE non scorre in orizzontale a 390px', async ({ page }) => {
   await page.goto('/dashboard/fire-simulations', { waitUntil: 'load' });
   await page.getByRole('tab', { name: 'Coast FIRE' }).click();
-  await expect(page.getByRole('region', { name: 'Traguardo Coast FIRE' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('region', { name: 'Verso il FIRE (Coast)' })).toBeVisible({ timeout: 30_000 });
 
   // Il verdetto è la prima cosa letta, sopra le tessere; le due righe seguono nell'ordine del DOM,
   // chiuse e vuote sotto `desktop:` (dal 2026-10-15): «Apri tutte» prima di misurare dentro.
@@ -33,7 +33,7 @@ test('il tab Coast FIRE non scorre in orizzontale a 390px', async ({ page }) => 
   await expect(page.locator('#coast-afflussi-trigger')).toHaveAttribute('aria-expanded', 'true');
 
   // Le tre tappe del Traguardo restano tutte, impilate una sotto l'altra (D-CO7).
-  const stages = page.getByRole('region', { name: 'Traguardo Coast FIRE' }).getByRole('list', { name: 'Tappe del Coast FIRE' }).getByRole('listitem');
+  const stages = page.getByRole('region', { name: 'Verso il FIRE (Coast)' }).getByRole('list', { name: 'Tappe del Coast FIRE' }).getByRole('listitem');
   await expect(stages).toHaveCount(3);
   const boxes = await stages.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect()).map((rect) => ({ top: rect.top, left: rect.left })));
   expect(new Set(boxes.map((box) => Math.round(box.left))).size).toBe(1);

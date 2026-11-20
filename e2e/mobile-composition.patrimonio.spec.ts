@@ -20,7 +20,7 @@ test.setTimeout(90_000);
 test('Patrimonio at 1440: no row, no strip, no «Il resto»; the market and the year in the sentence; the count links to the table', async ({ page }) => {
   await patchOverview(page, { topInstrumentMovers: [{ id: 'fenicottero', name: 'Fenicottero ETF', delta: 1500 }] });
   await page.goto('/dashboard/assets');
-  const verdict = page.getByRole('region', { name: 'Verdetto del portafoglio' });
+  const verdict = page.getByRole('region', { name: 'Verdetto del patrimonio' });
   await verdict.waitFor({ timeout: 60_000 });
   await expect(page.locator('section#strumenti')).toBeVisible();
 
@@ -30,8 +30,8 @@ test('Patrimonio at 1440: no row, no strip, no «Il resto»; the market and the 
   await expect(page.getByRole('button', { name: /^Il perché/ })).toBeHidden();
 
   await expect(verdict).toContainText(/cont[oi]\. Da inizio anno \+15,00% \(\+25\.000\s?€\)\. Sul mercato ha spinto soprattutto Fenicottero ETF/);
-  await expect(page.getByRole('region', { name: 'Patrimonio' }).getByRole('link', { name: /\d+ strument[oi]/ })).toHaveAttribute('href', '#strumenti');
+  await expect(page.getByRole('region', { name: 'Patrimonio', exact: true }).getByRole('link', { name: /\d+ strument[oi]/ })).toHaveAttribute('href', '#strumenti');
   // The tiles are whole: the month's chip and the G/P KPI are there.
-  await expect(page.getByRole('region', { name: 'Patrimonio' }).getByText('questo mese')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Rendimento' }).getByText('G/P non realizzato')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Patrimonio', exact: true }).getByText('questo mese')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Guadagno sul costo' }).getByText('G/P non realizzato')).toBeVisible();
 });

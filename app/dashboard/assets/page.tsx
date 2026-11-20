@@ -147,7 +147,7 @@ const ROW_EYEBROWS = {
   movimenti: 'Movimenti del mese',
   liquidita: 'Liquidità',
   classi: 'Classi',
-  rendimento: 'Rendimento',
+  rendimento: 'Guadagno sul costo',
   intestatari: 'Intestatari',
   strumenti: 'Strumenti',
 } as const;
@@ -602,7 +602,7 @@ export default function AssetsPage() {
   if (loadingAssets || loadingOverview || loadingSnapshots || isLedgerMetaLoading || loadingMortgage) {
     return (
       <PageContainer>
-        <PageHeader title="Strumenti e conti" freshness={freshness} />
+        <PageHeader title="Patrimonio" freshness={freshness} />
         <TileGridSkeleton cells={SKELETON_CELLS} />
       </PageContainer>
     );
@@ -611,7 +611,7 @@ export default function AssetsPage() {
   if (assetsError) {
     return (
       <PageContainer>
-        <PageHeader title="Strumenti e conti" freshness={freshness} />
+        <PageHeader title="Patrimonio" freshness={freshness} />
         <ErrorNotice
           className="max-w-[920px]"
           notice={describeReadFailure({
@@ -662,7 +662,7 @@ export default function AssetsPage() {
     <PageContainer>
       <div className="space-y-4">
         <PageHeader
-          title="Strumenti e conti"
+          title="Patrimonio"
           description={lastPriceUpdate ?? undefined}
           actions={headerActions}
           freshness={freshness}
@@ -693,7 +693,7 @@ export default function AssetsPage() {
           ) : (
             <PageVerdict
               verdict={verdict}
-              ariaLabel="Verdetto del portafoglio"
+              ariaLabel="Verdetto del patrimonio"
               strip={<VerdictStrip figures={strip} onOpen={sections.reveal} eyebrows={sections.eyebrows} />}
               restCollapse={sections.collapse(VERDICT_REST_SECTION)}
             />

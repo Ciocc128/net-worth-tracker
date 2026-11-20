@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { primaryNav, secondaryHrefs, analysisNav, planningNav, assistantNavItem } from '@/lib/constants/navigation';
+import { primaryNav, secondaryHrefs, groupedNav, assistantNavItem } from '@/lib/constants/navigation';
 
 interface PerfRoute {
   name: string;
@@ -37,7 +37,7 @@ describe('perf/routes.json — parity with lib/constants/navigation.ts', () => {
   });
 
   it('names each nav route as the shell does, so the benchmark table reads like the sidebar', () => {
-    const navItems = [...primaryNav, ...analysisNav, ...planningNav, assistantNavItem];
+    const navItems = [...primaryNav, ...groupedNav, assistantNavItem];
 
     for (const item of navItems) {
       expect(perfRoutes.find((route) => route.href === item.href)?.name).toBe(item.name);

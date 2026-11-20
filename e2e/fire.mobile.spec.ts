@@ -198,7 +198,7 @@ test.describe('FIRE, composto per un telefono', () => {
   test('il Calcolatore legge Traguardo, Base, Reddito, Scenari dall\'alto in basso, e nessun order-* resta', async ({ page }) => {
     await gotoFire(page);
     const { order, orderClasses } = await readOrderAndClasses(page, 'Calcolatore FIRE');
-    expect(order.map((section) => section.name).slice(0, 4)).toEqual(['Traguardo FIRE', 'Base di calcolo del FIRE', 'Reddito passivo sostenibile', 'Scenari di mercato']);
+    expect(order.map((section) => section.name).slice(0, 4)).toEqual(['Verso il FIRE', 'Base di calcolo del FIRE', 'Reddito passivo sostenibile', 'Scenari di mercato']);
     expect(isSorted(order.map((section) => section.top)), JSON.stringify(order)).toBe(true);
     expect(orderClasses).toEqual([]);
   });
@@ -269,7 +269,7 @@ test.describe('FIRE, tappa C: le righe del fork', () => {
     await gotoFire(page);
     const { order, orderClasses } = await readOrderAndClasses(page, 'Calcolatore FIRE');
     expect(order.map((section) => section.name).slice(0, 6)).toEqual([
-      'Traguardo FIRE',
+      'Verso il FIRE',
       'Base di calcolo del FIRE',
       'Reddito passivo sostenibile',
       'Scenari di mercato',

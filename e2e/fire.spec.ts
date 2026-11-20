@@ -59,7 +59,7 @@ test('the verdict and the Traguardo render: a rule headline and a well-formed FI
   // The hero figure is the FIRE number: the span right after the «Numero FIRE» sub-eyebrow (the
   // reading line above it also carries mono spans, so «first mono span» would read the reading).
   // The count-up animates through valid formats, so the final state also matches — never "—".
-  const traguardo = page.getByRole('region', { name: 'Traguardo FIRE' });
+  const traguardo = page.getByRole('region', { name: 'Verso il FIRE' });
   await expect(traguardo.locator('p:has-text("Numero FIRE") + span')).toHaveText(EURO_AMOUNT);
   await expect(traguardo.getByRole('progressbar', { name: 'Progresso verso il numero FIRE' })).toBeVisible();
 
@@ -83,7 +83,7 @@ test('the verdict and the Traguardo render: a rule headline and a well-formed FI
 test('the Ventaglio | Distribuzione toggle swaps the projection inside the Traguardo, and the Scenari chart lives in its own tile', async ({ page }) => {
   await gotoFire(page);
 
-  const traguardo = page.getByRole('region', { name: 'Traguardo FIRE' });
+  const traguardo = page.getByRole('region', { name: 'Verso il FIRE' });
   const scenariTile = page.getByRole('region', { name: 'Scenari di mercato' });
   const scenariChart = page.locator('[role="img"][aria-label*="proiezione scenari"]');
   const fanChart = page.locator('[role="img"][aria-label*="Ventaglio Monte Carlo"]');

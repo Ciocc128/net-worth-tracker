@@ -30,7 +30,7 @@ const STORAGE_KEY = 'mobile-sections:assets';
 const ROW_IDS = ['patrimonio-movimenti', 'patrimonio-liquidita', 'patrimonio-classi', 'patrimonio-rendimento', 'patrimonio-strumenti'] as const;
 const TOP_MOVER = { topInstrumentMovers: [{ id: 'fenicottero', name: 'Fenicottero ETF', delta: 1500 }] };
 
-const verdictOf = (page: Page) => page.getByRole('region', { name: 'Verdetto del portafoglio' });
+const verdictOf = (page: Page) => page.getByRole('region', { name: 'Verdetto del patrimonio' });
 const stripOf = (page: Page) => page.getByRole('list', { name: 'Le cifre del verdetto' });
 const trigger = (page: Page, id: string) => page.locator(`#${id}-trigger`);
 const panel = (page: Page, id: string) => page.locator(`#${id}-panel`);
@@ -51,7 +51,7 @@ test.describe('Patrimonio, composed for a phone', () => {
     await openPatrimonio(page);
 
     const verdict = verdictOf(page);
-    await expect(verdict.getByText(/Il portafoglio vale/)).toBeVisible();
+    await expect(verdict.getByText(/Il patrimonio vale/)).toBeVisible();
     await expect(verdict.getByText(/Da inizio anno/)).toBeHidden();
     await expect(verdict.getByText(/Sul mercato ha spinto/)).toBeHidden();
     await expect(perche(page)).toHaveAttribute('aria-expanded', 'false');
@@ -60,13 +60,13 @@ test.describe('Patrimonio, composed for a phone', () => {
     const cells = stripOf(page).getByRole('button');
     await expect(cells).toHaveCount(2);
     await expect(cells.nth(0)).toContainText(/^G\/P non realizzato[+−]?\d/);
-    await expect(cells.nth(0)).toHaveAccessibleName(/, apre Rendimento$/);
+    await expect(cells.nth(0)).toHaveAccessibleName(/, apre Guadagno sul costo$/);
     await expect(cells.nth(1)).toContainText(/^Liquidità\d+,\d%/);
     await expect(cells.nth(1)).toHaveAccessibleName(/, apre Liquidità$/);
     for (let i = 0; i < 2; i++) expect((await cells.nth(i).boundingBox())!.height, `cell ${i}`).toBeGreaterThanOrEqual(TOUCH_FLOOR);
 
     // THE tile: the hero stays (The Lifted-Figure Rule); the chips, the digest and the curve's last label go.
-    const theTile = page.getByRole('region', { name: 'Patrimonio' });
+    const theTile = page.getByRole('region', { name: 'Patrimonio', exact: true });
     await expect(theTile.getByText(/190\.000,00\s?€/)).toBeVisible();
     await expect(theTile.getByText('questo mese')).toBeHidden();
     await expect(theTile.getByText('da inizio anno')).toBeHidden();
@@ -97,7 +97,7 @@ test.describe('Patrimonio, composed for a phone', () => {
     await expect(verdict.getByText(/Sul mercato ha spinto soprattutto Fenicottero ETF \(\+1500\s?€\)\./)).toBeVisible();
   });
 
-  test('the G/P cell opens Rendimento, whose KPI is lifted and whose percentage stays', async ({ page }) => {
+  test('the G/P cell opens Guadagno sul costo, whose KPI is lifted and whose percentage stays', async ({ page }) => {
     await openPatrimonio(page);
     await stripOf(page).getByRole('button', { name: /^G\/P non realizzato/ }).click();
     await expect(trigger(page, 'patrimonio-rendimento')).toHaveAttribute('aria-expanded', 'true');
@@ -110,7 +110,7 @@ test.describe('Patrimonio, composed for a phone', () => {
   test('the hero\'s count opens Strumenti, and only then its rows exist', async ({ page }) => {
     await openPatrimonio(page);
     await expect(assetRows(page)).toHaveCount(0);
-    await page.getByRole('region', { name: 'Patrimonio' }).getByRole('button', { name: /\d+ strument[oi]/ }).click();
+    await page.getByRole('region', { name: 'Patrimonio', exact: true }).getByRole('button', { name: /\d+ strument[oi]/ }).click();
     await expect(trigger(page, 'patrimonio-strumenti')).toHaveAttribute('aria-expanded', 'true');
     await expect(trigger(page, 'patrimonio-strumenti')).toBeFocused();
     await expect(assetRows(page).first()).toBeVisible();
@@ -137,7 +137,7 @@ test.describe('Patrimonio, composed for a phone', () => {
         .filter((el) => el.checkVisibility())
         .map((el) => ({ name: el.getAttribute('aria-label'), top: Math.round(el.getBoundingClientRect().top) })),
     );
-    expect(order.map((s) => s.name)).toEqual(['Patrimonio', 'Movimenti del mese', 'Liquidità', 'Classi', 'Rendimento', 'Strumenti']);
+    expect(order.map((s) => s.name)).toEqual(['Patrimonio', 'Movimenti del mese', 'Liquidità', 'Classi', 'Guadagno sul costo', 'Strumenti']);
     expect(order.every((s, i) => i === 0 || s.top >= order[i - 1].top - 1), JSON.stringify(order)).toBe(true);
     expect(
       await page.evaluate(() => [...document.querySelector('main')!.querySelectorAll('*')].flatMap((el) => [...el.classList]).filter((name) => /^(?:[a-z-]+:)*order-/.test(name))),
@@ -169,7 +169,7 @@ test.describe('Patrimonio, composed for a phone', () => {
     const notice = page.getByText(/Il riepilogo del patrimonio non è stato letto/);
     await expect(notice).toBeVisible({ timeout: 60_000 });
     await expect(stripOf(page)).toHaveCount(0);
-    await expect(page.getByRole('region', { name: 'Patrimonio' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Patrimonio', exact: true })).toHaveCount(0);
     // «Il resto della pagina» is the grid's first child: there is no THE tile above it.
     const firstChild = await page.evaluate(() => {
       const grid = document.querySelector('#patrimonio-movimenti')!.closest('.grid')!;

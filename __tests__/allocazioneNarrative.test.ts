@@ -784,19 +784,19 @@ describe('describePacOverlap', () => {
   const pac = { monthTotalEur: 4207, instrumentCount: 7, monthLabel: 'ottobre', allClosed: false };
 
   it('says what the plan buys this month and that this plan does not count it', () => {
-    expect(plain(describePacOverlap(pac))).toBe('Il piano di accumulo compra questo mese 4207 € in 7 strumenti; questo piano non ne tiene conto.');
-    expect(plain(describePacOverlap({ ...pac, instrumentCount: 1 }))).toBe('Il piano di accumulo compra questo mese 4207 € in 1 strumento; questo piano non ne tiene conto.');
+    expect(plain(describePacOverlap(pac))).toBe('Il piano di accumulo compra questo mese 4207 € in 7 strumenti; gli ordini non ne tengono conto.');
+    expect(plain(describePacOverlap({ ...pac, instrumentCount: 1 }))).toBe('Il piano di accumulo compra questo mese 4207 € in 1 strumento; gli ordini non ne tengono conto.');
   });
 
   it('names the instrument the plan buys in place of one this Piano proposes', () => {
     expect(plain(describePacOverlap(pac, [{ replaced: 'DBMFE', buying: 'MFEH' }]))).toBe(
-      'Il piano di accumulo compra questo mese 4207 € in 7 strumenti; questo piano non ne tiene conto. Il piano di accumulo compra MFEH al posto di DBMFE.',
+      'Il piano di accumulo compra questo mese 4207 € in 7 strumenti; gli ordini non ne tengono conto. Il piano di accumulo compra MFEH al posto di DBMFE.',
     );
     expect(plain(describePacOverlap(pac, [{ replaced: 'DBMFE', buying: 'MFEH' }, { replaced: 'AAA', buying: 'BBB' }]))).toContain('compra MFEH al posto di DBMFE e BBB al posto di AAA.');
   });
 
   it('still says it when the month\'s installment is closed', () => {
-    expect(plain(describePacOverlap({ ...pac, allClosed: true }))).toBe('La rata di ottobre del piano di accumulo è chiusa, ma questo piano non ne tiene conto.');
+    expect(plain(describePacOverlap({ ...pac, allClosed: true }))).toBe('La rata di ottobre del piano di accumulo è chiusa, ma gli ordini non ne tengono conto.');
   });
 });
 

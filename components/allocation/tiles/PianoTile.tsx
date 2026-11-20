@@ -212,7 +212,7 @@ export function PianoTile({ mode, onModeChange, amountInput, onAmountInputChange
 
   return (
     <Tile
-      eyebrow="Piano"
+      eyebrow="Ordini"
       aside={<AsideToggle options={MODE_OPTIONS} value={mode} onChange={onModeChange} ariaLabel="Tipo di piano" />}
       asideWhenClosed={asideWhenClosed}
       collapse={collapse}

@@ -74,7 +74,7 @@ export function RendimentoTile({ gains, ranking, rankedFrom, collapse, asideWhen
 
   return (
     <Tile
-      eyebrow="Rendimento"
+      eyebrow="Guadagno sul costo"
       collapse={collapse}
       asideWhenClosed={asideWhenClosed}
       aside={aside}

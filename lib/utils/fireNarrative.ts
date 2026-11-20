@@ -1000,7 +1000,7 @@ export function describeImpostazioni(hasUnsavedChanges: boolean): Narrative {
 }
 
 export function describeScenarioParams(): Narrative {
-  return [prose('Tre ipotesi dal portafoglio target: il verdetto usa il Base, il grafico del Traguardo le disegna tutte e tre. Si cambiano in Impostazioni › Simulazioni.')];
+  return [prose('Tre ipotesi dal portafoglio target: il verdetto usa il Base, il grafico di «Verso il FIRE» le disegna tutte e tre. Si cambiano in Impostazioni › Simulazioni.')];
 }
 
 /**

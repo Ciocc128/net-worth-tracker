@@ -4,7 +4,7 @@
     { "name": "Panoramica", "href": "/dashboard" },
     { "name": "Patrimonio", "href": "/dashboard/assets" },
     { "name": "Cashflow", "href": "/dashboard/cashflow" },
-    { "name": "Analisi", "href": "/dashboard/analisi" },
+    { "name": "Analisi spese", "href": "/dashboard/analisi" },
     { "name": "Rendimenti", "href": "/dashboard/performance" },
     { "name": "Storico", "href": "/dashboard/history" },
     { "name": "Hall of Fame", "href": "/dashboard/hall-of-fame" },

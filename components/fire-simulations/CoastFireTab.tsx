@@ -384,7 +384,7 @@ export function CoastFireTab() {
         <div className={COMPACT_GRID_WRAPPER_CLASS}>
         <div className={COMPACT_GRID_CLASS}>
           <div data-stage="lead" className={TRAGUARDO_CELL}>
-            <Tile eyebrow="Traguardo" ariaLabel="Traguardo Coast FIRE">
+            <Tile eyebrow="Verso il FIRE" ariaLabel="Verso il FIRE (Coast)">
               <EmptyState className="mt-2" message={empty.traguardo} action={action} />
             </Tile>
           </div>
