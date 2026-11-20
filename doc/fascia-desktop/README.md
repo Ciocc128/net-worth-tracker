@@ -13,7 +13,8 @@ themes): <https://claude.ai/artifact/HLaZTQQxj7nk8ukh3ZtbpS>. Files, the injecti
 > **State**: round 1 implemented (PR #196, 2026-11-20). **Round 2 decided** (2026-11-20, Opus review of #196 on the owner's
 > notes: D-FD14…D-FD19, § Seconda versione below): the folder row goes, the band starts at the top edge with the groups on
 > its first floor and the group's pages as tabs cut into its bottom edge (C). Waiting for the owner's go before the code.
-> Where round 2 and the sections above disagree, round 2 wins (D-FD1's row, D-FD2's shape, D-FD4, D-FD6's sticky part, D-FD9's heights).
+> Round 3 (same evening, D-FD20–D-FD22): the groups are plain centred names with a bar under the open one, and the
+> three levels move (group, page, inner tab). Where round 2 and the sections above disagree, round 2 wins (D-FD1's row, D-FD2's shape, D-FD4, D-FD6's sticky part, D-FD9's heights).
 
 ## Obiettivo
 
@@ -110,6 +111,9 @@ coloured one.
 | D-FD17 | Presa (owner, 2026-11-20, round 2) | **The page's composition is not touched by this work**: at 1000–1279 with a mouse (zoom 125%) the page keeps the tablet's stage and closed rows under the new band | the desktop composition down to 960 with a mouse | the note was about the bar; the composition is a step of its own if the owner asks |
 | D-FD18 | Presa (owner, 2026-11-20, round 2) | **No scrollbar on the page's scroll box from the band's widths up, in every theme** (`scrollbar-width: none` on `#page-main`; wheel, trackpad and keys scroll as before) | the native bar beside the band | the owner: «non voglio la barra laterale che scorre» |
 | D-FD19 | Presa (owner, 2026-11-20, round 2) | **«Analisi spese» everywhere**: the band reads every page's name from `navGroups`, and Analisi's page title becomes «Analisi spese» | the page's own title in the band | the owner: «deve chiamarsi sempre analisi spese» |
+| D-FD20 | Presa (owner, 2026-11-20, round 3: «ok va bene con la prima consigliata») | **The groups are plain names (15px, no icon) centred in the band's first floor, the open one in full ink and semibold with a 3px ink bar under it; the wordmark at the left, the Assistente and the person at the right. The page tabs on the bottom edge and the page's own tabs (U3) stay left-aligned**, on the content's left edge | the pill of D-FD14 (round 2: «non mi piace il selettore a pillola»); dot, thin underline, separators, icon over name, glass capsule, title menu, the tab hanging from the top (round 2 sketches); page tabs centred, everything centred (round 3 sketches 2–3) | the centre reads as the app's menu; the open tab is the sheet's joint and the sheet reads from the left, so the eye runs one edge (page tab → inner tab → verdict); the bar is a border, so it survives forced colours (Chrome's modern-web guidance), a background pill does not |
+| D-FD21 | Presa (owner, 2026-11-20: «implementa anche delle animazioni e delle transizioni … tra gruppi, tra schede e tra sottoschede») | **Motion at the three levels, the band never moving**: (1) group → the 3px bar slides to the new name (spring 400/35, the `PageTabBar` one) at the click, the new group's page tabs slide in from the side of travel (12px, 220 ms, ease-out-quart) while the old ones fade; (2) page → the open tab (the sheet's joint) slides to the clicked tab with the same spring, labels cross-fade their weight; (3) inner tab → the U3 bar's slide and the panel's 200 ms fade that exist (AN1). The page under the band leaves in 140 ms and arrives in 320 ms (the soft scene); the fact and the actions fade in with the page. Reduced motion: no slide, no fade | a View Transition morph of the band (round 1: the snapshot moved and vanished) | the owner's note; the band is live DOM (D-FD15), so its indicators can move at the click instead of after the route lands |
+| D-FD22 | Proposta (Claude, follows D-FD15/D-FD21; to confirm on the PR) | **From the band's widths up a navigation is the soft scene, not a View Transition**: the browser's snapshot freezes the band until the next page lands, and its old and new roots stacked washed it out (diagnosis 4); below the band's widths nothing changes (the phone already uses the soft scene where the pill shows; a phone in landscape keeps the View Transition) | keep the View Transition and hide the root's old snapshot | a frozen band cannot slide its bar at the click |
 
 ## Punti aperti
 
@@ -189,12 +193,12 @@ runner in the project's `fascia-desktop/r2/`.
 
 ### Regole (C)
 
-- **First floor** (inside the band, 60px): the wordmark at the left (a link to Panoramica), the five groups of
-  `navGroups` as pills (16px icon + label, 14px, 38px high, radius 999), the Assistente pill at the right, then the
-  person (account menu, D-FD8). A closed group: ink at 84%, a 12% ink tint on hover. The open group: a pill in the
-  page's ground (`--background` of the page, not the band's re-pointed one) with the page's ink, semibold. A group
-  opens on its last-read page (D-FD11 stays). Below 1000 px the closed groups show the icon only, with the name as
-  `aria-label` and tooltip.
+- **First floor** (inside the band, 60px; D-FD20 replaces the pills of D-FD14): the wordmark at the left (a link to
+  Panoramica), the five groups of `navGroups` as plain names centred in the band (15px, 60px high targets, 14px
+  side padding), the Assistente as a name at the right, then the person (account menu, D-FD8). A closed group: ink at
+  78%, full ink on hover. The open group: full ink, semibold, a 3px ink bar with rounded ends under the name, 9px
+  above the floor's bottom. A group opens on its last-read page (D-FD11 stays). Below 1000 px the names stay (they fit
+  at 960); the wordmark shortens.
 - **Tab row** (the band's bottom edge, 50px): the group's pages, every group including the one-page ones (Panoramica
   shows one tab). The open page: 48px high, radius 14px on top, the page's ground and ink, 18px semibold, joined to
   the sheet by two 14px inverted corners; it is the page's `h1` (or carries it). The others: 42px pills on the band,
