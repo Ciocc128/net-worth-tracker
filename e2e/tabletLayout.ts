@@ -6,7 +6,7 @@
  *
  * In landscape the page is a STAGE (lib/utils/tabletComposition.ts): the verdict and THE tile on the
  * left, still while the page scrolls, and on the right ONE card, the index, holding «Il resto della
- * pagina» and every row; the 56px icon rail on the left of the screen in place of the bar.
+ * pagina» and every row; the folder row on top in place of the bar.
  *
  * A helper, not a spec: no project collects it (`testMatch`), it only exports.
  */
@@ -20,8 +20,6 @@ export const TRIGGER_HEIGHT = 52;
 /** The index's width (`STAGE_CLASS`: `grid-cols-[minmax(0,1fr)_360px]`) and the stage's gap. */
 export const INDEX_WIDTH = 360;
 export const STAGE_GAP = 16;
-/** The icon rail of a tablet in landscape (`TabletRail`, `w-14`). */
-export const ICON_RAIL_WIDTH = 56;
 
 export interface Rect {
   x: number;
@@ -32,7 +30,7 @@ export interface Rect {
   bottom: number;
 }
 
-/** Whether this project is the landscape one: the stage, the icon rail, no pill. */
+/** Whether this project is the landscape one: the stage, the folder row, no pill. */
 export const isLandscape = (page: Page): boolean => (page.viewportSize()?.width ?? 0) >= 992;
 
 export async function rectOf(locator: Locator): Promise<Rect> {
@@ -73,23 +71,23 @@ export async function foldOf(page: Page): Promise<number> {
   return page.locator('#page-main').evaluate((el) => el.getBoundingClientRect().top + el.clientHeight);
 }
 
-/** The shell in landscape: the icon rail on the left, `main` from the top with the whole height. */
+/** The shell in landscape: the folder row on top (D-FD9, in place of the icon rail), `main` under it with the rest of the height. */
 export async function expectLandscapeShell(page: Page): Promise<void> {
-  const rail = page.locator('nav[data-nav="rail"]');
-  await expect(rail).toBeVisible();
-  const box = await rectOf(rail);
-  expect(box.x, 'the rail on the left edge').toBe(0);
-  expect(Math.abs(box.width - ICON_RAIL_WIDTH), `the rail measured ${box.width}px`).toBeLessThanOrEqual(1);
-  for (const target of await rail.locator('a, button').all()) {
+  const row = page.locator('nav[data-nav="folders"]');
+  await expect(row).toBeVisible();
+  const box = await rectOf(row);
+  expect(box.y, 'the folder row at the top edge').toBe(0);
+  expect(Math.abs(box.width - page.viewportSize()!.width), `the row measured ${box.width}px`).toBeLessThanOrEqual(1);
+  for (const target of await row.locator('a, button').all()) {
     const target_box = (await target.boundingBox())!;
-    const name = (await target.getAttribute('aria-label')) ?? '';
+    const name = (await target.textContent()) ?? '';
     expect(target_box.width, name).toBeGreaterThanOrEqual(TOUCH_FLOOR);
     expect(target_box.height, name).toBeGreaterThanOrEqual(TOUCH_FLOOR);
   }
-  await expect(rail.locator('a[aria-current="page"]'), 'the current page marked').toHaveCount(1);
+  await expect(row.locator('[aria-current]'), 'the open folder marked').toHaveCount(1);
   const main = await page.locator('#page-main').evaluate((el) => ({ top: el.getBoundingClientRect().top, height: el.clientHeight }));
-  expect(main.top, 'no bar over main').toBe(0);
-  expect(main.height).toBe(page.viewportSize()!.height);
+  expect(main.top, 'main starts where the row ends').toBeCloseTo(box.y + box.height, 0);
+  expect(main.top + main.height).toBe(page.viewportSize()!.height);
   await expect(page.locator('[data-sidebar="trigger"]').filter({ visible: true })).toHaveCount(0);
 }
 

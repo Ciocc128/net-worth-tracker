@@ -1,7 +1,7 @@
 /**
  * The Panoramica composed for a tablet (2026-10-16; doc/guide/panoramica.md § Composizione mobile):
  * one spec, two projects — `tablet` (768×1024, two columns, the pill) and `tablet-landscape`
- * (1024×768, the stage: the answer on the left, the index on the right, the icon rail) — branching on
+ * (1024×768, the stage: the answer on the left, the index on the right, the folder row) — branching on
  * the width. Base account with the overview response patched on the wire (`e2e/overviewFixture.ts`:
  * `hasTERTracking` on and no goal, so SEVEN closed rows — Sintesi, Cashflow, Composizione, Costi,
  * Spese, Entrate, Asset; no Intestatari, since the fixture names one household member only and one
@@ -10,7 +10,7 @@
  * What a browser alone can prove: the columns at 768 and the landscape stage (the verdict and THE tile
  * 16px apart on the left, the 360px index on the right starting on the verdict line and ending on
  * THE tile line, every row in it in DOM order); an opened row that stays where it was with nothing
- * scrolled, or at 768 spans the grid; no half grid row at 768; the icon rail in landscape; the left
+ * scrolled, or at 768 spans the grid; no half grid row at 768; the folder row in landscape; the left
  * stack still while the page scrolls, never overlapped; the same grid as today at 1440 after a
  * resize; nothing past `main`. Where each row goes at 768 is Vitest's (`__tests__/tabletComposition.test.ts`).
  *
@@ -104,7 +104,7 @@ test.describe('Panoramica, composed for a tablet', () => {
     }
   });
 
-  test('the icon rail in landscape, the pill at 768', async ({ page }) => {
+  test('the folder row in landscape, the pill at 768', async ({ page }) => {
     await open(page);
     if (isLandscape(page)) {
       await expectLandscapeShell(page);

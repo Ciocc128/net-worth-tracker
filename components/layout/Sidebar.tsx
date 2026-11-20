@@ -19,23 +19,11 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { LogoutDialog } from '@/components/layout/LogoutDialog';
-import { ThemePicker } from '@/components/layout/ThemePicker';
+import { AccountMenu } from '@/components/layout/AccountMenu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TILE_EYEBROW_CLASS } from '@/components/ui/tile';
 import { SIDEBAR_AVATAR_CLASS } from '@/components/layout/shellStyles';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { useLogout } from '@/lib/hooks/useLogout';
 import { isNavItemActive } from '@/lib/utils/navUtils';
 import { getAccountLabel, getDisplayInfo } from '@/lib/utils/userDisplayUtils';
 import {
@@ -43,7 +31,7 @@ import {
   assistantNavItem,
   type NavItem,
 } from '@/lib/constants/navigation';
-import { Settings, LogOut, ChevronsUpDown, PanelLeftClose, PanelLeftOpen, Check, Users } from 'lucide-react';
+import { ChevronsUpDown } from 'lucide-react';
 
 function NavItems({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
@@ -86,7 +74,8 @@ function NavItems({ items }: { items: NavItem[] }) {
 }
 
 /**
- * The desktop sidebar (and the Sheet it becomes below `desktop:`). Chrome is kept to what
+ * The sidebar, now only the Sheet of a phone turned sideways (from `desktop:` and on a tablet in landscape the
+ * navigation is the folder row, `FolderNav`). Chrome is kept to what
  * separates: a wordmark, three groups of routes with the tiles' eyebrow as group label, one
  * hairline before the assistant, the account at the bottom. The active route is the only
  * highlighted surface and it is `--sidebar-accent` — no hue in the navigation of the default
@@ -94,10 +83,8 @@ function NavItems({ items }: { items: NavItem[] }) {
  */
 export function AppSidebar() {
   const { user } = useAuth();
-  const { ownerId, accessibleAccounts, switchAccount, isSharedView } =
-    useActiveAccount();
-  const { isMobile, setOpenMobile, toggleSidebar, state } = useSidebar();
-  const { confirmLogout, setConfirmLogout, handleSignOut } = useLogout();
+  const { ownerId, accessibleAccounts, isSharedView } = useActiveAccount();
+  const { isMobile, setOpenMobile } = useSidebar();
 
   const closeMobile = () => {
     if (isMobile) setOpenMobile(false);
@@ -107,6 +94,10 @@ export function AppSidebar() {
   const activeAccount = accessibleAccounts.find((a) => a.ownerId === ownerId);
 
   const showAssistant = process.env.NEXT_PUBLIC_ASSISTANT_AI_ENABLED !== 'false';
+
+  // From `desktop:` and on a tablet in landscape the navigation is the folder row (`FolderNav`, D-FD1, D-FD9):
+  // this sidebar is now only the Sheet of a phone turned sideways.
+  if (!isMobile) return null;
 
   return (
     <>
@@ -126,25 +117,6 @@ export function AppSidebar() {
             >
               <span className="truncate">Portfolio Tracker</span>
             </SceneLink>
-            <TooltipProvider delayDuration={300}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={toggleSidebar}
-                    aria-label={state === 'expanded' ? 'Comprimi sidebar' : 'Espandi sidebar'}
-                    className="hidden desktop:flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/40 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors group-data-[state=collapsed]:mx-auto group-data-[state=collapsed]:size-11"
-                  >
-                    {state === 'expanded'
-                      ? <PanelLeftClose className="size-4" />
-                      : <PanelLeftOpen className="size-4" />}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  {state === 'expanded' ? 'Comprimi sidebar' : 'Espandi sidebar'}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
           </div>
         </SidebarHeader>
 
@@ -187,8 +159,7 @@ export function AppSidebar() {
         <SidebarFooter className="border-t border-sidebar-border">
           <SidebarMenu>
             <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+              <AccountMenu side="top" align="end" onNavigate={closeMobile}>
                   <SidebarMenuButton
                     size="lg"
                     tooltip={displayName}
@@ -229,66 +200,12 @@ export function AppSidebar() {
                     )}
                     <ChevronsUpDown className="ml-auto size-4 shrink-0 text-sidebar-foreground/50" />
                   </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent side="top" align="end" className="w-56">
-                  {/* Account switcher — only when the viewer can reach >1 account */}
-                  {accessibleAccounts.length > 1 && (
-                    <>
-                      <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
-                        Account
-                      </DropdownMenuLabel>
-                      <DropdownMenuGroup>
-                        {accessibleAccounts.map((account) => (
-                          <DropdownMenuItem
-                            key={account.ownerId}
-                            onSelect={() => switchAccount(account.ownerId)}
-                          >
-                            <Users className="size-4" />
-                            <span className="flex-1 truncate">
-                              {getAccountLabel(account)}
-                            </span>
-                            {account.ownerId === ownerId && (
-                              <Check className="ml-auto size-4 shrink-0 text-primary" />
-                            )}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuGroup>
-                      <DropdownMenuSeparator />
-                    </>
-                  )}
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem asChild>
-                      <SceneLink href="/dashboard/settings" onClick={closeMobile}>
-                        <Settings className="size-4" />
-                        Impostazioni
-                      </SceneLink>
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
-                    Preferenze
-                  </DropdownMenuLabel>
-                  <div className="flex items-center justify-between px-2 py-1.5">
-                    <span className="text-sm">Tema</span>
-                    <ThemePicker />
-                  </div>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => setConfirmLogout(true)}>
-                    <LogOut className="size-4" />
-                    Esci
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              </AccountMenu>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
 
-      <LogoutDialog
-        open={confirmLogout}
-        onOpenChange={setConfirmLogout}
-        onConfirm={handleSignOut}
-      />
     </>
   );
 }

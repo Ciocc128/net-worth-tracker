@@ -124,7 +124,7 @@ export function BottomNavigation() {
         <motion.nav
           key={isPillVisible ? 'pill-animated' : 'pill-static'}
           aria-label="Navigazione principale"
-          // The landscape icon rail is the same landmark (`TabletRail`, 2026-10-16, never visible with
+          // The landscape folder row is the same landmark (`FolderNav`, 2026-11-20, never visible with
           // the pill): the census and the specs that mean THE PILL select this attribute.
           data-nav="pill"
           // Frosted glass over the page that scrolls under it (`.nav-glass` in globals.css).

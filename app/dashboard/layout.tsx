@@ -4,7 +4,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { ChartColorsProvider } from '@/contexts/ChartColorsContext';
 import { AppSidebar } from '@/components/layout/Sidebar';
 import { BottomNavigation } from '@/components/layout/BottomNavigation';
-import { TabletRail } from '@/components/layout/TabletRail';
+import { FolderNav } from '@/components/layout/FolderNav';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeaderSkeleton } from '@/components/layout/PageHeader';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * The dashboard shell — in the prerendered HTML and on screen BEFORE Firebase Auth resolves
- * (since 2026-09-28): the skip link, the sidebar (its profile in a wait state until the user is known),
+ * (since 2026-09-28): the skip link, the folder row at `desktop:` and on a tablet in landscape, the sidebar's Sheet on a phone turned sideways,
  * `<main>` with the generic tile-grid skeleton, the bottom nav. Only the PAGE waits for the user:
  * `ProtectedRoute` sits inside `<main>`. Nothing here may read `window` during render — the first
  * frame on a phone is decided by CSS (`hidden desktop:block`), and `useMediaQuery` answers the
@@ -44,11 +44,10 @@ export default function DashboardLayout({
       </a>
       <SidebarProvider className="h-screen overflow-hidden">
         <AppSidebar />
-        <TabletRail />
 
         <SidebarInset className="overflow-hidden">
           {/* Hamburger bar — a PHONE in landscape only (no bottom pill there; a tablet in landscape has
-              the icon rail instead, `TabletRail`, since 2026-10-16). SidebarTrigger toggles the shadcn
+              the folder row instead, `FolderNav`, since D-FD9, which replaced the icon rail). SidebarTrigger toggles the shadcn
               sidebar Sheet below `desktop:`; it is the bar's only control, so it is a 44px touch
               target and the bar 4 + 44 + 4 + 1 = 53px (doc/guide/shell.md § Navigation). */}
           <div className="flex shrink-0 items-center gap-2 border-b bg-background px-4 py-1 desktop:hidden max-desktop:portrait:hidden max-desktop:landscape:flex tablet-landscape:hidden">
@@ -79,6 +78,10 @@ export default function DashboardLayout({
               </span>
             </div>
           )}
+
+          {/* The folder row (D-FD1): `desktop:` and a tablet in landscape; under the demo banner, so the open folder
+              touches the band of the page and nothing else. */}
+          <FolderNav />
 
           {/* The page scene: `page-main` is the region a navigation cross-fades (globals.css →
               Page scene); the shell around it stays still. template.tsx carries the fallback
