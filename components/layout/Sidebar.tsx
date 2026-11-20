@@ -87,7 +87,7 @@ function NavItems({ items }: { items: NavItem[] }) {
 }
 
 /**
- * The desktop sidebar (and the Sheet it becomes below 1440px). Chrome is kept to what
+ * The desktop sidebar (and the Sheet it becomes below `desktop:`). Chrome is kept to what
  * separates: a wordmark, three groups of routes with the tiles' eyebrow as group label, one
  * hairline before the assistant, the account at the bottom. The active route is the only
  * highlighted surface and it is `--sidebar-accent` — no hue in the navigation of the default

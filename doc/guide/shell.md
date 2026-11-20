@@ -186,3 +186,8 @@ rules below name.
 
 No shell-wide open item crosses every page any more: the `PageTabBar` pill reached 44×44 on 2026-10-10 (§ Navigation
 above) and the `Switch` its 44×44 hit box on 2026-10-08, and the `CLAUDE.md` → Known Issues entry went with them.
+
+## `desktop:` since RU0 (2026-11-20, N4)
+
+`desktop:` is no longer a plain 1440px breakpoint: it is `(width >= 1440px) or ((width >= 1280px) and (pointer: fine))`, so a laptop at 1280 with a mouse gets the desktop composition (full sidebar, 12 columns, no closed rows) while a touch tablet keeps today's up to 1439. `max-desktop:` is its negation, `tablet-landscape:` excludes it. Defined as `@custom-variant`s at the top of `app/globals.css`; JS readers use `DESKTOP_QUERY` / `COMPACT_QUERY` from `lib/hooks/useCompactLayout.ts`; `__tests__/desktopQuery.test.ts` holds the two in step. Three traps: ONE media query with `or` (a comma list is split by Tailwind and the second rule loses its `@media`); `tablet-landscape` must be declared AFTER `max-desktop`, or `max-desktop:landscape:flex` beats `tablet-landscape:hidden` and a landscape tablet gets the hamburger bar again; a changed `@custom-variant` is not picked up by a running dev server (stop it, delete `.next*`). Cost: +0.8/0.9 KB gz per route (budget raised with its `raisedBy`). A tall viewport at 1280 flips to portrait: shoot 1280×800.
+

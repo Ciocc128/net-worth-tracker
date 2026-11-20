@@ -52,7 +52,7 @@ describe('sidebar.tsx — shadcn override: sidebarMenuButtonVariants', () => {
 // ---------------------------------------------------------------------------
 // Override: desktop:block / desktop:flex instead of shadcn defaults md:block / md:flex
 //
-// Rationale: the project uses --breakpoint-desktop: 1440px (app/globals.css).
+// Rationale: the project uses the `desktop:` custom variant (app/globals.css, RU0).
 // shadcn defaults to md: (768px), which would show the sidebar on tablets and
 // landscape mobile — both served by BottomNavigation and the offcanvas Sheet.
 // ---------------------------------------------------------------------------

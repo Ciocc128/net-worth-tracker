@@ -49,7 +49,7 @@ export default function DashboardLayout({
         <SidebarInset className="overflow-hidden">
           {/* Hamburger bar — a PHONE in landscape only (no bottom pill there; a tablet in landscape has
               the icon rail instead, `TabletRail`, since 2026-10-16). SidebarTrigger toggles the shadcn
-              sidebar Sheet on screens < 1440px; it is the bar's only control, so it is a 44px touch
+              sidebar Sheet below `desktop:`; it is the bar's only control, so it is a 44px touch
               target and the bar 4 + 44 + 4 + 1 = 53px (doc/guide/shell.md § Navigation). */}
           <div className="flex shrink-0 items-center gap-2 border-b bg-background px-4 py-1 desktop:hidden max-desktop:portrait:hidden max-desktop:landscape:flex tablet-landscape:hidden">
             <SidebarTrigger aria-label="Apri il menu" />
