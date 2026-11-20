@@ -4,8 +4,9 @@
 > Fonti: review «Riordino della UI e modalità basic» (Fable, 2026-11-12; Library `riordino-ui/`, pagina
 > https://claude.ai/artifact/1YV1mnG77bMMUHXcSwED3S) e review «UI desktop con i dati veri» (Library `review-ui-desktop.md`,
 > pagina https://claude.ai/artifact/RUddPCN1hWqBNy4tSTYx43). Gli schizzi «oggi / proposta» (WORKFLOW.md regola 8) di R1–R10 sono
-> nella prima pagina. **Stato: specifica scritta il 2026-11-20; le decisioni D-RU1…D-RU12 sono PROPOSTE, da confermare**
-> (§ 8). Già prese da Giorgio il 2026-11-14: N2 tono neutro, N4 «1280 è servito come desktop», la fascia sul desktop non è di
+> nella prima pagina. I render reali «oggi / proposta» di questa ondata (app sugli emulatori, dati del census) sono nella pagina
+> https://claude.ai/artifact/M6bf52DueZx6WaL4JYv4PB. **Stato: specifica scritta il 2026-11-19, rivista il 2026-11-20 contro la
+> review di Fable, il codice e i render (§ 1.1); le decisioni D-RU1…D-RU12 sono PROPOSTE, da confermare** (§ 8). Già prese da Giorgio il 2026-11-14: N2 tono neutro, N4 «1280 è servito come desktop», la fascia sul desktop non è di
 > questo dossier.
 
 ## 1. In breve
@@ -15,6 +16,28 @@ DESIGN.md, parole, menu, Panoramica a due colonne, Tracciamento con Movimenti ac
 sul tile) e tre dalla review desktop (N1 grafici FIRE, N2 tono del verdetto, N3 tabella Strumenti), più N4 (1280 come
 desktop) che tocca ogni pagina e per questo va in una PR a sé, per prima (D-RU1). Ogni punto è una task piccola e
 separata (§ 7); nessuna legge o scrive dati nuovi.
+
+### 1.1 Revisione del 2026-11-20
+
+Riletta contro la review di Fable e contro l'app in esecuzione. Cosa è cambiato rispetto alla prima stesura, e perché:
+
+- **R3**: Asset principali non scende sotto 4 colonne (a 3 i nomi diventano una lettera); Composizione e Sintesi a 3, Traguardo
+  a 4. Tabella delle classi per ogni variante (§ 5.4). Intestatari chiusa a desktop con un `collapse` locale (§ 5.4).
+- **R5**: classi esatte per mese, altri periodi e Tabella; la barra degli strumenti di Movimenti resta ferma e scorre solo la
+  lista (`scrollBody`). Movimenti comincia a ~960 px, non a 760 come stimato: il criterio è `top` < 1000.
+- **R6**: il modale lavora su una bozza con Annulla · Salva (oggi il tetto si salva da solo mentre si scrive); uno stato senza
+  tetto con «Imposta il tetto» (oggi la cella è vuota); l'ingranaggio come lo voleva Fable: «Categorie» su Tracciamento, le
+  impostazioni dei dividendi su Dividendi, niente altrove (la prima stesura lo lasciava su tre schede puntato alla scheda
+  sbagliata); il tile Avvisi rimanda all'email settimanale come chiedeva Fable.
+- **N1**: il tetto contiene sempre la banda 25–75 e il massimo della mediana **su tutto l'orizzonte** (la prima stesura usava
+  l'ultimo anno, che in Dopo il FIRE taglierebbe la curva); tacche date a mano (il prototipo senza mostrava «650k» e «1,3 Mln»).
+- **N3**: `formatPrice` nuova invece di cambiare `formatCurrency`; quattro posti fissi per le azioni; Nome a 200 px sotto 1440
+  perché con N4 a 1280 la tabella scorre di 41 px.
+- **N4**: lo spike è fatto e il meccanismo 1 funziona, con tre condizioni scritte in § 5.10 (una media query con `or`,
+  `tablet-landscape` che esclude il desktop, riavvio del server di sviluppo).
+- **R1**: aggiunto «N asset in portafoglio» del tile Patrimonio della Panoramica.
+- **Scarti da Fable che restano**: il verdetto della Panoramica a desktop non si taglia (D-RU11); «Carica altri» invece di
+  «Mostra tutti» (D-RU6); Traguardi e Hall of Fame non cambiano posto nel menu (D-RU4, come nell'ordine delle ondate di Fable).
 
 ## 2. Stato di partenza (letto nel codice, main `39de591`)
 
@@ -121,6 +144,7 @@ Solo testo visibile; identificatori, id di sezione, campi salvati, chiavi di cac
 | Tile «Piano» di Bilanciamento e le frasi che lo nominano («questo Piano non lo conta», AL17) | «Ordini» | `components/allocation/tiles/PianoTile.tsx`, `lib/utils/allocazioneNarrative.ts`; «piano di accumulo» resta |
 | «Traguardo» nel Calcolatore e in Coast (il tile del numero FIRE) | «Verso il FIRE» | `TraguardoTile`, `CoastTraguardoTile`, `FireCalculatorTab`, `CoastFireTab`, `fireNarrative`, `coastFireView`, `fireSummary`, `overviewNarrative` (1 occ.); «Traguardi» (gli obiettivi di spesa) resta |
 | Voce di menu «Analisi» | «Analisi spese» | `lib/constants/navigation.ts` |
+| «N asset in portafoglio» sotto il tile Patrimonio della Panoramica (conta anche casa e conti) | «N asset nel patrimonio» | `components/dashboard/overview/PatrimonioTile.tsx` (r. ~259 e il commento della prop) |
 | Riga «Impostazioni» del Budget | sparisce | vedi § 5.6 |
 
 Regola di lavoro: prima si cerca ogni occorrenza visibile con `grep -rn`, poi si decide se nomina la cosa vecchia o quella
@@ -160,81 +184,172 @@ Assistente AI
 
 **Il DOM non cambia** (ordine: Patrimonio, Sintesi, Cashflow, Composizione, Costi, Obiettivo, Spese, Entrate, Asset,
 Intestatari): sotto `desktop:` la Panoramica resta com'è e `mobile:census`/`mobile:budget` vedono lo stesso ordine delle righe.
-A `desktop:` ogni cella ha `desktop:col-start-*` e `desktop:row-start-*` (l'esempio è il Movimenti di Patrimonio); il pezzo di
-JSX che oggi tiene chiusa la seconda riga con un `div` vuoto sparisce.
+A `desktop:` ogni cella dichiara colonna e riga con `desktop:col-start-*`/`desktop:row-start-*` (mai `order-*`). La griglia ha
+una riga 1 per le due etichette di colonna; i tile partono dalla riga 2. Render della proposta: pagina «oggi / proposta» § R3.
 
-```
-QUANTO HO (colonne 1–7)                          COME VA IL MESE (colonne 8–12)
-r1–r2  [Patrimonio totale 7 × 2 righe       ]    r1 [Cashflow del mese 5 ]
-                                                 r2 [Spese per categoria 5]
-r3     [Composizione 4][Asset principali 3]      r3–r4 [Entrate per categoria 5 × 2 righe]
-r4     [Sintesi 3][Costi 2][Traguardo 2]*
-(riga chiusa a desktop) Intestatari
-```
-\* Costi e Traguardo sono condizionali come oggi (`costsVisible`, `hasGoals`): con uno solo Sintesi 4 + quello 3; con nessuno
-Sintesi 7. Senza `expenseStats` la colonna di destra è il solo Cashflow e Composizione/Asset passano a 4+3 come in sinistra.
-Le altezze si **misurano sul render**: se una riga sbilancia, si regolano gli span di riga, mai il DOM.
+Tabella delle classi, caso pieno (spese lette, Costi assente, Traguardo presente, che è il caso del census):
 
-- Due etichette di colonna («Quanto ho», «Come va il mese»), `TILE_EYEBROW_CLASS`, solo da `desktop:` (sotto la pagina è la
-  composizione mobile, invariata).
-- **Intestatari** diventa una riga chiusa anche a desktop (una disclosure come «Impostazioni» del Budget: `Collapsible`, chiusa; la
-  sua risposta chiusa è `describeOverviewClosedAnswers`). Sotto `desktop:` era già una riga.
-- Il verdetto non cambia in questa ondata (§ 9).
-- Prove: `e2e/overview.spec.ts` (+ `overviewFixture.ts`; un'asserzione sulla posizione: l'eyebrow «Spese per categoria» sta
-  nella prima schermata a 1440×900, oggi a 934 px), `overview.tablet.spec.ts`, `panoramica.snapshot.spec.ts`;
-  `doc/guide/panoramica.md` (grafico delle posizioni).
+| Cella (`app/dashboard/page.tsx`) | Oggi | Dopo |
+|---|---|---|
+| etichetta «Quanto ho» (nuova, `h3`) | — | `hidden desktop:block desktop:col-span-7 desktop:col-start-1 desktop:row-start-1` |
+| etichetta «Come va il mese» (nuova, `h3`) | — | `hidden desktop:block desktop:col-span-5 desktop:col-start-8 desktop:row-start-1` |
+| Patrimonio totale | `col-span-5 row-span-2` | `col-span-7 row-span-2 col-start-1 row-start-2` |
+| Cashflow del mese | `col-span-4` | `col-span-5 col-start-8 row-start-2` |
+| Spese per categoria | `col-span-4` | `col-span-5 col-start-8 row-start-3` |
+| Composizione | `col-span-3` | `col-span-3 col-start-1 row-start-4` |
+| Asset principali | `col-span-4` (12 senza spese) | `col-span-4 col-start-4 row-start-4` |
+| Entrate per categoria | `col-span-4` | `col-span-5 col-start-8 row-start-4 row-span-2` |
+| Sintesi patrimoniale | `col-span-3` | `col-span-3 col-start-1 row-start-5` |
+| Traguardo (`ObiettivoTile`) | `col-span-2` o `4` | `col-span-4 col-start-4 row-start-5` |
+| Intestatari | `col-span-12` | `col-span-12 col-start-1 row-start-6`, riga chiusa (sotto) |
+
+Tutte le classi della colonna «Dopo» hanno il prefisso `desktop:`. Varianti:
+- **Con Costi** (`costsVisible`) **e Traguardo**: Sintesi `col-span-3 col-start-1`, Costi `col-span-2 col-start-4`, Traguardo
+  `col-span-2 col-start-6`, tutti `row-start-5`. **Solo Costi**: Costi `col-span-4 col-start-4`. **Nessuno dei due**: Sintesi
+  `col-span-7 col-start-1`.
+- **Senza spese** (`expenseStats` assente): la colonna destra è il solo Cashflow (`row-start-2 row-span-2`); Composizione,
+  Asset, Sintesi restano dove sono.
+- **Asset principali non scende mai sotto 4 colonne**: a 3 i nomi si riducono a una lettera (render del 2026-11-20; lo dice
+  già il commento sopra la cella). È la correzione rispetto allo schizzo di Fable (Composizione 4 · Asset 3).
+- Il `div` vuoto che oggi chiude la seconda riga (`!costsVisible && !hasGoals`) sparisce.
+- Le etichette usano `TILE_EYEBROW_CLASS` (stessa dimensione degli occhielli) e sono `h3`, nessuna regione nuova.
+
+**Intestatari riga chiusa anche a desktop.** `TileRowShell` (`components/ui/tile.tsx`) non dipende dalla larghezza: a
+`desktop:` la cella passa a `IntestatariTile` un `collapse` costruito da uno stato locale (`open` falso all'apertura, `mounted`
+vero dopo la prima apertura, `failed` falso, id `OVERVIEW_SECTION_IDS.intestatari`), mentre sotto `desktop:` resta
+`sections.collapse(…)`: `collapse={sections.collapse(id) ?? desktopIntestatari}`. Non si ricorda fra visite. La risposta
+chiusa è `asides[OVERVIEW_SECTION_IDS.intestatari]` come oggi.
+
+- Il verdetto non cambia in questa ondata (D-RU11).
+- Prove: `e2e/overview.spec.ts` (+ `overviewFixture.ts`): a 1440×900 l'occhiello «Spese per categoria» ha `top` < 900 (oggi
+  934, proposta 556); le due etichette sono visibili a 1440 e nascoste a 1024; Intestatari è chiusa e si apre al clic.
+  `overview.tablet.spec.ts`, `panoramica.snapshot.spec.ts`; `doc/guide/panoramica.md` (grafico delle posizioni).
 
 ### 5.5 R5 · Cashflow › Tracciamento (task RU3)
 
-```
-MESE                                         ANNO / DA INIZIO ANNO / STORICO
-r1–r2 [Cashflow 5 × 2][Andamento del mese 7] r1–r2 [Cashflow 5 × 2][Risparmio nel tempo 7 × 2]
-      [              ][Risparmio nel tempo 7]
-r3–r4 [Movimenti 7 (feed)][Spese per cat. 5]  r3–r4 [Movimenti 7 (feed)][Spese per cat. 5]
-      [                  ][Entrate per cat. 5]      [                  ][Entrate per cat. 5]
-Con la vista «Tabella»: Movimenti 12 colonne, le categorie scendono sotto (Spese 7 · Entrate 5).
-```
+Render: pagina «oggi / proposta» § R5. DOM e ordine delle righe sotto `desktop:` come oggi (Spese, Entrate, Andamento,
+Risparmio, Movimenti). In `components/cashflow/ExpenseTrackingTab.tsx` una costante `const feedBeside = desktopListView === 'feed';`
+e le classi (`desktop:` davanti a ognuna):
 
-- DOM e ordine delle righe sotto `desktop:` come oggi (Spese, Entrate, Andamento, Risparmio, Movimenti): `col-start`/`row-start`.
-- **Altezza**: Movimenti prende l'altezza dello stack Spese + Entrate (le due categorie decidono la riga; la lista scorre
-  dentro, con la barra di scorrimento della piattaforma). La lista conserva la paginazione che c'è («Carica altri 20», «N di M
-  voci»): non si introduce «Mostra tutti» (D-RU6). Altezza minima 480 px.
-- Movimenti a 7 colonne è un **Feed**; la Tabella ha colonne a larghezza fissa e non ci sta: `desktopListView === 'table'` →
-  12 colonne (come oggi).
-- Ordine delle schede (`CASHFLOW_TABS_BASE` e le opzionali): Tracciamento · Budget · Divisione · Centri di Costo · Dividendi;
-  l'URL, `VALID_CASHFLOW_TABS` e i `mountedTabs` non cambiano.
-- L'ingranaggio di testata diventa «Categorie» e resta su Tracciamento (§ 5.6).
-- Prove: `e2e/cashflow.tracciamento.spec.ts` (+ una nuova: Movimenti a sinistra delle categorie a 1440, a destra con
-  «Tabella»), `cashflow.tablet.spec.ts`, `e2e/mobile-composition.cashflow.mobile.spec.ts` (invariata: ordine DOM).
+| Cella | Mese (Andamento c'è) | Altri periodi (niente Andamento) | Vista «Tabella» |
+|---|---|---|---|
+| Cashflow del periodo | `col-span-5 row-span-2 col-start-1 row-start-1` | uguale | uguale |
+| Andamento del mese | `col-span-7 col-start-6 row-start-1` | — | uguale ai primi due |
+| Risparmio nel tempo | `col-span-7 col-start-6 row-start-2` | `col-span-7 col-start-6 row-start-1 row-span-2` | uguale ai primi due |
+| Movimenti | `col-span-7 col-start-1 row-start-3 row-span-2 relative min-h-[480px]` | uguale | `col-span-12 col-start-1 row-start-3` |
+| Spese per categoria | `col-span-5 col-start-8 row-start-3` | uguale | `col-span-7 col-start-1 row-start-4` |
+| Entrate per categoria | `col-span-5 col-start-8 row-start-4` | uguale | `col-span-5 col-start-8 row-start-4` |
 
-### 5.6 R6 · Cashflow › Budget (task RU3)
+- **Altezza**: decidono le due categorie. Dentro la cella di Movimenti un `div` `desktop:absolute desktop:inset-0` (solo con
+  `feedBeside`) contiene il tile, così la lista non allunga la riga; la cella ha `min-h-[480px]`.
+- **Cosa scorre**: `MovimentiTile` riceve una prop nuova `scrollBody?: boolean`. Con `true` la `section` è `flex flex-col h-full`,
+  occhiello, lettura e barra degli strumenti restano ferme, e il `div` dei figli diventa `min-h-0 flex-1 overflow-y-auto`
+  (barra di scorrimento della piattaforma). Senza la prop il tile è quello di oggi (telefono e Tabella).
+- La paginazione resta quella del feed («Carica altri 20», «N di M voci» nell'aside): niente «Mostra tutti» (D-RU6).
+- Misura nel render a 1440×900, mese di novembre del census: Movimenti comincia a ~960 px (oggi 1298) e la pagina è più corta
+  di 540 px. Non entra nella prima schermata: il tile Cashflow si allunga quanto Andamento + Risparmio.
+- Ordine delle schede: Tracciamento · Budget · Divisione · Centri di Costo · Dividendi (opzionali dove sono accese).
+  `CASHFLOW_TABS_BASE` diventa Tracciamento · Budget, poi le opzionali, poi Dividendi; URL, `VALID_CASHFLOW_TABS` e
+  `mountedTabs` non cambiano.
+- Prove: `e2e/cashflow.tracciamento.spec.ts` (+ una nuova a 1440: il box di Movimenti ha `right` ≤ `left` di «Spese per
+  categoria» e `top` < 1000; con «Tabella» la sua larghezza è quella della griglia; la lista scorre dentro, la barra degli
+  strumenti no), `cashflow.tablet.spec.ts`, `e2e/mobile-composition.cashflow.mobile.spec.ts` (invariata).
 
-- Il tile «Tetto del mese» riceve nell'`aside` una matita «Tetto e avvisi» (44 px sotto `desktop:`, 32 da `desktop:`) che apre
-  un `ResponsiveModal` con **gli stessi due blocchi di oggi** («Tetto complessivo mensile» e «Avvisi soglia», stesso salvataggio
-  a bozza `budget.*`, stesso stato «Salvato»); `BudgetImpostazioni` diventa il contenuto del modale, senza il `Collapsible`.
-  Senza tetto (`overallMonthlyAmount == null`) il tile mostra la matita come azione primaria «Imposta il tetto» e il modale si
-  apre da solo solo se l'utente lo ha chiesto (mai all'apertura della pagina).
-- Spariscono: la disclosure in fondo, `SETTINGS_ID`, lo scroll dal pulsante a sliders del telefono (sotto `desktop:` il
-  pulsante accanto a «Aggiungi budget» diventa la matita del tile) e l'ingranaggio di testata su Budget.
-- Il tile «Avvisi» di Budget rimanda al modale («Cambia soglie»); l'interruttore dell'email settimanale resta dov'è.
-- L'ingranaggio in testata su Tracciamento si chiama «Categorie» (`aria-label`, `title`) e porta alle categorie in
-  Impostazioni › Spese; sulle altre tre schede (Dividendi, Divisione, Centri) resta com'è finché la scheda non ha il suo
-  punto (§ 9).
-- Prove: `e2e/cashflow.budget.spec.ts`, `cashflow.budget.mobile.spec.ts` (cerca «Impostazioni del budget»), `__tests__/budgetNarrative`.
+### 5.6 R6 · Cashflow › Budget e l'ingranaggio di Cashflow (task RU3)
+
+Render: pagina «oggi / proposta» § R6.
+
+**La matita.** `TettoTile` riceve una prop `asideAction?: ReactNode`, disegnata dopo il testo dell'aside nella stessa riga
+(`inline-flex items-center gap-2`). `BudgetTab` le passa un `Button` `variant="ghost"` icona `Pencil` 16 px, `h-8 w-8` da
+`desktop:` e `h-11 w-11` sotto (`-my-1.5` per non alzare la riga), `aria-label="Modifica tetto e avvisi del budget"`,
+`title="Tetto e avvisi"`: la stessa matita delle righe dei budget annuali.
+
+**Il modale.** `ResponsiveModal` `eyebrow="Budget"`, `title="Tetto e avvisi"`, `width="lg"`, `returnFocusTo` = la matita.
+Dentro i due blocchi di oggi, «Tetto complessivo mensile» e «Avvisi soglia», come due sezioni affiancate da `desktop:` (una
+colonna sotto), **non** come due `Tile` dentro il modale. Il modale lavora su una **bozza locale** (tetto, avvisi attivi,
+soglie) inizializzata all'apertura dai valori di `useBudgetConfig`:
+- piè: «Annulla» chiude e scarta; «Salva» (disabilitato se la bozza non è valida per `validateBudgetAllocation` o è uguale ai
+  valori salvati) chiama `setOverall`, `setAlertsEnabled`, `setAlertThresholds` e chiude. Il salvataggio vero resta quello
+  automatico di `useBudgetConfig`; il «Salvato» che oggi sta nell'aside di Per categoria non cambia.
+- `CEILING_SETTING_FOOTER` (`lib/utils/budgetNarrative.ts` r. ~616) perde «Si salva da solo.»: nel modale si salva con «Salva».
+- `BudgetImpostazioni` diventa il corpo del modale: via il `Collapsible`, via lo stato `open`. Il nome del file resta.
+
+**Senza tetto** (`overallMonthlyAmount == null`): al posto della cella vuota (oggi un `div aria-hidden`) un tile piccolo
+«Tetto del mese» con la lettura «Nessun tetto mensile.» e un pulsante `outline` «Imposta il tetto» che apre lo stesso modale.
+Mai aperto da solo al caricamento.
+
+**Cosa sparisce**: la disclosure in fondo e `SETTINGS_ID`; sotto `desktop:` il pulsante a sliders accanto a «Aggiungi budget»
+(il telefono raggiunge il modale dalla matita del tetto: il tile del tetto è THE tile, aperto); l'ingranaggio di testata su Budget.
+
+**Avvisi** (`lib/utils/budgetNarrative.ts`, funzione del piè del tile Avvisi, r. ~435): le frasi restano, con due ritocchi:
+«Riattivali nelle impostazioni per…» diventa «Riattivali dalla matita del tetto per…»; dopo la frase si aggiunge un link
+`TILE_FOOTER_ACTION_CLASS` «Email settimanale del budget» → `/dashboard/settings?tab=generale` (Impostazioni › Preferenze, dove
+sta l'interruttore). È il rimando che Fable chiedeva.
+
+**L'ingranaggio di testata** (`app/dashboard/cashflow/page.tsx`, oggi `aria-label="Impostazioni Spese"` su ogni scheda):
+
+| Scheda attiva | Dopo |
+|---|---|
+| Tracciamento | ingranaggio, `aria-label`/`title` «Categorie», → `/dashboard/settings?tab=spese` |
+| Dividendi | ingranaggio, «Impostazioni dei dividendi», → `/dashboard/settings?tab=dividendi` (la scheda esiste) |
+| Budget, Divisione, Centri di Costo | nessun ingranaggio |
+
+Divisione e Centri hanno solo l'interruttore in Impostazioni › Preferenze: chi li usa non ha bisogno di una porta da ogni visita
+(P2: un ingranaggio apre le regolazioni di quella pagina e nient'altro). È la scelta di Fable; il dossier del 2026-11-19 li teneva.
+
+- Prove: `e2e/cashflow.budget.spec.ts`, `cashflow.budget.mobile.spec.ts` (oggi cerca «Impostazioni del budget» e il pulsante a
+  sliders: va riscritta sulla matita), `__tests__/budgetNarrative*`.
 
 ### 5.7 N1 · L'asse dei grafici FIRE (task RU4)
 
-Una funzione pura `resolveFireAxisCap` in `lib/utils/fireChartAxis.ts` (+ `__tests__/fireChartAxis.test.ts`):
-- `R` = il più grande tra il valore della **Base (o della mediana)** all'ultimo anno tracciato e il massimo della linea del numero
-  FIRE tracciata (se c'è); `T` = il massimo di tutte le serie e bande tracciate (Bull, 90° percentile).
-- Se `T ≤ 2 × R` l'asse resta automatico (nessun cambio rispetto a oggi).
-- Altrimenti il tetto è `C = niceCeil(1,25 × R)`, con `niceCeil(x)` il più piccolo `m × 10^k ≥ x` per `m ∈ {1, 2, 2,5, 5}`;
-  `domain [min, C]` con `allowDataOverflow`, e la serie che esce ha una nota sotto il grafico: «Il 90° percentile esce dal
-  grafico: a fine orizzonte arriva a 9,0 Mln €.» (Bull per i grafici a scenari). Il tooltip continua a mostrare i valori veri.
-- Con deplezione il minimo resta 0 (lo fissa già il grafico).
-- **Etichette**: una riga, mai tagliata. Larghezza della `YAxis` calcolata sull'etichetta più lunga (`formatCurrencyCompact` con
-  spazi non separabili anche tra numero e «Mln»); un test E2E conta i `tspan` di ogni etichetta e vuole 1.
-- Applicata ai cinque grafici di § 2 (What If compreso, perché usa lo stesso asse: D-RU8).
+Render del prototipo: pagina «oggi / proposta» § N1 (Ventaglio da 26 a 6 Mln, Scenari da 20 a 8 Mln, Dopo il FIRE da 6 a 2,5 Mln, Proiezione
+da 8 a 5 Mln).
+
+Funzione pura in `lib/utils/fireChartAxis.ts` (+ `__tests__/fireChartAxis.test.ts`):
+
+```ts
+export interface FireAxis {
+  top: number;          // massimo dell'asse
+  ticks: number[];      // 0, step, 2·step, …, top
+  step: number;
+  cut: boolean;         // true = qualche serie `outer` esce dal grafico
+  outerMax: number;     // massimo di `outer` (per la nota), 0 se non c'è
+}
+/** null solo quando non c'è nulla da disegnare (C ≤ 0). */
+export function resolveFireAxis(core: readonly (readonly (number | null | undefined)[])[],
+                                outer: readonly (readonly (number | null | undefined)[])[]): FireAxis | null
+```
+
+- `core` = le serie che si vedono sempre intere: la Base o la mediana, la linea del numero FIRE, e dove c'è una banda il suo
+  bordo alto 25–75 (`p75`). `outer` = le serie che possono uscire: Bull, `p90`, i percorsi campione del Ventaglio.
+- `C` = il **massimo su tutto l'orizzonte** di `core` (non il valore dell'ultimo anno: in Dopo il FIRE il capitale scende e il
+  massimo è all'inizio), ignorando `null`, `NaN` e negativi. `O` = il massimo di `outer` (0 se `outer` è vuoto). Se `C ≤ 0` → `null`.
+- `axisFor(x)`: `step = niceStep(1,1 × x / 5)`, con `niceStep(y)` il più piccolo `m × 10^k ≥ y` per `m ∈ {1, 2, 2,5, 5}`;
+  `top = ceil(1,1 × x / step) × step`; `ticks = [0, step, …, top]` (da 5 a 6 tacche).
+- **Taglio**: se `O > 1,5 × axisFor(C).top` → asse `axisFor(C)`, `cut = true`. Altrimenti asse `axisFor(max(C, O))`, `cut = false`
+  (tutto sta nel grafico, ma con le stesse tacche tonde).
+- Il grafico usa **sempre** `domain={[0, top]}` e `ticks={ticks}` (mai l'asse automatico di Recharts: produce «650k», «1,3 Mln»).
+  `allowDataOverflow` solo con `cut`. Con deplezione il minimo è 0 come oggi. Con `null` il grafico resta com'è oggi.
+- **Solo con `cut`**, sotto il grafico e prima della legenda, una riga `text-[11px] text-muted-foreground`: Ventaglio e Proiezione «Il 90° percentile
+  esce dal grafico: a fine orizzonte arriva a {formatCurrencyCompact(p90 dell'ultimo anno)}.»; Ventaglio con percorsi oltre
+  `top` aggiunge «e alcuni percorsi»; Scenari e Coast «Lo scenario Bull esce dal grafico: nel {anno} arriva a {…}.»; Dopo il
+  FIRE come Ventaglio. L'`aria-label` del grafico riceve la stessa frase. Il tooltip mostra sempre i valori veri.
+
+**Etichette dell'asse**, in tutti e cinque i grafici: un formatter unico `formatAxisEuro(value, step)` in
+`lib/utils/fireChartAxis.ts`. Sotto il milione come `formatCurrencyCompact` («750k €»); dal milione «Mln» con i decimali che
+il passo richiede: passo ≥ 1 Mln → 0 decimali («2 Mln €»), passo 0,5 Mln → 1 («1,5 Mln €»), passo 0,25 Mln → 2 («1,25 Mln €»);
+virgola italiana; **spazio non separabile** (`\u00A0`) fra cifra e unità e prima di «€». `YAxis width={76}` in tutti e cinque.
+Recharts va a capo solo sugli spazi normali: con `\u00A0` un'etichetta resta su una riga.
+
+| Grafico | `core` | `outer` |
+|---|---|---|
+| `FireFanChart` (Calcolatore › Ventaglio) | `p50`, `p75`, `fireTarget` | `p90`, i `s{n}` |
+| `FIREProjectionChart` (Calcolatore › Scenari) | `baseNetWorth`, `baseFireNumber` | `bullNetWorth` |
+| `CoastFireProjectionChart` | `basePortfolioValue`, `paceValue`, `fireNumberTarget` | `bullPortfolioValue` |
+| `MonteCarloFanChart` (Dopo il FIRE, Proiezione) | `p50`, `p75`, `reference` | `p90` |
+| `WhatIfProjectionChart` | — (nessuna serie esterna: solo le etichette) | — |
+
+Bear non è mai `outer` né `core`: sta sotto la Base.
 
 ### 5.8 N2 · Tono neutro quando il calendario copre (task RU5)
 
@@ -249,44 +364,67 @@ Regola di prodotto, già decisa il 2026-11-14. Si applica **solo** al caso in cu
 - Con il calendario che **non** copre (`net < 0`) il tono resta come oggi.
 Valori di riferimento in § 10.
 
-### 5.9 N3 · La tabella Strumenti a 1440 (task RU6)
+### 5.9 N3 · La tabella Strumenti (task RU6)
 
-- **Prezzi**: `formatCurrency(x, cur, 4)` diventa «la precisione che serve»: almeno 2 decimali, al più 4
-  (`minimumFractionDigits: 2`, `maximumFractionDigits: 4`): 25 → «25,00 €»; 25,12 → «25,12 €»; 25,1234 → «25,1234 €». Prezzo e PMC
-  nella tabella, e le stesse celle in `AssetRow` (telefono) dalla stessa funzione.
-- **Azioni di riga**: visibili Registra operazione, Modifica ed Elimina (con l'armatura in riga di oggi); Calcola plusvalenze,
-  Movimenti e il collegamento a Previdenza stanno in un menu «⋯» (`dropdown-menu`, voce con testo e tasto freccia, nome
-  accessibile «Altre azioni su {nome}»; 44 px sotto `desktop:`; la riga mobile, `AssetRow`, non cambia).
-- **Cestino grigio a riposo** (`text-muted-foreground`), rosso (`text-destructive`) al passaggio, al fuoco e armato.
-- **Colonna sticky**: la larghezza dell'azione scende da ~6 pulsanti a 4.
-- Obiettivo misurabile: a 1440, con le colonne prezzo accese e tre righe d'esempio, `scrollWidth ≤ clientWidth` del contenitore
-  della tabella e l'ultima colonna interamente visibile; con «Andamento» resta com'è (non scorre già oggi).
+Render: pagina «oggi / proposta» § N3 (tabella e menu aperto).
+
+- **Prezzi**: una funzione nuova `formatPrice(value, currency)` in `lib/utils/formatters.ts` (`minimumFractionDigits: 2`,
+  `maximumFractionDigits: 4`), **non** un cambio di `formatCurrency`, che ha altri chiamanti a 4 decimali fissi (registro
+  operazioni, calcolatore plusvalenze, dividendi: restano come sono). Usata da `StrumentiTile` (Prezzo, PMC in EUR, PMC nella
+  valuta) e da `AssetRow` (le stesse tre). 55000 → «55.000,00 €»; 138,1579 → «138,1579 €»; 25,1 → «25,10 €».
+- **Azioni di riga, quattro posti fissi** nella colonna sticky, da sinistra: (1) Registra operazione, (2) Modifica, (3) «⋯»,
+  (4) Elimina. Un'azione che la riga non ha lascia il suo posto vuoto (un `span` `h-8 w-8` `aria-hidden`), così le icone restano
+  in colonna: il render del prototipo mostra la matita che scivola nelle righe senza «⋯».
+  - (1) solo dove oggi c'è (`showLedgerActions`).
+  - (3) `DropdownMenu` (`components/ui/dropdown-menu.tsx`), trigger `Button ghost h-8 w-8` icona `MoreHorizontal`,
+    `aria-label="Altre azioni su {nome}"`, `align="end"`. Voci, ognuna con la sua icona di oggi: «Calcola plusvalenze»
+    (`withCost`), «Movimenti» (`showLedgerActions`), «Apri in Previdenza» (`type === 'pensionFund'`, `DropdownMenuItem asChild`
+    con `Link`). Senza voci, niente «⋯» (posto vuoto).
+  - (4) il cestino a riposo `text-muted-foreground`; rosso (`text-destructive`) al passaggio e al fuoco (`group` sul pulsante,
+    `group-hover:` / `group-focus-visible:` sull'icona); armato come oggi («Conferma», `variant="destructive"`).
+- **Sotto 1440** (cioè a 1280–1439 con N4): la colonna Nome ha `max-w-[200px]` invece di 260. Misura del 2026-11-20 sui dati del
+  census con la proposta: a 1280 la tabella chiede 1023 px su 982 disponibili; i 60 px del nome la fanno stare.
+- `AssetRow` (telefono) non cambia, salvo `formatPrice`.
+- Obiettivo misurabile, colonne prezzo accese, census: a 1440×900 e a 1280×800 con il mouse, `scrollWidth ≤ clientWidth` del
+  contenitore `.overflow-x-auto` della tabella; con «Andamento» uguale.
 
 ### 5.10 N4 · 1280 servito come desktop (task RU0, PR a sé, per prima)
 
-**Che cosa**: a 1280–1439 con puntatore fine (`pointer: fine`) la pagina è composta come a 1440: sidebar piena, griglia a 12
-colonne, nessuna riga chiusa. Un tablet in orizzontale (1000–1439 senza puntatore fine) **non cambia**: resta la composizione da
-tablet con i bersagli da 44 px. Sopra 1440 nulla cambia (un tablet da 1440+ è già desktop: punto cieco noto).
+**Che cosa**: a 1280–1439 con puntatore fine la pagina è composta come a 1440 (sidebar piena, griglia a 12 colonne, nessuna riga
+chiusa). Un tablet in orizzontale (1000–1439 senza puntatore fine) **non cambia**. Sopra 1440 nulla cambia.
 
-**Perché a sé**: tocca 1296 + 119 classi in 234 file attraverso un'unica definizione, e ogni pagina e `mobile:budget`. Se entra
-nell'ondata, ogni altra misura di RU2–RU6 si fa su due larghezze contemporaneamente.
+**Come (verificato con uno spike il 2026-11-20, render nella pagina «oggi / proposta» § N4)**. In `app/globals.css`:
 
-**Come (da verificare con uno spike prima di scrivere il resto)**: tre meccanismi, in ordine di rischio crescente.
-1. *`@custom-variant desktop`* con una lista di query: `@media (width >= 1440px), ((width >= 1280px) and (pointer: fine))`, e
-   `max-desktop` come `@media not (...)` equivalente. Una sola riga per variante; **da verificare**: l'ordine in cui Tailwind v4
-   emette le varianti personalizzate rispetto a `tablet:` (un `tablet:col-span-2 desktop:col-span-12` deve restare in
-   quest'ordine nel CSS), il comportamento dentro `@container` (`max-desktop:@[880px]:contents`) e il supporto di `not (… or …)` nei
-   browser da servire.
-2. *Variabile di tema a 1280* con una regola di rientro per il tocco: `--breakpoint-desktop: 1280px` e, sotto 1440 con
-   `(pointer: coarse)`, la composizione da tablet via la variante `tablet-landscape`. Meno magia, ma ogni classe `desktop:` del
-   tocco va riscritta.
-3. *Rinunciare* e scrivere che sotto 1440 è tablet (la review lo ammette: «decidere o lasciare e scriverlo»).
+```css
+/* al posto di --breakpoint-desktop: 1440px nel @theme */
+@custom-variant desktop (@media (width >= 1440px) or ((width >= 1280px) and (pointer: fine)));
+@custom-variant max-desktop (@media not ((width >= 1440px) or ((width >= 1280px) and (pointer: fine))));
+@custom-variant tablet-landscape (@media (orientation: landscape) and (width >= 1000px) and (width < 1440px) and (not ((width >= 1280px) and (pointer: fine))));
+```
 
-Le query a mano si portano a **una costante** (`DESKTOP_QUERY` in `lib/hooks/useCompactLayout.ts`: `COMPACT_QUERY` ne è la
-negazione): `PILL_VISIBLE_QUERY`, `components/ui/sidebar.tsx`, `VersamentiTile`, `FlussoTile`, `TabletRail`, `tablet-landscape`.
-Un test (`__tests__/desktopQuery.test.ts`) tiene allineate CSS e costante, come `__tests__/vercelConfig.test.ts` fa per il resto.
-Misure a 1280×800 con il mouse: tutte le pagine (`mobile:census` ha già lo scenario ampio), la sidebar (16rem) lascia 1024 px;
-nessun tile da 2–3 colonne deve tagliare il contenuto (Costi a 2 colonne è il caso peggiore: ~160 px).
+- **Una sola media query con `or`**, mai la lista con la virgola: con la virgola Tailwind v4 spezza la variante in due regole e
+  la seconda perde `@media` (CSS non valido, provato).
+- Le due varianti vanno dichiarate **dopo** `tablet-landscape` e dopo ogni altra variante di larghezza: Tailwind ordina le
+  varianti personalizzate per ordine di dichiarazione, e `desktop:` deve vincere su `tablet:` e su `tablet-landscape:` (nello
+  spike `tablet:col-span-2 desktop:col-span-12` esce nell'ordine giusto; `max-desktop:@[880px]:contents` si compone).
+- `tablet-landscape` **deve** escludere il desktop: senza, a 1280 con il mouse valgono insieme le regole della rotaia e quelle
+  del desktop.
+- La regola a mano `@media (width < 1440px)` (overscroll della fascia, r. ~1647) diventa `@media not (…stessa condizione…)`.
+- Supporto: `or` e `not (…)` nelle media query sono Media Queries 4, come la sintassi a intervalli che l'app usa già.
+- **Il server di sviluppo non ricompila il CSS quando cambia una `@custom-variant`**: va fermato e cancellata la cartella
+  `.next*` (nello spike il CSS è rimasto quello vecchio finché non l'ho fatto).
+
+**Le query in JS** diventano una costante sola in `lib/hooks/useCompactLayout.ts`:
+`DESKTOP_QUERY = '(width >= 1440px) or ((width >= 1280px) and (pointer: fine))'` e `COMPACT_QUERY = 'not all and (' + DESKTOP_QUERY + ')'`.
+Le leggono: `components/ui/sidebar.tsx` (`useMediaQuery('(max-width: 1439px)')` → `COMPACT_QUERY`), `VersamentiTile`
+(`DESKTOP_QUERY` locale → import), `FlussoTile` (`SANKEY_DRAWN_QUERY`: la parte `(min-width: 1440px)` diventa la condizione
+desktop), `lib/constants/navigation.ts` (`PILL_VISIBLE_QUERY` aggiunge `and (not (pointer: fine))`). Commenti che citano 1439/1440
+come soglia (sidebar, PageTabBar, fire-simulations page) si aggiornano.
+Un test `__tests__/desktopQuery.test.ts` legge `app/globals.css` e vuole la stessa condizione di `DESKTOP_QUERY` nelle varianti.
+
+**Misure** a 1280×800 con il mouse e con il tocco (`hasTouch`): ogni pagina; `mobile:census`/`mobile:budget` a 390, 768 e
+1024×768 identici. Con la sidebar piena (256 px) il contenuto ha 1024 px: Strumenti è il caso stretto (§ 5.9); Costi a 2 colonne
+in Panoramica (~150 px) va guardato a occhio.
 
 ## 6. Interfaccia
 
@@ -307,20 +445,22 @@ N4 sposta la soglia solo con il puntatore fine.
 
 ## 7. Piano
 
-Sette task, una PR ciascuna, in quest'ordine (Sonnet 5.5 salvo diversa indicazione sulla card; RU0 e RU2 meritano Opus per
-la parte di layout). Ogni PR corre `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__`,
+Sette task, una PR ciascuna, in quest'ordine. **Sonnet 5.5 basta per tutte**: le classi, le funzioni e i casi di prova sono
+scritti qui; il prototipo che ha prodotto i render è in `/mnt/project-files/riordino-ui/prototipo-ondata-1.patch` (riferimento,
+non da applicare: è precedente ad alcune correzioni di questa revisione) e la pagina «oggi / proposta» è
+https://claude.ai/artifact/M6bf52DueZx6WaL4JYv4PB. Ogni PR corre `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__`,
 `TZ=Europe/Rome npx vitest run` sui file toccati e, per le pagine toccate, i loro `e2e/*.spec.ts` sugli emulatori; sul Mac
 `mobile:census` + `mobile:budget` + `perf:budget` (lezione: misure e voci di budget nella stessa PR).
 
 | Task | Contenuto | Tocca | Dipende da |
 |------|-----------|-------|------------|
-| **RU0** | N4: 1280 desktop (spike, poi `desktop` unico) | `app/globals.css`, `lib/hooks/useCompactLayout.ts`, sidebar, `navigation.ts`, ogni pagina | — (per prima) |
+| **RU0** | N4: 1280 col mouse servito come desktop (§ 5.10, CSS già verificato dallo spike) | `app/globals.css` (tre `@custom-variant` + la `@media (width < 1440px)` a r. ~1647), `lib/hooks/useCompactLayout.ts` (`DESKTOP_QUERY`, `COMPACT_QUERY`), `components/ui/sidebar.tsx`, `VersamentiTile`, `FlussoTile`, la pillola, `__tests__/desktopQuery.test.ts` | — (per prima) |
 | **RU1** | P1–P3 in DESIGN.md, R1 parole, R2 menu | `navigation.ts`, `Sidebar`, `SecondaryMenuDrawer`, `TabletRail`, narrative di Patrimonio/FIRE/Allocazione, titoli | — |
 | **RU2** | R3 Panoramica a due colonne (+ Intestatari chiusa) | `app/dashboard/page.tsx`, `IntestatariTile` | RU1 (parole), RU0 |
-| **RU3** | R5 Tracciamento + schede in ordine + R6 Budget | `ExpenseTrackingTab`, `BudgetTab`, `BudgetImpostazioni`, `TettoTile`, `cashflow/page.tsx` | RU1, RU0 |
-| **RU4** | N1 asse FIRE e etichette | sei grafici, `lib/utils/fireChartAxis.ts` | — |
+| **RU3** | R5 Tracciamento (Movimenti accanto, `scrollBody`) + schede in ordine + R6 Budget (matita, modale con Annulla/Salva, «Imposta il tetto») + ingranaggio per scheda | `ExpenseTrackingTab`, `MovimentiTile`, `BudgetTab`, `BudgetImpostazioni`, `TettoTile`, `budgetNarrative.ts`, `cashflow/page.tsx` | RU1, RU0 |
+| **RU4** | N1 `resolveFireAxis` + `formatAxisEuro` | `lib/utils/fireChartAxis.ts` (nuovo), `FireFanChart`, `FIREProjectionChart`, `CoastFireProjectionChart`, `MonteCarloFanChart`, `WhatIfProjectionChart` | — |
 | **RU5** | N2 tono neutro | `cashflowNarrative.ts`, `overviewNarrative.ts` | — |
-| **RU6** | N3 tabella Strumenti | `StrumentiTile`, `AssetRow`, `formatters` | — |
+| **RU6** | N3 tabella Strumenti (`formatPrice`, quattro posti, menu «⋯») | `StrumentiTile`, `AssetRow`, `lib/utils/formatters.ts` | — |
 
 RU4, RU5 e RU6 sono indipendenti dal resto e fra loro: possono partire in parallelo a RU1–RU3. Dopo l'ondata, **una sola**
 rimisura di `mobile:budget` (prestazioni, proposta 7): ogni PR dichiara la voce toccata, la rimisura finale le chiude.
@@ -338,16 +478,16 @@ Proposte di questa specifica; la colonna «Stato» passa a **Presa** solo dopo l
 
 | ID | Stato | Decisione | Alternative scartate e motivo |
 |----|-------|-----------|-------------------------------|
-| D-RU1 | Proposta | N4 in una PR a sé, **per prima** (RU0), con meccanismo scelto da uno spike (§ 5.10). | Dentro l'ondata: ogni misura su due larghezze insieme, una regressione non si attribuisce. Per ultima: RU2 e RU3 si misurerebbero due volte. |
+| D-RU1 | Proposta | N4 in una PR a sé, **per prima** (RU0), con il meccanismo verificato dallo spike: `desktop` = `(width >= 1440px) or ((width >= 1280px) and (pointer: fine))`, `max-desktop` la sua negazione, `tablet-landscape` escluso a 1280 col mouse (§ 5.10). | Dentro l'ondata: ogni misura su due larghezze insieme, una regressione non si attribuisce. Per ultima: RU2 e RU3 si misurerebbero due volte. Lista di media separata da virgole: Tailwind la spezza e la seconda parte perde `@media` (visto nello spike). |
 | D-RU2 | Proposta | P1–P3 come tre *Named Rules* di DESIGN.md nella prima PR di parole (RU1), prima di spostare qualcosa. | Dopo lo spostamento: il riordino si disfa al prossimo tile aggiunto. Una regola sola: P1/P2/P3 si citano per nome. |
 | D-RU3 | Proposta | R1 completa tranne la riga fissa «Portafoglio X su Y» di Allocazione e FIRE, che va con la striscia di R8 (ondata 2); identificatori e dati salvati invariati. | La riga ora: serve il portafoglio e il patrimonio in un solo hook di Allocazione, oggi non c'è. Parole nuove anche negli id: rompe cache e specifiche. |
 | D-RU4 | Proposta | Menu per oggetto con Traguardi e Hall of Fame ancora dove sono (rotta e scheda in ondata 3); «Impostazioni» visibile in fondo alla Sidebar. | Tutto il menu di R2 subito: serve una rotta nuova e una scheda di Storico, due task. Impostazioni solo nel menu utente: due porte per le regolazioni (P2) ma nascosta. |
-| D-RU5 | Proposta | Panoramica: due colonne con `col-start`/`row-start`, **DOM invariato**, etichette solo a desktop, Intestatari riga chiusa. | Due contenitori di colonna nel DOM: cambia l'ordine delle righe sul telefono (The First-Screen Rule vieta lo swap con `order`). Etichette anche sul telefono: ripete il verdetto e la riga «Il resto della pagina». |
+| D-RU5 | Proposta | Panoramica: due colonne con `col-start`/`row-start` (tabella di § 5.4), **DOM invariato**, etichette solo a desktop, Composizione 3 colonne e Asset principali 4 (mai sotto 4), Intestatari riga chiusa anche a desktop. | Due contenitori di colonna nel DOM: cambia l'ordine delle righe sul telefono (The First-Screen Rule vieta lo swap con `order`). Composizione e Asset a 3 + 4 invertiti o a 3 + 3: nel prototipo i nomi di Asset principali si riducevano a una lettera. Etichette anche sul telefono: ripetono il verdetto. |
 | D-RU6 | Proposta | Tracciamento: Movimenti 7 colonne col Feed (12 con la Tabella), altezza dello stack delle categorie, «Carica altri» com'è. | «Mostra tutti» della review: introduce una seconda paginazione; il resto dell'app ha una sola. Movimenti sempre a 7: la Tabella ha colonne fisse e non ci sta. |
-| D-RU7 | Proposta | Budget: matita sul tile → `ResponsiveModal` con i due blocchi di oggi; l'ingranaggio solo su Tracciamento («Categorie»), le altre tre schede come oggi. | Matita che apre in linea (accordion nel tile): il tile del tetto è la risposta della pagina, non deve crescere. Togliere l'ingranaggio anche da Dividendi/Divisione/Centri: perdono l'unica porta verso Impostazioni finché non hanno il loro punto. |
-| D-RU8 | Proposta | N1: tetto `niceCeil(1,25 × max(Base/mediana, numero FIRE))` quando `T > 2 × R`, nota sotto il grafico, etichette su una riga; anche What If. | Tetto fisso al numero FIRE: nasconde il caso in cui la mediana lo supera. Scala logaritmica: i confronti tra scenari non si leggono. Escludere What If: stesso difetto, stesso asse. |
+| D-RU7 | Proposta | Budget: matita sul tile del tetto → `ResponsiveModal` «Tetto e avvisi» su una bozza locale con Annulla/Salva (non l'autosalvataggio); senza tetto un tile «Imposta il tetto»; l'ingranaggio di testata solo dove ha una scheda giusta: Tracciamento «Categorie» (`?tab=spese`), Dividendi «Impostazioni dei dividendi» (`?tab=dividendi`), nessuno su Budget, Divisione, Centri. | Autosalvataggio dentro il modale: chiudere con Esc salverebbe a metà un tetto digitato. Matita che apre in linea: il tile del tetto è la risposta della pagina, non deve crescere. Ingranaggio verso `?tab=spese` su Divisione e Centri: porta alla scheda sbagliata (P2). |
+| D-RU8 | Proposta | N1: `resolveFireAxis` (§ 5.7): asse sul massimo di `core` su tutto l'orizzonte (mediana/Base, `p75`, numero FIRE), taglio quando `outer` supera 1,5 × il tetto, tacche tonde esplicite sempre, nota solo con il taglio, etichette su una riga con `\u00A0`; What If solo le etichette. | Tetto sulla mediana dell'ultimo anno (versione del 2026-11-19): in decumulo la mediana finale è la più bassa e il grafico taglia la banda 25–75. Asse automatico quando non si taglia: Recharts sceglie «650k», «1,3 Mln». Scala logaritmica: i confronti tra scenari non si leggono. |
 | D-RU9 | Proposta | N2: solo il tono diventa neutro quando il totale con il calendario è ≥ 0; parole invariate; mai `positive`. | Cambiare anche il titolo («in attesa dello stipendio»): inventa una promessa. Tono positivo: ripropone il difetto del 2026-09-14. |
-| D-RU10 | Proposta | N3: prezzi 2–4 decimali; visibili Registra operazione, Modifica, Elimina; menu «⋯» per Plusvalenze, Movimenti, Previdenza; cestino grigio a riposo. | Eliminare dentro il menu: perde l'armatura in riga («Conferma»). Tutte le azioni in un menu: la più frequente (Registra) a due tocchi. |
+| D-RU10 | Proposta | N3: `formatPrice` nuovo (2–4 decimali, solo Prezzo e PMC); quattro posti fissi per riga Registra · Modifica · «⋯» · Elimina (un posto vuoto dove un'azione manca); menu «⋯» con Calcola plusvalenze, Movimenti, Apri in Previdenza; cestino grigio a riposo; nome a `max-w-[200px]` sotto 1440. | Cambiare `formatCurrency`: tocca ogni cifra dell'app. Posti non fissi: nel prototipo la matita cambiava colonna da riga a riga. Eliminare dentro il menu: perde l'armatura in riga. Tutto nel menu: Registra a due tocchi. |
 | D-RU11 | Proposta | Il taglio del verdetto a desktop dietro «Dettagli» non è in questa ondata (§ 9). | Includerlo: `leadLength` è pensato per il telefono (a 0 il titolo da solo), a desktop servirebbe un secondo punto di taglio e una disclosure nuova. |
 | D-RU12 | Proposta | Sette task, una PR ciascuna (§ 7), RU4–RU6 in parallelo al resto. | Una PR sola: ingestibile da rivedere e da misurare sul Mac. |
 
@@ -355,8 +495,6 @@ Proposte di questa specifica; la colonna «Stato» passa a **Presa** solo dopo l
 
 - **Il verdetto della Panoramica a desktop**: «prima frase con al più quattro cifre, il resto dietro Dettagli» (R3). Prima va
   decisa una regola di taglio per desktop (oggi `leadLength` vale solo sotto `desktop:`).
-- **Ingranaggio su Dividendi, Divisione, Centri di Costo**: portano tutti a `settings?tab=spese`, che per loro è la scheda
-  sbagliata. Ognuna avrà la sua matita per P2 quando la sua pagina entra in un'ondata.
 - **Dividendi in Rendimenti** (R2, punto aperto della review): non in questa ondata.
 - **N5–N17** della review desktop: card F15, non qui; N15 (titolo = nome del menu) è inclusa solo per Patrimonio e Analisi spese.
 - **Misura finale del budget mobile**: i valori nuovi vanno scritti in `perf/mobile-budget.json` con la PR; il Mac non è in questo thread.
@@ -365,37 +503,64 @@ Proposte di questa specifica; la colonna «Stato» passa a **Presa** solo dopo l
 
 Valori inventati e tondi (WORKFLOW.md regola 7).
 
-**N1 · `resolveFireAxisCap`**
-1. `R` = Base finale 1.800.000, numero FIRE massimo 1.000.000 → `R` = 1.800.000; `T` (Bull finale) = 9.000.000 > 3.600.000 →
-   tetto = `niceCeil(2.250.000)` = **2.500.000**; la Base occupa il 72% dell'altezza; nota «Bull esce dal grafico: a fine orizzonte arriva a 9,0 Mln €».
-2. `R` = 1.200.000, `T` = 2.000.000 ≤ 2.400.000 → asse automatico, nessuna nota.
-3. `R` = 1.000.000, `T` = 2.100.000 > 2.000.000 → tetto = `niceCeil(1.250.000)` = **2.000.000**.
-4. `R` = 0 o serie vuote → asse automatico (nessun tetto, nessuna divisione per zero).
-5. Su ogni grafico delle schede Calcolatore, Coast, Dopo il FIRE e Proiezione, nessuna etichetta dell'asse ha più di un `tspan`; la
-   prima etichetta non è tagliata (`getBBox().x ≥ 0`).
+**N1 · `resolveFireAxis`** (`__tests__/fireChartAxis.test.ts` + controllo nel browser)
+1. `core` max 1.800.000, `outer` max 9.000.000 → `axisFor(1,8 Mln)`: passo `niceStep(396.000)` = 500.000, `top` = 2.000.000;
+   9.000.000 > 3.000.000 → `cut = true`, `ticks` = [0, 500k, 1 Mln, 1,5 Mln, 2 Mln]; nota «… arriva a 9 Mln €».
+2. `core` 1.200.000, `outer` 2.000.000 → `axisFor(1,2 Mln).top` = 1.500.000; 2.000.000 ≤ 2.250.000 → `cut = false`,
+   asse `axisFor(2 Mln)`: passo 500.000, `top` = 2.500.000; nessuna nota.
+3. Decumulo (Dopo il FIRE): `p50` da 1.000.000 a 200.000, `p75` massimo 1.300.000 al primo anno, `p90` finale 6.000.000 →
+   `C` = 1.300.000 (non il `p50` finale), `top` = 1.500.000, `cut = true`; la banda 25–75 è intera.
+4. `core` vuoto, tutto `null` o tutto ≤ 0 → `null`; nessuna divisione per zero.
+5. `formatAxisEuro(1.500.000, 500.000)` = «1,5\u00A0Mln\u00A0€»; `(2.000.000, 500.000)` = «2\u00A0Mln\u00A0€»;
+   `(1.250.000, 250.000)` = «1,25\u00A0Mln\u00A0€»; `(750.000, 250.000)` = «750k\u00A0€».
+6. Su ogni grafico di Calcolatore (Ventaglio, Scenari), Coast, What If, Dopo il FIRE e Proiezione nessuna etichetta dell'asse ha
+   più di un `tspan`, la prima non è tagliata (`getBBox().x ≥ 0`), e il tooltip su un punto oltre `top` mostra il valore vero.
 
 **N2 · tono**
-6. Tracciamento, 15 del mese, entrate vissute 0, spese vissute 1.500, entrate in calendario 2.800, spese in calendario 400:
+7. Tracciamento, 15 del mese, entrate vissute 0, spese vissute 1.500, entrate in calendario 2.800, spese in calendario 400:
    totale = +900 → tono **neutral**, titolo invariato («… hai speso senza entrate»), sentenza del calendario invariata.
-7. Stesso caso con entrate in calendario 1.000 → totale = −900 → tono **negative** (come oggi).
-8. Panoramica, stessi numeri → tono **neutral**; con 1.000 → **warning**; con tasso vissuto ≥ 0 nulla cambia.
-9. Una vendita tassata (`taxIsTheStory`) non è toccata dalla regola.
+8. Stesso caso con entrate in calendario 1.000 → totale = −900 → tono **negative** (come oggi).
+9. Panoramica, stessi numeri → tono **neutral**; con 1.000 → **warning**; con tasso vissuto ≥ 0 nulla cambia.
+10. Una vendita tassata (`taxIsTheStory`) non è toccata dalla regola.
 
 **N3 · Strumenti**
-10. 25 → «25,00 €»; 25,12 → «25,12 €»; 25,1234 → «25,1234 €»; 25,10 → «25,10 €» (Prezzo e PMC, tabella e `AssetRow`).
-11. A 1440×900, colonne prezzo accese: `scrollWidth ≤ clientWidth`, l'ultima colonna visibile; con «Andamento» uguale a oggi.
-12. Il cestino è `muted-foreground` a riposo e `destructive` armato; «⋯» apre Calcola plusvalenze e Movimenti; Tab entra nel menu e Esc lo chiude con il fuoco sul «⋯».
+11. `formatPrice`: 25 → «25,00 €»; 25,12 → «25,12 €»; 25,1234 → «25,1234 €»; 25,10 → «25,10 €»; 25,123456 → «25,1235 €»
+    (Prezzo e PMC, tabella e `AssetRow`). `formatCurrency` e i suoi test non cambiano.
+12. A 1440×900 e a 1280×800 (mouse), colonne prezzo accese: `scrollWidth ≤ clientWidth` del contenitore della tabella, l'ultima
+    colonna visibile; un nome lungo si tronca con «…» e il `title` lo dice intero.
+13. In ogni riga le quattro azioni hanno la stessa `x` di colonna in colonna (una riga senza «⋯» ha il posto vuoto).
+14. Il cestino è `muted-foreground` a riposo, `destructive` al passaggio, al fuoco e armato; «⋯» apre Calcola plusvalenze e
+    Movimenti (e Apri in Previdenza dove c'è); Tab entra nel menu, Esc lo chiude con il fuoco sul «⋯».
 
-**R3 / R5 / R6**
-13. Panoramica a 1440×900 e 1280×800: l'eyebrow «Spese per categoria» è sopra la piega; le due etichette di colonna ci sono a desktop e non sotto `desktop:`; Intestatari chiusa si apre in linea.
-14. Tracciamento a 1440 con il Feed: il box di Movimenti sta a sinistra di «Spese per categoria» e comincia sotto i 800 px; con «Tabella» occupa tutta la larghezza.
-15. Le schede di Cashflow sono nell'ordine Tracciamento · Budget · Divisione · Centri di Costo · Dividendi (con le opzionali accese); un URL con `?tab=dividends` apre ancora Dividendi.
-16. Budget: la matita apre il modale; cambiare il tetto salva (stesso stato «Salvato»), il fuoco torna alla matita; la riga «Impostazioni» e l'ingranaggio su Budget non ci sono più; l'ingranaggio di Tracciamento dice «Categorie».
+**R3 · Panoramica**
+15. A 1440×900 e 1280×800: l'eyebrow «Spese per categoria» ha `top` < 900 (oggi 934); le due etichette di colonna ci sono a
+    desktop e non sotto `desktop:`; Asset principali non tronca un nome a una lettera; Intestatari chiusa si apre in linea.
+16. Sotto `desktop:` (390, 768, 1024×768) l'ordine delle righe e `mobile:census` sono identici a oggi.
+
+**R5 · Tracciamento**
+17. A 1440 con il Feed: Movimenti sta a sinistra di «Spese per categoria», il suo `top` è < 1000 (oggi 1298), l'altezza ≥ 480,
+    il corpo scorre e la barra degli strumenti resta ferma; con «Tabella» occupa tutta la larghezza; sotto `desktop:` com'è oggi.
+18. Le schede di Cashflow sono nell'ordine Tracciamento · Budget · Divisione · Centri di Costo · Dividendi (con le opzionali
+    accese); un URL con `?tab=dividends` apre ancora Dividendi.
+
+**R6 · Budget**
+19. La matita apre «Tetto e avvisi»; Annulla e Esc non scrivono nulla; Salva scrive tetto e avvisi una volta, il tile mostra il
+    nuovo tetto, il fuoco torna alla matita.
+20. Senza tetto c'è il tile «Imposta il tetto» che apre lo stesso modale; la riga «Impostazioni» in fondo e il pulsante a
+    sliders sul telefono non ci sono più; il piè di Avvisi rimanda alla matita e all'«Email settimanale del budget».
+21. Ingranaggio di testata: Tracciamento «Categorie» → `?tab=spese`; Dividendi «Impostazioni dei dividendi» → `?tab=dividendi`;
+    nessuno su Budget, Divisione, Centri di Costo.
 
 **R1 / R2**
-17. Nessuna occorrenza visibile di «Strumenti e conti», «Il portafoglio vale», «Verdetto del portafoglio»; la regione «Piano» di Bilanciamento è «Ordini»; il tile di Patrimonio è «Guadagno sul costo»; il Calcolatore dice «Verso il FIRE» e Traguardi resta in FIRE.
-18. Il menu a 1440 ha i gruppi di § 5.3 e Impostazioni in fondo; sul telefono la pillola è invariata e «Altro» mostra gli stessi gruppi; `aria-current` e lo stato attivo di «Altro» funzionano per ogni rotta (`secondaryHrefs`).
+22. Nessuna occorrenza visibile di «Strumenti e conti», «Il portafoglio vale», «Verdetto del portafoglio», «asset in portafoglio»
+    nella Panoramica; la regione «Piano» di Bilanciamento è «Ordini»; il tile di Patrimonio è «Guadagno sul costo»; il Calcolatore
+    dice «Verso il FIRE» e Traguardi resta in FIRE.
+23. Il menu a 1440 ha i gruppi di § 5.3 e Impostazioni in fondo; sul telefono la pillola è invariata e «Altro» mostra gli stessi
+    gruppi; `aria-current` e lo stato attivo di «Altro» funzionano per ogni rotta (`secondaryHrefs`).
 
 **N4**
-19. A 1280×800 con il mouse la pagina è composta come a 1440 (sidebar piena, griglia a 12 colonne, nessuna riga chiusa); a 1280×800 con tocco (`hasTouch`) resta la composizione da tablet; a 1440, 1024×768 e 390 nulla cambia (`mobile:census` e `mobile:budget` identici).
-20. Un test tiene allineate CSS e `DESKTOP_QUERY`.
+24. A 1280×800 con il mouse la pagina è composta come a 1440 (sidebar piena, griglia a 12 colonne, nessuna riga chiusa); a
+    1280×800 con tocco (`hasTouch`) resta la composizione da tablet; a 1440, 1024×768 e 390 nulla cambia (`mobile:census` e
+    `mobile:budget` identici).
+25. A 1280×800 col mouse nessuna regola `tablet-landscape:` si applica (niente `TabletRail`, niente palco).
+26. `__tests__/desktopQuery.test.ts` tiene allineati il CSS di `@custom-variant desktop` e `DESKTOP_QUERY`.
