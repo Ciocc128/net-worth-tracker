@@ -56,6 +56,15 @@
    today's behaviour beside the proposal; for motion the sketch moves (a published page with «Riproduci» on both sides,
    readable on a phone). Text alone is not enough to judge the difference. The worked example is
    `doc/animazioni/README.md` and its sketch page.
+9. **Every fix born from a review carries its regression test** (2026-11-16, D-T3). A correction that comes out of
+   a review (calcoli, sicurezza, modello dati, test health, …) lands with a test that fails without it, and the
+   comment above the assertion gives the reference value **worked out by hand**, with the steps, not copied from
+   the code's own output. The figures stay invented and round (rule 7). It is written before the other corrections
+   of the same review start, so each one has a net under it.
+10. **Every impl runs `npm run perf:build` and `npm run perf:budget` before asking for the PR** (2026-11-16, P1). A
+    route that grows past its ceiling is raised in the same commit, with its `raisedBy`, as
+    `doc/guide/velocita.md` § Il ratchet prescribes. The gzip measure is taken on the Mac (see § 3, «Where each
+    check runs»), not in the cloud.
 
 ---
 
@@ -137,6 +146,20 @@ changes from repo to repo and is the only part to rewrite when the tooling chang
 | Lint | `npm run lint` (flat ESLint config, `eslint.config.mjs`) |
 | Build | `npm run build` |
 | Browser tests | `npm run test:e2e` (Playwright; needs Java ≥ 21 and the emulators up) |
+
+**CI** (`.github/workflows/ci.yml`, since 2026-11-16, D-T1): on every pull request to `main` and every push to
+`main` GitHub Actions runs `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__
+--max-warnings 0` and `TZ=Europe/Rome npx vitest run` on Node 24 (about 4 minutes, public repo, no cost). A red CI is
+not merged; a lint warning is red. The e2e is not in CI yet.
+
+### Where each check runs (D-T2)
+
+| Check | Where |
+| --- | --- |
+| `tsc`, lint, Vitest | the cloud thread, and CI on the PR |
+| E2E on the emulators with invented data (`test:e2e`, `e2e:seed*`) | the cloud thread can run it (Java ≥ 21); mind the four base specs that are red only there (CLAUDE.md → Known Issues) |
+| Copy of production data (`mirror:seed`/`mirror:remove`), `perf:build` + `perf:budget`, `mobile:census`/`mobile:budget` | the owner's Mac |
+| Visual and aesthetic judgement | the owner |
 
 npm is the package manager (`package-lock.json`; there is no Makefile, no pnpm/yarn lockfile).
 **Phantom `tsc` errors** clustered in `e2e/` and `lib/utils/expenseImport.ts` after a branch switch

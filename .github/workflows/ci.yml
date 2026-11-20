@@ -1,0 +1,36 @@
+# CI step 1 (F06, D-T1): types, lint and unit tests on every pull request to main.
+# Same commands as WORKFLOW.md § 3. The e2e on the emulators is a later step.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Types
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npx eslint app components lib types e2e scripts __tests__ --max-warnings 0
+      - name: Unit tests
+        run: npx vitest run
+        env:
+          TZ: Europe/Rome
