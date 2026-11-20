@@ -177,6 +177,11 @@ Assistente AI
   `planningNav` solo per una rotta: leggere dalla fonte nuova.
 - «Impostazioni» è una voce in fondo alla Sidebar (la `TabletRail` ce l'ha già), oltre che nel menu utente (D-RU4).
 - Il titolo della pagina Analisi resta quello che è oggi se non coincide: si allinea al menu («Analisi spese», N15).
+- **Indipendente dalla forma del menu.** R2 decide solo gruppi, ordine e nomi in `navGroups`; nessuna classe di layout della
+  Sidebar cambia qui. Giorgio sta valutando un menu desktop orizzontale «a fascicolo» (thread «Progettare la fascia colorata
+  su desktop», 2026-11-20, solo un'idea): se diventa una decisione, legge gli stessi `navGroups` e sostituisce la Sidebar. Cosa
+  ne dipende in questa ondata: N4 (a 1280 «sidebar piena»), le larghezze di R3 e R5 (misurate con la Sidebar da 256 px: senza,
+  le colonne si allargano, le classi restano valide) e i render della pagina «oggi / proposta».
 - Prove: `__tests__/mobileSurfaces.test.ts`, `__tests__/perfRoutes.test.ts` (leggono gli array), `e2e/hall-of-fame.hof.spec.ts`,
   `e2e/motion.layout.spec.ts` (link per nome), `shell.boot*.spec.ts`, la spec tablet (rail).
 
@@ -498,6 +503,8 @@ Proposte di questa specifica; la colonna «Stato» passa a **Presa** solo dopo l
 
 - **Il verdetto della Panoramica a desktop**: «prima frase con al più quattro cifre, il resto dietro Dettagli» (R3). Prima va
   decisa una regola di taglio per desktop (oggi `leadLength` vale solo sotto `desktop:`).
+- **Menu desktop orizzontale «a fascicolo»** (idea di Giorgio, 2026-11-20, altro thread): se diventa decisione, RU1 resta
+  com'è (fonte unica `navGroups`), RU0 va riletto (a 1280 non serve più la sidebar piena) e i render di R3/R5 vanno rifatti.
 - **Dividendi in Rendimenti** (R2, punto aperto della review): non in questa ondata.
 - **N5–N17** della review desktop: card F15, non qui; N15 (titolo = nome del menu) è inclusa solo per Patrimonio e Analisi spese.
 - **Misura finale del budget mobile**: i valori nuovi vanno scritti in `perf/mobile-budget.json` con la PR; il Mac non è in questo thread.
