@@ -10,8 +10,8 @@ Sketch page on the real app (census data, 1440 × 900, CSS and HTML injected int
 themes): <https://claude.ai/artifact/HLaZTQQxj7nk8ukh3ZtbpS>. Files, the injection script (`inject.js`,
 `window.__V = { count: 'B', inner: 'U3' }`) and the runner in the project's `fascia-desktop/`.
 
-> **State**: D-FD1…D-FD6 taken by the owner on 2026-11-20 (two rounds of sketches). D-FD7…D-FD12 are
-> **PROPOSED**, to confirm before any implementation thread starts.
+> **State**: D-FD1…D-FD12 taken by the owner on 2026-11-20 (two rounds of sketches, then one by one; D-FD9
+> changed by the owner: the tablet in landscape too). Ready for the implementation thread.
 
 ## Obiettivo
 
@@ -22,11 +22,12 @@ coloured one.
 ## Perimetro
 
 - **Incluso**: the dashboard shell at `desktop:` (today ≥ 1440; after RU0 also 1280–1439 with a fine pointer,
-  doc/riordino-ui § 5.10): the folder-tab row replaces `AppSidebar`; the band replaces the desktop row of
+  doc/riordino-ui § 5.10) and on the tablet in landscape (`tablet-landscape:`, D-FD9): the folder-tab row replaces
+  `AppSidebar` and `TabletRail`; the band replaces the desktop row of
   `PageHeader`; the page's `PageTabBar` at `desktop:` takes the U3 look. Lime Frost and Graphite in colour, every
   other theme in neutral (D-FD7).
-- **Escluso**: below `desktop:` nothing changes (the phone's band, the bottom pill, «Altro»); the tablet in
-  landscape keeps `TabletRail` (D-FD9); the landing; the groups' content and order, which are the riordino's
+- **Escluso**: the phone and the tablet in portrait change nothing (the phone's band, the bottom pill, «Altro»);
+  the composition of the tablet's page in landscape (stage, closed rows) is unchanged, only its navigation; the landing; the groups' content and order, which are the riordino's
   (R2, task RU1, `navGroups`); Traguardi as its own route and Hall of Fame as a tab of Storico (riordino, wave 3).
 
 ## Casi d'uso
@@ -94,16 +95,15 @@ coloured one.
 | D-FD4 | Presa (owner, 2026-11-20, variant B as sketched) | **The group's pages are the band's title line: the open one in full ink, the others attenuated, each a link** | a second row of tabs in the band; a dropdown on the folder | one line both names the page and moves inside the group |
 | D-FD5 | Presa (owner, 2026-11-20, round 2: «mi piace u3») | **The page's tabs stay under the band (as T1), on a rule in the band's colour that the open tab thickens (U3)** | T1 as today (two tab styles stacked); T2 sheets on the band's edge (the same tab shape twice); T3 pill in the band (fights the main action); U1 a tab-shaped underline only; U2 a tinted tab on a coloured edge | the owner: neither two unrelated styles nor the same tab twice; the rule continues the folder's edge |
 | D-FD6 | Presa (owner, 2026-11-20) | **The band never changes height while scrolling; only its 24px corners flatten** (as D-FA2). Header: ~137px (row 52 + band 85) against ~112 today with the tabs | a band that shrinks to one line after 24px of scroll | one rule with the phone, nothing moves under the reader's cursor; to revisit after the Mac look at 1280 × 800 |
-| D-FD7 | **Proposta** | **Every theme gets the folder row; only Lime Frost and Graphite colour it.** In the other twelve and with «Nessuna» `--top-band` is the ground (today's default): the open tab and the band are the ground, the closed tabs a neutral tint; the shape alone says where you are | the sidebar kept in the other themes (two shells to maintain and test) | one shell, one test matrix; the twelve upstream themes look like a plain tab bar |
-| D-FD8 | **Proposta** | **The person in the band opens the account menu that today closes the sidebar** (name, email, Impostazioni, ThemePicker, Esci with `LogoutDialog`), Impostazioni first. On the phone it stays a link to Impostazioni (D-FA3). This is how Impostazioni stays visible on desktop (riordino D-RU4 wants it at the foot of the Sidebar, which goes) | a gear plus a separate avatar; Impostazioni as a seventh folder | the sidebar's menu needs a home; one person, one menu |
-| D-FD9 | **Proposta** | **The folder row lives where `desktop:` lives** (after RU0: ≥ 1440, or ≥ 1280 with a fine pointer); the tablet in landscape keeps `TabletRail` | the folders on the tablet too | the rail is designed for touch at 1024–1366; five folders at 1280 fit with room |
-| D-FD10 | **Proposta** | **Implement after RU0 and RU1 of the riordino, before RU2 (R3, Panoramica on two columns)**: the row reads `navGroups` (RU1) and R3's columns get measured once, without the sidebar | with wave 1 in one PR (one regression unreadable); after the whole wave (R3 measured twice) | R3's grid classes stay valid, but its render and budget entries were taken with the 256px sidebar |
-| D-FD11 | **Proposta** | **A folder opens on the page of the group the reader last opened in this tab session** (`sessionStorage`), the group's first page otherwise | always the first page | a folder remembers its sheet; Investimenti → Allocazione → Panoramica → Investimenti lands on Allocazione |
-| D-FD12 | **Proposta** | **Amend DESIGN.md**: The Top-Band Rule extends to `desktop:` (the band and the open folder), The Neutral-Frame Rule's sidebar clause becomes the folder row's | a new named rule | same exception, wider |
+| D-FD7 | Presa (owner, 2026-11-20) | **Every theme gets the folder row; only Lime Frost and Graphite colour it.** In the other twelve and with «Nessuna» `--top-band` is the ground (today's default): the open tab and the band are the ground, the closed tabs a neutral tint; the shape alone says where you are | the sidebar kept in the other themes (two shells to maintain and test) | one shell, one test matrix; the twelve upstream themes look like a plain tab bar |
+| D-FD8 | Presa (owner, 2026-11-20) | **The person in the band opens the account menu that today closes the sidebar** (name, email, Impostazioni, ThemePicker, Esci with `LogoutDialog`), Impostazioni first. On the phone it stays a link to Impostazioni (D-FA3). This is how Impostazioni stays visible on desktop (riordino D-RU4 wants it at the foot of the Sidebar, which goes) | a gear plus a separate avatar; Impostazioni as a seventh folder | the sidebar's menu needs a home; one person, one menu |
+| D-FD9 | Presa (owner, 2026-11-20: «no, anche tablet») | **The folder row lives at `desktop:` AND on the tablet in landscape (`tablet-landscape:`), where it replaces `TabletRail`**; the tablet in portrait keeps the phone's band and pill. On touch (the tablet) the folders are 44px high closed and 50px open, so every target is ≥ 44px | the folders at `desktop:` only, the rail kept on the tablet (Claude's proposal) | the owner wants the same navigation on the tablet; five folders + Assistente fit at 1024 (sketch at 1024 × 768 on the page) |
+| D-FD10 | Presa (owner, 2026-11-20) | **Implement after RU0 and RU1 of the riordino, before RU2 (R3, Panoramica on two columns)**: the row reads `navGroups` (RU1) and R3's columns get measured once, without the sidebar | with wave 1 in one PR (one regression unreadable); after the whole wave (R3 measured twice) | R3's grid classes stay valid, but its render and budget entries were taken with the 256px sidebar |
+| D-FD11 | Presa (owner, 2026-11-20) | **A folder opens on the page of the group the reader last opened in this tab session** (`sessionStorage`), the group's first page otherwise | always the first page | a folder remembers its sheet; Investimenti → Allocazione → Panoramica → Investimenti lands on Allocazione |
+| D-FD12 | Presa (owner, 2026-11-20) | **Amend DESIGN.md**: The Top-Band Rule extends to `desktop:` (the band and the open folder), The Neutral-Frame Rule's sidebar clause becomes the folder row's | a new named rule | same exception, wider |
 
 ## Punti aperti
 
-- The confirmation of D-FD7…D-FD12.
 - **The view transitions**: `PageHeader` carries `viewTransitionName: 'page-header'` and the page scene morphs it
   (`lib/utils/viewTransition.ts`); the folder row is shell, outside the page: it must not take part in the scene.
 - **Keyboard and ARIA**: the folder row is a `nav` («Navigazione principale») of links, not a tablist (each folder
@@ -113,7 +113,7 @@ coloured one.
 
 ## Impatto sul codice (per il thread impl)
 
-- `app/dashboard/layout.tsx`: `AppSidebar` hidden at `desktop:`, a new `components/layout/FolderNav.tsx` (the row)
+- `app/dashboard/layout.tsx`: `AppSidebar` hidden at `desktop:`, `TabletRail` removed (its role goes to the row at `tablet-landscape:`), a new `components/layout/FolderNav.tsx` (the row)
   above `<main>`; `SidebarProvider` stays for the phone in landscape (Sheet).
 - `components/layout/PageHeader.tsx`: the desktop row becomes the band (`.top-band` at `desktop:`, without the
   `border-image`), with the group's pages from `navGroups`; the person opens the account menu taken out of
@@ -138,5 +138,8 @@ coloured one.
   `__tests__/topBandTheme.test.ts` to 72% of the ink).
 - Pages with tabs (Cashflow, Allocazione, FIRE, Rendimenti, Impostazioni…): the 2px rule in `--top-band`, the
   open tab's 5px bar on it.
-- Below `desktop:` and on the tablet in landscape: `mobile:census` / `mobile:budget` unchanged.
+- On the phone and the tablet in portrait: `mobile:census` / `mobile:budget` unchanged. On the tablet in landscape the
+  first screen changes (the rail goes, the row and the band come): new baselines in `perf/mobile-budget.json`,
+  measured on the Mac in the implementation PR.
+- On the tablet in landscape every folder ≥ 44 × 44 px (`e2e/tabletLayout.ts`).
 - The twelve upstream themes: the row in neutral, no colour (D-FD7).
