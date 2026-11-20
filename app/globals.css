@@ -1726,6 +1726,57 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   background-color: transparent;
 }
 
+/* The fascicolo (doc/fascia-desktop/README.md, D-FD1…D-FD7): from `desktop:` and on a tablet in landscape the
+ * navigation is a row of folder tabs (`FolderNav`) and the band runs from the open one across the width. The
+ * tokens live on the root, resolved there: the band re-points --background on its own box (`.top-band`), and
+ * these must keep the page's. Neutral by default (every theme but two, and «Nessuna»: the open folder and the
+ * band are the ground, the closed folders a tint of the ink); Lime Frost and Graphite colour them from --top-band. */
+html {
+  --folder-fill: var(--background);
+  --folder-ink: var(--foreground);
+  --folder-rule: var(--border);
+  --folder-bar: var(--foreground);
+  --folder-closed-bg: color-mix(in oklab, var(--foreground) 5%, var(--background));
+  --folder-closed-border: var(--border);
+  --folder-closed-ink: color-mix(in oklab, var(--foreground) 72%, transparent);
+}
+[data-theme="lime-frost"]:not([data-band="nessuna"]),
+[data-theme="graphite"]:not([data-band="nessuna"]) {
+  --folder-fill: var(--top-band);
+  --folder-ink: var(--top-band-foreground);
+  --folder-rule: var(--top-band);
+  --folder-bar: var(--top-band);
+  --folder-closed-bg: color-mix(in oklab, var(--top-band) 20%, var(--background));
+  --folder-closed-border: color-mix(in oklab, var(--top-band) 35%, var(--background));
+}
+/* The open folder joins the band with two inverted corners at its feet (the phone's ears, turned): a 12px
+ * square outside the tab's bottom corners, painted in the folder's fill outside a quarter circle. */
+.folder-tab-open::before,
+.folder-tab-open::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+}
+.folder-tab-open::before {
+  left: -12px;
+  background: radial-gradient(circle at 0 0, transparent 11.5px, var(--folder-fill) 12px);
+}
+.folder-tab-open::after {
+  right: -12px;
+  background: radial-gradient(circle at 100% 0, transparent 11.5px, var(--folder-fill) 12px);
+}
+/* The desktop band is not the phone's top bar: no iOS outset above it (it would paint over the folder row),
+ * and its colour runs past the page's own 1920px width on a wider screen, horizontally only (a shadow is not
+ * scrollable overflow, so `<main>` gets no scrollbar). */
+[data-theme="lime-frost"]:not([data-band="nessuna"]) .top-band.top-band-wide,
+[data-theme="graphite"]:not([data-band="nessuna"]) .top-band.top-band-wide {
+  border-image: none;
+  box-shadow: -100vmax 0 0 0 var(--top-band), 100vmax 0 0 0 var(--top-band);
+}
+
 /* Lime Frost and Graphite only (owner's tour, 2026-09-26; Graphite 2026-11-02): a tile's inner scroll box
  * shows no scrollbar, in light and dark; it still scrolls by wheel and touch. Other themes keep the native bar. */
 [data-theme="lime-frost"] .lime-quiet-scroll,

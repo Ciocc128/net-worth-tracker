@@ -25,6 +25,7 @@
  */
 
 import { test, expect, type Page } from '@playwright/test';
+import { openAccountMenu } from './account';
 import { persistedQueryKeys, readPersistedRecord, readRecording, recordLoad } from './freshnessProbe';
 
 /** `test-user-1`'s uid — the owner segment of every persisted key of the base account. */
@@ -99,8 +100,8 @@ test.describe('the last known figures first', () => {
     // Positive anchor: this account's data IS persisted before the sign-out.
     await waitForPersistedExpenses(page);
 
-    // The sidebar footer's profile menu → «Esci» → the confirm's «Esci».
-    await page.locator('[data-sidebar="footer"] [aria-haspopup="menu"]').click();
+    // The band's account menu → «Esci» → the confirm's «Esci».
+    await openAccountMenu(page);
     await page.getByRole('menuitem', { name: 'Esci' }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Esci' }).click();
     await page.waitForURL(/\/login/);

@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { CircleUserRound } from 'lucide-react';
+import { AccountMenu } from '@/components/layout/AccountMenu';
+import { SceneLink } from '@/components/layout/SceneLink';
+import { navGroups } from '@/lib/constants/navigation';
+import { isNavItemActive } from '@/lib/utils/navUtils';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -120,11 +124,63 @@ function SettingsShortcut() {
   );
 }
 
+/**
+ * The band's title line on `desktop:` (D-FD4): the pages of the open page's group as one line of titles, the
+ * open page in full ink (the page's own `title`, the page's `h1`), the others attenuated, each a link. A page
+ * outside the groups (Impostazioni, the Assistente) shows its title alone. The riordino's groups (`navGroups`)
+ * are the ONE source.
+ */
+function BandTitles({ title, pathname }: { title: React.ReactNode; pathname: string }) {
+  const group = navGroups.find((g) => g.items.some((item) => isNavItemActive(item.href, pathname)));
+  const titleClass = 'text-2xl font-semibold leading-tight tracking-[-0.02em]';
+  if (!group || group.items.length < 2) {
+    return <h1 className={cn(titleClass, 'truncate text-foreground')}>{title}</h1>;
+  }
+  return (
+    <nav aria-label="Pagine del gruppo" className="flex min-w-0 flex-wrap items-baseline gap-x-3.5">
+      {group.items.map((item) =>
+        isNavItemActive(item.href, pathname) ? (
+          <h1 key={item.href} className={cn(titleClass, 'text-foreground')}>{title}</h1>
+        ) : (
+          <SceneLink
+            key={item.href}
+            href={item.href}
+            className={cn(titleClass, 'rounded-sm text-[color-mix(in_oklab,var(--foreground)_72%,transparent)] transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}
+          >
+            {item.name}
+          </SceneLink>
+        ),
+      )}
+    </nav>
+  );
+}
+
+/** The person in the band: the account menu (D-FD8), Impostazioni first; the gear stays the page's own. */
+function BandAccount() {
+  return (
+    <AccountMenu side="bottom" align="end" identity>
+      <button
+        type="button"
+        aria-label="Account e preferenze"
+        data-account-menu=""
+        data-slot="button"
+        data-variant="outline"
+        className={cn(buttonVariants({ variant: 'outline' }), 'size-9 px-0 tablet-landscape:size-11')}
+      >
+        <CircleUserRound className="h-[18px] w-[18px]" aria-hidden="true" />
+      </button>
+    </AccountMenu>
+  );
+}
+
 export function PageHeader({ title, description, actions, freshness, className }: PageHeaderProps) {
   const { text: freshnessSentence, leaving } = useFadingSentence(freshness?.sentence ?? null);
   const fadeClass = cn(FRESHNESS_FADE_CLASS, leaving && 'opacity-0');
   const headerRef = useRef<HTMLDivElement>(null);
   useTopBandProgress(headerRef);
+  const pathname = usePathname() ?? '';
+  // The band of the shell's desktop is the dashboard's; the landing keeps its compact row.
+  const inShell = pathname.startsWith('/dashboard');
 
   return (
     // `page-header`: the page scene morphs this line into the next page's (globals.css → Page scene).
@@ -138,7 +194,14 @@ export function PageHeader({ title, description, actions, freshness, className }
     <div
       ref={headerRef}
       data-page-header=""
-      className={cn('max-desktop:sticky max-desktop:-top-4 max-desktop:z-20 tablet-landscape:static', className)}
+      className={cn(
+        inShell
+          // Sticky on the phone and at `desktop:`; static on a tablet in landscape, where the stage's own sticky
+          // column measures its fold from the page's top (`stageCustomProperties`) and the band scrolls with the page.
+          ? 'sticky -top-4 z-20 desktop:-top-5 tablet-landscape:static'
+          : 'max-desktop:sticky max-desktop:-top-4 max-desktop:z-20 tablet-landscape:static',
+        className,
+      )}
       style={{ viewTransitionName: 'page-header' }}
     >
       {/* Mobile navbar — title + description in one block so the header feels like a unified
@@ -167,6 +230,28 @@ export function PageHeader({ title, description, actions, freshness, className }
         )}
       </div>
 
+      {inShell ? (
+        // The desktop band (doc/fascia-desktop/README.md, D-FD3): full width under the folder row, in the colour
+        // of the open folder, carrying the group's titles, the page's fact and its actions as the phone's does.
+        // `top-band-wide`: no iOS outset, the 24px corners are the phone's (`--band-progress`).
+        <div className="top-band top-band-wide -mx-5 -mt-5 hidden min-h-[85px] items-start justify-between gap-x-6 gap-y-2 bg-background px-7 pt-4 pb-[18px] desktop:flex tablet-landscape:-mx-4 tablet-landscape:-mt-4 tablet-landscape:flex tablet-landscape:px-6">
+          <div className="min-w-0">
+            <BandTitles title={title} pathname={pathname} />
+            <p className="mt-1 min-h-[18px] text-[13.5px] leading-[18px] text-muted-foreground">
+              {description}
+              {freshness && (
+                <span {...FRESHNESS_LIVE_PROPS} className={fadeClass}>
+                  {freshnessSentence ? `${description ? ' · ' : ''}${freshnessSentence}` : ''}
+                </span>
+              )}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {actions}
+            <BandAccount />
+          </div>
+        </div>
+      ) : (
       <div className="hidden desktop:flex tablet-landscape:flex items-center justify-between gap-4 min-h-9">
         <div className="flex items-baseline gap-3 min-w-0">
           <h1 className="text-sm text-muted-foreground truncate">
@@ -181,6 +266,7 @@ export function PageHeader({ title, description, actions, freshness, className }
         </div>
         {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
+      )}
     </div>
   );
 }
@@ -206,8 +292,10 @@ export function PageHeaderSkeleton() {
           <Skeleton className="inline-block h-3 w-52 align-middle" />
         </div>
       </div>
-      <div className="hidden desktop:flex tablet-landscape:flex min-h-9 items-center">
-        <Skeleton className="h-2.5 w-24" />
+      {/* The desktop band's silhouette (D-FD3): the band in its colour, 85px, the title and the fact line. */}
+      <div className="top-band top-band-wide -mx-5 -mt-5 hidden min-h-[85px] flex-col gap-2.5 bg-background px-7 pt-4 pb-[18px] desktop:flex tablet-landscape:-mx-4 tablet-landscape:-mt-4 tablet-landscape:flex tablet-landscape:px-6">
+        <Skeleton className="h-6 w-44" />
+        <Skeleton className="h-[13px] w-56" />
       </div>
     </div>
   );

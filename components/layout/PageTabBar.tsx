@@ -113,13 +113,15 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, re
       </div>
 
       {/* Desktop (`desktop:`: 1440, or 1280 with a mouse) and a tablet in landscape (since 2026-10-16: the width is there, and the
-          centred icon pill read as a phone's on a left-aligned page): underline bar, 13px labels, flush
-          under the compact header — 44px tall on the tablet, a thumb's target. */}
+          centred icon pill read as a phone's on a left-aligned page): the fascicolo's U3 (D-FD5), under the band — a 2px
+          rule in the band's colour that the open tab thickens into a 5px bar with rounded top corners. The rule is an inset
+          shadow, not a border: the bar sits on it inside the box that scrolls, where a border would clip it.
+          14px labels, 44px tall on the tablet, a thumb's target. */}
       <div
         role="tablist"
         aria-label={ariaLabel}
         className={cn(
-          'hidden desktop:flex tablet-landscape:flex border-b border-border overflow-x-auto scrollbar-none',
+          'hidden desktop:flex tablet-landscape:flex overflow-x-auto scrollbar-none shadow-[inset_0_-2px_0_var(--folder-rule)]',
           className,
         )}
       >
@@ -135,17 +137,17 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, re
               aria-label={tabName(label, unsaved)}
               onClick={() => onValueChange(tv)}
               className={cn(
-                'relative flex shrink-0 items-center gap-1.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors whitespace-nowrap tablet-landscape:min-h-11',
-                isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+                'relative flex h-10 shrink-0 items-center gap-1.5 px-3.5 text-sm transition-colors whitespace-nowrap tablet-landscape:min-h-11',
+                isActive ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground hover:text-foreground',
               )}
             >
-              {Icon && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+              {Icon && <Icon className="size-[15px] shrink-0" aria-hidden="true" />}
               {label}
               {unsaved && <UnsavedDot />}
               {isActive && (
                 <motion.div
                   layoutId={`${layoutId}-underline`}
-                  className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground"
+                  className="absolute inset-x-0 bottom-0 h-[5px] rounded-t-[5px] bg-[var(--folder-bar)]"
                   transition={SPRING}
                 />
               )}

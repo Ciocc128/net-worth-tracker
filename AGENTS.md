@@ -731,8 +731,9 @@ file used to carry.
 - **The menu's groups have one source, `navGroups` in `lib/constants/navigation.ts`** (RU1, 2026-11-20: by object — Entrate e spese · Investimenti · Futuro · Storia; Sidebar, drawer and rail read it, `primaryNav` stays the phone pill); three rules name where things live: DESIGN.md → The Home-Page Rule, The Adjust-Where-You-Look Rule, The Frequent-First Rule.
 - **Nav arrays have one source, `lib/constants/navigation.ts`, and a shell route link is a `SceneLink`** (2026-09-12);
   `PageContainer` is the 1920px root of a tile page, its loading state `TileGridSkeleton` with the page's own cells.
-- **A tablet in landscape navigates by `TabletRail`** (56px icons, 2026-10-16, `tablet-landscape:`): the 53px bar with the
-  hamburger stays only on a phone turned sideways.
+- **From `desktop:` and on a tablet in landscape the navigation is `FolderNav`** (the folder row, 2026-11-20, D-FD1/D-FD9; it replaced
+  the sidebar and `TabletRail`): the 53px bar with the hamburger stays only on a phone turned sideways, and `AppSidebar` is its Sheet.
+  The account menu is the person in the band (`AccountMenu`); specs read it through `e2e/account.ts`, no longer `[data-sidebar="footer"]`.
 - Il resto — `PageTabs` panels that name themselves and keep their `div`, the icon rail's 44px geometry, the eyebrow,
   the bottom nav and the FAB, the page scene and `data-vt` scoping, the `PageTabBar` pill at 44×44 — in `doc/guide/shell.md`.
 

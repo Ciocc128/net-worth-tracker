@@ -38,6 +38,7 @@
  * running, but its link to the late sync was NOT isolated — if it comes back, start there.
  */
 
+import { openAccountMenu } from './account';
 import { test, expect, type Page } from '@playwright/test';
 
 const PREFERENCES_DOC =
@@ -248,8 +249,8 @@ test('the light/dark circle covers the whole page: no named region during a them
     };
     requestAnimationFrame(tick);
   });
-  // The picker sits in the profile menu of the sidebar's footer.
-  await page.locator('[data-sidebar="footer"] button').filter({ visible: true }).first().click();
+  // The picker sits in the account menu of the band's person.
+  await openAccountMenu(page);
   const isDark = await page.evaluate(() => document.documentElement.classList.contains('dark'));
   await page.locator(`button[title="${isDark ? 'Chiaro' : 'Scuro'}"]`).filter({ visible: true }).first().click();
   await page.waitForTimeout(1_000);

@@ -59,6 +59,13 @@ const BLOCKS = [
   '.dark[data-theme="graphite"]',
 ];
 
+/**
+ * D-FD4: on the desktop band the other pages of the group are 24px semibold titles at 72% of the ink — WCAG's
+ * large text, floor 3:1 (the dossier asked 4.5:1; white at 72% on Graphite's blue and the Verde/Ghiaccio options
+ * measures 3.7–4.1, so 4.5 would take 85%, which blurs the open title against the others: owner's call).
+ */
+const TITLE_FLOOR = 3;
+
 describe('the top band', () => {
   it.each(BLOCKS)('%s names a band and its ink', (selector) => {
     const tokens = readBlock(selector);
@@ -66,12 +73,20 @@ describe('the top band', () => {
     expect(tokens['top-band-foreground']).toBeDefined();
   });
 
-  it.each(BLOCKS)('%s: the ink and the 88%% line read at 4.5:1 on the band', (selector) => {
+  it.each(BLOCKS)('%s: the ink and its two attenuations read on the band', (selector) => {
     const tokens = readBlock(selector);
     const band = tokens['top-band'];
     const ink = tokens['top-band-foreground'];
     expect(contrast(toLab(ink), toLab(band))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(mix(ink, band, 0.88), toLab(band))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(mix(ink, band, 0.72), toLab(band))).toBeGreaterThanOrEqual(TITLE_FLOOR);
+  });
+
+  // D-FD2: a closed folder is the band's colour at 20% over the ground, its words the foreground at 72%.
+  it.each(BLOCKS)('%s: the closed folder\'s words read at 4.5:1 on its tint', (selector) => {
+    const tokens = readBlock(selector);
+    const tint = mix(tokens['top-band'], tokens['background'], 0.2);
+    expect(contrast(mix(tokens['foreground'], tokens['background'], 0.72), tint)).toBeGreaterThanOrEqual(4.5);
   });
 
   const OPTION_RULES = [...css.matchAll(/^(\S[^{\n]*\[data-band="[a-z]+"\](?::not\(\.dark\))?) \{([^}\n]*)\}$/gm)];
@@ -80,7 +95,7 @@ describe('the top band', () => {
     expect(OPTION_RULES.length).toBe(8);
   });
 
-  it.each(OPTION_RULES.map((match) => [match[1].trim(), match[2]] as const))('%s: ink and 88%% line at 4.5:1', (_selector, body) => {
+  it.each(OPTION_RULES.map((match) => [match[1].trim(), match[2]] as const))('%s: ink and its two attenuations read on the band', (_selector, body) => {
     const read = (name: string) => {
       const found = body.match(new RegExp(`--${name}:\\s*oklch\\(([\\d. ]+)\\)`));
       if (!found) throw new Error(`--${name} missing`);
@@ -90,6 +105,7 @@ describe('the top band', () => {
     const ink = read('top-band-foreground');
     expect(contrast(toLab(ink), toLab(band))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(mix(ink, band, 0.88), toLab(band))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(mix(ink, band, 0.72), toLab(band))).toBeGreaterThanOrEqual(TITLE_FLOOR);
   });
 
   it('the shared default leaves every other theme as it was', () => {

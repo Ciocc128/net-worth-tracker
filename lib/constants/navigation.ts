@@ -26,7 +26,7 @@ export const primaryNav: NavItem[] = [
 ];
 
 // Menu groups by object (RU1, doc/riordino-ui/README.md § 5.3) — THE one source of the groups: Sidebar,
-// SecondaryMenuDrawer, TabletRail and (later) the desktop tabs read it. `null` label = a loose route.
+// SecondaryMenuDrawer and the desktop folder row (FolderNav) read it. `null` label = a loose route.
 // Traguardi and Hall of Fame as a Storico tab are wave 3: Hall of Fame still sits alone under STORIA.
 export type NavGroup = { label: string | null; items: NavItem[] };
 
