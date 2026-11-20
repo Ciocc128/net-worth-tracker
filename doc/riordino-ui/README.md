@@ -176,7 +176,7 @@ Assistente AI
   (Panoramica · Patrimonio · Cashflow · Altro), che non cambia; «Altro» mostra gli stessi gruppi. `pension/page.tsx` usa
   `planningNav` solo per una rotta: leggere dalla fonte nuova.
 - «Impostazioni» a desktop sta nel menu dell'account, aperto dall'icona persona nella fascia (`doc/fascia-desktop/README.md`,
-  D-FD8); sul tablet, dove il fascicolo sostituisce la `TabletRail`, allo stesso modo (D-RU4). Se D-FD8 non passa: voce in fondo alla Sidebar.
+  D-FD8); sul tablet, dove il fascicolo sostituisce la `TabletRail`, allo stesso modo (D-RU4).
 - Il titolo della pagina Analisi resta quello che è oggi se non coincide: si allinea al menu («Analisi spese», N15).
 - **Indipendente dalla forma del menu.** R2 decide solo gruppi, ordine e nomi in `navGroups`; nessuna classe di layout della
   Sidebar cambia qui. Il 2026-11-20 Giorgio ha scelto per il desktop un menu orizzontale a linguette, una per gruppo di R2, con le
@@ -479,7 +479,7 @@ https://claude.ai/artifact/M6bf52DueZx6WaL4JYv4PB. Ogni PR corre `npx tsc --noEm
 | **RU5** | N2 tono neutro | `cashflowNarrative.ts`, `overviewNarrative.ts` | — |
 | **RU6** | N3 tabella Strumenti (`formatPrice`, quattro posti, menu «⋯») | `StrumentiTile`, `AssetRow`, `lib/utils/formatters.ts` | — |
 
-**Con il menu a linguette** (`doc/fascia-desktop/README.md`, D-FD10 proposta) l'ordine diventa RU0 → RU1 → fascicolo → RU2 →
+**Con il menu a linguette** (`doc/fascia-desktop/README.md`, D-FD10, presa) l'ordine è RU0 → RU1 → fascicolo → RU2 →
 RU3, così R3 e R5 si misurano una volta sola senza Sidebar.
 
 RU4, RU5 e RU6 sono indipendenti dal resto e fra loro: possono partire in parallelo a RU1–RU3. Dopo l'ondata, **una sola**
@@ -501,7 +501,7 @@ Proposte di questa specifica; la colonna «Stato» passa a **Presa** solo dopo l
 | D-RU1 | Proposta | N4 in una PR a sé, **per prima** (RU0), con il meccanismo verificato dallo spike: `desktop` = `(width >= 1440px) or ((width >= 1280px) and (pointer: fine))`, `max-desktop` la sua negazione, `tablet-landscape` escluso a 1280 col mouse (§ 5.10). | Dentro l'ondata: ogni misura su due larghezze insieme, una regressione non si attribuisce. Per ultima: RU2 e RU3 si misurerebbero due volte. Lista di media separata da virgole: Tailwind la spezza e la seconda parte perde `@media` (visto nello spike). |
 | D-RU2 | Proposta | P1–P3 come tre *Named Rules* di DESIGN.md nella prima PR di parole (RU1), prima di spostare qualcosa. | Dopo lo spostamento: il riordino si disfa al prossimo tile aggiunto. Una regola sola: P1/P2/P3 si citano per nome. |
 | D-RU3 | Proposta | R1 completa tranne la riga fissa «Portafoglio X su Y» di Allocazione e FIRE, che va con la striscia di R8 (ondata 2); identificatori e dati salvati invariati. | La riga ora: serve il portafoglio e il patrimonio in un solo hook di Allocazione, oggi non c'è. Parole nuove anche negli id: rompe cache e specifiche. |
-| D-RU4 | Proposta | Menu per oggetto con Traguardi e Hall of Fame ancora dove sono (rotta e scheda in ondata 3); «Impostazioni» visibile a desktop nel menu dell'account della fascia (D-FD8; senza fascicolo, in fondo alla Sidebar). | Tutto il menu di R2 subito: serve una rotta nuova e una scheda di Storico, due task. Impostazioni solo nel menu utente: due porte per le regolazioni (P2) ma nascosta. |
+| D-RU4 | Proposta | Menu per oggetto con Traguardi e Hall of Fame ancora dove sono (rotta e scheda in ondata 3); «Impostazioni» visibile a desktop nel menu dell'account della fascia (D-FD8, presa). | Tutto il menu di R2 subito: serve una rotta nuova e una scheda di Storico, due task. Impostazioni solo nel menu utente: due porte per le regolazioni (P2) ma nascosta. |
 | D-RU5 | Proposta | Panoramica: due colonne con `col-start`/`row-start` (tabella di § 5.4), **DOM invariato**, etichette solo a desktop, a destra Entrate sopra e Spese sotto (le Spese, con più righe, prendono le due righe in basso), Composizione 3 colonne e Asset principali 4 (mai sotto 4), Intestatari riga chiusa anche a desktop. | Due contenitori di colonna nel DOM: cambia l'ordine delle righe sul telefono (The First-Screen Rule vieta lo swap con `order`). Composizione e Asset a 3 + 4 invertiti o a 3 + 3: nel prototipo i nomi di Asset principali si riducevano a una lettera. Etichette anche sul telefono: ripetono il verdetto. |
 | D-RU6 | Proposta | Tracciamento: Movimenti 7 colonne col Feed (12 con la Tabella), altezza dello stack delle categorie, «Carica altri» com'è. | «Mostra tutti» della review: introduce una seconda paginazione; il resto dell'app ha una sola. Movimenti sempre a 7: la Tabella ha colonne fisse e non ci sta. |
 | D-RU7 | Proposta | Budget: matita sul tile del tetto → `ResponsiveModal` «Tetto e avvisi» su una bozza locale con Annulla/Salva (non l'autosalvataggio); senza tetto un tile «Imposta il tetto»; l'ingranaggio di testata solo dove ha una scheda giusta: Tracciamento «Categorie» (`?tab=spese`), Dividendi «Impostazioni dei dividendi» (`?tab=dividendi`), nessuno su Budget, Divisione, Centri. | Autosalvataggio dentro il modale: chiudere con Esc salverebbe a metà un tetto digitato. Matita che apre in linea: il tile del tetto è la risposta della pagina, non deve crescere. Ingranaggio verso `?tab=spese` su Divisione e Centri: porta alla scheda sbagliata (P2). |
@@ -516,7 +516,8 @@ Proposte di questa specifica; la colonna «Stato» passa a **Presa** solo dopo l
 - **Il verdetto della Panoramica a desktop**: «prima frase con al più quattro cifre, il resto dietro Dettagli» (R3). Prima va
   decisa una regola di taglio per desktop (oggi `leadLength` vale solo sotto `desktop:`).
 - **Menu desktop a linguette** (scelto il 2026-11-20, `doc/fascia-desktop/README.md`): D-FD8 (Impostazioni nel menu
-  dell'account) e D-FD10 (ordine dei task) sono proposte; finché non sono prese D-RU4 e § 7 hanno le due varianti. I render
+  dell'account) e D-FD10 (ordine dei task) sono prese (commit de1ba52 di quel branch). Da chiarire lì: il tablet in
+  verticale a 768 (proposta: fascia e pillola come il telefono). I render
   di R3/R5 si rifanno senza Sidebar.
 - **Dividendi in Rendimenti** (R2, punto aperto della review): non in questa ondata.
 - **N5–N17** della review desktop: card F15, non qui; N15 (titolo = nome del menu) è inclusa solo per Patrimonio e Analisi spese.
