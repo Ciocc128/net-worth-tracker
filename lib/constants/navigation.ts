@@ -65,4 +65,5 @@ export const secondaryHrefs: string[] = [
  * classes — change one, change the other. Also where a navigation is the soft scene, not a view
  * transition (`useSceneNavigation`).
  */
-export const PILL_VISIBLE_QUERY = '(max-width: 1439px) and (orientation: portrait)';
+export const PILL_VISIBLE_QUERY =
+  '(width < 1440px) and (not ((width >= 1280px) and (pointer: fine))) and (orientation: portrait)';

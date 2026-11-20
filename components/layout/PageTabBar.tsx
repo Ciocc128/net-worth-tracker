@@ -112,7 +112,7 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, re
         })}
       </div>
 
-      {/* Desktop (≥ 1440px) and a tablet in landscape (since 2026-10-16: the width is there, and the
+      {/* Desktop (`desktop:`: 1440, or 1280 with a mouse) and a tablet in landscape (since 2026-10-16: the width is there, and the
           centred icon pill read as a phone's on a left-aligned page): underline bar, 13px labels, flush
           under the compact header — 44px tall on the tablet, a thumb's target. */}
       <div

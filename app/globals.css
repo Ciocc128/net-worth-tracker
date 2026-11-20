@@ -8,7 +8,16 @@
    its composition on its own width instead (`max-desktop:@[880px]:`, lib/utils/tabletComposition.ts).
    A phone turned sideways (~844) stays below it. Declared after the core variants, so it is emitted
    after `max-desktop:landscape:` and wins over it on the same property. */
-@custom-variant tablet-landscape (@media (orientation: landscape) and (width >= 1000px) and (width < 1440px));
+@custom-variant tablet-landscape (@media (orientation: landscape) and (width >= 1000px) and (width < 1440px) and (not ((width >= 1280px) and (pointer: fine))));
+
+/* Desktop (RU0, N4, 2026-11-20): 1440 and up, OR 1280 and up with a fine pointer (a mouse). A touch tablet
+   keeps today's composition up to 1439. ONE media query with `or`, never a comma list: Tailwind v4 splits a
+   comma list in two rules and the second loses its `@media`. Declared after `tablet-landscape` (and after the
+   theme's `tablet`) so `desktop:` wins over both. The same condition is `DESKTOP_QUERY` in
+   lib/hooks/useCompactLayout.ts (held by __tests__/desktopQuery.test.ts). A change to a `@custom-variant`
+   is not picked up by a running dev server: stop it and delete `.next*`. */
+@custom-variant desktop (@media (width >= 1440px) or ((width >= 1280px) and (pointer: fine)));
+@custom-variant max-desktop (@media not ((width >= 1440px) or ((width >= 1280px) and (pointer: fine))));
 
 @theme inline {
   --color-background: var(--background);
@@ -98,8 +107,7 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* Custom breakpoint for desktop (avoid iPad Mini landscape = 1440px) */
-  --breakpoint-desktop: 1440px;
+  /* `desktop:` / `max-desktop:` are custom variants at the top of this file (RU0), not a breakpoint. */
   /* Tablet — iPad portrait and above */
   --breakpoint-tablet: 768px;
 
@@ -1644,7 +1652,7 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
  * the new page is still short, `<main>` has nothing to scroll, and iOS hands the drag to the document, which
  * bounced the whole shell down and showed the ground above the bar until the page filled in. `<main>` keeps
  * its own bounce, and the band's outset above covers that one. Below `desktop:` only. */
-@media (width < 1440px) {
+@media not ((width >= 1440px) or ((width >= 1280px) and (pointer: fine))) {
   [data-theme="lime-frost"]:not([data-band="nessuna"]),
   [data-theme="graphite"]:not([data-band="nessuna"]),
   [data-theme="lime-frost"]:not([data-band="nessuna"]) body,

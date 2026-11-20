@@ -37,6 +37,7 @@ import { NarrativeText } from '@/components/ui/narrative-text';
 import { useAddedRows } from '@/lib/hooks/useAddedRows';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
+import { DESKTOP_QUERY } from '@/lib/hooks/useCompactLayout';
 import { GHOST_BUTTON_CLASS } from '@/components/pension/pensionStyles';
 
 export interface VersamentiTileProps {
@@ -65,8 +66,6 @@ export interface VersamentiTileProps {
 /** Rows shown before «Mostra tutti»: a year of monthly TFR + employer + voluntary is 36, most years are fewer. */
 const VISIBLE_ROWS = 12;
 
-/** The same query as Tailwind's `desktop:` (globals.css `--breakpoint-desktop`), never `lg:`. */
-const DESKTOP_QUERY = '(min-width: 1440px)';
 
 // The head and the cells share the same right padding: a right-aligned «Importo» header without
 // it would end 16px past the amounts under it (border-collapse aligns edges, not text).

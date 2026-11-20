@@ -35,7 +35,7 @@
  *
  * WHY every class carries `max-desktop:`: Tailwind 4 emits container queries AFTER media queries,
  * so `@[880px]:contents` alone would beat `desktop:grid-cols-12` at 1440 (the cascade, not the
- * width, decides). `max-desktop:@[880px]:` is `@media (width < 1440px) { @container … }`.
+ * width, decides). `max-desktop:@[880px]:` is `@media not (desktop) { @container … }` (RU0).
  * `__tests__/tabletComposition.test.ts` holds the rules over the constants and the composed grids;
  * `e2e/*.tablet.spec.ts` the widths.
  *
