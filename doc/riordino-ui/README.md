@@ -176,7 +176,7 @@ Assistente AI
   (Panoramica · Patrimonio · Cashflow · Altro), che non cambia; «Altro» mostra gli stessi gruppi. `pension/page.tsx` usa
   `planningNav` solo per una rotta: leggere dalla fonte nuova.
 - «Impostazioni» a desktop sta nel menu dell'account, aperto dall'icona persona nella fascia (`doc/fascia-desktop/README.md`,
-  D-FD8, proposta); la `TabletRail` la tiene come oggi (D-RU4). Se D-FD8 non passa: voce in fondo alla Sidebar.
+  D-FD8); sul tablet, dove il fascicolo sostituisce la `TabletRail`, allo stesso modo (D-RU4). Se D-FD8 non passa: voce in fondo alla Sidebar.
 - Il titolo della pagina Analisi resta quello che è oggi se non coincide: si allinea al menu («Analisi spese», N15).
 - **Indipendente dalla forma del menu.** R2 decide solo gruppi, ordine e nomi in `navGroups`; nessuna classe di layout della
   Sidebar cambia qui. Il 2026-11-20 Giorgio ha scelto per il desktop un menu orizzontale a linguette, una per gruppo di R2, con le
@@ -401,7 +401,13 @@ Render: pagina «oggi / proposta» § N3 (tabella e menu aperto).
 ### 5.10 N4 · 1280 servito come desktop (task RU0, PR a sé, per prima)
 
 **Che cosa**: a 1280–1439 con puntatore fine la pagina è composta come a 1440 (sidebar piena, griglia a 12 colonne, nessuna riga
-chiusa). Un tablet in orizzontale (1000–1439 senza puntatore fine) **non cambia**. Sopra 1440 nulla cambia.
+chiusa). Un tablet in orizzontale (1000–1439 senza puntatore fine) **non cambia in RU0**. Sopra 1440 nulla cambia.
+
+**Tablet e fascicolo** (Giorgio, 2026-11-20, D-FD9 respinta): la fila di linguette vale anche per il tablet, che perde la
+`TabletRail` quando arriva il fascicolo. Questo è un cambio di **navigazione** e lo porta il task del fascicolo
+(`doc/fascia-desktop/README.md`), non RU0: la *composizione* del tablet (colonne a 768, palco in orizzontale, righe chiuse)
+resta quella di oggi, e N4 non sposta la soglia per il tocco. Da chiarire in quel dossier: se il tablet in verticale (768)
+ha le linguette o tiene la pillola.
 
 **Come (verificato con uno spike il 2026-11-20, render nella pagina «oggi / proposta» § N4)**. In `app/globals.css`:
 
@@ -577,7 +583,7 @@ Valori inventati e tondi (WORKFLOW.md regola 7).
 
 **N4**
 24. A 1280×800 con il mouse la pagina è composta come a 1440 (sidebar piena, o la fila di linguette dopo il fascicolo; griglia a 12 colonne, nessuna riga chiusa); a
-    1280×800 con tocco (`hasTouch`) resta la composizione da tablet; a 1440, 1024×768 e 390 nulla cambia (`mobile:census` e
+    1280×800 con tocco (`hasTouch`) resta la composizione da tablet (con la `TabletRail` fino al fascicolo, poi le linguette); a 1440, 1024×768 e 390 nulla cambia (`mobile:census` e
     `mobile:budget` identici).
 25. A 1280×800 col mouse nessuna regola `tablet-landscape:` si applica (niente `TabletRail`, niente palco).
 26. `__tests__/desktopQuery.test.ts` tiene allineati il CSS di `@custom-variant desktop` e `DESKTOP_QUERY`.
