@@ -195,10 +195,10 @@ Tabella delle classi, caso pieno (spese lette, Costi assente, Traguardo presente
 | etichetta «Come va il mese» (nuova, `h3`) | — | `hidden desktop:block desktop:col-span-5 desktop:col-start-8 desktop:row-start-1` |
 | Patrimonio totale | `col-span-5 row-span-2` | `col-span-7 row-span-2 col-start-1 row-start-2` |
 | Cashflow del mese | `col-span-4` | `col-span-5 col-start-8 row-start-2` |
-| Spese per categoria | `col-span-4` | `col-span-5 col-start-8 row-start-3` |
+| Entrate per categoria | `col-span-4` | `col-span-5 col-start-8 row-start-3` |
 | Composizione | `col-span-3` | `col-span-3 col-start-1 row-start-4` |
 | Asset principali | `col-span-4` (12 senza spese) | `col-span-4 col-start-4 row-start-4` |
-| Entrate per categoria | `col-span-4` | `col-span-5 col-start-8 row-start-4 row-span-2` |
+| Spese per categoria | `col-span-4` | `col-span-5 col-start-8 row-start-4 row-span-2` |
 | Sintesi patrimoniale | `col-span-3` | `col-span-3 col-start-1 row-start-5` |
 | Traguardo (`ObiettivoTile`) | `col-span-2` o `4` | `col-span-4 col-start-4 row-start-5` |
 | Intestatari | `col-span-12` | `col-span-12 col-start-1 row-start-6`, riga chiusa (sotto) |
@@ -211,6 +211,9 @@ Tutte le classi della colonna «Dopo» hanno il prefisso `desktop:`. Varianti:
   Asset, Sintesi restano dove sono.
 - **Asset principali non scende mai sotto 4 colonne**: a 3 i nomi si riducono a una lettera (render del 2026-11-20; lo dice
   già il commento sopra la cella). È la correzione rispetto allo schizzo di Fable (Composizione 4 · Asset 3).
+- **Entrate sopra, Spese sotto** nella colonna destra (Giorgio, 2026-11-20): le spese hanno molte più categorie delle entrate, così
+  il tile lungo (`row-span-2`) è quello delle Spese. Le righe della tabella sono nell'ordine delle righe della griglia; il DOM
+  resta Spese, Entrate. Stesso ordine in Tracciamento (§ 5.5).
 - Il `div` vuoto che oggi chiude la seconda riga (`!costsVisible && !hasGoals`) sparisce.
 - Le etichette usano `TILE_EYEBROW_CLASS` (stessa dimensione degli occhielli) e sono `h3`, nessuna regione nuova.
 
@@ -222,7 +225,7 @@ chiusa è `asides[OVERVIEW_SECTION_IDS.intestatari]` come oggi.
 
 - Il verdetto non cambia in questa ondata (D-RU11).
 - Prove: `e2e/overview.spec.ts` (+ `overviewFixture.ts`): a 1440×900 l'occhiello «Spese per categoria» ha `top` < 900 (oggi
-  934, proposta 556); le due etichette sono visibili a 1440 e nascoste a 1024; Intestatari è chiusa e si apre al clic.
+  934, proposta 808: le Entrate stanno sopra, a 606); le due etichette sono visibili a 1440 e nascoste a 1024; Intestatari è chiusa e si apre al clic.
   `overview.tablet.spec.ts`, `panoramica.snapshot.spec.ts`; `doc/guide/panoramica.md` (grafico delle posizioni).
 
 ### 5.5 R5 · Cashflow › Tracciamento (task RU3)
@@ -237,8 +240,8 @@ e le classi (`desktop:` davanti a ognuna):
 | Andamento del mese | `col-span-7 col-start-6 row-start-1` | — | uguale ai primi due |
 | Risparmio nel tempo | `col-span-7 col-start-6 row-start-2` | `col-span-7 col-start-6 row-start-1 row-span-2` | uguale ai primi due |
 | Movimenti | `col-span-7 col-start-1 row-start-3 row-span-2 relative min-h-[480px]` | uguale | `col-span-12 col-start-1 row-start-3` |
-| Spese per categoria | `col-span-5 col-start-8 row-start-3` | uguale | `col-span-7 col-start-1 row-start-4` |
-| Entrate per categoria | `col-span-5 col-start-8 row-start-4` | uguale | `col-span-5 col-start-8 row-start-4` |
+| Entrate per categoria | `col-span-5 col-start-8 row-start-3` | uguale | `col-span-5 col-start-1 row-start-4` |
+| Spese per categoria | `col-span-5 col-start-8 row-start-4` | uguale | `col-span-7 col-start-6 row-start-4` |
 
 - **Altezza**: decidono le due categorie. Dentro la cella di Movimenti un `div` `desktop:absolute desktop:inset-0` (solo con
   `feedBeside`) contiene il tile, così la lista non allunga la riga; la cella ha `min-h-[480px]`.
@@ -482,7 +485,7 @@ Proposte di questa specifica; la colonna «Stato» passa a **Presa** solo dopo l
 | D-RU2 | Proposta | P1–P3 come tre *Named Rules* di DESIGN.md nella prima PR di parole (RU1), prima di spostare qualcosa. | Dopo lo spostamento: il riordino si disfa al prossimo tile aggiunto. Una regola sola: P1/P2/P3 si citano per nome. |
 | D-RU3 | Proposta | R1 completa tranne la riga fissa «Portafoglio X su Y» di Allocazione e FIRE, che va con la striscia di R8 (ondata 2); identificatori e dati salvati invariati. | La riga ora: serve il portafoglio e il patrimonio in un solo hook di Allocazione, oggi non c'è. Parole nuove anche negli id: rompe cache e specifiche. |
 | D-RU4 | Proposta | Menu per oggetto con Traguardi e Hall of Fame ancora dove sono (rotta e scheda in ondata 3); «Impostazioni» visibile in fondo alla Sidebar. | Tutto il menu di R2 subito: serve una rotta nuova e una scheda di Storico, due task. Impostazioni solo nel menu utente: due porte per le regolazioni (P2) ma nascosta. |
-| D-RU5 | Proposta | Panoramica: due colonne con `col-start`/`row-start` (tabella di § 5.4), **DOM invariato**, etichette solo a desktop, Composizione 3 colonne e Asset principali 4 (mai sotto 4), Intestatari riga chiusa anche a desktop. | Due contenitori di colonna nel DOM: cambia l'ordine delle righe sul telefono (The First-Screen Rule vieta lo swap con `order`). Composizione e Asset a 3 + 4 invertiti o a 3 + 3: nel prototipo i nomi di Asset principali si riducevano a una lettera. Etichette anche sul telefono: ripetono il verdetto. |
+| D-RU5 | Proposta | Panoramica: due colonne con `col-start`/`row-start` (tabella di § 5.4), **DOM invariato**, etichette solo a desktop, a destra Entrate sopra e Spese sotto (le Spese, con più righe, prendono le due righe in basso), Composizione 3 colonne e Asset principali 4 (mai sotto 4), Intestatari riga chiusa anche a desktop. | Due contenitori di colonna nel DOM: cambia l'ordine delle righe sul telefono (The First-Screen Rule vieta lo swap con `order`). Composizione e Asset a 3 + 4 invertiti o a 3 + 3: nel prototipo i nomi di Asset principali si riducevano a una lettera. Etichette anche sul telefono: ripetono il verdetto. |
 | D-RU6 | Proposta | Tracciamento: Movimenti 7 colonne col Feed (12 con la Tabella), altezza dello stack delle categorie, «Carica altri» com'è. | «Mostra tutti» della review: introduce una seconda paginazione; il resto dell'app ha una sola. Movimenti sempre a 7: la Tabella ha colonne fisse e non ci sta. |
 | D-RU7 | Proposta | Budget: matita sul tile del tetto → `ResponsiveModal` «Tetto e avvisi» su una bozza locale con Annulla/Salva (non l'autosalvataggio); senza tetto un tile «Imposta il tetto»; l'ingranaggio di testata solo dove ha una scheda giusta: Tracciamento «Categorie» (`?tab=spese`), Dividendi «Impostazioni dei dividendi» (`?tab=dividendi`), nessuno su Budget, Divisione, Centri. | Autosalvataggio dentro il modale: chiudere con Esc salverebbe a metà un tetto digitato. Matita che apre in linea: il tile del tetto è la risposta della pagina, non deve crescere. Ingranaggio verso `?tab=spese` su Divisione e Centri: porta alla scheda sbagliata (P2). |
 | D-RU8 | Proposta | N1: `resolveFireAxis` (§ 5.7): asse sul massimo di `core` su tutto l'orizzonte (mediana/Base, `p75`, numero FIRE), taglio quando `outer` supera 1,5 × il tetto, tacche tonde esplicite sempre, nota solo con il taglio, etichette su una riga con `\u00A0`; What If solo le etichette. | Tetto sulla mediana dell'ultimo anno (versione del 2026-11-19): in decumulo la mediana finale è la più bassa e il grafico taglia la banda 25–75. Asse automatico quando non si taglia: Recharts sceglie «650k», «1,3 Mln». Scala logaritmica: i confronti tra scenari non si leggono. |
@@ -533,12 +536,12 @@ Valori inventati e tondi (WORKFLOW.md regola 7).
     Movimenti (e Apri in Previdenza dove c'è); Tab entra nel menu, Esc lo chiude con il fuoco sul «⋯».
 
 **R3 · Panoramica**
-15. A 1440×900 e 1280×800: l'eyebrow «Spese per categoria» ha `top` < 900 (oggi 934); le due etichette di colonna ci sono a
+15. A 1440×900 e 1280×800: nella colonna destra «Entrate per categoria» sta sopra «Spese per categoria» e l'eyebrow delle Spese ha `top` < 900 (oggi 934); le due etichette di colonna ci sono a
     desktop e non sotto `desktop:`; Asset principali non tronca un nome a una lettera; Intestatari chiusa si apre in linea.
 16. Sotto `desktop:` (390, 768, 1024×768) l'ordine delle righe e `mobile:census` sono identici a oggi.
 
 **R5 · Tracciamento**
-17. A 1440 con il Feed: Movimenti sta a sinistra di «Spese per categoria», il suo `top` è < 1000 (oggi 1298), l'altezza ≥ 480,
+17. A 1440 con il Feed: Movimenti sta a sinistra delle due categorie, Entrate sopra e Spese sotto, il suo `top` è < 1000 (oggi 1298), l'altezza ≥ 480,
     il corpo scorre e la barra degli strumenti resta ferma; con «Tabella» occupa tutta la larghezza; sotto `desktop:` com'è oggi.
 18. Le schede di Cashflow sono nell'ordine Tracciamento · Budget · Divisione · Centri di Costo · Dividendi (con le opzionali
     accese); un URL con `?tab=dividends` apre ancora Dividendi.
