@@ -168,7 +168,7 @@ test.describe('Allocazione, composta per un telefono', () => {
     const cells = stripOf(page).getByRole('button');
     await expect(cells).toHaveCount(2);
     await expect(cells.nth(0)).toContainText(/^Fuori posizione/);
-    await expect(cells.nth(0)).toHaveAccessibleName(/, apre Piano$/);
+    await expect(cells.nth(0)).toHaveAccessibleName(/, apre Ordini$/);
     await expect(cells.nth(1)).toContainText(/(sopra|sotto)/);
     await expect(cells.nth(1)).toHaveAccessibleName(/, apre Per classe$/);
     for (let i = 0; i < 2; i++) {

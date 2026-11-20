@@ -60,13 +60,13 @@ test.describe('Patrimonio, composed for a phone', () => {
     const cells = stripOf(page).getByRole('button');
     await expect(cells).toHaveCount(2);
     await expect(cells.nth(0)).toContainText(/^G\/P non realizzato[+−]?\d/);
-    await expect(cells.nth(0)).toHaveAccessibleName(/, apre Rendimento$/);
+    await expect(cells.nth(0)).toHaveAccessibleName(/, apre Guadagno sul costo$/);
     await expect(cells.nth(1)).toContainText(/^Liquidità\d+,\d%/);
     await expect(cells.nth(1)).toHaveAccessibleName(/, apre Liquidità$/);
     for (let i = 0; i < 2; i++) expect((await cells.nth(i).boundingBox())!.height, `cell ${i}`).toBeGreaterThanOrEqual(TOUCH_FLOOR);
 
     // THE tile: the hero stays (The Lifted-Figure Rule); the chips, the digest and the curve's last label go.
-    const theTile = page.getByRole('region', { name: 'Patrimonio' });
+    const theTile = page.getByRole('region', { name: 'Patrimonio', exact: true });
     await expect(theTile.getByText(/190\.000,00\s?€/)).toBeVisible();
     await expect(theTile.getByText('questo mese')).toBeHidden();
     await expect(theTile.getByText('da inizio anno')).toBeHidden();
@@ -110,7 +110,7 @@ test.describe('Patrimonio, composed for a phone', () => {
   test('the hero\'s count opens Strumenti, and only then its rows exist', async ({ page }) => {
     await openPatrimonio(page);
     await expect(assetRows(page)).toHaveCount(0);
-    await page.getByRole('region', { name: 'Patrimonio' }).getByRole('button', { name: /\d+ strument[oi]/ }).click();
+    await page.getByRole('region', { name: 'Patrimonio', exact: true }).getByRole('button', { name: /\d+ strument[oi]/ }).click();
     await expect(trigger(page, 'patrimonio-strumenti')).toHaveAttribute('aria-expanded', 'true');
     await expect(trigger(page, 'patrimonio-strumenti')).toBeFocused();
     await expect(assetRows(page).first()).toBeVisible();
@@ -169,7 +169,7 @@ test.describe('Patrimonio, composed for a phone', () => {
     const notice = page.getByText(/Il riepilogo del patrimonio non è stato letto/);
     await expect(notice).toBeVisible({ timeout: 60_000 });
     await expect(stripOf(page)).toHaveCount(0);
-    await expect(page.getByRole('region', { name: 'Patrimonio' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Patrimonio', exact: true })).toHaveCount(0);
     // «Il resto della pagina» is the grid's first child: there is no THE tile above it.
     const firstChild = await page.evaluate(() => {
       const grid = document.querySelector('#patrimonio-movimenti')!.closest('.grid')!;
