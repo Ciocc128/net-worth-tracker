@@ -406,8 +406,8 @@ chiusa). Un tablet in orizzontale (1000–1439 senza puntatore fine) **non cambi
 **Tablet e fascicolo** (Giorgio, 2026-11-20, D-FD9 respinta): la fila di linguette vale anche per il tablet, che perde la
 `TabletRail` quando arriva il fascicolo. Questo è un cambio di **navigazione** e lo porta il task del fascicolo
 (`doc/fascia-desktop/README.md`), non RU0: la *composizione* del tablet (colonne a 768, palco in orizzontale, righe chiuse)
-resta quella di oggi, e N4 non sposta la soglia per il tocco. Da chiarire in quel dossier: se il tablet in verticale (768)
-ha le linguette o tiene la pillola.
+resta quella di oggi, e N4 non sposta la soglia per il tocco. Il tablet in verticale (768) tiene fascia e pillola come il
+telefono (D-FD13): le linguette valgono solo a `desktop:` e `tablet-landscape:`.
 
 **Come (verificato con uno spike il 2026-11-20, render nella pagina «oggi / proposta» § N4)**. In `app/globals.css`:
 
@@ -516,8 +516,8 @@ Proposte di questa specifica; la colonna «Stato» passa a **Presa** solo dopo l
 - **Il verdetto della Panoramica a desktop**: «prima frase con al più quattro cifre, il resto dietro Dettagli» (R3). Prima va
   decisa una regola di taglio per desktop (oggi `leadLength` vale solo sotto `desktop:`).
 - **Menu desktop a linguette** (scelto il 2026-11-20, `doc/fascia-desktop/README.md`): D-FD8 (Impostazioni nel menu
-  dell'account) e D-FD10 (ordine dei task) sono prese (commit de1ba52 di quel branch). Da chiarire lì: il tablet in
-  verticale a 768 (proposta: fascia e pillola come il telefono). I render
+  dell'account) e D-FD10 (ordine dei task) sono prese (commit de1ba52 di quel branch). Il tablet in verticale a 768
+  tiene fascia e pillola (D-FD13). I render
   di R3/R5 si rifanno senza Sidebar.
 - **Dividendi in Rendimenti** (R2, punto aperto della review): non in questa ondata.
 - **N5–N17** della review desktop: card F15, non qui; N15 (titolo = nome del menu) è inclusa solo per Patrimonio e Analisi spese.
