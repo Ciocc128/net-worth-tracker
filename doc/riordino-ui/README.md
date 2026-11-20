@@ -175,14 +175,15 @@ Assistente AI
   `TabletRail` la leggono, e `secondaryHrefs` si ricava da lì. `primaryNav` resta per la pillola del telefono
   (Panoramica · Patrimonio · Cashflow · Altro), che non cambia; «Altro» mostra gli stessi gruppi. `pension/page.tsx` usa
   `planningNav` solo per una rotta: leggere dalla fonte nuova.
-- «Impostazioni» è una voce in fondo alla Sidebar (la `TabletRail` ce l'ha già), oltre che nel menu utente (D-RU4).
+- «Impostazioni» a desktop sta nel menu dell'account, aperto dall'icona persona nella fascia (`doc/fascia-desktop/README.md`,
+  D-FD8, proposta); la `TabletRail` la tiene come oggi (D-RU4). Se D-FD8 non passa: voce in fondo alla Sidebar.
 - Il titolo della pagina Analisi resta quello che è oggi se non coincide: si allinea al menu («Analisi spese», N15).
 - **Indipendente dalla forma del menu.** R2 decide solo gruppi, ordine e nomi in `navGroups`; nessuna classe di layout della
   Sidebar cambia qui. Il 2026-11-20 Giorgio ha scelto per il desktop un menu orizzontale a linguette, una per gruppo di R2, con le
-  schede interne in variante U3 (thread «Progettare la fascia colorata su desktop», dossier in scrittura): legge gli stessi
-  `navGroups` e sostituisce la Sidebar a `desktop:`; questo dossier va riallineato quando quello è sul branch. Cosa
-  ne dipende in questa ondata: N4 (a 1280 «sidebar piena»), le larghezze di R3 e R5 (misurate con la Sidebar da 256 px: senza,
-  le colonne si allargano, le classi restano valide) e i render della pagina «oggi / proposta».
+  schede interne in variante U3 (thread «Progettare la fascia colorata su desktop», `doc/fascia-desktop/README.md` sul branch
+  `claude/project-thread-u0v4nr`): una linguetta per gruppo di `navGroups` così com'è, Panoramica e Assistente voci sciolte;
+  U3 cambia solo l'aspetto della barra delle schede, non ordine né nomi (R5 vale). Le larghezze di R3 e R5 sono misurate con
+  la Sidebar da 256 px: senza, le colonne si allargano e le classi restano valide; R3 si misura dopo il fascicolo (§ 7).
 - Prove: `__tests__/mobileSurfaces.test.ts`, `__tests__/perfRoutes.test.ts` (leggono gli array), `e2e/hall-of-fame.hof.spec.ts`,
   `e2e/motion.layout.spec.ts` (link per nome), `shell.boot*.spec.ts`, la spec tablet (rail).
 
@@ -432,7 +433,8 @@ come soglia (sidebar, PageTabBar, fire-simulations page) si aggiornano.
 Un test `__tests__/desktopQuery.test.ts` legge `app/globals.css` e vuole la stessa condizione di `DESKTOP_QUERY` nelle varianti.
 
 **Misure** a 1280×800 con il mouse e con il tocco (`hasTouch`): ogni pagina; `mobile:census`/`mobile:budget` a 390, 768 e
-1024×768 identici. Con la sidebar piena (256 px) il contenuto ha 1024 px: Strumenti è il caso stretto (§ 5.9); Costi a 2 colonne
+1024×768 identici. Con la sidebar piena (256 px) il contenuto ha 1024 px; con le linguette del fascicolo 1280 px (il
+  meccanismo non cambia, `doc/fascia-desktop/README.md`). Finché c'è la Sidebar: Strumenti è il caso stretto (§ 5.9); Costi a 2 colonne
 in Panoramica (~150 px) va guardato a occhio.
 
 ## 6. Interfaccia
@@ -471,6 +473,9 @@ https://claude.ai/artifact/M6bf52DueZx6WaL4JYv4PB. Ogni PR corre `npx tsc --noEm
 | **RU5** | N2 tono neutro | `cashflowNarrative.ts`, `overviewNarrative.ts` | — |
 | **RU6** | N3 tabella Strumenti (`formatPrice`, quattro posti, menu «⋯») | `StrumentiTile`, `AssetRow`, `lib/utils/formatters.ts` | — |
 
+**Con il menu a linguette** (`doc/fascia-desktop/README.md`, D-FD10 proposta) l'ordine diventa RU0 → RU1 → fascicolo → RU2 →
+RU3, così R3 e R5 si misurano una volta sola senza Sidebar.
+
 RU4, RU5 e RU6 sono indipendenti dal resto e fra loro: possono partire in parallelo a RU1–RU3. Dopo l'ondata, **una sola**
 rimisura di `mobile:budget` (prestazioni, proposta 7): ogni PR dichiara la voce toccata, la rimisura finale le chiude.
 
@@ -490,7 +495,7 @@ Proposte di questa specifica; la colonna «Stato» passa a **Presa** solo dopo l
 | D-RU1 | Proposta | N4 in una PR a sé, **per prima** (RU0), con il meccanismo verificato dallo spike: `desktop` = `(width >= 1440px) or ((width >= 1280px) and (pointer: fine))`, `max-desktop` la sua negazione, `tablet-landscape` escluso a 1280 col mouse (§ 5.10). | Dentro l'ondata: ogni misura su due larghezze insieme, una regressione non si attribuisce. Per ultima: RU2 e RU3 si misurerebbero due volte. Lista di media separata da virgole: Tailwind la spezza e la seconda parte perde `@media` (visto nello spike). |
 | D-RU2 | Proposta | P1–P3 come tre *Named Rules* di DESIGN.md nella prima PR di parole (RU1), prima di spostare qualcosa. | Dopo lo spostamento: il riordino si disfa al prossimo tile aggiunto. Una regola sola: P1/P2/P3 si citano per nome. |
 | D-RU3 | Proposta | R1 completa tranne la riga fissa «Portafoglio X su Y» di Allocazione e FIRE, che va con la striscia di R8 (ondata 2); identificatori e dati salvati invariati. | La riga ora: serve il portafoglio e il patrimonio in un solo hook di Allocazione, oggi non c'è. Parole nuove anche negli id: rompe cache e specifiche. |
-| D-RU4 | Proposta | Menu per oggetto con Traguardi e Hall of Fame ancora dove sono (rotta e scheda in ondata 3); «Impostazioni» visibile in fondo alla Sidebar. | Tutto il menu di R2 subito: serve una rotta nuova e una scheda di Storico, due task. Impostazioni solo nel menu utente: due porte per le regolazioni (P2) ma nascosta. |
+| D-RU4 | Proposta | Menu per oggetto con Traguardi e Hall of Fame ancora dove sono (rotta e scheda in ondata 3); «Impostazioni» visibile a desktop nel menu dell'account della fascia (D-FD8; senza fascicolo, in fondo alla Sidebar). | Tutto il menu di R2 subito: serve una rotta nuova e una scheda di Storico, due task. Impostazioni solo nel menu utente: due porte per le regolazioni (P2) ma nascosta. |
 | D-RU5 | Proposta | Panoramica: due colonne con `col-start`/`row-start` (tabella di § 5.4), **DOM invariato**, etichette solo a desktop, a destra Entrate sopra e Spese sotto (le Spese, con più righe, prendono le due righe in basso), Composizione 3 colonne e Asset principali 4 (mai sotto 4), Intestatari riga chiusa anche a desktop. | Due contenitori di colonna nel DOM: cambia l'ordine delle righe sul telefono (The First-Screen Rule vieta lo swap con `order`). Composizione e Asset a 3 + 4 invertiti o a 3 + 3: nel prototipo i nomi di Asset principali si riducevano a una lettera. Etichette anche sul telefono: ripetono il verdetto. |
 | D-RU6 | Proposta | Tracciamento: Movimenti 7 colonne col Feed (12 con la Tabella), altezza dello stack delle categorie, «Carica altri» com'è. | «Mostra tutti» della review: introduce una seconda paginazione; il resto dell'app ha una sola. Movimenti sempre a 7: la Tabella ha colonne fisse e non ci sta. |
 | D-RU7 | Proposta | Budget: matita sul tile del tetto → `ResponsiveModal` «Tetto e avvisi» su una bozza locale con Annulla/Salva (non l'autosalvataggio); senza tetto un tile «Imposta il tetto»; l'ingranaggio di testata solo dove ha una scheda giusta: Tracciamento «Categorie» (`?tab=spese`), Dividendi «Impostazioni dei dividendi» (`?tab=dividendi`), nessuno su Budget, Divisione, Centri. | Autosalvataggio dentro il modale: chiudere con Esc salverebbe a metà un tetto digitato. Matita che apre in linea: il tile del tetto è la risposta della pagina, non deve crescere. Ingranaggio verso `?tab=spese` su Divisione e Centri: porta alla scheda sbagliata (P2). |
@@ -504,8 +509,9 @@ Proposte di questa specifica; la colonna «Stato» passa a **Presa** solo dopo l
 
 - **Il verdetto della Panoramica a desktop**: «prima frase con al più quattro cifre, il resto dietro Dettagli» (R3). Prima va
   decisa una regola di taglio per desktop (oggi `leadLength` vale solo sotto `desktop:`).
-- **Menu desktop a linguette** (scelto da Giorgio il 2026-11-20, dossier nel thread «Progettare la fascia colorata su desktop»): RU1 resta
-  com'è (fonte unica `navGroups`), RU0 va riletto (a 1280 non serve più la sidebar piena) e i render di R3/R5 vanno rifatti.
+- **Menu desktop a linguette** (scelto il 2026-11-20, `doc/fascia-desktop/README.md`): D-FD8 (Impostazioni nel menu
+  dell'account) e D-FD10 (ordine dei task) sono proposte; finché non sono prese D-RU4 e § 7 hanno le due varianti. I render
+  di R3/R5 si rifanno senza Sidebar.
 - **Dividendi in Rendimenti** (R2, punto aperto della review): non in questa ondata.
 - **N5–N17** della review desktop: card F15, non qui; N15 (titolo = nome del menu) è inclusa solo per Patrimonio e Analisi spese.
 - **Misura finale del budget mobile**: i valori nuovi vanno scritti in `perf/mobile-budget.json` con la PR; il Mac non è in questo thread.
@@ -570,7 +576,7 @@ Valori inventati e tondi (WORKFLOW.md regola 7).
     gruppi; `aria-current` e lo stato attivo di «Altro» funzionano per ogni rotta (`secondaryHrefs`).
 
 **N4**
-24. A 1280×800 con il mouse la pagina è composta come a 1440 (sidebar piena, griglia a 12 colonne, nessuna riga chiusa); a
+24. A 1280×800 con il mouse la pagina è composta come a 1440 (sidebar piena, o la fila di linguette dopo il fascicolo; griglia a 12 colonne, nessuna riga chiusa); a
     1280×800 con tocco (`hasTouch`) resta la composizione da tablet; a 1440, 1024×768 e 390 nulla cambia (`mobile:census` e
     `mobile:budget` identici).
 25. A 1280×800 col mouse nessuna regola `tablet-landscape:` si applica (niente `TabletRail`, niente palco).
