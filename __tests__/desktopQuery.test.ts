@@ -27,6 +27,10 @@ describe('desktop query (RU0, N4)', () => {
     expect(variantCondition('tablet-landscape')).toContain('(not ((width >= 1280px) and (pointer: fine)))');
   });
 
+  it('tablet-landscape is declared AFTER max-desktop, or max-desktop:landscape:flex beats tablet-landscape:hidden', () => {
+    expect(css.indexOf('@custom-variant tablet-landscape')).toBeGreaterThan(css.indexOf('@custom-variant max-desktop'));
+  });
+
   it('no comma list in a desktop variant (Tailwind would split it and drop the second @media)', () => {
     for (const n of ['desktop', 'max-desktop']) expect(variantCondition(n)).not.toContain(',');
   });

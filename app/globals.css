@@ -3,21 +3,21 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* A tablet in landscape (2026-10-16): the SHELL's switch — the icon rail in place of the bar, the
-   one-row page header. A viewport condition because the shell has no container; the CONTENT keys
-   its composition on its own width instead (`max-desktop:@[880px]:`, lib/utils/tabletComposition.ts).
-   A phone turned sideways (~844) stays below it. Declared after the core variants, so it is emitted
-   after `max-desktop:landscape:` and wins over it on the same property. */
-@custom-variant tablet-landscape (@media (orientation: landscape) and (width >= 1000px) and (width < 1440px) and (not ((width >= 1280px) and (pointer: fine))));
-
 /* Desktop (RU0, N4, 2026-11-20): 1440 and up, OR 1280 and up with a fine pointer (a mouse). A touch tablet
    keeps today's composition up to 1439. ONE media query with `or`, never a comma list: Tailwind v4 splits a
-   comma list in two rules and the second loses its `@media`. Declared after `tablet-landscape` (and after the
-   theme's `tablet`) so `desktop:` wins over both. The same condition is `DESKTOP_QUERY` in
+   comma list in two rules and the second loses its `@media`. Declared after the theme's `tablet` so `desktop:` wins over it;
+   `tablet-landscape` excludes the desktop itself, so it needs no order against `desktop:`. The same condition is `DESKTOP_QUERY` in
    lib/hooks/useCompactLayout.ts (held by __tests__/desktopQuery.test.ts). A change to a `@custom-variant`
    is not picked up by a running dev server: stop it and delete `.next*`. */
 @custom-variant desktop (@media (width >= 1440px) or ((width >= 1280px) and (pointer: fine)));
 @custom-variant max-desktop (@media not ((width >= 1440px) or ((width >= 1280px) and (pointer: fine))));
+
+/* A tablet in landscape (2026-10-16): the SHELL's switch — the icon rail in place of the bar, the
+   one-row page header. A viewport condition because the shell has no container; the CONTENT keys
+   its composition on its own width instead (`max-desktop:@[880px]:`, lib/utils/tabletComposition.ts).
+   A phone turned sideways (~844) stays below it. Declared AFTER `desktop` / `max-desktop` (RU0: they are custom variants now, emitted in
+   declaration order), so it is emitted after `max-desktop:landscape:` and wins over it on the same property. */
+@custom-variant tablet-landscape (@media (orientation: landscape) and (width >= 1000px) and (width < 1440px) and (not ((width >= 1280px) and (pointer: fine))));
 
 @theme inline {
   --color-background: var(--background);
