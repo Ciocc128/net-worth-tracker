@@ -728,6 +728,7 @@ file used to carry.
   `useMediaQuery` is `false` on the server and during hydration (`e2e/shell.boot{,.mobile}.spec.ts`).
 - **`PageHeader` mounts its `actions` and its `h1` TWICE** (2026-09-18): take the pressed node from
   `event.currentTarget`, never a ref; in a spec `main h1` needs `.filter({ visible: true })`.
+- **The menu's groups have one source, `navGroups` in `lib/constants/navigation.ts`** (RU1, 2026-11-20: by object — Entrate e spese · Investimenti · Futuro · Storia; Sidebar, drawer and rail read it, `primaryNav` stays the phone pill); three rules name where things live: DESIGN.md → The Home-Page Rule, The Adjust-Where-You-Look Rule, The Frequent-First Rule.
 - **Nav arrays have one source, `lib/constants/navigation.ts`, and a shell route link is a `SceneLink`** (2026-09-12);
   `PageContainer` is the 1920px root of a tile page, its loading state `TileGridSkeleton` with the page's own cells.
 - **A tablet in landscape navigates by `TabletRail`** (56px icons, 2026-10-16, `tablet-landscape:`): the 53px bar with the

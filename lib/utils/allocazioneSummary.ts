@@ -70,7 +70,7 @@ export const BILANCIAMENTO_MISALLOCATION_BLOCK = 'fuori-posizione';
  */
 const ALLOCAZIONE_SECTIONS: readonly SectionSpec[] = [
   { id: ALLOCAZIONE_SECTION_IDS.perClasse, eyebrow: 'Per classe' },
-  { id: ALLOCAZIONE_SECTION_IDS.piano, eyebrow: 'Piano' },
+  { id: ALLOCAZIONE_SECTION_IDS.piano, eyebrow: 'Ordini' },
   { id: ALLOCAZIONE_SECTION_IDS.esposizione, eyebrow: 'Esposizione' },
   { id: ALLOCAZIONE_SECTION_IDS.previdenza, eyebrow: 'Previdenza' },
 ];

@@ -1,5 +1,6 @@
 'use client';
 
+import { Fragment } from 'react';
 import { usePathname } from 'next/navigation';
 import { Menu, Settings } from 'lucide-react';
 import { SceneLink } from '@/components/layout/SceneLink';
@@ -7,9 +8,7 @@ import { useSidebar } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { isNavItemActive } from '@/lib/utils/navUtils';
 import {
-  primaryNav,
-  analysisNav,
-  planningNav,
+  navGroups,
   assistantNavItem,
   type NavItem,
 } from '@/lib/constants/navigation';
@@ -63,18 +62,18 @@ export function TabletRail() {
       data-nav="rail"
       className="hidden w-14 shrink-0 flex-col items-center gap-1 border-r border-sidebar-border bg-sidebar py-3 tablet-landscape:flex"
     >
-      <ul className="flex flex-col items-center gap-1">
-        <RailLinks items={primaryNav} pathname={pathname} />
-      </ul>
-      <div className="my-1.5 w-7 border-t border-sidebar-border" aria-hidden="true" />
-      <ul className="flex flex-col items-center gap-1">
-        <RailLinks items={analysisNav} pathname={pathname} />
-      </ul>
-      <div className="my-1.5 w-7 border-t border-sidebar-border" aria-hidden="true" />
-      <ul className="flex flex-col items-center gap-1">
-        <RailLinks items={planningNav} pathname={pathname} />
-        {showAssistant && <RailLinks items={[assistantNavItem]} pathname={pathname} />}
-      </ul>
+      {navGroups.map((group, index) => {
+        const last = index === navGroups.length - 1;
+        return (
+          <Fragment key={group.label ?? group.items[0].href}>
+            {index > 0 && <div className="my-1.5 w-7 border-t border-sidebar-border" aria-hidden="true" />}
+            <ul className="flex flex-col items-center gap-1">
+              <RailLinks items={group.items} pathname={pathname} />
+              {last && showAssistant && <RailLinks items={[assistantNavItem]} pathname={pathname} />}
+            </ul>
+          </Fragment>
+        );
+      })}
       <ul className="mt-auto flex flex-col items-center gap-1">
         <RailLinks items={[{ name: 'Impostazioni', href: '/dashboard/settings', icon: Settings }]} pathname={pathname} />
         <li>

@@ -1,5 +1,6 @@
 'use client';
 
+import { Fragment } from 'react';
 import { SceneLink } from '@/components/layout/SceneLink';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -38,9 +39,7 @@ import { useLogout } from '@/lib/hooks/useLogout';
 import { isNavItemActive } from '@/lib/utils/navUtils';
 import { getAccountLabel, getDisplayInfo } from '@/lib/utils/userDisplayUtils';
 import {
-  primaryNav,
-  analysisNav,
-  planningNav,
+  navGroups,
   assistantNavItem,
   type NavItem,
 } from '@/lib/constants/navigation';
@@ -156,29 +155,20 @@ export function AppSidebar() {
           or introducing an extra DOM wrapper that would break the flex layout.
         */}
         <SidebarContent role="navigation" aria-label="Navigazione principale">
-          {/* Primary routes — no label, acts as visual anchor */}
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <NavItems items={primaryNav} />
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          {/* Thin rule separates core navigation from analytical/planning sections */}
-          <div className="mx-3 border-t border-sidebar-border" />
-
-          <SidebarGroup>
-            <SidebarGroupLabel className={cn(TILE_EYEBROW_CLASS, 'h-6 text-sidebar-foreground/60')}>Analisi</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <NavItems items={analysisNav} />
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          <SidebarGroup>
-            <SidebarGroupLabel className={cn(TILE_EYEBROW_CLASS, 'h-6 text-sidebar-foreground/60')}>Pianificazione</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <NavItems items={planningNav} />
-            </SidebarGroupContent>
-          </SidebarGroup>
+          {/* Groups by object (navGroups, RU1): a loose route has no label, a group wears the tiles' eyebrow. */}
+          {navGroups.map((group, index) => (
+            <Fragment key={group.label ?? group.items[0].href}>
+              {index === 1 && <div className="mx-3 border-t border-sidebar-border" />}
+              <SidebarGroup>
+                {group.label && (
+                  <SidebarGroupLabel className={cn(TILE_EYEBROW_CLASS, 'h-6 text-sidebar-foreground/60')}>{group.label}</SidebarGroupLabel>
+                )}
+                <SidebarGroupContent>
+                  <NavItems items={group.items} />
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </Fragment>
+          ))}
 
           {/* The assistant is a route like the others: a row after a hairline, no banner. */}
           {showAssistant && (

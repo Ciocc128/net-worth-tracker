@@ -67,6 +67,7 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 ## Key Features (Active)
 One line per area: the question it answers, then where it is described (README.md for what the user sees).
 
+- **Where things live** (RU1, 2026-11-20): the menu's groups are `navGroups` (`lib/constants/navigation.ts`); DESIGN → The Home-Page Rule, The Adjust-Where-You-Look Rule, The Frequent-First Rule (`doc/riordino-ui/README.md` § 5.1).
 - **Shell**: skip link · compact `PageHeader` · `PageTabBar` · `PageContainer` (1920) + `TileGridSkeleton` · sidebar · bottom pill + «Altro» drawer; a tile's eyebrow is an `<h3>`. Since 2026-09-28 the shell is in the prerendered HTML and renders BEFORE Firebase Auth resolves: `ProtectedRoute` wraps only the page inside `<main>`, with the generic skeleton («Verifica dell'accesso») as fallback; the profile waits as two `Skeleton` lines; a stored theme is on `<html>` from a `<head>` script. DESIGN → §5; doc/guide/shell.md (its stub: AGENTS → *Navigation*); doc/guide/stati.md, temi.md.
 - **Shared account · Demo mode**: a second user as full co-owner (viewer `user.uid` ≠ owner `ownerId`); the demo auto-logs in from the landing and `useDemoMode()` gates every mutation. doc/guide/account-condiviso-demo.md.
 - **Landing**: the Panoramica for someone with no data, the app's real tiles on a declared sample profile. doc/guide/landing.md.

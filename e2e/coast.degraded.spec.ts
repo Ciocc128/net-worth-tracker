@@ -21,7 +21,7 @@ test('without a projection the three tiles keep their question and only the Trag
   await expect(verdict.getByRole('heading', { level: 2 })).toHaveText('Coast FIRE non calcolabile.', { timeout: 30_000 });
 
   // The Absence-Has-Three-Names Rule: the eyebrow stays exactly when the tile cannot answer.
-  const traguardo = page.getByRole('region', { name: 'Traguardo Coast FIRE' });
+  const traguardo = page.getByRole('region', { name: 'Verso il FIRE (Coast)' });
   await expect(traguardo).toBeVisible();
   const afflussi = page.getByRole('region', { name: 'Afflussi già considerati' });
   const scenari = page.getByRole('region', { name: 'Scenari Coast FIRE' });

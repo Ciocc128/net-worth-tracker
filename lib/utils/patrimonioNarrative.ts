@@ -173,7 +173,7 @@ interface ResolvedHeadline {
 
 function resolveHeadline(input: PatrimonioVerdictInput): ResolvedHeadline {
   if (!input.monthlyVariation) {
-    return { headline: `Il tuo portafoglio ${withPrepositionA(monthInSentence(input.month))}.`, tone: 'neutral' };
+    return { headline: `Il tuo patrimonio ${withPrepositionA(monthInSentence(input.month))}.`, tone: 'neutral' };
   }
   // Grown only on paper: the tax on a sale took at least half of the growth — the same rule as
   // the Panoramica's (`resolveTaxedGrowth`). It outranks the record: on the real account settembre
@@ -184,12 +184,12 @@ function resolveHeadline(input: PatrimonioVerdictInput): ResolvedHeadline {
     salesTax: input.sales?.estimatedTax ?? null,
   });
   if (taxedGrowth) {
-    return { headline: taxedGrowthHeadline('Il portafoglio', taxedGrowth, input.sales), tone: 'warning' };
+    return { headline: taxedGrowthHeadline('Il patrimonio', taxedGrowth, input.sales), tone: 'warning' };
   }
   // The record is measured on the live total, the monthly change on the month's snapshot: the
   // two can disagree intraday, and the headline must never contradict the sign the sentence prints.
   if (input.isNewATH && input.monthlyVariation.value >= 0) {
-    return { headline: 'Il portafoglio è al massimo storico.', tone: 'positive' };
+    return { headline: 'Il patrimonio è al massimo storico.', tone: 'positive' };
   }
 
   const marketLost = input.marketEffect !== null && input.marketEffect < 0;
@@ -197,8 +197,8 @@ function resolveHeadline(input: PatrimonioVerdictInput): ResolvedHeadline {
   if (input.monthlyVariation.value >= 0) {
     // Grown while the market lost: the user's own flows did it, and the sentence must not
     // credit the market.
-    if (marketLost) return { headline: 'Il portafoglio cresce, nonostante il mercato.', tone: 'positive' };
-    return { headline: 'Il portafoglio cresce.', tone: 'positive' };
+    if (marketLost) return { headline: 'Il patrimonio cresce, nonostante il mercato.', tone: 'positive' };
+    return { headline: 'Il patrimonio cresce.', tone: 'positive' };
   }
 
   // A falling month is blamed on the market only when the market actually lost money — and never
@@ -210,7 +210,7 @@ function resolveHeadline(input: PatrimonioVerdictInput): ResolvedHeadline {
     salesTax: input.sales?.estimatedTax ?? null,
   });
   return {
-    headline: `Il portafoglio è in calo${declineHeadlineTail(cause, input.sales)}`,
+    headline: `Il patrimonio è in calo${declineHeadlineTail(cause, input.sales)}`,
     // The market did not lose: a tax withheld on a gain is worth attention, not alarm.
     tone: cause === 'despite-market' || cause === 'taxes-despite-market' ? 'warning' : 'negative',
   };
@@ -263,7 +263,7 @@ export function formatHoldingCounts(instrumentCount: number, accountCount: numbe
  */
 export function buildPatrimonioVerdict(input: PatrimonioVerdictInput): PatrimonioVerdict {
   const { headline, tone } = resolveHeadline(input);
-  const sentence: Narrative = [prose('Il portafoglio vale '), figure(cachedFormatCurrencyEUR(input.totalValue))];
+  const sentence: Narrative = [prose('Il patrimonio vale '), figure(cachedFormatCurrencyEUR(input.totalValue))];
 
   if (input.monthlyVariation) {
     sentence.push(

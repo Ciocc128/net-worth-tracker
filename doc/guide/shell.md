@@ -53,6 +53,7 @@ rules below name.
   `dvd-`), the memory is per tab, and the page passes `active` so the one `role="alert"` of `PageRest` is remounted
   for the tab that shows (doc/guide/cashflow.md § The tabs load their code on demand). A locator on a Cashflow
   phone spec scopes to the tabpanel by name (`getByRole('tabpanel', { name: 'Budget' })`) or counts only what is visible.
+- **The groups (RU1, 2026-11-20)**: `navGroups` is the one source of the menu's groups and order (Panoramica · Entrate e spese: Cashflow, Analisi spese · Investimenti: Patrimonio, Allocazione, Rendimenti · Futuro: FIRE e Simulazioni, Previdenza · Storia: Storico, Hall of Fame · Assistente AI); `Sidebar`, `SecondaryMenuDrawer`, `TabletRail` and `pension/page.tsx` read it, `secondaryHrefs` derives from it, `primaryNav` stays the pill. Traguardi and Hall of Fame as a Storico tab are wave 3 (`doc/riordino-ui/README.md` § 5.3).
 - **Single source for nav arrays**: `lib/constants/navigation.ts` — Sidebar, BottomNavigation and SecondaryMenuDrawer all
   import from it, never redeclare inline. **A route link in the shell is a `SceneLink`** (`components/layout/SceneLink.tsx`,
   a `next/link` whose plain left click runs the page scene — prefetch, modifier clicks, `target` and the caller's own

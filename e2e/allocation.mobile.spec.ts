@@ -223,7 +223,7 @@ test.describe('Allocazione, composta per un telefono', () => {
     await stripOf(page).getByRole('button', { name: /^Fuori posizione/ }).click();
     await expect(trigger(page, 'alloc-piano')).toHaveAttribute('aria-expanded', 'true');
     await expect(trigger(page, 'alloc-piano')).toBeFocused();
-    await expect(page.getByRole('region', { name: 'Piano' })).toContainText(/Ribilancia|Versa|Preleva|in linea/);
+    await expect(page.getByRole('region', { name: 'Ordini' })).toContainText(/Ribilancia|Versa|Preleva|in linea/);
   });
 
   test('a riga chiusa nessuna richiesta parte verso i profili; aprirla la fa partire', async ({ page }) => {
@@ -326,7 +326,7 @@ test.describe('Allocazione, composta per un telefono', () => {
       );
 
     const phone = await readOrder();
-    expect(phone.map((s) => s.name).slice(0, 5)).toEqual(["Bilanciamento dell'allocazione", 'Allocazione per classe', 'Piano', 'Esposizione del portafoglio', 'Previdenza complementare']);
+    expect(phone.map((s) => s.name).slice(0, 5)).toEqual(["Bilanciamento dell'allocazione", 'Allocazione per classe', 'Ordini', 'Esposizione del portafoglio', 'Previdenza complementare']);
     expect(isSorted(phone.map((s) => s.top)), JSON.stringify(phone)).toBe(true);
     expect(await orderClasses()).toEqual([]);
 

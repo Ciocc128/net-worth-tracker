@@ -30,7 +30,7 @@ const STORAGE_KEY = 'mobile-sections:assets';
 const ROW_IDS = ['patrimonio-movimenti', 'patrimonio-liquidita', 'patrimonio-classi', 'patrimonio-rendimento', 'patrimonio-strumenti'] as const;
 const TOP_MOVER = { topInstrumentMovers: [{ id: 'fenicottero', name: 'Fenicottero ETF', delta: 1500 }] };
 
-const verdictOf = (page: Page) => page.getByRole('region', { name: 'Verdetto del portafoglio' });
+const verdictOf = (page: Page) => page.getByRole('region', { name: 'Verdetto del patrimonio' });
 const stripOf = (page: Page) => page.getByRole('list', { name: 'Le cifre del verdetto' });
 const trigger = (page: Page, id: string) => page.locator(`#${id}-trigger`);
 const panel = (page: Page, id: string) => page.locator(`#${id}-panel`);
@@ -51,7 +51,7 @@ test.describe('Patrimonio, composed for a phone', () => {
     await openPatrimonio(page);
 
     const verdict = verdictOf(page);
-    await expect(verdict.getByText(/Il portafoglio vale/)).toBeVisible();
+    await expect(verdict.getByText(/Il patrimonio vale/)).toBeVisible();
     await expect(verdict.getByText(/Da inizio anno/)).toBeHidden();
     await expect(verdict.getByText(/Sul mercato ha spinto/)).toBeHidden();
     await expect(perche(page)).toHaveAttribute('aria-expanded', 'false');
@@ -97,7 +97,7 @@ test.describe('Patrimonio, composed for a phone', () => {
     await expect(verdict.getByText(/Sul mercato ha spinto soprattutto Fenicottero ETF \(\+1500\s?€\)\./)).toBeVisible();
   });
 
-  test('the G/P cell opens Rendimento, whose KPI is lifted and whose percentage stays', async ({ page }) => {
+  test('the G/P cell opens Guadagno sul costo, whose KPI is lifted and whose percentage stays', async ({ page }) => {
     await openPatrimonio(page);
     await stripOf(page).getByRole('button', { name: /^G\/P non realizzato/ }).click();
     await expect(trigger(page, 'patrimonio-rendimento')).toHaveAttribute('aria-expanded', 'true');
@@ -137,7 +137,7 @@ test.describe('Patrimonio, composed for a phone', () => {
         .filter((el) => el.checkVisibility())
         .map((el) => ({ name: el.getAttribute('aria-label'), top: Math.round(el.getBoundingClientRect().top) })),
     );
-    expect(order.map((s) => s.name)).toEqual(['Patrimonio', 'Movimenti del mese', 'Liquidità', 'Classi', 'Rendimento', 'Strumenti']);
+    expect(order.map((s) => s.name)).toEqual(['Patrimonio', 'Movimenti del mese', 'Liquidità', 'Classi', 'Guadagno sul costo', 'Strumenti']);
     expect(order.every((s, i) => i === 0 || s.top >= order[i - 1].top - 1), JSON.stringify(order)).toBe(true);
     expect(
       await page.evaluate(() => [...document.querySelector('main')!.querySelectorAll('*')].flatMap((el) => [...el.classList]).filter((name) => /^(?:[a-z-]+:)*order-/.test(name))),

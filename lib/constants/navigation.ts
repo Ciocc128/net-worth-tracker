@@ -25,24 +25,53 @@ export const primaryNav: NavItem[] = [
   { name: 'Cashflow',   href: '/dashboard/cashflow', icon: ArrowRightLeft  },
 ];
 
-// Analysis routes — Sidebar "Analisi" group and SecondaryMenuDrawer.
-export const analysisNav: NavItem[] = [
-  { name: 'Analisi',      href: '/dashboard/analisi',      icon: BarChart3     },
-  { name: 'Rendimenti',   href: '/dashboard/performance',  icon: TrendingUp    },
-  { name: 'Storico',      href: '/dashboard/history',      icon: CalendarRange },
-  { name: 'Hall of Fame', href: '/dashboard/hall-of-fame', icon: Trophy        },
+// Menu groups by object (RU1, doc/riordino-ui/README.md § 5.3) — THE one source of the groups: Sidebar,
+// SecondaryMenuDrawer, TabletRail and (later) the desktop tabs read it. `null` label = a loose route.
+// Traguardi and Hall of Fame as a Storico tab are wave 3: Hall of Fame still sits alone under STORIA.
+export type NavGroup = { label: string | null; items: NavItem[] };
+
+const panoramica = primaryNav[0];
+const patrimonio = primaryNav[1];
+const cashflow = primaryNav[2];
+
+export const navGroups: NavGroup[] = [
+  { label: null, items: [panoramica] },
+  {
+    label: 'Entrate e spese',
+    items: [
+      cashflow,
+      { name: 'Analisi spese', href: '/dashboard/analisi', icon: BarChart3 },
+    ],
+  },
+  {
+    label: 'Investimenti',
+    items: [
+      patrimonio,
+      // Allocazione is a rebalancing tool (action chips), not a read-only stat view.
+      { name: 'Allocazione', href: '/dashboard/allocation', icon: PieChart },
+      { name: 'Rendimenti', href: '/dashboard/performance', icon: TrendingUp },
+    ],
+  },
+  {
+    label: 'Futuro',
+    items: [
+      { name: 'FIRE e Simulazioni', href: '/dashboard/fire-simulations', icon: Flame },
+      { name: 'Previdenza', href: '/dashboard/pension', icon: PiggyBank },
+    ],
+  },
+  {
+    label: 'Storia',
+    items: [
+      { name: 'Storico', href: '/dashboard/history', icon: CalendarRange },
+      { name: 'Hall of Fame', href: '/dashboard/hall-of-fame', icon: Trophy },
+    ],
+  },
 ];
 
-// Planning routes — Sidebar "Pianificazione" group and SecondaryMenuDrawer.
-// Allocazione is here (not Analisi) because it has action chips — it's a rebalancing
-// tool, not a read-only stat view.
-export const planningNav: NavItem[] = [
-  { name: 'Allocazione',        href: '/dashboard/allocation',       icon: PieChart  },
-  { name: 'FIRE e Simulazioni', href: '/dashboard/fire-simulations', icon: Flame     },
-  { name: 'Previdenza',         href: '/dashboard/pension',          icon: PiggyBank },
-];
+/** The routes of every group (the assistant and Impostazioni aside). */
+export const groupedNav: NavItem[] = navGroups.flatMap((g) => g.items);
 
-// The AI assistant — a plain route after the planning group in Sidebar and
+// The AI assistant — a plain route after the groups in Sidebar and
 // SecondaryMenuDrawer (no banner: the chrome stays achromatic). Gated at render by
 // NEXT_PUBLIC_ASSISTANT_AI_ENABLED, which is why it is not part of a group array.
 export const assistantNavItem: NavItem = {
@@ -53,8 +82,7 @@ export const assistantNavItem: NavItem = {
 
 // All secondary hrefs — used by BottomNavigation to determine "Altro" active state.
 export const secondaryHrefs: string[] = [
-  ...analysisNav.map((i) => i.href),
-  ...planningNav.map((i) => i.href),
+  ...groupedNav.map((i) => i.href).filter((href) => !primaryNav.some((p) => p.href === href)),
   assistantNavItem.href,
   '/dashboard/settings',
 ];

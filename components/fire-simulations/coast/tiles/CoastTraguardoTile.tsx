@@ -52,10 +52,10 @@ export function CoastTraguardoTile({ reading, target, caption, chart, footer, st
 
   return (
     <Tile
-      eyebrow="Traguardo"
+      eyebrow="Verso il FIRE"
       aside={`scenario base · reale ${target.realReturnRate.toLocaleString('it-IT', { maximumFractionDigits: 2 })}%`}
       reading={reading}
-      ariaLabel="Traguardo Coast FIRE"
+      ariaLabel="Verso il FIRE (Coast)"
       className={className}
     >
       <p className={cn(TILE_SUB_EYEBROW_CLASS, 'mt-3.5')}>

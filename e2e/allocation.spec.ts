@@ -138,7 +138,7 @@ function euro(text: string): number {
 test('il Ribilancia nomina gli strumenti, e le gambe tornano a sommare la mossa di classe', async ({ page }) => {
   await openAllocazione(page);
 
-  const piano = page.locator('section[aria-label="Piano"]');
+  const piano = page.locator('section[aria-label="Ordini"]');
   const operations = piano.getByRole('list', { name: 'Operazioni del ribilanciamento' });
   await expect(operations).toBeVisible();
 

@@ -56,13 +56,13 @@ const AUGUST: PatrimonioVerdictInput = {
 describe('buildPatrimonioVerdict — headline and tone', () => {
   it('should call a growing portfolio growing', () => {
     const verdict = buildPatrimonioVerdict(AUGUST);
-    expect(verdict.headline).toBe('Il portafoglio cresce.');
+    expect(verdict.headline).toBe('Il patrimonio cresce.');
     expect(verdict.tone).toBe('positive');
   });
 
   it('should name the record when the month is a new all-time high', () => {
     const verdict = buildPatrimonioVerdict({ ...AUGUST, isNewATH: true });
-    expect(verdict.headline).toBe('Il portafoglio è al massimo storico.');
+    expect(verdict.headline).toBe('Il patrimonio è al massimo storico.');
     expect(verdict.tone).toBe('positive');
   });
 
@@ -70,35 +70,35 @@ describe('buildPatrimonioVerdict — headline and tone', () => {
     // isNewATH is measured on the live total, the monthly variation on the month's snapshot: the two
     // can disagree intraday, and the headline must follow the sign the sentence prints.
     const verdict = buildPatrimonioVerdict({ ...AUGUST, isNewATH: true, monthlyVariation: { value: -2000, percentage: -0.5 }, marketEffect: -1500 });
-    expect(verdict.headline).toBe('Il portafoglio è in calo: il mercato ha pesato.');
+    expect(verdict.headline).toBe('Il patrimonio è in calo: il mercato ha pesato.');
     expect(verdict.tone).toBe('negative');
   });
 
   it('should credit the flows, not the market, when the portfolio grew while the market lost', () => {
     const verdict = buildPatrimonioVerdict({ ...AUGUST, marketEffect: -900, topMover: { id: 'x', name: 'X', delta: -900 } });
-    expect(verdict.headline).toBe('Il portafoglio cresce, nonostante il mercato.');
+    expect(verdict.headline).toBe('Il patrimonio cresce, nonostante il mercato.');
     expect(verdict.tone).toBe('positive');
   });
 
   it('should blame the market only when the market actually lost money', () => {
     const down = { ...AUGUST, monthlyVariation: { value: -2100, percentage: -0.5 } };
     expect(buildPatrimonioVerdict({ ...down, marketEffect: -1500 })).toMatchObject({
-      headline: 'Il portafoglio è in calo: il mercato ha pesato.',
+      headline: 'Il patrimonio è in calo: il mercato ha pesato.',
       tone: 'negative',
     });
     expect(buildPatrimonioVerdict({ ...down, marketEffect: 900 })).toMatchObject({
-      headline: 'Il portafoglio è in calo, nonostante il mercato.',
+      headline: 'Il patrimonio è in calo, nonostante il mercato.',
       tone: 'warning',
     });
     expect(buildPatrimonioVerdict({ ...down, marketEffect: null, topMover: null })).toMatchObject({
-      headline: 'Il portafoglio è in calo.',
+      headline: 'Il patrimonio è in calo.',
       tone: 'negative',
     });
   });
 
   it('should stay neutral when there is no prior snapshot to compare against', () => {
     const verdict = buildPatrimonioVerdict({ ...AUGUST, monthlyVariation: null, marketEffect: null, topMover: null });
-    expect(verdict.headline).toBe('Il tuo portafoglio ad agosto.');
+    expect(verdict.headline).toBe('Il tuo patrimonio ad agosto.');
     expect(verdict.tone).toBe('neutral');
   });
 });
@@ -106,7 +106,7 @@ describe('buildPatrimonioVerdict — headline and tone', () => {
 describe('buildPatrimonioVerdict — sentence', () => {
   it('should state value, monthly change, the counts and the instrument that drove the month', () => {
     expect(plain(buildPatrimonioVerdict(AUGUST).sentence)).toBe(
-      'Il portafoglio vale 412.425,85 €: +3214 € (+0,79%) su luglio, 16 strumenti e 3 conti. ' +
+      'Il patrimonio vale 412.425,85 €: +3214 € (+0,79%) su luglio, 16 strumenti e 3 conti. ' +
         'Sul mercato ha spinto soprattutto Vanguard FTSE All-World (+2140 €). ' +
         'Di quel movimento: +2000 € dal mercato e +1214 € tra risparmio e altre variazioni.',
     );
@@ -135,7 +135,7 @@ describe('buildPatrimonioVerdict — sentence', () => {
         brokenLedgers: 0,
       },
     });
-    expect(verdict.headline).toBe('Il portafoglio è in calo: il mercato ha pesato, le tasse sulle vendite di più.');
+    expect(verdict.headline).toBe('Il patrimonio è in calo: il mercato ha pesato, le tasse sulle vendite di più.');
     expect(plain(verdict.sentence)).toContain(
       'Hai venduto Vanguard FTSE All-World per 39.052 € con una plusvalenza di 15.726 € e pagato circa 4089 € di tasse: ' +
         'senza, il mese avrebbe fatto −849 € (−1079 € dal mercato e +230 € tra risparmio e altre variazioni).',
@@ -162,7 +162,7 @@ describe('buildPatrimonioVerdict — sentence', () => {
         purchases: { amount: 34305.1, instrumentCount: 6 },
       },
     });
-    expect(verdict.headline).toBe('Il portafoglio è in pari: le tasse sulla vendita di VWCE si sono prese la crescita.');
+    expect(verdict.headline).toBe('Il patrimonio è in pari: le tasse sulla vendita di VWCE si sono prese la crescita.');
     expect(verdict.tone).toBe('warning');
     expect(plain(verdict.sentence)).toContain(
       'senza, il mese avrebbe fatto +4213 € (+2018 € dal mercato e +2095 € risparmiati). ' +
@@ -178,20 +178,20 @@ describe('buildPatrimonioVerdict — sentence', () => {
       topMover: { id: 'btc', name: 'Bitcoin', delta: -1800 },
     }).sentence;
     expect(plain(sentence)).toBe(
-      'Il portafoglio vale 412.425,85 €: −2100 € (−0,50%) su luglio, 16 strumenti e 3 conti. Sul mercato ha pesato soprattutto Bitcoin (−1800 €). ' +
+      'Il patrimonio vale 412.425,85 €: −2100 € (−0,50%) su luglio, 16 strumenti e 3 conti. Sul mercato ha pesato soprattutto Bitcoin (−1800 €). ' +
         'Di quel movimento: −1500 € dal mercato e −600 € tra risparmio e altre variazioni.',
     );
   });
 
   it('should drop the monthly clause and the driver when there is nothing to compare against', () => {
     const sentence = buildPatrimonioVerdict({ ...AUGUST, monthlyVariation: null, marketEffect: null, topMover: null }).sentence;
-    expect(plain(sentence)).toBe('Il portafoglio vale 412.425,85 €, 16 strumenti e 3 conti.');
+    expect(plain(sentence)).toBe('Il patrimonio vale 412.425,85 €, 16 strumenti e 3 conti.');
   });
 
   it('should never name a driver when the market effect could not be measured', () => {
     // A top mover without an attributable market effect is a payload inconsistency: stay silent.
     const sentence = buildPatrimonioVerdict({ ...AUGUST, marketEffect: null }).sentence;
-    expect(plain(sentence)).toBe('Il portafoglio vale 412.425,85 €: +3214 € (+0,79%) su luglio, 16 strumenti e 3 conti.');
+    expect(plain(sentence)).toBe('Il patrimonio vale 412.425,85 €: +3214 € (+0,79%) su luglio, 16 strumenti e 3 conti.');
   });
 
   it('should use the singular for one instrument or one account and omit a zero count', () => {
@@ -202,7 +202,7 @@ describe('buildPatrimonioVerdict — sentence', () => {
     const onlyAccounts = buildPatrimonioVerdict({ ...AUGUST, instrumentCount: 0, accountCount: 2, marketEffect: null, topMover: null });
     expect(plain(onlyAccounts.sentence)).toContain(', 2 conti.');
     const empty = buildPatrimonioVerdict({ ...AUGUST, instrumentCount: 0, accountCount: 0, monthlyVariation: null, marketEffect: null, topMover: null });
-    expect(plain(empty.sentence)).toBe('Il portafoglio vale 412.425,85 €.');
+    expect(plain(empty.sentence)).toBe('Il patrimonio vale 412.425,85 €.');
   });
 
   it('should roll the previous month back to December in January', () => {
@@ -403,7 +403,7 @@ describe('buildPatrimonioVerdict — the phone composition', () => {
   it('should close the lead on the first sentence — the total, the month and the counts', () => {
     const verdict = buildPatrimonioVerdict({ ...AUGUST, yearlyVariation: YEAR });
     const split = splitVerdict(verdict);
-    expect(plain(split.lead)).toBe('Il portafoglio vale 412.425,85 €: +3214 € (+0,79%) su luglio, 16 strumenti e 3 conti.');
+    expect(plain(split.lead)).toBe('Il patrimonio vale 412.425,85 €: +3214 € (+0,79%) su luglio, 16 strumenti e 3 conti.');
     expect(plain(split.rest)).toBe(
       ' Da inizio anno +4,10% (+4500 €). Sul mercato ha spinto soprattutto Vanguard FTSE All-World (+2140 €). ' +
         'Di quel movimento: +2000 € dal mercato e +1214 € tra risparmio e altre variazioni.',
