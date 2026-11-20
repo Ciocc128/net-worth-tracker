@@ -10,7 +10,7 @@ Sketch page on the real app (census data, 1440 × 900, CSS and HTML injected int
 themes): <https://claude.ai/artifact/HLaZTQQxj7nk8ukh3ZtbpS>. Files, the injection script (`inject.js`,
 `window.__V = { count: 'B', inner: 'U3' }`) and the runner in the project's `fascia-desktop/`.
 
-> **State**: D-FD1…D-FD5 taken by the owner on 2026-11-20 (two rounds of sketches). D-FD6…D-FD12 are
+> **State**: D-FD1…D-FD6 taken by the owner on 2026-11-20 (two rounds of sketches). D-FD7…D-FD12 are
 > **PROPOSED**, to confirm before any implementation thread starts.
 
 ## Obiettivo
@@ -93,7 +93,7 @@ coloured one.
 | D-FD3 | Presa (owner, 2026-11-20) | **The band is full width and carries the title, the page's fact and the actions, as on the phone** | a band that stops under the title; a thin rule | the owner: «può prendere data e pulsanti come sul telefono» |
 | D-FD4 | Presa (owner, 2026-11-20, variant B as sketched) | **The group's pages are the band's title line: the open one in full ink, the others attenuated, each a link** | a second row of tabs in the band; a dropdown on the folder | one line both names the page and moves inside the group |
 | D-FD5 | Presa (owner, 2026-11-20, round 2: «mi piace u3») | **The page's tabs stay under the band (as T1), on a rule in the band's colour that the open tab thickens (U3)** | T1 as today (two tab styles stacked); T2 sheets on the band's edge (the same tab shape twice); T3 pill in the band (fights the main action); U1 a tab-shaped underline only; U2 a tinted tab on a coloured edge | the owner: neither two unrelated styles nor the same tab twice; the rule continues the folder's edge |
-| D-FD6 | **Proposta** | **The band never changes height while scrolling; only its 24px corners flatten** (as D-FA2). Header: ~137px (row 52 + band 85) against ~112 today with the tabs | a band that shrinks to one line after 24px of scroll | one rule with the phone, nothing moves under the reader's cursor; to revisit after the Mac look at 1280 × 800 |
+| D-FD6 | Presa (owner, 2026-11-20) | **The band never changes height while scrolling; only its 24px corners flatten** (as D-FA2). Header: ~137px (row 52 + band 85) against ~112 today with the tabs | a band that shrinks to one line after 24px of scroll | one rule with the phone, nothing moves under the reader's cursor; to revisit after the Mac look at 1280 × 800 |
 | D-FD7 | **Proposta** | **Every theme gets the folder row; only Lime Frost and Graphite colour it.** In the other twelve and with «Nessuna» `--top-band` is the ground (today's default): the open tab and the band are the ground, the closed tabs a neutral tint; the shape alone says where you are | the sidebar kept in the other themes (two shells to maintain and test) | one shell, one test matrix; the twelve upstream themes look like a plain tab bar |
 | D-FD8 | **Proposta** | **The person in the band opens the account menu that today closes the sidebar** (name, email, Impostazioni, ThemePicker, Esci with `LogoutDialog`), Impostazioni first. On the phone it stays a link to Impostazioni (D-FA3). This is how Impostazioni stays visible on desktop (riordino D-RU4 wants it at the foot of the Sidebar, which goes) | a gear plus a separate avatar; Impostazioni as a seventh folder | the sidebar's menu needs a home; one person, one menu |
 | D-FD9 | **Proposta** | **The folder row lives where `desktop:` lives** (after RU0: ≥ 1440, or ≥ 1280 with a fine pointer); the tablet in landscape keeps `TabletRail` | the folders on the tablet too | the rail is designed for touch at 1024–1366; five folders at 1280 fit with room |
@@ -103,7 +103,7 @@ coloured one.
 
 ## Punti aperti
 
-- The confirmation of D-FD6…D-FD12.
+- The confirmation of D-FD7…D-FD12.
 - **The view transitions**: `PageHeader` carries `viewTransitionName: 'page-header'` and the page scene morphs it
   (`lib/utils/viewTransition.ts`); the folder row is shell, outside the page: it must not take part in the scene.
 - **Keyboard and ARIA**: the folder row is a `nav` («Navigazione principale») of links, not a tablist (each folder
