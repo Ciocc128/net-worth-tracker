@@ -12,7 +12,7 @@
 > **Stato al 2026-11-21 (main `456db1b`)**: in main RU0 (N4, PR #194), RU1 (P1–P3, parole, `navGroups`, PR #195), il fascicolo
 > (PR #196, poi la seconda versione #197–#199, `doc/fascia-desktop/README.md`) e RU2 (Panoramica a due colonne, PR #200).
 > Restano RU3 (R5 + R6), RU4 (N1), RU5 (N2) e RU6 (N3). § 5.7 (N1) e § 5.9 (N3) sono riletti contro main il 2026-11-21
-> (§ 1.2): D-RU13 e D-RU14 aggiornano la specifica al fascicolo.
+> (§ 1.2): D-RU13 e D-RU14, prese da Giorgio il 2026-11-21, aggiornano la specifica al fascicolo.
 
 ## 1. In breve
 
@@ -534,8 +534,8 @@ Prese da Giorgio il 2026-11-20 («Ok vai parti»), nella versione riallineata al
 | D-RU10 | **Presa** | N3: `formatPrice` nuovo (2–4 decimali, solo Prezzo e PMC); quattro posti fissi per riga Registra · Modifica · «⋯» · Elimina (un posto vuoto dove un'azione manca); menu «⋯» con Calcola plusvalenze, Movimenti, Apri in Previdenza; cestino grigio a riposo; nome a `max-w-[200px]` sotto 1440. | Cambiare `formatCurrency`: tocca ogni cifra dell'app. Posti non fissi: nel prototipo la matita cambiava colonna da riga a riga. Eliminare dentro il menu: perde l'armatura in riga. Tutto nel menu: Registra a due tocchi. |
 | D-RU11 | **Presa** | Il taglio del verdetto a desktop dietro «Dettagli» non è in questa ondata (§ 9). | Includerlo: `leadLength` è pensato per il telefono (a 0 il titolo da solo), a desktop servirebbe un secondo punto di taglio e una disclosure nuova. |
 | D-RU12 | **Presa** | Sette task, una PR ciascuna (§ 7), RU4–RU6 in parallelo al resto. | Una PR sola: ingestibile da rivedere e da misurare sul Mac. |
-| D-RU13 | Proposta (2026-11-21) | N1: in `MonteCarloFanChart` la soglia a valore fisso (`referenceLine.value`, la cifra scritta a mano in Proiezione) è `core` come la serie `reference`: si vede sempre intera. | Lasciarla fuori: una soglia sopra la mediana uscirebbe dal grafico, ed è la cifra che la persona ha scritto per confrontarla. Renderla `outer`: la nota direbbe «la soglia esce», ma la soglia è la domanda, non un estremo. |
-| D-RU14 | Proposta (2026-11-21) | N3: il Nome resta a 260 px a ogni larghezza; il `max-w-[200px]` sotto 1440 di D-RU10 si applica solo se la misura a 1280×800 col mouse, con il fascicolo, trova ancora la tabella che scorre. | Tenere 200 px comunque: nasceva dalla Sidebar da 256 px, che da `band:` non c'è più; taglierebbe nomi che ora stanno. Togliere anche il rimedio: se la stima di ~1180 px è sbagliata la tabella torna a scorrere. |
+| D-RU13 | **Presa** (2026-11-21) | N1: in `MonteCarloFanChart` la soglia a valore fisso (`referenceLine.value`, la cifra scritta a mano in Proiezione) è `core` come la serie `reference`: si vede sempre intera. | Lasciarla fuori: una soglia sopra la mediana uscirebbe dal grafico, ed è la cifra che la persona ha scritto per confrontarla. Renderla `outer`: la nota direbbe «la soglia esce», ma la soglia è la domanda, non un estremo. |
+| D-RU14 | **Presa** (2026-11-21) | N3: il Nome resta a 260 px a ogni larghezza; il `max-w-[200px]` sotto 1440 di D-RU10 si applica solo se la misura a 1280×800 col mouse, con il fascicolo, trova ancora la tabella che scorre. | Tenere 200 px comunque: nasceva dalla Sidebar da 256 px, che da `band:` non c'è più; taglierebbe nomi che ora stanno. Togliere anche il rimedio: se la stima di ~1180 px è sbagliata la tabella torna a scorrere. |
 
 ## 9. Punti aperti
 
