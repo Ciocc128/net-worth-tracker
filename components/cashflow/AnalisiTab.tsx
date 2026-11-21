@@ -807,7 +807,7 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
 
   const header = (
     <PageHeader
-      title="Analisi Cashflow"
+      title="Analisi spese"
       freshness={freshness}
       actions={<EntitySearch categories={categories} expenses={baseExpenses} onSelect={handleEntitySelect} />}
     />

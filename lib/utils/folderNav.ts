@@ -77,3 +77,18 @@ export function folderTarget(folder: Folder, storage?: StorageLike): string {
   }
   return folder.items[0].href;
 }
+
+export type BandPage = { href: string; name: string };
+
+/** The pages outside the groups, each its own single tab on the band's edge (D-FD14). */
+const LOOSE_PAGES: BandPage[] = [{ href: '/dashboard/settings', name: 'Impostazioni' }];
+
+/**
+ * The tabs on the band's bottom edge (D-FD14, D-FD19): the open group's pages by their `navGroups` names — the ONE
+ * source, so «Analisi spese» is the same word in the menu, on the band and in the tab — or, on a page outside the
+ * groups (Impostazioni), that page alone. Nothing on a route neither knows.
+ */
+export function bandPages(openFolder: Folder | undefined, pathname: string): BandPage[] {
+  if (openFolder) return openFolder.items.map((item) => ({ href: item.href, name: item.name }));
+  return LOOSE_PAGES.filter((page) => isNavItemActive(page.href, pathname));
+}

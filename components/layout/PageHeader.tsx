@@ -4,10 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { CircleUserRound } from 'lucide-react';
-import { AccountMenu } from '@/components/layout/AccountMenu';
-import { SceneLink } from '@/components/layout/SceneLink';
-import { navGroups } from '@/lib/constants/navigation';
-import { isNavItemActive } from '@/lib/utils/navUtils';
+import { ShellBandPortals, useInShellBand } from '@/components/layout/ShellBand';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -124,63 +121,24 @@ function SettingsShortcut() {
   );
 }
 
-/**
- * The band's title line on `desktop:` (D-FD4): the pages of the open page's group as one line of titles, the
- * open page in full ink (the page's own `title`, the page's `h1`), the others attenuated, each a link. A page
- * outside the groups (Impostazioni, the Assistente) shows its title alone. The riordino's groups (`navGroups`)
- * are the ONE source.
- */
-function BandTitles({ title, pathname }: { title: React.ReactNode; pathname: string }) {
-  const group = navGroups.find((g) => g.items.some((item) => isNavItemActive(item.href, pathname)));
-  const titleClass = 'text-2xl font-semibold leading-tight tracking-[-0.02em]';
-  if (!group || group.items.length < 2) {
-    return <h1 className={cn(titleClass, 'truncate text-foreground')}>{title}</h1>;
-  }
-  return (
-    <nav aria-label="Pagine del gruppo" className="flex min-w-0 flex-wrap items-baseline gap-x-3.5">
-      {group.items.map((item) =>
-        isNavItemActive(item.href, pathname) ? (
-          <h1 key={item.href} className={cn(titleClass, 'text-foreground')}>{title}</h1>
-        ) : (
-          <SceneLink
-            key={item.href}
-            href={item.href}
-            className={cn(titleClass, 'rounded-sm text-[color-mix(in_oklab,var(--foreground)_72%,transparent)] transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}
-          >
-            {item.name}
-          </SceneLink>
-        ),
-      )}
-    </nav>
-  );
-}
-
-/** The person in the band: the account menu (D-FD8), Impostazioni first; the gear stays the page's own. */
-function BandAccount() {
-  return (
-    <AccountMenu side="bottom" align="end" identity>
-      <button
-        type="button"
-        aria-label="Account e preferenze"
-        data-account-menu=""
-        data-slot="button"
-        data-variant="outline"
-        className={cn(buttonVariants({ variant: 'outline' }), 'size-9 px-0 tablet-landscape:size-11')}
-      >
-        <CircleUserRound className="h-[18px] w-[18px]" aria-hidden="true" />
-      </button>
-    </AccountMenu>
-  );
-}
-
 export function PageHeader({ title, description, actions, freshness, className }: PageHeaderProps) {
   const { text: freshnessSentence, leaving } = useFadingSentence(freshness?.sentence ?? null);
   const fadeClass = cn(FRESHNESS_FADE_CLASS, leaving && 'opacity-0');
   const headerRef = useRef<HTMLDivElement>(null);
   useTopBandProgress(headerRef);
-  const pathname = usePathname() ?? '';
-  // The band of the shell's desktop is the dashboard's; the landing keeps its compact row.
-  const inShell = pathname.startsWith('/dashboard');
+  // Inside the dashboard's shell the band above `<main>` carries the page's fact and actions from `band:` (D-FD15);
+  // the landing has no band and keeps its compact row.
+  const inShell = useInShellBand();
+  const fact = (
+    <>
+      {description}
+      {freshness && (
+        <span {...FRESHNESS_LIVE_PROPS} className={fadeClass}>
+          {freshnessSentence ? `${description ? ' · ' : ''}${freshnessSentence}` : ''}
+        </span>
+      )}
+    </>
+  );
 
   return (
     // `page-header`: the page scene morphs this line into the next page's (globals.css → Page scene).
@@ -196,9 +154,10 @@ export function PageHeader({ title, description, actions, freshness, className }
       data-page-header=""
       className={cn(
         inShell
-          // Sticky on the phone and at `desktop:`; static on a tablet in landscape, where the stage's own sticky
-          // column measures its fold from the page's top (`stageCustomProperties`) and the band scrolls with the page.
-          ? 'sticky -top-4 z-20 desktop:-top-5 tablet-landscape:static'
+          // Sticky below the band only: from `band:` the band is the shell's, above `<main>`, and never scrolls, and
+          // this box holds only the sr-only `h1` — `contents`, or the next row's `space-y` margin collapsed through the
+          // empty box and pushed the page 16px down.
+          ? 'max-band:sticky max-band:-top-4 max-band:z-20 band:contents'
           : 'max-desktop:sticky max-desktop:-top-4 max-desktop:z-20 tablet-landscape:static',
         className,
       )}
@@ -211,7 +170,7 @@ export function PageHeader({ title, description, actions, freshness, className }
           net-worth colour that reaches the top of the screen (`-mt-4 pt-5` covers `<main>`'s padding),
           the page under it starts as a sheet with rounded corners, and the corners flatten as the page
           scrolls (`--band-progress`). Every other theme paints it as before. */}
-      <div className="top-band -mx-4 -mt-4 px-4 pt-5 pb-2 flex flex-col bg-background desktop:hidden tablet-landscape:hidden">
+      <div className={cn('top-band -mx-4 -mt-4 px-4 pt-5 pb-2 flex flex-col bg-background', inShell ? 'band:hidden' : 'desktop:hidden tablet-landscape:hidden')}>
         <div className="flex items-center justify-between">
           <h1 className="text-[16px] font-semibold tracking-tight truncate min-w-0">{title}</h1>
           {/* `data-band-actions`: every button here takes the band's ONE shape (globals.css → The band's buttons). */}
@@ -231,26 +190,13 @@ export function PageHeader({ title, description, actions, freshness, className }
       </div>
 
       {inShell ? (
-        // The desktop band (doc/fascia-desktop/README.md, D-FD3): full width under the folder row, in the colour
-        // of the open folder, carrying the group's titles, the page's fact and its actions as the phone's does.
-        // `top-band-wide`: no iOS outset, the 24px corners are the phone's (`--band-progress`).
-        <div className="top-band top-band-wide -mx-5 -mt-5 hidden min-h-[85px] items-start justify-between gap-x-6 gap-y-2 bg-background px-7 pt-4 pb-[18px] desktop:flex tablet-landscape:-mx-4 tablet-landscape:-mt-4 tablet-landscape:flex tablet-landscape:px-6">
-          <div className="min-w-0">
-            <BandTitles title={title} pathname={pathname} />
-            <p className="mt-1 min-h-[18px] text-[13.5px] leading-[18px] text-muted-foreground">
-              {description}
-              {freshness && (
-                <span {...FRESHNESS_LIVE_PROPS} className={fadeClass}>
-                  {freshnessSentence ? `${description ? ' · ' : ''}${freshnessSentence}` : ''}
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {actions}
-            <BandAccount />
-          </div>
-        </div>
+        // From `band:` the page's words are in the shell's band (D-FD15): its fact and actions portaled into the band's
+        // slots, its name the open tab's. The `h1` stays the page's, for a screen reader and for `main h1` (the
+        // «page has mounted» marker of `e2e/shellBoot.ts` and `scripts/perfBenchmark.mjs`).
+        <>
+          <h1 className="sr-only hidden band:block">{title}</h1>
+          <ShellBandPortals fact={fact} actions={actions} />
+        </>
       ) : (
       <div className="hidden desktop:flex tablet-landscape:flex items-center justify-between gap-4 min-h-9">
         <div className="flex items-baseline gap-3 min-w-0">
@@ -278,12 +224,13 @@ export function PageHeader({ title, description, actions, freshness, className }
  * words are the page's and arrive with it. Measured on 2026-09-28 before it existed: when the page
  * mounted, the tile grid moved down 56px at 1440 and 65px at 390. It carries no `page-header`
  * view-transition name (that belongs to the header replacing it) and no heading: `main h1` still
- * means «the page has mounted» (`e2e/shellBoot.ts`, `scripts/perfBenchmark.mjs`).
+ * means «the page has mounted» (`e2e/shellBoot.ts`, `scripts/perfBenchmark.mjs`). From `band:` it draws
+ * nothing: the shell's band is already on screen, and the page's fact comes into it with the page.
  */
 export function PageHeaderSkeleton() {
   return (
     <div aria-hidden="true">
-      <div className="-mx-4 px-4 pt-1 pb-2 flex flex-col desktop:hidden tablet-landscape:hidden">
+      <div className="-mx-4 px-4 pt-1 pb-2 flex flex-col band:hidden">
         <div className="flex min-h-9 items-center">
           <Skeleton className="h-[15px] w-36" />
         </div>
@@ -291,11 +238,6 @@ export function PageHeaderSkeleton() {
         <div className="text-sm leading-tight">
           <Skeleton className="inline-block h-3 w-52 align-middle" />
         </div>
-      </div>
-      {/* The desktop band's silhouette (D-FD3): the band in its colour, 85px, the title and the fact line. */}
-      <div className="top-band top-band-wide -mx-5 -mt-5 hidden min-h-[85px] flex-col gap-2.5 bg-background px-7 pt-4 pb-[18px] desktop:flex tablet-landscape:-mx-4 tablet-landscape:-mt-4 tablet-landscape:flex tablet-landscape:px-6">
-        <Skeleton className="h-6 w-44" />
-        <Skeleton className="h-[13px] w-56" />
       </div>
     </div>
   );

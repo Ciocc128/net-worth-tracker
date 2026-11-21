@@ -4,7 +4,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { ChartColorsProvider } from '@/contexts/ChartColorsContext';
 import { AppSidebar } from '@/components/layout/Sidebar';
 import { BottomNavigation } from '@/components/layout/BottomNavigation';
-import { FolderNav } from '@/components/layout/FolderNav';
+import { ShellBand, ShellBandProvider } from '@/components/layout/ShellBand';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeaderSkeleton } from '@/components/layout/PageHeader';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
@@ -46,11 +46,12 @@ export default function DashboardLayout({
         <AppSidebar />
 
         <SidebarInset className="overflow-hidden">
-          {/* Hamburger bar — a PHONE in landscape only (no bottom pill there; a tablet in landscape has
-              the folder row instead, `FolderNav`, since D-FD9, which replaced the icon rail). SidebarTrigger toggles the shadcn
+          <ShellBandProvider>
+          {/* Hamburger bar — a PHONE in landscape only (no bottom pill there; from the band's widths, a tablet in
+              landscape and a desktop at any zoom down to 960 CSS px, the shell's band instead, D-FD16). SidebarTrigger toggles the shadcn
               sidebar Sheet below `desktop:`; it is the bar's only control, so it is a 44px touch
               target and the bar 4 + 44 + 4 + 1 = 53px (doc/guide/shell.md § Navigation). */}
-          <div className="flex shrink-0 items-center gap-2 border-b bg-background px-4 py-1 desktop:hidden max-desktop:portrait:hidden max-desktop:landscape:flex tablet-landscape:hidden">
+          <div className="flex shrink-0 items-center gap-2 border-b bg-background px-4 py-1 portrait:hidden band:hidden">
             <SidebarTrigger aria-label="Apri il menu" />
             <span className="text-[13px] font-semibold tracking-[-0.01em]">Portfolio Tracker</span>
           </div>
@@ -79,9 +80,9 @@ export default function DashboardLayout({
             </div>
           )}
 
-          {/* The folder row (D-FD1): `desktop:` and a tablet in landscape; under the demo banner, so the open folder
-              touches the band of the page and nothing else. */}
-          <FolderNav />
+          {/* The shell's band (D-FD14–D-FD22): from `band:`, under the demo banner, above `<main>` — it never
+              scrolls and never leaves a navigation; the page's fact and actions come into it from `PageHeader`. */}
+          <ShellBand />
 
           {/* The page scene: `page-main` is the region a navigation cross-fades (globals.css →
               Page scene); the shell around it stays still. template.tsx carries the fallback
@@ -110,6 +111,7 @@ export default function DashboardLayout({
               {children}
             </ProtectedRoute>
           </main>
+          </ShellBandProvider>
         </SidebarInset>
       </SidebarProvider>
 

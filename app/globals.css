@@ -19,6 +19,14 @@
    declaration order), so it is emitted after `max-desktop:landscape:` and wins over it on the same property. */
 @custom-variant tablet-landscape (@media (orientation: landscape) and (width >= 1000px) and (width < 1440px) and (not ((width >= 1280px) and (pointer: fine))));
 
+/* The band of the shell (doc/fascia-desktop/README.md, D-FD16): ONE band from 960 CSS px with a mouse, from 1000 in
+   landscape on touch, and from 1440 anyway — so a 1440 screen zoomed to 125% or 150% keeps it. Declared AFTER
+   `tablet-landscape` so `band:hidden` wins over `max-desktop:landscape:flex` and `tablet-landscape:flex`. The page's
+   composition below it keeps `desktop:` / `tablet-landscape:` (D-FD17). The same condition is `BAND_QUERY` in
+   lib/constants/navigation.ts. */
+@custom-variant band (@media (width >= 1440px) or ((width >= 960px) and (pointer: fine)) or ((orientation: landscape) and (width >= 1000px)));
+@custom-variant max-band (@media not ((width >= 1440px) or ((width >= 960px) and (pointer: fine)) or ((orientation: landscape) and (width >= 1000px))));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -1726,55 +1734,87 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   background-color: transparent;
 }
 
-/* The fascicolo (doc/fascia-desktop/README.md, D-FD1…D-FD7): from `desktop:` and on a tablet in landscape the
- * navigation is a row of folder tabs (`FolderNav`) and the band runs from the open one across the width. The
- * tokens live on the root, resolved there: the band re-points --background on its own box (`.top-band`), and
- * these must keep the page's. Neutral by default (every theme but two, and «Nessuna»: the open folder and the
- * band are the ground, the closed folders a tint of the ink); Lime Frost and Graphite colour them from --top-band. */
+/* The fascicolo (doc/fascia-desktop/README.md, D-FD14…D-FD22): wherever `band:` holds, the shell's band
+ * (`ShellBand`) sits above `<main>` across the window — the groups centred on its first floor, the open group's
+ * pages as tabs on its bottom edge, the open one in the page's ground and joined to it. The tokens that must keep the
+ * PAGE's values live on the root, resolved there (the band re-points --background on its own box, `.top-band`);
+ * the band's own inks live on the band. Neutral by default (every theme but two, and «Nessuna»: the band is a 5% tint
+ * of the ink over the ground); Lime Frost and Graphite colour it from --top-band. */
 html {
-  --folder-fill: var(--background);
-  --folder-ink: var(--foreground);
+  --page-ground: var(--background);
+  --page-ink: var(--foreground);
+  --shell-band-fill: color-mix(in oklab, var(--foreground) 5%, var(--background));
   --folder-rule: var(--border);
   --folder-bar: var(--foreground);
-  --folder-closed-bg: color-mix(in oklab, var(--foreground) 5%, var(--background));
-  --folder-closed-border: var(--border);
-  --folder-closed-ink: color-mix(in oklab, var(--foreground) 72%, transparent);
 }
 [data-theme="lime-frost"]:not([data-band="nessuna"]),
 [data-theme="graphite"]:not([data-band="nessuna"]) {
-  --folder-fill: var(--top-band);
-  --folder-ink: var(--top-band-foreground);
+  --shell-band-fill: var(--top-band);
   --folder-rule: var(--top-band);
   --folder-bar: var(--top-band);
-  --folder-closed-bg: color-mix(in oklab, var(--top-band) 20%, var(--background));
-  --folder-closed-border: color-mix(in oklab, var(--top-band) 35%, var(--background));
 }
-/* The open folder joins the band with two inverted corners at its feet (the phone's ears, turned): a 12px
- * square outside the tab's bottom corners, painted in the folder's fill outside a quarter circle. */
-.folder-tab-open::before,
-.folder-tab-open::after {
+.shell-band {
+  --band-ink-closed: color-mix(in oklab, var(--foreground) 86%, transparent);
+  --band-hover: color-mix(in oklab, var(--foreground) 12%, transparent);
+  background-color: var(--shell-band-fill);
+}
+/* Not the phone's top bar: no iOS outset above it and no rounded ears under it — the joint is the open tab's. */
+[data-theme="lime-frost"]:not([data-band="nessuna"]) .top-band.shell-band,
+[data-theme="graphite"]:not([data-band="nessuna"]) .top-band.shell-band {
+  border-image: none;
+}
+[data-theme="lime-frost"]:not([data-band="nessuna"]) .top-band.shell-band::before,
+[data-theme="lime-frost"]:not([data-band="nessuna"]) .top-band.shell-band::after,
+[data-theme="graphite"]:not([data-band="nessuna"]) .top-band.shell-band::before,
+[data-theme="graphite"]:not([data-band="nessuna"]) .top-band.shell-band::after {
+  display: none;
+}
+/* The open page's tab joins the sheet with two 14px inverted corners at its feet, in the page's ground. */
+.band-page-joint::before,
+.band-page-joint::after {
   content: "";
   position: absolute;
   bottom: 0;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   pointer-events: none;
 }
-.folder-tab-open::before {
-  left: -12px;
-  background: radial-gradient(circle at 0 0, transparent 11.5px, var(--folder-fill) 12px);
+.band-page-joint::before {
+  left: -14px;
+  background: radial-gradient(circle at 0 0, transparent 13.5px, var(--page-ground) 14px);
 }
-.folder-tab-open::after {
-  right: -12px;
-  background: radial-gradient(circle at 100% 0, transparent 11.5px, var(--folder-fill) 12px);
+.band-page-joint::after {
+  right: -14px;
+  background: radial-gradient(circle at 100% 0, transparent 13.5px, var(--page-ground) 14px);
 }
-/* The desktop band is not the phone's top bar: no iOS outset above it (it would paint over the folder row),
- * and its colour runs past the page's own 1920px width on a wider screen, horizontally only (a shadow is not
- * scrollable overflow, so `<main>` gets no scrollbar). */
-[data-theme="lime-frost"]:not([data-band="nessuna"]) .top-band.top-band-wide,
-[data-theme="graphite"]:not([data-band="nessuna"]) .top-band.top-band-wide {
-  border-image: none;
-  box-shadow: -100vmax 0 0 0 var(--top-band), 100vmax 0 0 0 var(--top-band);
+/* The page's fact and actions come into the band with the page (D-FD21): a short fade, none with reduced motion. */
+@keyframes shell-band-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .shell-band-in {
+    animation: shell-band-in 200ms cubic-bezier(0.25, 1, 0.5, 1) both;
+  }
+}
+/* The leaving page's fact and actions go with it at the click, not when the next page lands. */
+.shell-band [data-band-fact],
+.shell-band [data-band-actions-desktop] {
+  transition: opacity 120ms ease-out;
+}
+.shell-band[data-pending] [data-band-fact],
+.shell-band[data-pending] [data-band-actions-desktop] {
+  opacity: 0;
+}
+/* Under the band the page scrolls with no bar beside it (D-FD18, owner 2026-11-20): wheel, trackpad and keys
+ * still scroll it. */
+@media (width >= 1440px) or ((width >= 960px) and (pointer: fine)) or ((orientation: landscape) and (width >= 1000px)) {
+  #page-main {
+    scrollbar-width: none;
+  }
+  #page-main::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Lime Frost and Graphite only (owner's tour, 2026-09-26; Graphite 2026-11-02): a tile's inner scroll box

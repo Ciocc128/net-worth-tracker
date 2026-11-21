@@ -12,7 +12,7 @@ themes): <https://claude.ai/artifact/HLaZTQQxj7nk8ukh3ZtbpS>. Files, the injecti
 
 > **State**: round 1 implemented (PR #196, 2026-11-20). **Round 2 decided** (2026-11-20, Opus review of #196 on the owner's
 > notes: D-FD14…D-FD19, § Seconda versione below): the folder row goes, the band starts at the top edge with the groups on
-> its first floor and the group's pages as tabs cut into its bottom edge (C). Waiting for the owner's go before the code.
+> its first floor and the group's pages as tabs cut into its bottom edge (C). **Implemented** the same evening (§ Come è stato realizzato (round 2–3)).
 > Round 3 (same evening, D-FD20–D-FD22): the groups are plain centred names with a bar under the open one, and the
 > three levels move (group, page, inner tab). Where round 2 and the sections above disagree, round 2 wins (D-FD1's row, D-FD2's shape, D-FD4, D-FD6's sticky part, D-FD9's heights).
 
@@ -228,3 +228,24 @@ runner in the project's `fascia-desktop/r2/`.
   (the band's box does not move across a navigation); the zoom widths 960, 1152, 1440 in a spec.
 - Mac (rounds 1 and 2 together): `test:e2e` desktop and tablet, `perf:budget`, `mobile:budget` new tablet baselines,
   the look at 1280 × 800 and 1440 × 900 and at zoom 125%.
+
+### Come è stato realizzato (round 2–3, 2026-11-20)
+
+- `components/layout/ShellBand.tsx` (`ShellBand`, `ShellBandProvider`, `ShellBandPortals`) replaces `FolderNav`, mounted in
+  `app/dashboard/layout.tsx` above `<main>`; `PageHeader` portals its fact (description + freshness) and actions into the
+  band and keeps an `sr-only` `h1` (its box is `contents` from `band:`); `lib/utils/folderNav.ts` gains `bandPages`
+  (names from `navGroups`); `BAND_QUERY` and the `band:`/`max-band:` variants (`lib/constants/navigation.ts`,
+  `app/globals.css`) pick the shell, `PILL_VISIBLE_QUERY` derives from it; `useSceneNavigation` is soft at `band:`;
+  `PageTabBar` switches on `band:`; `AnalisiTab`'s title is «Analisi spese»; `#page-main` hides its scrollbar at `band:`.
+- Motion as D-FD21: `layoutId` `band-group-bar` and `band-page-<group>` with `PageTabBar`'s spring, moved at the click
+  on an optimistic `pending` href (given back after 2 s if the route never lands); the leaving page's fact and actions
+  fade out at the click (`data-pending`) and the next ones fade in (`.shell-band-in`, 200 ms); a new group's tabs slide
+  12px from the side of travel.
+- **Deviations, to confirm**: (1) the closed groups and tabs are at **86%** of the ink, not 78/82%: 78% measured 4,06:1
+  on Graphite's blue (and its Verde option), below the 4.5:1 of normal text; 85% is the floor, 86% the margin
+  (`__tests__/topBandTheme.test.ts`). (2) In the neutral themes and with «Nessuna» the **band is the ink at 5% over the
+  ground and the open tab is the ground** (`--shell-band-fill`), instead of a ground band with a 6% open tab: the open
+  tab then joins the sheet as in the coloured themes. (3) The inner tabs' underline bar (U3) shows wherever the band does,
+  from 960 with a mouse too; the page's composition below 1440/1280 stays the compact one (D-FD17).
+- Seen in the cloud (Chromium, census seed, production build): 1440 in Lime Frost light and dark, Graphite dark, the
+  upstream default; the transitions recorded (group, page, inner tab). The Mac round as above.
