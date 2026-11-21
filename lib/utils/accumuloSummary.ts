@@ -10,7 +10,7 @@ import type { AccumulationPlan, Installment } from '@/types/accumulationPlan';
 import type { PageVerdictModel } from './narrative';
 import type { LineUiState } from './accumulationPlanMatching';
 import type { PacVerdictInput } from './allocazioneNarrative';
-import { ACCUMULO_SECTION_IDS, describeAccumuloVerdict, monthLabelLong, type AccumuloVerdictInput, type ClosedPlanReadingInput } from './accumulationNarrative';
+import { ACCUMULO_SECTION_IDS, DELETED_INSTRUMENT_LABEL, describeAccumuloVerdict, monthLabelLong, type AccumuloVerdictInput, type ClosedPlanReadingInput } from './accumulationNarrative';
 import {
   buildDraftPreview,
   selectClassStripRows,
@@ -272,7 +272,7 @@ export function buildAccumuloPreview(input: {
 
   let n = 0;
   const positions = weightsToSeedPositions(
-    weights.map((weight) => ({ key: weight.assetId, label: assetsById.get(weight.assetId)?.name ?? weight.assetId, proposedPct: weight.pct })),
+    weights.map((weight) => ({ key: weight.assetId, label: assetsById.get(weight.assetId)?.name ?? DELETED_INSTRUMENT_LABEL, proposedPct: weight.pct })),
     () => `preview-${n++}`,
   );
   const preview = buildDraftPreview({

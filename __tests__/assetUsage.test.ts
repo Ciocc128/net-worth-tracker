@@ -132,3 +132,20 @@ describe('buildAssetUsage', () => {
     expect(usage.pensionContributions).toBe(3);
   });
 });
+
+describe('the readers say the truth about a deleted instrument (§ 4.7)', () => {
+  it('names the missing members of a group limit, in the singular and the plural', async () => {
+    const { describeMissingGroupMembers } = await import('@/lib/utils/assetUsageNarrative');
+    expect(describeMissingGroupMembers(0)).toBeNull();
+    expect(describeMissingGroupMembers(1)).toContain('Uno strumento del gruppo');
+    expect(describeMissingGroupMembers(2)).toContain('2 strumenti del gruppo');
+  });
+});
+
+describe('the words for an instrument that is gone (§ 4.7)', () => {
+  it('never prints a raw id: a fixed label and a plan note that points at the revision', async () => {
+    const { DELETED_INSTRUMENT_LABEL, DELETED_INSTRUMENT_PLAN_NOTE } = await import('@/lib/utils/accumulationNarrative');
+    expect(DELETED_INSTRUMENT_LABEL).toBe('Strumento eliminato');
+    expect(DELETED_INSTRUMENT_PLAN_NOTE).toBe('Strumento eliminato: rivedi il piano');
+  });
+});

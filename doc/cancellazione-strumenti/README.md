@@ -121,16 +121,16 @@ upstream o il fork aggiungano.
 | R12 | **ti ferma**, se lo strumento è un immobile con prestiti collegati | D-CA6. Se è il prestito a essere cancellato, nessun blocco |
 | R13 | resta, elencato; il lettore dice il motivo vero (§ 4.7) | D-CA6 |
 | R14 | resta; per un conto la frase di oggi («restano nel cashflow senza conto») | I lettori sono già tolleranti: `assetService.ts:487` salta il conto assente |
-| R15 | resta | D-CA8. Sonda richiesta (§ 9 PA-2) |
+| R15 | **si sceglie** (§ 4.3), come R1; il conto sorgente di un versamento resta | D-CA8, scelta 2026-11-21 dopo la sonda (§ 9 PA-2) |
 | R16 | resta sempre | Una foto è una foto |
 
 ### 4.3 La scelta sul registro (D4, D-CA2)
 
-Compare solo se `assetTransactions` ha almeno una riga per lo strumento (la riga `isBaseline` conta). Due voci esclusive:
+Compare solo se `assetTransactions` ha almeno una riga per lo strumento (la riga `isBaseline` conta) **o se il fondo pensione ha versamenti** (R15, D-CA8): la stessa scelta vale per i due. Un fondo con versamenti non ha una voce già scelta (nessuna «quantità 0» che dica che tutto è venduto). Due voci esclusive:
 
-- **Tieni la storia**: le N operazioni restano nel registro. Sono ancora sommate da chi legge il registro per `assetId`
+- **Tieni la storia**: le N operazioni (e gli M versamenti) restano. I versamenti di un fondo cancellato escono dal calcolo del plafond di deduzione di Previdenza (filtra per i fondi che esistono, `pensionSummary.ts`), e la finestra lo dice. Le N operazioni restano nel registro. Sono ancora sommate da chi legge il registro per `assetId`
   (§ 1, D4); la finestra lo dice con il numero e con l'effetto: «restano nelle somme di Rendimenti e nei movimenti del mese».
-- **Cancella le N operazioni**: il registro dello strumento viene svuotato in un solo passo, con la stessa funzione del
+- **Cancella le N operazioni (e gli M versamenti)**: il registro dello strumento viene svuotato in un solo passo, con la stessa funzione del
   passaggio a fondo pensione (`deleteAllAssetTransactionsForAsset`, che già ricalcola i dividendi aperti). Non si può annullare.
 
 Quale voce è già scelta (D-CA2):
@@ -311,7 +311,13 @@ bonifica (PA-1).
 
 - **PA-1** — Orfani già presenti sull'account reale (cancellazioni precedenti). Proposta: nessuna bonifica automatica; la sonda
   `orfani-probe.cjs` in sola lettura sul mirror (con l'ok di Giorgio) dice quanti sono. Se sono molti, una card a parte.
-- **PA-2** — Sonda su: versamenti di un fondo cancellato in Previdenza (D-CA8), `balancePending` verso un conto che non c'è,
+- **PA-2 — chiuso il 2026-11-21 (sonda letta dal codice, non sugli emulatori).** Rimborso di un prestito cancellato: nessun
+  danno, `planDebtRepayments` salta il prestito assente, registra 0 e chiude la riga (resta, R14). Righe in attesa verso un conto
+  che non c'è: `updateCashAssetBalancesAtomic` salta il conto con un `console.warn` (resta, D-CA10). **Versamenti di un fondo
+  cancellato: restano nel database ma Previdenza li esclude da totali, rendimento e plafond di deduzione** (filtra per i fondi
+  esistenti, `pensionSummary.ts:166/369/407`), e li elenca solo nel registro dell'anno con nome «—»: R15 passa da «resta» a «si
+  sceglie» (decisione di Giorgio, opzione 1). Da provare ancora sugli emulatori col mirror, non qui. Testo originale della
+  domanda: versamenti di un fondo cancellato in Previdenza (D-CA8), `balancePending` verso un conto che non c'è,
   `debtAssetId` di un prestito cancellato (`debtRepaymentService.ts:52`: cosa fa il rimborso di una riga di spesa che cita un
   prestito che non c'è). L'esito può spostare una riga di § 4.2 da «resta» a «ferma».
 - **PA-3** — Se lo strumento è citato in un piano **concluso**, il nome salvato nel piano basta (R5)? Verificare che nessuna

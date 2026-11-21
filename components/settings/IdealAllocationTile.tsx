@@ -24,6 +24,7 @@ import { areasFromCountries, type SecondLevelGap } from '@/lib/utils/weightOptim
 import { describeSecondLevelGaps } from '@/lib/utils/weightOptimizerNarrative';
 import { GEO_AREAS, GEO_AREA_LABELS } from '@/lib/constants/geoAreas';
 import { INDEX_PROFILES } from '@/lib/constants/instrumentProfiles';
+import { describeMissingGroupMembers } from '@/lib/utils/assetUsageNarrative';
 import type { AssetClass, IdealAllocationSettings, ObjectivePriority } from '@/types/assets';
 
 const PRIORITY_OPTIONS: Array<{ value: ObjectivePriority; label: string }> = [
@@ -75,6 +76,12 @@ interface IdealAllocationTileProps {
    * RV6), and a tile inside a modal is a card in a card.
    */
   bare?: boolean;
+}
+
+/** The note under a group's selector when some members are gone (`describeMissingGroupMembers`). */
+function missingGroupMembersNote(assetIds: string[], options: MultiSelectOption[]): string | null {
+  const known = new Set(options.map((option) => option.value));
+  return describeMissingGroupMembers(assetIds.filter((id) => !known.has(id)).length);
 }
 
 const rowLabelClass = 'text-[13px] font-medium';
@@ -516,6 +523,9 @@ export function IdealAllocationTile({
                     placeholder="Strumenti del gruppo"
                     disabled={disabled}
                   />
+                  {missingGroupMembersNote(group.assetIds, assetOptions) && (
+                    <p className="text-[11px] text-muted-foreground">{missingGroupMembersNote(group.assetIds, assetOptions)}</p>
+                  )}
                 </div>
               ))}
               <Button type="button" variant="outline" size="sm" onClick={addGroupLimit} disabled={disabled} className="w-fit">

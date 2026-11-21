@@ -77,3 +77,14 @@ export const SENTENCES = {
   R14: (count: number) => `${plural(count, 'movimento del cashflow', 'movimenti del cashflow')} restano senza conto`,
   R15: (count: number) => `${plural(count, 'versamento indicava', 'versamenti indicavano')} questo conto come sorgente: restano`,
 } as const;
+
+/**
+ * Criteri › a group limit whose member is no longer among the instruments (§ 4.7): said under the
+ * selector, so a deleted instrument is not a silent hole in the group.
+ */
+export function describeMissingGroupMembers(count: number): string | null {
+  if (count <= 0) return null;
+  return count === 1
+    ? 'Uno strumento del gruppo non esiste più o non è più negoziabile: toglilo dal gruppo.'
+    : `${count} strumenti del gruppo non esistono più o non sono più negoziabili: toglili dal gruppo.`;
+}

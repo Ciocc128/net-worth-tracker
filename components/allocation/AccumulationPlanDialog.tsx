@@ -14,6 +14,7 @@
  * `validateDraftAgainstAssets` on every render so the status line can name the FIRST domain issue
  * before the write is even attempted (§6, §10.3: "uno alla volta, il primo").
  */
+import { DELETED_INSTRUMENT_LABEL } from '@/lib/utils/accumulationNarrative';
 import { useEffect, useMemo, useState } from 'react';
 import { StepSlide } from '@/components/ui/step-slide';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
@@ -447,7 +448,7 @@ export function AccumulationPlanDialog({
     return figures;
   }, [open, liquidity, draft.positions, draft.disposals, draft.months, assetsById]);
 
-  const labelOfAsset = (assetId: string) => assetsById.get(assetId)?.name ?? assetId;
+  const labelOfAsset = (assetId: string) => assetsById.get(assetId)?.name ?? DELETED_INSTRUMENT_LABEL;
   // AL11: only a sale already executed (or linked to a ledger sale) is closed; a saved one still to do can come off or move.
   const lockedSaleIds = useMemo(
     () => new Set(revise && plan ? plan.disposals.filter((d) => !isOpenSavedDisposal(d)).map((d) => d.assetId) : []),

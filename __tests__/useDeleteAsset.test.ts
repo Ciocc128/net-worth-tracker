@@ -4,7 +4,10 @@
  * contributions, the dividend receipts, the plans, the model, the settings, the goals and the
  * Panoramica. A new write on the server side adds its key here.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/firebase/config', () => ({ auth: { currentUser: null }, db: {} }));
+
 import { assetDeletionInvalidationKeys } from '@/lib/hooks/useAssets';
 
 describe('assetDeletionInvalidationKeys', () => {

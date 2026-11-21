@@ -24,6 +24,8 @@ export interface ResolveDatedFlowsContext {
   /** The user's age; without it an age-anchored flow is excluded and said so, like the pensions. */
   userAge?: number;
   mortgages?: ReadonlyMap<string, MortgageFlowSource>;
+  /** Every asset id the account has: a mortgage flow whose property is not among them says the property is gone. */
+  propertyIds?: ReadonlySet<string>;
 }
 
 export interface ResolvedFlow {
@@ -74,6 +76,10 @@ export function resolveDatedFlows(flows: readonly DatedFlow[] | undefined, conte
     const base = { id: flow.id, label: flow.label, source: flow.source };
     if (flow.source?.kind === 'mortgage') {
       const source = context.mortgages?.get(flow.source.propertyId);
+      if (!source && context.propertyIds && !context.propertyIds.has(flow.source.propertyId)) {
+        excluded.push({ ...base, reason: "l'immobile non esiste più: togli il flusso o scrivilo a mano" });
+        continue;
+      }
       const schedule = source?.schedule;
       if (!schedule || schedule.kind === 'none') {
         excluded.push({ ...base, reason: `nessuna rata collegata al mutuo di ${source?.propertyName ?? flow.label}: collegala in Cashflow o scrivi il flusso a mano` });

@@ -187,6 +187,16 @@ describe('RF1 — windows, exclusions, the linked mortgage', () => {
     const none = resolveDatedFlows([linked], { currentYear: YEAR, mortgages: new Map() });
     expect(none.excluded[0].reason).toContain('nessuna rata collegata');
   });
+
+  it('AU10 should say the property is gone, not that no instalment is linked, when the account no longer has it', () => {
+    const linked: DatedFlow = flow({ id: 'link', label: 'Mutuo Casa', kind: 'expense', amount: 1, start: inYear(0), source: { kind: 'mortgage', propertyId: 'casa' } });
+    // The flow stays (it is the plan's data); only the reason changes with the asset's presence.
+    const gone = resolveDatedFlows([linked], { currentYear: YEAR, mortgages: new Map(), propertyIds: new Set(['altro-immobile']) });
+    expect(gone.resolved).toEqual([]);
+    expect(gone.excluded[0].reason).toContain('non esiste più');
+    const present = resolveDatedFlows([linked], { currentYear: YEAR, mortgages: new Map(), propertyIds: new Set(['casa']) });
+    expect(present.excluded[0].reason).toContain('nessuna rata collegata');
+  });
 });
 
 describe('F22 — validation', () => {

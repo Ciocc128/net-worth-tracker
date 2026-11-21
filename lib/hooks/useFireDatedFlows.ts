@@ -75,8 +75,9 @@ export function useFireDatedFlows({ lockedAssetIds }: UseFireDatedFlowsOptions =
   const flows = useMemo<DatedFlow[]>(() => [...(savedFlows ?? [])], [savedFlows]);
   const { resolved, excluded } = useMemo(() => {
     const map = new Map(mortgages.map((option) => [option.propertyId, option.source]));
-    return resolveDatedFlows(flows, { currentYear: getItalyYear(), userAge, mortgages: map });
-  }, [flows, userAge, mortgages]);
+    const propertyIds = assets ? new Set(assets.map((asset) => asset.id)) : undefined;
+    return resolveDatedFlows(flows, { currentYear: getItalyYear(), userAge, mortgages: map, propertyIds });
+  }, [flows, userAge, mortgages, assets]);
 
   const goalData = goalQuery.data;
   const goalFlows = useMemo(() => {

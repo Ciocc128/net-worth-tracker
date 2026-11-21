@@ -87,20 +87,27 @@ export function AssetDeleteDialog({ asset, ownerId, onClose, onDeleted, onRegist
 
   const handleDelete = async () => {
     if (!asset || !usage) return;
+    // Computed before the `try`: the React Compiler skips a component with a conditional inside one.
+    const ledgerArg = needsChoice ? (choice ?? undefined) : undefined;
+    let failure: unknown = null;
     try {
-      await deleteMutation.mutateAsync({ assetId: asset.id, ledger: needsChoice ? (choice ?? undefined) : undefined });
-      toast.success(successMessage);
-      onDeleted?.();
-      onClose();
+      await deleteMutation.mutateAsync({ assetId: asset.id, ledger: ledgerArg });
     } catch (error) {
-      if (error instanceof AssetInUseError) {
+      failure = error;
+    }
+    if (failure !== null) {
+      if (failure instanceof AssetInUseError) {
         toast.error('Qualcosa usa ancora questo strumento: ricontrollo.');
         void usageQuery.refetch();
         return;
       }
-      console.error('Error deleting asset:', error);
-      toast.error(describeWriteError(error));
+      console.error('Error deleting asset:', failure);
+      toast.error(describeWriteError(failure));
+      return;
     }
+    toast.success(successMessage);
+    onDeleted?.();
+    onClose();
   };
 
   const nothing = usage && !blocked && !needsChoice && usage.cleanups.length === 0 && usage.kept.length === 0;
