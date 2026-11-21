@@ -48,10 +48,18 @@ function stored(value: unknown): unknown {
 function applyPatch(current: Data | undefined, patch: Data): Data {
   const next: Data = { ...(current ?? {}) };
   for (const [key, value] of Object.entries(patch)) {
+    // `update` takes a dotted path to reach a nested field, as Firestore does.
+    const path = key.split('.');
+    let holder: Data = next;
+    for (const step of path.slice(0, -1)) {
+      holder[step] = { ...((holder[step] as Data | undefined) ?? {}) };
+      holder = holder[step] as Data;
+    }
+    const last = path[path.length - 1];
     if (value instanceof FieldValue && value.isEqual(FieldValue.delete())) {
-      delete next[key];
+      delete holder[last];
     } else {
-      next[key] = stored(value);
+      holder[last] = stored(value);
     }
   }
   return next;

@@ -15,6 +15,7 @@ import {
 import { db } from '@/lib/firebase/config';
 import { removeUndefinedDeep as removeUndefinedFields } from '@/lib/utils/firestoreData';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
+import type { AssetUsage, LedgerChoice, UsageLine } from '@/lib/utils/assetUsage';
 import { roundToCents } from '@/lib/utils/cents';
 import { suggestIsLiquid } from '@/lib/utils/assetLiquidity';
 import { costBasisPerUnitEur, unitPriceEur } from '@/lib/utils/costBasisEur';
@@ -502,19 +503,36 @@ export async function updateCashAssetBalancesAtomic(
   }
 }
 
+/** The server refused the deletion: something still depends on the asset (409 `asset/in-use`). */
+export class AssetInUseError extends Error {
+  readonly blockers: UsageLine[];
+  constructor(blockers: UsageLine[]) {
+    super('asset/in-use');
+    this.name = 'AssetInUseError';
+    this.blockers = blockers;
+  }
+}
+
+/** «Dove è usato» for the delete dialog (doc/cancellazione-strumenti/README.md § 4.4). */
+export async function getAssetUsage(assetId: string, userId: string): Promise<AssetUsage> {
+  const response = await authenticatedFetch(`/api/assets/${assetId}/usage?userId=${encodeURIComponent(userId)}`);
+  if (!response.ok) throw new Error('Failed to read where the asset is used');
+  return (await response.json()) as AssetUsage;
+}
+
 /**
  * Delete an asset and its future dividends
  * Only deletes dividends with ex-date > today to preserve historical data
  * Uses API endpoint to leverage Admin SDK and bypass Firestore Security Rules
  */
-export async function deleteAsset(assetId: string, userId: string): Promise<void> {
+export async function deleteAsset(assetId: string, userId: string, ledger?: LedgerChoice): Promise<void> {
   try {
     const response = await authenticatedFetch(`/api/assets/${assetId}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify(ledger ? { userId, ledger } : { userId }),
     });
 
     let responseBody: unknown = null;
@@ -529,6 +547,11 @@ export async function deleteAsset(assetId: string, userId: string): Promise<void
         error: getErrorMessage(error),
       });
       throw new Error(`Failed to parse delete asset response for ${assetId}`, { cause: error });
+    }
+
+    if (response.status === 409) {
+      const blockers = (responseBody as { blockers?: UsageLine[] } | null)?.blockers ?? [];
+      throw new AssetInUseError(blockers);
     }
 
     if (!response.ok) {
@@ -557,6 +580,7 @@ export async function deleteAsset(assetId: string, userId: string): Promise<void
       deletedFutureDividends,
     });
   } catch (error) {
+    if (error instanceof AssetInUseError) throw error;
     console.error('Failed to delete asset', {
       userId,
       assetId,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, Pencil, Trash2, Calculator, ArrowLeftRight, ScrollText, PiggyBank, Info } from 'lucide-react';
 import { isLoanAsset, type Asset } from '@/types/assets';
@@ -14,7 +14,6 @@ import { describeBondRow, describeLoanRow, describeManualValuation } from '@/lib
 import { costBasisPerUnitEur, isEurNative } from '@/lib/utils/costBasisEur';
 import { hasMarketPrice } from '@/lib/utils/assetPricing';
 import { toDate } from '@/lib/utils/dateHelpers';
-import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import { describeAssetClassChip, type AssetClassChipModel } from '@/lib/utils/assetDisplayClass';
@@ -208,9 +207,8 @@ interface AssetRowProps {
   now: Date;
   /** `opener` is the button pressed: the page hands the focus back to it when the dialog closes. */
   onEdit: (asset: Asset, opener: HTMLElement) => void;
-  onDelete: (assetId: string) => void;
-  /** The tile's one live region: the arm and the disarm of Elimina are spoken there. */
-  announce: (text: string) => void;
+  /** Opens the delete dialog (`AssetDeleteDialog`): the dialog is the confirmation. */
+  onDelete: (asset: Asset) => void;
   onCalculateTaxes?: (asset: Asset) => void;
   isManualPrice: boolean;
   isDemo?: boolean;
@@ -237,8 +235,7 @@ interface AssetRowProps {
  * on the details, the unit-price sparkline, the three Δ windows and the actions. Flat on purpose:
  * the rows live inside the Strumenti tile, and a card per row would be a card inside a card.
  * Expansion is the CSS `grid-rows-[0fr] → [1fr]` technique (AGENTS.md → Motion), with `inert`
- * on the closed panel so its buttons leave the tab order. Elimina is a two-click confirm without
- * a timer (`useArmedDelete`, since 2026-09-14).
+ * on the closed panel so its buttons leave the tab order. Elimina opens `AssetDeleteDialog`.
  */
 export function AssetRow({
   asset,
@@ -246,7 +243,6 @@ export function AssetRow({
   now,
   onEdit,
   onDelete,
-  announce,
   onCalculateTaxes,
   isManualPrice,
   isDemo = false,
@@ -265,19 +261,6 @@ export function AssetRow({
   // The sparkline is born at the first opening and stays: unmounting it on close would empty the
   // panel while it collapses, and a reopened row would draw it again for nothing.
   const [hasOpened, setHasOpened] = useState(false);
-  const deleteRef = useRef<HTMLButtonElement | null>(null);
-  const { armed, onClick: onDeleteClick, onBlur: onDeleteBlur } = useArmedDelete(deleteRef, () => onDelete(asset.id));
-  const wasArmed = useRef(false);
-  useEffect(() => {
-    if (armed) {
-      wasArmed.current = true;
-      announce(`Premi di nuovo per eliminare ${asset.name}`);
-    } else if (wasArmed.current) {
-      wasArmed.current = false;
-      announce('Eliminazione annullata');
-    }
-  }, [armed, announce, asset.name]);
-
   const value = calculateAssetValue(asset);
   // A hand-VALUED holding keeps its value in `quantity` at price 1: those cells describe the
   // storage, so the details say the value and when it was typed instead.
@@ -474,19 +457,16 @@ export function AssetRow({
                 Modifica
               </Button>
               <Button
-                ref={deleteRef}
                 type="button"
-                variant={armed ? 'destructive' : 'outlineDestructive'}
+                variant="outlineDestructive"
                 className={cn('h-11', deleteSpansRow && 'col-span-2')}
-                onClick={onDeleteClick}
-                onBlur={onDeleteBlur}
+                onClick={() => onDelete(asset)}
                 disabled={isDemo}
                 title={isDemo ? 'Non disponibile in modalità demo' : undefined}
-                aria-pressed={armed}
-                aria-label={armed ? `Premi di nuovo per eliminare ${asset.name}` : `Elimina ${asset.name}`}
+                aria-label={`Elimina ${asset.name}`}
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
-                {armed ? 'Premi di nuovo' : 'Elimina'}
+                Elimina
               </Button>
             </div>
           </div>

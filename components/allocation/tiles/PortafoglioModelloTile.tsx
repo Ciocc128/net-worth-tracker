@@ -13,6 +13,7 @@
  * `AccumulationPlanDialog` so two modals are never stacked. No calculation and no network call before
  * the reader asks.
  */
+import { DELETED_INSTRUMENT_LABEL } from '@/lib/utils/accumulationNarrative';
 import { runGuarded } from '@/lib/utils/runGuarded';
 import { Fragment, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -111,7 +112,7 @@ export function PortafoglioModelloTile({
   const [pacSeed, setPacSeed] = useState<{ positions: PlanPosition[]; disposals?: PlanDisposal[]; optimizerSnapshot: OptimizerSnapshot } | undefined>(undefined);
 
   const assetsById = useMemo(() => new Map(allAssets.map((asset) => [asset.id, asset])), [allAssets]);
-  const nameOf = (assetId: string): string => assetsById.get(assetId)?.name ?? assetId;
+  const nameOf = (assetId: string): string => assetsById.get(assetId)?.name ?? DELETED_INSTRUMENT_LABEL;
   const labelOf = (assetId: string): string => {
     const asset = assetsById.get(assetId);
     return asset ? getAssetDisplayTicker(asset) || asset.name : assetId;

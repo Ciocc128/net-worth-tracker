@@ -104,7 +104,7 @@ export const hallOfFameRecalculateSchema = accountOnlySchema;
 /** POST /api/prices/update. */
 export const pricesUpdateSchema = accountOnlySchema;
 /** DELETE /api/assets/[assetId]: the body; the path's id is `assetIdParamSchema`. */
-export const assetDeleteSchema = accountOnlySchema;
+export const assetDeleteSchema = z.object({ userId: z.string().min(1), ledger: z.enum(['keep', 'delete']).optional() }).strict();
 /** The `[assetId]` of a path: non-empty, at most 200 characters, never a path. */
 export const assetIdParamSchema = z.string().min(1).max(200).regex(/^[^/]+$/, 'Invalid asset id');
 

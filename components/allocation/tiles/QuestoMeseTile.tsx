@@ -77,6 +77,8 @@ import {
   ACCUMULO_ACTION_APPLY,
   ACCUMULO_ACTION_KEEP_AS_IS,
   ACCUMULO_ACTION_REGISTER,
+  DELETED_INSTRUMENT_LABEL,
+  DELETED_INSTRUMENT_PLAN_NOTE,
   ACCUMULO_ACTION_REVISE,
   ACCUMULO_ACTION_REVIEW,
   ACCUMULO_ACTION_SAVE,
@@ -636,7 +638,10 @@ export function QuestoMeseTile({
                         </Button>
                       </span>
                     )}
-                    {!isDemo && (status === 'todo' || status === 'late') && (
+                    {!asset && (status === 'todo' || status === 'late') && (
+                      <span className="text-[11px] text-muted-foreground">{DELETED_INSTRUMENT_PLAN_NOTE}</span>
+                    )}
+                    {!isDemo && asset && (status === 'todo' || status === 'late') && (
                       <Button
                         className={ROW_ACTION_CLASS}
                         onClick={() => setRegisterTarget({ kind: 'line', installmentIndex, positionId: line.positionId })}
@@ -725,7 +730,7 @@ export function QuestoMeseTile({
                   <li key={key} className="py-2">
                     <div className="flex items-center gap-3">
                       <span className="min-w-0 flex-1">
-                        <span className="line-clamp-2 break-words text-[13px] text-foreground">{asset?.name ?? disposal.assetId}</span>
+                        <span className="line-clamp-2 break-words text-[13px] text-foreground">{asset?.name ?? DELETED_INSTRUMENT_LABEL}</span>
                         <span className="mt-0.5 block font-mono text-[11px] tabular-nums text-muted-foreground">
                           {asset && `${getAssetDisplayTicker(asset)} · `}
                           {disposal.quantity !== undefined && `${formatNumberIt(disposal.quantity, 0)} quote · `}
@@ -748,7 +753,10 @@ export function QuestoMeseTile({
                           </Button>
                         </span>
                       )}
-                      {!isDemo && (status === 'todo' || status === 'late') && (
+                      {!asset && (status === 'todo' || status === 'late') && (
+                        <span className="text-[11px] text-muted-foreground">{DELETED_INSTRUMENT_PLAN_NOTE}</span>
+                      )}
+                      {!isDemo && asset && (status === 'todo' || status === 'late') && (
                         <Button className={ROW_ACTION_CLASS} onClick={() => setRegisterTarget({ kind: 'disposal', assetId: disposal.assetId })}>
                           {ACCUMULO_ACTION_REGISTER}
                         </Button>

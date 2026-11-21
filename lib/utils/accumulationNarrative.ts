@@ -170,6 +170,11 @@ export const ACCUMULO_ACTION_DELETE_DRAFT_VERB = 'eliminare la bozza';
 export const ACCUMULO_ACTION_EDIT = 'Modifica';
 export const ACCUMULO_ACTION_ACTIVATE = 'Attiva piano';
 export const ACCUMULO_ACTION_REGISTER = 'Registra';
+
+/** An id that names no asset any more (doc/cancellazione-strumenti/README.md § 4.7): never the raw id. */
+export const DELETED_INSTRUMENT_LABEL = 'Strumento eliminato';
+/** The line of a plan whose instrument is gone: nothing to register, the plan is to be revised. */
+export const DELETED_INSTRUMENT_PLAN_NOTE = 'Strumento eliminato: rivedi il piano';
 export const ACCUMULO_ACTION_REVISE = 'Rivedi il piano';
 export const ACCUMULO_ACTION_KEEP_AS_IS = 'Lascia così';
 export const ACCUMULO_ACTION_CALENDAR = 'Calendario';
