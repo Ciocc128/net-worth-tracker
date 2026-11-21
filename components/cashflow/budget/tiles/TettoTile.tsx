@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { CeilingSummary, IncomeTargetSummary, SpendingHistory, TettoLiftedBlock } from '@/lib/utils/budgetSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
@@ -38,6 +39,8 @@ interface TettoTileProps {
    * (The Lifted-Figure Rule; doc/guide/cashflow-budget.md § Composizione mobile). «Al giorno» is never lifted.
    */
   liftedFigures?: readonly TettoLiftedBlock[];
+  /** The pencil beside the aside (`BudgetTab`'s «Modifica tetto e avvisi»): the ceiling's settings are a modal, not a disclosure (R6). */
+  asideAction?: ReactNode;
   className?: string;
 }
 
@@ -71,7 +74,7 @@ function Kpi({ label, value, valueClass, caption, className }: { label: string; 
  * tile computes nothing. The hero used to print `spent` (scheduled rows included) over the
  * word «speso» — 1953 € for 656 € spent, on the owner's account (2026-09-14).
  */
-export function TettoTile({ id, summary, aside, reading, history, historyCaption, income, incomeReading, liftedFigures = [], className }: TettoTileProps) {
+export function TettoTile({ id, summary, aside, reading, history, historyCaption, income, incomeReading, liftedFigures = [], asideAction, className }: TettoTileProps) {
   const lifted = (block: TettoLiftedBlock) => (liftedFigures.includes(block) ? LIFTED_FIGURE_CLASS : undefined);
   const totalRatio = summary.spent / summary.ceiling;
   const bookedRatio = summary.spentToDate / summary.ceiling;
@@ -88,7 +91,12 @@ export function TettoTile({ id, summary, aside, reading, history, historyCaption
     <Tile
       id={id}
       eyebrow="Tetto del mese"
-      aside={<NarrativeText segments={aside} figureClassName="font-medium" />}
+      aside={
+        <span className="inline-flex items-center gap-2">
+          <NarrativeText segments={aside} figureClassName="font-medium" />
+          {asideAction}
+        </span>
+      }
       reading={reading}
       className={className}
       ariaLabel="Tetto del mese"

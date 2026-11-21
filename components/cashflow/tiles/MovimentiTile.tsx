@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Narrative } from '@/lib/utils/narrative';
+import { cn } from '@/lib/utils';
 import { Tile, type TileCollapse } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
 
@@ -17,6 +18,12 @@ interface MovimentiTileProps {
   collapse?: TileCollapse;
   /** What the closed row says beside its eyebrow («12 di 24 voci», a count of rows). */
   asideWhenClosed?: string;
+  /**
+   * From `desktop:` the tile fills its cell and only the list scrolls (eyebrow, reading and toolbar
+   * stay put). For the feed beside the categories (R5); without it the tile is the one of the phone
+   * and of the table.
+   */
+  scrollBody?: boolean;
   className?: string;
 }
 
@@ -26,12 +33,12 @@ interface MovimentiTileProps {
  * largest, then the toolbar that narrows the list and the list itself. The feed keeps its
  * flat surface: rows inside a tile are never cards (DESIGN.md → Table inside a Tile).
  */
-export function MovimentiTile({ aside, reading, toolbar, mobileToolbar, children, collapse, asideWhenClosed, className }: MovimentiTileProps) {
+export function MovimentiTile({ aside, reading, toolbar, mobileToolbar, children, collapse, asideWhenClosed, scrollBody, className }: MovimentiTileProps) {
   return (
-    <Tile eyebrow="Movimenti" aside={<NarrativeText segments={aside} figureClassName="font-medium" />} reading={reading} collapse={collapse} asideWhenClosed={asideWhenClosed} className={className}>
+    <Tile eyebrow="Movimenti" aside={<NarrativeText segments={aside} figureClassName="font-medium" />} reading={reading} collapse={collapse} asideWhenClosed={asideWhenClosed} className={cn(scrollBody && 'desktop:flex desktop:h-full desktop:flex-col', className)}>
       {toolbar && <div className="mt-3.5 hidden desktop:block">{toolbar}</div>}
       {mobileToolbar && <div className="mt-3.5 desktop:hidden">{mobileToolbar}</div>}
-      <div className="mt-4">{children}</div>
+      <div className={cn('mt-4', scrollBody && 'desktop:min-h-0 desktop:flex-1 desktop:overflow-y-auto')}>{children}</div>
     </Tile>
   );
 }

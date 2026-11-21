@@ -74,9 +74,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   income `--positive` only once reached). The ceiling's track takes a second fill (`scheduledRatio`, same colour at
   40%) for the rows still to come, and every track speaks its real share through `valueText` → `aria-valuetext`
   («231%, oltre di 1963 €»): `aria-valuenow` clamps at 100 and used to announce an exceeded budget as full.
-- **Settings live below the grid** (`BudgetImpostazioni`, a Radix `Collapsible` open only while no ceiling is set);
-  the phone's 44px shortcut under the verdict scrolls to `#budget-impostazioni`. Without a ceiling the hero's cell is a
-  hidden spacer, never a faked tile, and the verdict passes the question to the category budgets.
+- **The ceiling's settings are a modal, «Tetto e avvisi»** (RU3, 2026-11-21; `BudgetImpostazioni`, `ResponsiveModal`): a pencil beside the Tetto tile's aside (`TettoTile` `asideAction`, `aria-label` «Modifica tetto e avvisi del budget») opens it; it works on a LOCAL DRAFT with «Annulla» · «Salva» (Salva off while the draft equals the saved values or the allocation is invalid), and «Salva» hands the three values to `useBudgetConfig` (whose debounced write stays the real save). Without a ceiling the hero's cell is a small tile «Tetto del mese» («Nessun tetto mensile.») with «Imposta il tetto»; on a phone, where THE tile is Categorie a rischio, the same button sits beside «Aggiungi budget». The disclosure at the foot, `#budget-impostazioni` and the phone's sliders button are gone. Avvisi's footer links «Email settimanale del budget» → Impostazioni › Preferenze. The Cashflow header's gear is per tab: «Categorie» on Tracciamento, «Impostazioni dei dividendi» on Dividendi, none on Budget, Divisione, Centri (P2).
 - **The page-level action talks through a window event** (`cashflow:add-budget`, desktop-only in the header, like
   Tracciamento's and Dividendi's); on a phone the «Aggiungi budget» button under the verdict is the only add
   affordance of the tab: the bottom-nav «+» FAB belongs to Tracciamento alone (`AddExpenseFab` in

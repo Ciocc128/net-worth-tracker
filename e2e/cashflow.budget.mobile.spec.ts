@@ -19,21 +19,23 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('the settings and the dialog controls are 44px targets on touch', async ({ page }) => {
-  // The settings disclosure is open on the base account (no ceiling): the controls are on screen.
-  const settings = page.getByRole('button', { name: 'Impostazioni del budget', exact: true });
-  if ((await settings.getAttribute('aria-expanded')) === 'false') await settings.click();
-  const ceiling = page.getByRole('region', { name: 'Tetto complessivo mensile' });
-  await ceiling.scrollIntoViewIfNeeded();
+  // The base account has no ceiling: «Imposta il tetto» opens «Tetto e avvisi» (the pencil does once there is one).
+  await page.getByRole('button', { name: 'Imposta il tetto', exact: true }).click();
+  const settings = page.getByRole('dialog', { name: 'Tetto e avvisi' });
+  await expect(settings).toBeVisible();
+  const ceiling = settings.getByRole('region', { name: 'Tetto complessivo mensile' });
   expect(await heightOf(ceiling.getByLabel('Tetto (€)'))).toBeGreaterThanOrEqual(44);
 
-  const alerts = page.getByRole('region', { name: 'Avvisi soglia' });
+  const alerts = settings.getByRole('region', { name: 'Avvisi soglia' });
   for (const chip of await alerts.getByRole('group', { name: 'Soglie di avviso' }).getByRole('button').all()) {
     expect(await heightOf(chip)).toBeGreaterThanOrEqual(44);
   }
   // The switch itself is 20px; its label is the 44px target that toggles it.
   expect(await heightOf(alerts.getByText('Avvisi attivi'))).toBeGreaterThanOrEqual(44);
 
-  // The dialog, as a drawer.
+  // «Annulla» closes and discards; then the add dialog, as a drawer.
+  await settings.getByRole('button', { name: 'Annulla' }).click();
+  await expect(settings).toBeHidden();
   await page.getByRole('button', { name: 'Aggiungi budget', exact: true }).first().click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();

@@ -35,7 +35,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, SlidersHorizontal } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Expense, ExpenseCategory } from '@/types/expenses';
 import { BudgetItem } from '@/types/budget';
@@ -81,7 +81,7 @@ import {
 } from '@/lib/utils/budgetNarrative';
 import { resolveBudgetCalendar } from '@/lib/utils/budgetUtils';
 import { PageVerdict } from '@/components/ui/page-verdict';
-import { TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
@@ -107,7 +107,7 @@ import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarr
 import { BUDGET_SKELETON_CELLS } from '@/lib/constants/cashflowTabSkeletons';
 import { cn } from '@/lib/utils';
 import { BudgetItemDialog } from '@/components/cashflow/budget/BudgetItemDialog';
-import { BudgetImpostazioni } from '@/components/cashflow/budget/BudgetImpostazioni';
+import { BudgetImpostazioni, type BudgetSettingsValues } from '@/components/cashflow/budget/BudgetImpostazioni';
 import { isTettoLiftedBlock, TettoTile } from '@/components/cashflow/budget/tiles/TettoTile';
 import { RischioTile } from '@/components/cashflow/budget/tiles/RischioTile';
 import { AvvisiTile } from '@/components/cashflow/budget/tiles/AvvisiTile';
@@ -165,8 +165,6 @@ const SAVE_STATUS_LABEL: Record<BudgetSaveStatus, string | null> = {
 /** How long «Salvato» stays in the aside: a confirmation, not a permanent state. */
 const SAVED_LABEL_MS = 4000;
 
-const SETTINGS_ID = 'budget-impostazioni';
-
 const EMPTY_EXPENSES: Expense[] = [];
 
 export function BudgetTab({ categories, categoriesLoading, categoriesFailed, historyStartYear, userId, active }: BudgetTabProps) {
@@ -174,6 +172,9 @@ export function BudgetTab({ categories, categoriesLoading, categoriesFailed, his
   const { ownerId } = useActiveAccount();
   const budget = useBudgetConfig({ userId, categories, disabled: isDemo });
 
+  // «Tetto e avvisi»: the modal of the ceiling's pencil, or of «Imposta il tetto» when there is none (R6).
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsOpenerRef = useRef<HTMLElement | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<BudgetItem | null>(null);
   // The control that opened the dialog: the dialog is mounted only while open, so Radix has
@@ -275,8 +276,14 @@ export function BudgetTab({ categories, categoriesLoading, categoriesFailed, his
     return () => window.removeEventListener('cashflow:add-budget', onAdd);
   }, [openCreate]);
 
-  const scrollToSettings = () => {
-    document.getElementById(SETTINGS_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const openSettings = (event: React.MouseEvent<HTMLElement>) => {
+    settingsOpenerRef.current = event.currentTarget;
+    setSettingsOpen(true);
+  };
+  const saveSettings = (values: BudgetSettingsValues) => {
+    if (values.overallMonthlyAmount !== budget.overallMonthlyAmount) budget.setOverall(values.overallMonthlyAmount);
+    if (values.alertsEnabled !== budget.alertsEnabled) budget.setAlertsEnabled(values.alertsEnabled);
+    if (values.alertThresholds.join() !== budget.alertThresholds.join()) budget.setAlertThresholds(values.alertThresholds);
   };
 
   if (resolveSurfaceState({ loading: loading || budget.loading, failed: loadFailed }) === 'failed') {
@@ -374,15 +381,19 @@ export function BudgetTab({ categories, categoriesLoading, categoriesFailed, his
       </div>
 
       {/* ── Below desktop: the only add affordance there is on a phone (the bottom-nav FAB
-          belongs to Tracciamento), and a shortcut to the settings below the fold ───── */}
+          belongs to Tracciamento); the ceiling's settings are the pencil on its tile ───── */}
       <div className="flex items-center gap-2 desktop:hidden">
         <Button variant="outline" className="h-11 flex-1" onClick={openCreate} disabled={isDemo} aria-label={addButtonLabel}>
           <Plus className="h-4 w-4" />
           Aggiungi budget
         </Button>
-        <Button variant="outline" size="icon" className="h-11 w-11 shrink-0" onClick={scrollToSettings} aria-label="Vai alle impostazioni del budget">
-          <SlidersHorizontal className="h-4 w-4" />
-        </Button>
+        {/* With a ceiling the phone reaches the modal from the pencil on its tile; without one there is no
+            tile (THE tile is Categorie a rischio), so the way in is here. */}
+        {!ceiling && (
+          <Button variant="outline" className="h-11 shrink-0" onClick={openSettings} disabled={isDemo}>
+            Imposta il tetto
+          </Button>
+        )}
       </div>
       </div>
 
@@ -405,12 +416,31 @@ export function BudgetTab({ categories, categoriesLoading, categoriesFailed, his
               income={income}
               incomeReading={income ? describeIncomeTargets(income) : null}
               liftedFigures={tettoLifted}
+              asideAction={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="-my-1.5 h-11 w-11 desktop:h-8 desktop:w-8"
+                  onClick={openSettings}
+                  disabled={isDemo}
+                  aria-label="Modifica tetto e avvisi del budget"
+                  title="Tetto e avvisi"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              }
             />
           </div>
         ) : (
-          // No ceiling: the hero's place stays empty rather than faked, and the settings
-          // below the fold are open to fill it.
-          <div className="hidden desktop:col-span-5 desktop:row-span-2 desktop:block" aria-hidden="true" />
+          // No ceiling: a small tile says so and offers the modal, instead of an empty cell (R6).
+          // Hidden below `desktop:` with the rest of the empty states: there THE tile is Categorie a rischio.
+          <div className={cn(TILE_CELL_CLASS, 'max-desktop:hidden desktop:col-span-5')}>
+            <Tile eyebrow="Tetto del mese" reading={[{ text: 'Nessun tetto mensile.' }]}>
+              <Button variant="outline" className="mt-3.5 h-11 desktop:h-9" onClick={openSettings} disabled={isDemo}>
+                Imposta il tetto
+              </Button>
+            </Tile>
+          </div>
         )}
         {/* Without a ceiling Categorie a rischio is THE tile, before «Il resto». */}
         {!ceiling && rischioCell}
@@ -510,19 +540,17 @@ export function BudgetTab({ categories, categoriesLoading, categoriesFailed, his
       </div>
       </div>
 
-      {/* ── Impostazioni, below the fold ─────────────────────────────────────────── */}
-      <div id={SETTINGS_ID} className="scroll-mt-4">
+      {settingsOpen && (
         <BudgetImpostazioni
-          overallMonthlyAmount={budget.overallMonthlyAmount}
-          alertsEnabled={budget.alertsEnabled}
-          alertThresholds={budget.alertThresholds}
-          validation={budget.validation}
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          returnFocusTo={settingsOpenerRef}
+          saved={{ overallMonthlyAmount: budget.overallMonthlyAmount, alertsEnabled: budget.alertsEnabled, alertThresholds: budget.alertThresholds }}
+          items={budget.items}
           isDemo={isDemo}
-          onOverallChange={budget.setOverall}
-          onAlertsEnabledChange={budget.setAlertsEnabled}
-          onAlertThresholdsChange={budget.setAlertThresholds}
+          onSave={saveSettings}
         />
-      </div>
+      )}
 
       {dialogOpen && (
         <BudgetItemDialog

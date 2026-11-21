@@ -279,10 +279,10 @@ test('«Andamento del mese» sits beside THE tile for a month, remembers its com
     const lead = page.locator('#trk-periodo');
     const risparmio = page.getByRole('region', { name: 'Risparmio nel tempo' });
     const [tileBox, leadBox, risparmioBox] = await Promise.all([tile.boundingBox(), lead.boundingBox(), risparmio.boundingBox()]);
-    // Beside THE tile, Risparmio a row of its own underneath and wider than the tile.
+    // Beside THE tile, Risparmio a row of its own underneath, in the same seven columns (R5).
     expect(tileBox!.x).toBeGreaterThanOrEqual(leadBox!.x + leadBox!.width - 1);
     expect(risparmioBox!.y).toBeGreaterThanOrEqual(tileBox!.y + tileBox!.height - 1);
-    expect(risparmioBox!.width).toBeGreaterThan(tileBox!.width);
+    expect(Math.abs(risparmioBox!.width - tileBox!.width)).toBeLessThanOrEqual(2);
     await expect(tile.getByRole('img', { name: /^Spesa cumulata di / })).toBeVisible();
 
     // The mean and last month are on; the pill remembers a touch across a reload.
@@ -425,4 +425,37 @@ test('the feed’s detail arms its delete in the footer: one dialog, the consequ
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expect(movimenti.getByRole('button', { name: /Alimentari/ }).filter({ visible: true })).toHaveCount(rowsBefore);
+});
+
+test('Movimenti sits beside the categories and only its list scrolls (R5)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/dashboard/cashflow?tab=tracking');
+  const movimenti = page.getByRole('region', { name: 'Movimenti' });
+  const entrate = page.getByRole('region', { name: 'Entrate per categoria' });
+  const spese = page.getByRole('region', { name: 'Spese per categoria' });
+  await expect(movimenti).toBeVisible({ timeout: 30_000 });
+
+  const m = (await movimenti.boundingBox())!;
+  const e = (await entrate.boundingBox())!;
+  const s = (await spese.boundingBox())!;
+  // Feed beside the categories: Movimenti ends where they begin, Entrate over Spese, and the row is on the page's first screens.
+  expect(m.x + m.width).toBeLessThanOrEqual(e.x + 1);
+  expect(e.x).toBeCloseTo(s.x, 0);
+  expect(e.y + e.height).toBeLessThanOrEqual(s.y + 1);
+  expect(m.y).toBeLessThan(1000);
+
+  // The tabs run Tracciamento · Budget …, Dividendi last.
+  const tabs = await page.getByRole('tablist', { name: 'Sezioni di Cashflow' }).getByRole('tab').allInnerTexts();
+  expect(tabs[0]).toContain('Tracciamento');
+  expect(tabs[1]).toContain('Budget');
+  expect(tabs[tabs.length - 1]).toContain('Dividendi');
+
+  // The gear on Tracciamento is «Categorie»; on Dividendi it is the dividends' settings; on Budget there is none.
+  await expect(page.getByRole('link', { name: 'Categorie', exact: true })).toHaveAttribute('href', '/dashboard/settings?tab=spese');
+
+  // «Tabella» takes the full width, under the cashflow tile.
+  await page.getByRole('tab', { name: 'Tabella' }).click();
+  const wide = (await movimenti.boundingBox())!;
+  expect(wide.width).toBeGreaterThan(m.width * 1.4);
+  await page.getByRole('tab', { name: 'Feed' }).click();
 });
