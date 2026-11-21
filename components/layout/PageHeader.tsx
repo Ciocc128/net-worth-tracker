@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { CircleUserRound } from 'lucide-react';
-import { ShellBandPortals, useInShellBand } from '@/components/layout/ShellBand';
+import { ShellBandPortals, useInShellBand } from '@/components/layout/ShellBandSlots';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
