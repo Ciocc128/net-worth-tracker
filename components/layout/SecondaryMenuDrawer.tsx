@@ -22,7 +22,7 @@ import { useLogout } from '@/lib/hooks/useLogout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { getAccountLabel, getDisplayInfo } from '@/lib/utils/userDisplayUtils';
-import { analysisNav, planningNav, assistantNavItem } from '@/lib/constants/navigation';
+import { navGroups, primaryNav, assistantNavItem } from '@/lib/constants/navigation';
 import { SIDEBAR_AVATAR_CLASS } from '@/components/layout/shellStyles';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TILE_EYEBROW_CLASS } from '@/components/ui/tile';
@@ -182,49 +182,38 @@ export function SecondaryMenuDrawer({ open, onOpenChange }: SecondaryMenuDrawerP
                 initial="hidden"
                 animate="visible"
               >
-                {/* Analisi group — the same label as the desktop sidebar */}
-                <div className="mb-1">
-                  <motion.p variants={drawerItem} className={sectionLabel}>Analisi</motion.p>
-                  {/* motion.li carries the stagger variant; the inner Link keeps
-                      aria-current, Next.js prefetching, and right-click semantics. */}
-                  <ul className="m-0 list-none p-0">
-                    {analysisNav.map((nav) => (
-                      <motion.li key={nav.href} variants={drawerItem}>
-                        <SceneLink
-                          href={nav.href}
-                          aria-current={isActive(nav.href) ? 'page' : undefined}
-                          onClick={() => onOpenChange(false)}
-                          className={navItemCn(isActive(nav.href))}
-                        >
-                          <nav.icon className="size-5 shrink-0" />
-                          {nav.name}
-                        </SceneLink>
-                      </motion.li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* Pianificazione group */}
-                <div className="mb-1">
-                  <motion.p variants={drawerItem} className={cn(sectionLabel, 'pt-2')}>
-                    Pianificazione
-                  </motion.p>
-                  <ul className="m-0 list-none p-0">
-                    {planningNav.map((nav) => (
-                      <motion.li key={nav.href} variants={drawerItem}>
-                        <SceneLink
-                          href={nav.href}
-                          aria-current={isActive(nav.href) ? 'page' : undefined}
-                          onClick={() => onOpenChange(false)}
-                          className={navItemCn(isActive(nav.href))}
-                        >
-                          <nav.icon className="size-5 shrink-0" />
-                          {nav.name}
-                        </SceneLink>
-                      </motion.li>
-                    ))}
-                  </ul>
-                </div>
+                {/* The same groups as the desktop sidebar (navGroups); the three pill routes are
+                    left out here because the pill already shows them. */}
+                {navGroups.map((group, index) => {
+                  const items = group.items.filter((nav) => !primaryNav.some((p) => p.href === nav.href));
+                  if (items.length === 0) return null;
+                  return (
+                    <div key={group.label ?? group.items[0].href} className="mb-1">
+                      {group.label && (
+                        <motion.p variants={drawerItem} className={cn(sectionLabel, index > 1 && 'pt-2')}>
+                          {group.label}
+                        </motion.p>
+                      )}
+                      {/* motion.li carries the stagger variant; the inner Link keeps
+                          aria-current, Next.js prefetching, and right-click semantics. */}
+                      <ul className="m-0 list-none p-0">
+                        {items.map((nav) => (
+                          <motion.li key={nav.href} variants={drawerItem}>
+                            <SceneLink
+                              href={nav.href}
+                              aria-current={isActive(nav.href) ? 'page' : undefined}
+                              onClick={() => onOpenChange(false)}
+                              className={navItemCn(isActive(nav.href))}
+                            >
+                              <nav.icon className="size-5 shrink-0" />
+                              {nav.name}
+                            </SceneLink>
+                          </motion.li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
 
                 {/* Assistente AI — a route like the others, after a hairline */}
                 {process.env.NEXT_PUBLIC_ASSISTANT_AI_ENABLED !== 'false' && (

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { CircleUserRound } from 'lucide-react';
+import { ShellBandPortals, useInShellBand } from '@/components/layout/ShellBandSlots';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -125,6 +126,19 @@ export function PageHeader({ title, description, actions, freshness, className }
   const fadeClass = cn(FRESHNESS_FADE_CLASS, leaving && 'opacity-0');
   const headerRef = useRef<HTMLDivElement>(null);
   useTopBandProgress(headerRef);
+  // Inside the dashboard's shell the band above `<main>` carries the page's fact and actions from `band:` (D-FD15);
+  // the landing has no band and keeps its compact row.
+  const inShell = useInShellBand();
+  const fact = (
+    <>
+      {description}
+      {freshness && (
+        <span {...FRESHNESS_LIVE_PROPS} className={fadeClass}>
+          {freshnessSentence ? `${description ? ' · ' : ''}${freshnessSentence}` : ''}
+        </span>
+      )}
+    </>
+  );
 
   return (
     // `page-header`: the page scene morphs this line into the next page's (globals.css → Page scene).
@@ -138,7 +152,15 @@ export function PageHeader({ title, description, actions, freshness, className }
     <div
       ref={headerRef}
       data-page-header=""
-      className={cn('max-desktop:sticky max-desktop:-top-4 max-desktop:z-20 tablet-landscape:static', className)}
+      className={cn(
+        inShell
+          // Sticky below the band only: from `band:` the band is the shell's, above `<main>`, and never scrolls, and
+          // this box holds only the sr-only `h1` — `contents`, or the next row's `space-y` margin collapsed through the
+          // empty box and pushed the page 16px down.
+          ? 'max-band:sticky max-band:-top-4 max-band:z-20 band:contents'
+          : 'max-desktop:sticky max-desktop:-top-4 max-desktop:z-20 tablet-landscape:static',
+        className,
+      )}
       style={{ viewTransitionName: 'page-header' }}
     >
       {/* Mobile navbar — title + description in one block so the header feels like a unified
@@ -148,7 +170,7 @@ export function PageHeader({ title, description, actions, freshness, className }
           net-worth colour that reaches the top of the screen (`-mt-4 pt-5` covers `<main>`'s padding),
           the page under it starts as a sheet with rounded corners, and the corners flatten as the page
           scrolls (`--band-progress`). Every other theme paints it as before. */}
-      <div className="top-band -mx-4 -mt-4 px-4 pt-5 pb-2 flex flex-col bg-background desktop:hidden tablet-landscape:hidden">
+      <div className={cn('top-band -mx-4 -mt-4 px-4 pt-5 pb-2 flex flex-col bg-background', inShell ? 'band:hidden' : 'desktop:hidden tablet-landscape:hidden')}>
         <div className="flex items-center justify-between">
           <h1 className="text-[16px] font-semibold tracking-tight truncate min-w-0">{title}</h1>
           {/* `data-band-actions`: every button here takes the band's ONE shape (globals.css → The band's buttons). */}
@@ -167,6 +189,15 @@ export function PageHeader({ title, description, actions, freshness, className }
         )}
       </div>
 
+      {inShell ? (
+        // From `band:` the page's words are in the shell's band (D-FD15): its fact and actions portaled into the band's
+        // slots, its name the open tab's. The `h1` stays the page's, for a screen reader and for `main h1` (the
+        // «page has mounted» marker of `e2e/shellBoot.ts` and `scripts/perfBenchmark.mjs`).
+        <>
+          <h1 className="sr-only hidden band:block">{title}</h1>
+          <ShellBandPortals fact={fact} actions={actions} />
+        </>
+      ) : (
       <div className="hidden desktop:flex tablet-landscape:flex items-center justify-between gap-4 min-h-9">
         <div className="flex items-baseline gap-3 min-w-0">
           <h1 className="text-sm text-muted-foreground truncate">
@@ -181,6 +212,7 @@ export function PageHeader({ title, description, actions, freshness, className }
         </div>
         {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
+      )}
     </div>
   );
 }
@@ -192,12 +224,13 @@ export function PageHeader({ title, description, actions, freshness, className }
  * words are the page's and arrive with it. Measured on 2026-09-28 before it existed: when the page
  * mounted, the tile grid moved down 56px at 1440 and 65px at 390. It carries no `page-header`
  * view-transition name (that belongs to the header replacing it) and no heading: `main h1` still
- * means «the page has mounted» (`e2e/shellBoot.ts`, `scripts/perfBenchmark.mjs`).
+ * means «the page has mounted» (`e2e/shellBoot.ts`, `scripts/perfBenchmark.mjs`). From `band:` it draws
+ * nothing: the shell's band is already on screen, and the page's fact comes into it with the page.
  */
 export function PageHeaderSkeleton() {
   return (
     <div aria-hidden="true">
-      <div className="-mx-4 px-4 pt-1 pb-2 flex flex-col desktop:hidden tablet-landscape:hidden">
+      <div className="-mx-4 px-4 pt-1 pb-2 flex flex-col band:hidden">
         <div className="flex min-h-9 items-center">
           <Skeleton className="h-[15px] w-36" />
         </div>
@@ -205,9 +238,6 @@ export function PageHeaderSkeleton() {
         <div className="text-sm leading-tight">
           <Skeleton className="inline-block h-3 w-52 align-middle" />
         </div>
-      </div>
-      <div className="hidden desktop:flex tablet-landscape:flex min-h-9 items-center">
-        <Skeleton className="h-2.5 w-24" />
       </div>
     </div>
   );

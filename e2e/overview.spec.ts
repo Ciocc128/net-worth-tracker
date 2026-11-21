@@ -19,7 +19,7 @@ test('is the page of every width at 1440: no rows, no strip, the chips and the d
   await patchOverview(page);
   await openOverview(page);
 
-  await expect(page.locator('main [id$="-trigger"]')).toHaveCount(0);
+  await expect(page.locator('main [id$="-trigger"]')).toHaveCount(0); // no ownership in this payload: no Intestatari row
   await expect(page.getByRole('list', { name: 'Le cifre del verdetto' })).toBeHidden();
   await expect(page.getByRole('heading', { level: 2, name: 'Il resto della pagina' })).toBeHidden();
   await expect(page.getByRole('button', { name: /^Il perché/ })).toHaveCount(0);
@@ -57,4 +57,53 @@ test('prints a zero variation without a sign, at 1440 too', async ({ page }) => 
   const paragraph = page.getByRole('region', { name: 'Verdetto del mese' }).locator('p');
   await expect(paragraph).toContainText(/: 0\s?€ \(0,00%\) su \p{Ll}+, 0,00% da inizio anno \(0\s?€\)\./u);
   await expect(paragraph).not.toContainText(/[+−-]0,00/);
+});
+
+test('lays the page on two columns at 1440: «Quanto ho» on the left, «Come va il mese» on the right with the incomes above the expenses, Intestatari a closed row', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await patchOverview(page, {
+    ownership: {
+      rows: [
+        { key: 'common', kind: 'common', memberId: null, label: 'In comune', value: 190000, sharePct: 100, assetCount: 3 },
+      ],
+      total: 190000,
+      assetCount: 3,
+      hasOwners: true,
+      reassign: [],
+    },
+  });
+  await openOverview(page);
+
+  const left = page.getByRole('heading', { level: 3, name: 'Quanto ho' });
+  const right = page.getByRole('heading', { level: 3, name: 'Come va il mese' });
+  await expect(left).toBeVisible();
+  await expect(right).toBeVisible();
+
+  const box = async (name: string | RegExp) => {
+    const rect = await page.getByRole('region', { name }).boundingBox();
+    expect(rect, String(name)).not.toBeNull();
+    return rect!;
+  };
+  const rightLabel = (await right.boundingBox())!;
+  const patrimonio = await box('Patrimonio');
+  const cashflow = await box(/^Cashflow/);
+  const incomes = await box('Entrate per categoria');
+  const expenses = await box('Spese per categoria');
+  const composition = await box(/^Composizione/);
+
+  // Left column: THE tile and Composizione; right column: Cashflow, incomes, then expenses.
+  expect(patrimonio.x).toBeLessThan(rightLabel.x);
+  expect(composition.x).toBeLessThan(rightLabel.x);
+  for (const tile of [cashflow, incomes, expenses]) expect(Math.abs(tile.x - rightLabel.x)).toBeLessThan(2);
+  expect(cashflow.y).toBeLessThan(incomes.y);
+  expect(incomes.y).toBeLessThan(expenses.y);
+  // The expenses' eyebrow starts inside the first screen (934 px before the reorder).
+  expect(expenses.y).toBeLessThan(900);
+
+  // Intestatari: a closed row at 1440 too, open on a click.
+  const trigger = page.locator('#panoramica-intestatari-trigger');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await trigger.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('list', { name: 'Patrimonio per intestatario' })).toBeVisible();
 });

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { PAGE_LEAVING_ATTRIBUTE, prefersReducedMotion, runViewTransition } from '@/lib/utils/viewTransition';
-import { PILL_VISIBLE_QUERY } from '@/lib/constants/navigation';
+import { BAND_QUERY, PILL_VISIBLE_QUERY } from '@/lib/constants/navigation';
 
 /**
  * How long the scene waits for the next page to land before it plays anyway: a route the dev
@@ -18,13 +18,15 @@ const LEAVE_MS = 140;
 const LEAVE_GIVE_UP_MS = 2000;
 
 /**
- * True where a navigation is the SOFT scene: where the phone's pill shows (2026-10-23). A view
- * transition paints its own snapshots over the whole document, the pill included, and a snapshot
- * has nothing behind it to blur: the glass pill went clear (Safari) or grey (Chromium) on every
- * navigation. The soft scene never leaves the live DOM, so the pill stays the real, blurred one.
+ * True where a navigation is the SOFT scene: where the phone's pill shows (2026-10-23), and where the
+ * shell's band shows (D-FD22, 2026-11-20). A view transition paints its own snapshots over the whole
+ * document: the glass pill went clear (Safari) or grey (Chromium) on every navigation, and the band
+ * froze in a snapshot while its group bar and open tab had to slide live (two stacked root snapshots
+ * washed its row out). The soft scene never leaves the live DOM, so both stay real.
  */
 function isSoftScene(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia(PILL_VISIBLE_QUERY).matches;
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia(PILL_VISIBLE_QUERY).matches || window.matchMedia(BAND_QUERY).matches;
 }
 
 /**

@@ -4,7 +4,8 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { ChartColorsProvider } from '@/contexts/ChartColorsContext';
 import { AppSidebar } from '@/components/layout/Sidebar';
 import { BottomNavigation } from '@/components/layout/BottomNavigation';
-import { TabletRail } from '@/components/layout/TabletRail';
+import { ShellBand } from '@/components/layout/ShellBand';
+import { ShellBandProvider } from '@/components/layout/ShellBandSlots';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeaderSkeleton } from '@/components/layout/PageHeader';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
@@ -16,7 +17,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * The dashboard shell — in the prerendered HTML and on screen BEFORE Firebase Auth resolves
- * (since 2026-09-28): the skip link, the sidebar (its profile in a wait state until the user is known),
+ * (since 2026-09-28): the skip link, the folder row at `desktop:` and on a tablet in landscape, the sidebar's Sheet on a phone turned sideways,
  * `<main>` with the generic tile-grid skeleton, the bottom nav. Only the PAGE waits for the user:
  * `ProtectedRoute` sits inside `<main>`. Nothing here may read `window` during render — the first
  * frame on a phone is decided by CSS (`hidden desktop:block`), and `useMediaQuery` answers the
@@ -44,14 +45,14 @@ export default function DashboardLayout({
       </a>
       <SidebarProvider className="h-screen overflow-hidden">
         <AppSidebar />
-        <TabletRail />
 
         <SidebarInset className="overflow-hidden">
-          {/* Hamburger bar — a PHONE in landscape only (no bottom pill there; a tablet in landscape has
-              the icon rail instead, `TabletRail`, since 2026-10-16). SidebarTrigger toggles the shadcn
-              sidebar Sheet on screens < 1440px; it is the bar's only control, so it is a 44px touch
+          <ShellBandProvider>
+          {/* Hamburger bar — a PHONE in landscape only (no bottom pill there; from the band's widths, a tablet in
+              landscape and a desktop at any zoom down to 960 CSS px, the shell's band instead, D-FD16). SidebarTrigger toggles the shadcn
+              sidebar Sheet below `desktop:`; it is the bar's only control, so it is a 44px touch
               target and the bar 4 + 44 + 4 + 1 = 53px (doc/guide/shell.md § Navigation). */}
-          <div className="flex shrink-0 items-center gap-2 border-b bg-background px-4 py-1 desktop:hidden max-desktop:portrait:hidden max-desktop:landscape:flex tablet-landscape:hidden">
+          <div className="flex shrink-0 items-center gap-2 border-b bg-background px-4 py-1 portrait:hidden band:hidden">
             <SidebarTrigger aria-label="Apri il menu" />
             <span className="text-[13px] font-semibold tracking-[-0.01em]">Portfolio Tracker</span>
           </div>
@@ -80,6 +81,10 @@ export default function DashboardLayout({
             </div>
           )}
 
+          {/* The shell's band (D-FD14–D-FD22): from `band:`, under the demo banner, above `<main>` — it never
+              scrolls and never leaves a navigation; the page's fact and actions come into it from `PageHeader`. */}
+          <ShellBand />
+
           {/* The page scene: `page-main` is the region a navigation cross-fades (globals.css →
               Page scene); the shell around it stays still. template.tsx carries the fallback
               fade for browsers without view transitions. */}
@@ -107,6 +112,7 @@ export default function DashboardLayout({
               {children}
             </ProtectedRoute>
           </main>
+          </ShellBandProvider>
         </SidebarInset>
       </SidebarProvider>
 

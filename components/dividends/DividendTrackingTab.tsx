@@ -132,6 +132,9 @@ import {
   describePaymentsInventory,
   describePeriodEyebrow,
   describeFilteredDividends,
+  describeNotEntitledDividends,
+  describeQuantityMismatches,
+  type QuantityMismatchLine,
   describeReliability,
   describeReliabilityClosedAside,
   describeSoldIncomeNote,
@@ -443,6 +446,10 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
       // «Nessun nuovo dividendo trovato» and nothing else.
       let filteredCount = 0;
       let filteredByCreation = 0;
+      // Nothing held the day before the ex-date, and the paid payments that do not match the
+      // Registro operazioni (doc/dividendi-quantita RQ4, RQ13): both named, nothing rewritten.
+      let notEntitledCount = 0;
+      const mismatchLines: QuantityMismatchLine[] = [];
       const scrapeOne = async (asset: Asset) => {
         const response = await authenticatedFetch('/api/dividends/scrape', {
           method: 'POST',
@@ -455,6 +462,16 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
           if (typeof result.filtered === 'number' && result.filtered > 0) {
             filteredCount += result.filtered;
             if (result.floorSource === 'created') filteredByCreation += 1;
+          }
+          if (typeof result.notEntitled === 'number') notEntitledCount += result.notEntitled;
+          for (const m of result.mismatches ?? []) {
+            mismatchLines.push({
+              ticker: asset.ticker,
+              dividendType: m.dividendType,
+              referenceDate: m.exDate,
+              recordedQuantity: m.recordedQuantity,
+              entitledQuantity: m.entitledQuantity,
+            });
           }
         } else failedCount += 1;
       };
@@ -475,6 +492,10 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
       if (filteredCount > 0) {
         toast.info(describeFilteredDividends(filteredCount, filteredByCreation), { duration: 12_000 });
       }
+      const notEntitledText = describeNotEntitledDividends(notEntitledCount);
+      if (notEntitledText) toast.info(notEntitledText, { duration: 12_000 });
+      const mismatchText = describeQuantityMismatches(mismatchLines);
+      if (mismatchText) toast.warning(mismatchText, { duration: 12_000 });
       if (failedCount > 0) toast.warning(`${failedCount} ${failedCount === 1 ? 'strumento ha' : 'strumenti hanno'} fallito lo scarico`);
     };
 

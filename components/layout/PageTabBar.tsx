@@ -69,11 +69,11 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, re
     !renderedPanels || renderedPanels.has(tabValue) ? pageTabPanelId(layoutId, tabValue) : undefined;
   return (
     <>
-      {/* Phone and tablet in portrait: Segmented Pill — active tab shows label, inactive shows icon only */}
+      {/* Below the band (phone, tablet in portrait): Segmented Pill — active tab shows label, inactive shows icon only */}
       <div
         role="tablist"
         aria-label={ariaLabel}
-        className="desktop:hidden tablet-landscape:hidden flex w-fit max-w-full mx-auto overflow-x-auto scrollbar-none bg-muted rounded-lg p-1 my-2"
+        className="band:hidden flex w-fit max-w-full mx-auto overflow-x-auto scrollbar-none bg-muted rounded-lg p-1 my-2"
       >
         {tabs.map(({ value: tv, label, icon: Icon, unsaved }) => {
           const isActive = value === tv;
@@ -112,14 +112,16 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, re
         })}
       </div>
 
-      {/* Desktop (≥ 1440px) and a tablet in landscape (since 2026-10-16: the width is there, and the
-          centred icon pill read as a phone's on a left-aligned page): underline bar, 13px labels, flush
-          under the compact header — 44px tall on the tablet, a thumb's target. */}
+      {/* Wherever the shell's band shows (`band:`, D-FD16: 1440, from 960 with a mouse, a tablet in landscape): the
+          fascicolo's U3 (D-FD5), under the band — a 2px
+          rule in the band's colour that the open tab thickens into a 5px bar with rounded top corners. The rule is an inset
+          shadow, not a border: the bar sits on it inside the box that scrolls, where a border would clip it.
+          14px labels, 44px tall on touch, a thumb's target. */}
       <div
         role="tablist"
         aria-label={ariaLabel}
         className={cn(
-          'hidden desktop:flex tablet-landscape:flex border-b border-border overflow-x-auto scrollbar-none',
+          'hidden band:flex overflow-x-auto scrollbar-none shadow-[inset_0_-2px_0_var(--folder-rule)]',
           className,
         )}
       >
@@ -135,17 +137,17 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, re
               aria-label={tabName(label, unsaved)}
               onClick={() => onValueChange(tv)}
               className={cn(
-                'relative flex shrink-0 items-center gap-1.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors whitespace-nowrap tablet-landscape:min-h-11',
-                isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+                'relative flex h-10 shrink-0 items-center gap-1.5 px-3.5 text-sm transition-colors whitespace-nowrap pointer-coarse:min-h-11',
+                isActive ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground hover:text-foreground',
               )}
             >
-              {Icon && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+              {Icon && <Icon className="size-[15px] shrink-0" aria-hidden="true" />}
               {label}
               {unsaved && <UnsavedDot />}
               {isActive && (
                 <motion.div
                   layoutId={`${layoutId}-underline`}
-                  className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground"
+                  className="absolute inset-x-0 bottom-0 h-[5px] rounded-t-[5px] bg-[var(--folder-bar)]"
                   transition={SPRING}
                 />
               )}

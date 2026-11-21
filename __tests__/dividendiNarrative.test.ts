@@ -42,6 +42,8 @@ import {
   describeConcentration,
   describeDpsGrowth,
   describeFilteredDividends,
+  describeNotEntitledDividends,
+  describeQuantityMismatches,
   describeReliabilityClosedAside,
   describeTotalReturn,
   describeMonthlyWindow,
@@ -811,6 +813,45 @@ describe('describeFilteredDividends', () => {
       '7 dividendi non importati perché precedenti alla data in cui possiedi il titolo: per un titolo creato nell’app dopo l’acquisto, registra l’acquisto nel Registro operazioni con la sua data reale e scarica di nuovo.'
     );
     expect(describeFilteredDividends(1, 0)).toBe('1 dividendo non importato perché precedente alla data in cui possiedi il titolo.');
+  });
+});
+
+describe('describeQuantityMismatches / describeNotEntitledDividends (F09, RQ13)', () => {
+  const line = (ticker: string, referenceDate: string, type: 'ordinary' | 'coupon' = 'ordinary') => ({
+    ticker,
+    dividendType: type,
+    referenceDate,
+    recordedQuantity: 200,
+    entitledQuantity: 100,
+  });
+
+  it('says nothing when everything matches', () => {
+    expect(describeQuantityMismatches([])).toBeNull();
+    expect(describeNotEntitledDividends(0)).toBeNull();
+  });
+
+  it('names one payment, with what was recorded and what was entitled, and where to fix it', () => {
+    expect(describeQuantityMismatches([line('ENI', '2025-05-19T12:00:00.000Z')])).toBe(
+      '1 pagamento già incassato non torna con il Registro operazioni: ENI, stacco del 19/05/2025 (200 registrate, 100 di diritto). Apri il pagamento e correggi la quantità: la differenza si sposta sulla riga di cashflow e sul conto.'
+    );
+  });
+
+  it('names two and counts the rest', () => {
+    const two = describeQuantityMismatches([line('ENI', '2025-05-19T12:00:00.000Z'), line('ENEL', '2026-05-18T12:00:00.000Z')]);
+    expect(two).toContain('2 pagamenti già incassati non tornano');
+    expect(two).toContain('ENI, stacco del 19/05/2025 (200 registrate, 100 di diritto) e ENEL, stacco del 18/05/2026');
+    const four = describeQuantityMismatches(['A', 'B', 'C', 'D'].map((t) => line(t, '2025-05-19T12:00:00.000Z')));
+    expect(four).toContain('4 pagamenti');
+    expect(four).toContain('e altri 2.');
+  });
+
+  it('calls a coupon a coupon', () => {
+    expect(describeQuantityMismatches([line('BTP', '2026-03-01T12:00:00.000Z', 'coupon')])).toContain('BTP, cedola del 01/03/2026');
+  });
+
+  it('counts the dividends with nothing entitled', () => {
+    expect(describeNotEntitledDividends(1)).toBe('1 dividendo non importato: non possedevi il titolo il giorno prima dello stacco.');
+    expect(describeNotEntitledDividends(3)).toBe('3 dividendi non importati: non possedevi il titolo il giorno prima dello stacco.');
   });
 });
 

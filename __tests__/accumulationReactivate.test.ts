@@ -56,9 +56,9 @@ function plan(overrides: Partial<AccumulationPlan> = {}): AccumulationPlan {
 }
 
 function stored(p: AccumulationPlan): Record<string, unknown> {
-  const rest = { ...p } as unknown as Record<string, unknown>;
+  const rest: Partial<AccumulationPlan> = { ...p };
   delete rest.id;
-  return rest;
+  return rest as unknown as Record<string, unknown>;
 }
 
 describe('canReactivatePlan', () => {

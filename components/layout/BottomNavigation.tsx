@@ -114,7 +114,7 @@ export function BottomNavigation() {
           aria-label on motion.nav distinguishes this landmark from the
           desktop sidebar <nav> when a screen reader lists nav regions. */}
       <div
-        className="fixed z-30 left-0 right-0 desktop:hidden max-desktop:portrait:flex max-desktop:landscape:hidden items-center justify-center"
+        className="fixed z-30 left-0 right-0 desktop:hidden max-desktop:portrait:flex max-desktop:landscape:hidden band:hidden items-center justify-center"
         style={PILL_CONTAINER_STYLE}
         data-bottom-nav=""
       >
@@ -124,7 +124,7 @@ export function BottomNavigation() {
         <motion.nav
           key={isPillVisible ? 'pill-animated' : 'pill-static'}
           aria-label="Navigazione principale"
-          // The landscape icon rail is the same landmark (`TabletRail`, 2026-10-16, never visible with
+          // The landscape folder row is the same landmark (`ShellBand`, 2026-11-20, never visible with
           // the pill): the census and the specs that mean THE PILL select this attribute.
           data-nav="pill"
           // Frosted glass over the page that scrolls under it (`.nav-glass` in globals.css).

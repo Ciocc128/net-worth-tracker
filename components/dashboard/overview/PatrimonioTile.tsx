@@ -71,7 +71,7 @@ interface PatrimonioTileProps {
    * top instruments, so the two pages never print the same line.
    */
   movers?: MarketDigestEntry[];
-  /** The muted count line under the digest; defaults to "N asset in portafoglio". Patrimonio passes its holdings count: a link to its table at 1440, a button opening the Strumenti row below `desktop:`. */
+  /** The muted count line under the digest; defaults to "N asset nel patrimonio". Patrimonio passes its holdings count: a link to its table at 1440, a button opening the Strumenti row below `desktop:`. */
   countLine?: ReactNode;
   /** Feeds that default line; ignored once `countLine` is given. */
   assetCount?: number;
@@ -256,7 +256,7 @@ export function PatrimonioTile({
         )}
         <p className="font-mono tabular-nums">
           {countLine ??
-            (assetCount === 0 ? 'Aggiungi asset per iniziare' : `${assetCount} asset in portafoglio`)}
+            (assetCount === 0 ? 'Aggiungi asset per iniziare' : `${assetCount} asset nel patrimonio`)}
           {hasCurrentMonthSnapshot && ' · snapshot del mese presente'}
         </p>
       </div>

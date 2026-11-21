@@ -168,7 +168,7 @@ test.describe('Allocazione, composta per un telefono', () => {
     const cells = stripOf(page).getByRole('button');
     await expect(cells).toHaveCount(2);
     await expect(cells.nth(0)).toContainText(/^Fuori posizione/);
-    await expect(cells.nth(0)).toHaveAccessibleName(/, apre Piano$/);
+    await expect(cells.nth(0)).toHaveAccessibleName(/, apre Ordini$/);
     await expect(cells.nth(1)).toContainText(/(sopra|sotto)/);
     await expect(cells.nth(1)).toHaveAccessibleName(/, apre Per classe$/);
     for (let i = 0; i < 2; i++) {
@@ -223,7 +223,7 @@ test.describe('Allocazione, composta per un telefono', () => {
     await stripOf(page).getByRole('button', { name: /^Fuori posizione/ }).click();
     await expect(trigger(page, 'alloc-piano')).toHaveAttribute('aria-expanded', 'true');
     await expect(trigger(page, 'alloc-piano')).toBeFocused();
-    await expect(page.getByRole('region', { name: 'Piano' })).toContainText(/Ribilancia|Versa|Preleva|in linea/);
+    await expect(page.getByRole('region', { name: 'Ordini' })).toContainText(/Ribilancia|Versa|Preleva|in linea/);
   });
 
   test('a riga chiusa nessuna richiesta parte verso i profili; aprirla la fa partire', async ({ page }) => {
@@ -326,7 +326,7 @@ test.describe('Allocazione, composta per un telefono', () => {
       );
 
     const phone = await readOrder();
-    expect(phone.map((s) => s.name).slice(0, 5)).toEqual(["Bilanciamento dell'allocazione", 'Allocazione per classe', 'Piano', 'Esposizione del portafoglio', 'Previdenza complementare']);
+    expect(phone.map((s) => s.name).slice(0, 5)).toEqual(["Bilanciamento dell'allocazione", 'Allocazione per classe', 'Ordini', 'Esposizione del portafoglio', 'Previdenza complementare']);
     expect(isSorted(phone.map((s) => s.top)), JSON.stringify(phone)).toBe(true);
     expect(await orderClasses()).toEqual([]);
 

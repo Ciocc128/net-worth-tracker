@@ -16,8 +16,8 @@
  * settings (doc/fire-ipotesi/README.md § 15). The page reads `?tab=<tab>` (the initial tab) and `?piano=aperto|<field>`
  * (opens the block, puts the focus on the field): the links of Impostazioni and of the tiles work.
  *
- * Mobile/tablet pattern (< 1440px): PageTabBar renders a centered segmented pill (icon-only
- * inactive tabs). Desktop (≥ 1440px): standard TabsList with icons.
+ * Mobile/tablet pattern (below `desktop:`): PageTabBar renders a centered segmented pill (icon-only
+ * inactive tabs). Desktop (`desktop:`): standard TabsList with icons.
  *
  * Only the Calcolatore — the tab the page opens on — and the Proiezione are in the page's initial JavaScript; the
  * other four are a chunk each, fetched once the page is idle or when their tab is opened, whichever

@@ -30,7 +30,7 @@ interface ThemeProbe {
 }
 
 /**
- * (a) The HTML alone — no JS, no session — carries the shell: the skip link, the sidebar's routes
+ * (a) The HTML alone — no JS, no session — carries the shell: the skip link, the folder row's routes
  * as a navigation landmark, the bottom nav, `main`, and the auth wait in place of the page. The
  * spinner it replaced is not there.
  */
@@ -40,10 +40,11 @@ export async function expectShellInHtml(request: APIRequestContext): Promise<voi
   const html = await response.text();
 
   expect(html).toContain('Vai al contenuto principale');
-  expect(html).toContain('role="navigation"');
+  expect(html).toContain('aria-label="Navigazione principale"');
+  expect(html).toContain('data-nav="folders"');
   expect(html).toContain('<nav');
   expect(html).toContain('id="page-main"');
-  for (const route of ['Panoramica', 'Patrimonio', 'Cashflow']) expect(html).toContain(route);
+  for (const route of ['Panoramica', 'Entrate e spese', 'Investimenti', 'Futuro', 'Storia']) expect(html).toContain(route);
   // React escapes the apostrophe of the attribute value.
   expect(html).toMatch(/aria-label="Verifica dell(?:&#x27;|&#39;|')accesso"/);
   expect(html).not.toContain('animate-spin rounded-full border-4');

@@ -11,7 +11,7 @@ rules below name.
   `lib/hooks/useSceneNavigation.ts`, `lib/utils/viewTransition.ts`, `lib/utils/themeTransition.ts`, the `::view-transition-*` rules in `app/globals.css`, `next.config.ts`
 - **Navigation**: `lib/constants/navigation.ts` (`assistantNavItem`), `components/layout/SceneLink.tsx`,
   `components/layout/{Sidebar,BottomNavigation,SecondaryMenuDrawer}.tsx` (`AppSidebar`, `NavItems`, `AddExpenseFab`),
-  `components/layout/TabletRail.tsx` (a tablet in landscape, since 2026-10-16), the `tablet-landscape` custom variant
+  `components/layout/{FolderNav,AccountMenu}.tsx` + `lib/utils/folderNav.ts` (the folder row, 2026-11-20: from `desktop:` and on a tablet in landscape; it replaced the sidebar there and `TabletRail`), the `tablet-landscape` custom variant
   in `app/globals.css`, `components/ui/sidebar.tsx` (`SIDEBAR_WIDTH_ICON`, `sidebarMenuButtonVariants`)
 - **Page frame**: `components/layout/{PageHeader,PageTabs,PageTabBar,PageContainer}.tsx` (`PageHeaderSkeleton`,
   `pageTabPanelId`), `components/ProtectedRoute.tsx`, `contexts/AuthContext.tsx`, `lib/hooks/useMediaQuery.ts`,
@@ -53,6 +53,7 @@ rules below name.
   `dvd-`), the memory is per tab, and the page passes `active` so the one `role="alert"` of `PageRest` is remounted
   for the tab that shows (doc/guide/cashflow.md § The tabs load their code on demand). A locator on a Cashflow
   phone spec scopes to the tabpanel by name (`getByRole('tabpanel', { name: 'Budget' })`) or counts only what is visible.
+- **The groups (RU1, 2026-11-20)**: `navGroups` is the one source of the menu's groups and order (Panoramica · Entrate e spese: Cashflow, Analisi spese · Investimenti: Patrimonio, Allocazione, Rendimenti · Futuro: FIRE e Simulazioni, Previdenza · Storia: Storico, Hall of Fame · Assistente AI); `Sidebar`, `SecondaryMenuDrawer`, `TabletRail` and `pension/page.tsx` read it, `secondaryHrefs` derives from it, `primaryNav` stays the pill. Traguardi and Hall of Fame as a Storico tab are wave 3 (`doc/riordino-ui/README.md` § 5.3).
 - **Single source for nav arrays**: `lib/constants/navigation.ts` — Sidebar, BottomNavigation and SecondaryMenuDrawer all
   import from it, never redeclare inline. **A route link in the shell is a `SceneLink`** (`components/layout/SceneLink.tsx`,
   a `next/link` whose plain left click runs the page scene — prefetch, modifier clicks, `target` and the caller's own
@@ -122,7 +123,7 @@ rules below name.
   `max-desktop:portrait:pb-16` and the end of its list clears the «+». Pinned by `e2e/motion.layout.mobile.spec.ts` (one left edge in every
   frame from Panoramica to Tracciamento, centred, the «+» above the pill and inside the viewport). In dev the page
   scene freezes rendering while the route compiles, so that spec runs without view transitions.
-- **A tablet in landscape has the icon rail, not the bar** (2026-10-16, the landscape redesign, which left the landscape bar below to a phone alone; DESIGN.md → Navigation):
+- **A tablet in landscape has the folder row, not the bar** (2026-11-20, D-FD9; before it, from 2026-10-16, a 56px icon rail — the paragraph below is the history; the live selector is `nav[data-nav="folders"]`, and `expectLandscapeShell` holds every folder ≥ 44px, the current one marked, `main` under the row) (2026-10-16, the landscape redesign, which left the landscape bar below to a phone alone; DESIGN.md → Navigation):
   `components/layout/TabletRail.tsx` is the 1440 sidebar's routes as a 56px rail on the left (`primaryNav`, `analysisNav`,
   `planningNav`, the Assistente behind its flag, Impostazioni at the foot), every target 44px, the current page marked (`aria-current="page"`, `--sidebar-accent`), the same landmark «Navigazione principale» as the phone's pill and first in the DOM — a tool that means one of them selects `nav[data-nav="rail"]` or `nav[data-nav="pill"]` (the census and eight E2E files read the rail by mistake on 2026-10-16: eleven red); its last button («Account e preferenze») calls `toggleSidebar`, which below
   1440 opens the sidebar's sheet — the account, the theme and the logout stay there. It shows by CSS alone through the
@@ -181,8 +182,17 @@ rules below name.
 ## Per-page blind spots
 
 - **The collapsed 1440 sidebar's icon rail (`SIDEBAR_WIDTH_ICON`) has its 44px targets measured with a mouse**; no
-  fixture covers a ≥1440px tablet in landscape. (The tablet's own `TabletRail`, 1000–1439, is held by `expectLandscapeShell`.)
+  fixture covers a ≥1440px tablet in landscape. (The tablet's folder row, 1000–1439, is held by `expectLandscapeShell`.)
   (moved from `CLAUDE.md` → Known Issues on 2026-10-07)
 
 No shell-wide open item crosses every page any more: the `PageTabBar` pill reached 44×44 on 2026-10-10 (§ Navigation
 above) and the `Switch` its 44×44 hit box on 2026-10-08, and the `CLAUDE.md` → Known Issues entry went with them.
+
+## `desktop:` since RU0 (2026-11-20, N4)
+
+`desktop:` is no longer a plain 1440px breakpoint: it is `(width >= 1440px) or ((width >= 1280px) and (pointer: fine))`, so a laptop at 1280 with a mouse gets the desktop composition (full sidebar, 12 columns, no closed rows) while a touch tablet keeps today's up to 1439. `max-desktop:` is its negation, `tablet-landscape:` excludes it. Defined as `@custom-variant`s at the top of `app/globals.css`; JS readers use `DESKTOP_QUERY` / `COMPACT_QUERY` from `lib/hooks/useCompactLayout.ts`; `__tests__/desktopQuery.test.ts` holds the two in step. Three traps: ONE media query with `or` (a comma list is split by Tailwind and the second rule loses its `@media`); `tablet-landscape` must be declared AFTER `max-desktop`, or `max-desktop:landscape:flex` beats `tablet-landscape:hidden` and a landscape tablet gets the hamburger bar again; a changed `@custom-variant` is not picked up by a running dev server (stop it, delete `.next*`). Cost: +0.8/0.9 KB gz per route (budget raised with its `raisedBy`). A tall viewport at 1280 flips to portrait: shoot 1280×800.
+
+
+## Il fascicolo (the shell's band, 2026-11-20)
+
+Dossier `doc/fascia-desktop/README.md` (D-FD1–D-FD22; § Seconda versione wins), DESIGN.md → The Folder-Row Rule. `ShellBand` (above `<main>`, under the demo banner, `hidden band:block`) reads `navGroups` through `lib/utils/folderNav.ts` (`buildFolders`, `findOpenFolder`, `bandPages` — the tabs by their menu names, D-FD19 —, `folderTarget`: a group opens on the last page read in it, `sessionStorage`, D-FD11); `ShellBandProvider` (`components/layout/ShellBandSlots.tsx`, light on purpose: the landing's `PageHeader` imports it; in `app/dashboard/layout.tsx`, around the band and `<main>`) holds the band's two slots, and `PageHeader` portals the page's fact (description + freshness) and actions into them (`ShellBandPortals`, keyed by path so they fade in with the page), keeping an `sr-only` `h1` in `<main>`; outside the provider (the landing) `PageHeader` keeps its compact row. The variant `band:`/`max-band:` and `BAND_QUERY` (`lib/constants/navigation.ts`, `PILL_VISIBLE_QUERY` derives from it) pick the shell; `desktop:` still picks the page's composition (D-FD17). At `band:` a navigation is the soft scene (`useSceneNavigation`, D-FD22): the band is live DOM, so its group bar and open tab (`layoutId` `band-group-bar`, `band-page-<group>`) slide at the click on an optimistic `pending` href. Tokens in `app/globals.css` (`--page-ground`, `--page-ink`, `--shell-band-fill`, `--folder-rule`, `--folder-bar` on the root; `--band-ink-closed`, `--band-hover` on `.shell-band`; `.band-page-joint`, `.shell-band-in`; the hidden scrollbar of `#page-main`). `AppSidebar` returns `null` outside the Sheet's width. Blind spots: at 960–1439 CSS px with a mouse the band is the desktop's while the page under it is still the compact composition (D-FD17, by choice); the person shows no email on the button, the menu does; the account button is a box of its size until Auth answers (`e2e/account.ts` waits on it).

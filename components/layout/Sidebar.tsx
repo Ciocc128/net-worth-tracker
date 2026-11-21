@@ -1,5 +1,6 @@
 'use client';
 
+import { Fragment } from 'react';
 import { SceneLink } from '@/components/layout/SceneLink';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -18,33 +19,19 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { LogoutDialog } from '@/components/layout/LogoutDialog';
-import { ThemePicker } from '@/components/layout/ThemePicker';
+import { AccountMenu } from '@/components/layout/AccountMenu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TILE_EYEBROW_CLASS } from '@/components/ui/tile';
 import { SIDEBAR_AVATAR_CLASS } from '@/components/layout/shellStyles';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { useLogout } from '@/lib/hooks/useLogout';
 import { isNavItemActive } from '@/lib/utils/navUtils';
 import { getAccountLabel, getDisplayInfo } from '@/lib/utils/userDisplayUtils';
 import {
-  primaryNav,
-  analysisNav,
-  planningNav,
+  navGroups,
   assistantNavItem,
   type NavItem,
 } from '@/lib/constants/navigation';
-import { Settings, LogOut, ChevronsUpDown, PanelLeftClose, PanelLeftOpen, Check, Users } from 'lucide-react';
+import { ChevronsUpDown } from 'lucide-react';
 
 function NavItems({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
@@ -87,7 +74,8 @@ function NavItems({ items }: { items: NavItem[] }) {
 }
 
 /**
- * The desktop sidebar (and the Sheet it becomes below 1440px). Chrome is kept to what
+ * The sidebar, now only the Sheet of a phone turned sideways (from `desktop:` and on a tablet in landscape the
+ * navigation is the shell's band, `ShellBand`). Chrome is kept to what
  * separates: a wordmark, three groups of routes with the tiles' eyebrow as group label, one
  * hairline before the assistant, the account at the bottom. The active route is the only
  * highlighted surface and it is `--sidebar-accent` — no hue in the navigation of the default
@@ -95,10 +83,8 @@ function NavItems({ items }: { items: NavItem[] }) {
  */
 export function AppSidebar() {
   const { user } = useAuth();
-  const { ownerId, accessibleAccounts, switchAccount, isSharedView } =
-    useActiveAccount();
-  const { isMobile, setOpenMobile, toggleSidebar, state } = useSidebar();
-  const { confirmLogout, setConfirmLogout, handleSignOut } = useLogout();
+  const { ownerId, accessibleAccounts, isSharedView } = useActiveAccount();
+  const { isMobile, setOpenMobile } = useSidebar();
 
   const closeMobile = () => {
     if (isMobile) setOpenMobile(false);
@@ -108,6 +94,10 @@ export function AppSidebar() {
   const activeAccount = accessibleAccounts.find((a) => a.ownerId === ownerId);
 
   const showAssistant = process.env.NEXT_PUBLIC_ASSISTANT_AI_ENABLED !== 'false';
+
+  // From `desktop:` and on a tablet in landscape the navigation is the shell's band (`ShellBand`, D-FD16):
+  // this sidebar is now only the Sheet of a phone turned sideways.
+  if (!isMobile) return null;
 
   return (
     <>
@@ -127,25 +117,6 @@ export function AppSidebar() {
             >
               <span className="truncate">Portfolio Tracker</span>
             </SceneLink>
-            <TooltipProvider delayDuration={300}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={toggleSidebar}
-                    aria-label={state === 'expanded' ? 'Comprimi sidebar' : 'Espandi sidebar'}
-                    className="hidden desktop:flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/40 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors group-data-[state=collapsed]:mx-auto group-data-[state=collapsed]:size-11"
-                  >
-                    {state === 'expanded'
-                      ? <PanelLeftClose className="size-4" />
-                      : <PanelLeftOpen className="size-4" />}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  {state === 'expanded' ? 'Comprimi sidebar' : 'Espandi sidebar'}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
           </div>
         </SidebarHeader>
 
@@ -156,29 +127,20 @@ export function AppSidebar() {
           or introducing an extra DOM wrapper that would break the flex layout.
         */}
         <SidebarContent role="navigation" aria-label="Navigazione principale">
-          {/* Primary routes — no label, acts as visual anchor */}
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <NavItems items={primaryNav} />
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          {/* Thin rule separates core navigation from analytical/planning sections */}
-          <div className="mx-3 border-t border-sidebar-border" />
-
-          <SidebarGroup>
-            <SidebarGroupLabel className={cn(TILE_EYEBROW_CLASS, 'h-6 text-sidebar-foreground/60')}>Analisi</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <NavItems items={analysisNav} />
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          <SidebarGroup>
-            <SidebarGroupLabel className={cn(TILE_EYEBROW_CLASS, 'h-6 text-sidebar-foreground/60')}>Pianificazione</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <NavItems items={planningNav} />
-            </SidebarGroupContent>
-          </SidebarGroup>
+          {/* Groups by object (navGroups, RU1): a loose route has no label, a group wears the tiles' eyebrow. */}
+          {navGroups.map((group, index) => (
+            <Fragment key={group.label ?? group.items[0].href}>
+              {index === 1 && <div className="mx-3 border-t border-sidebar-border" />}
+              <SidebarGroup>
+                {group.label && (
+                  <SidebarGroupLabel className={cn(TILE_EYEBROW_CLASS, 'h-6 text-sidebar-foreground/60')}>{group.label}</SidebarGroupLabel>
+                )}
+                <SidebarGroupContent>
+                  <NavItems items={group.items} />
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </Fragment>
+          ))}
 
           {/* The assistant is a route like the others: a row after a hairline, no banner. */}
           {showAssistant && (
@@ -197,8 +159,7 @@ export function AppSidebar() {
         <SidebarFooter className="border-t border-sidebar-border">
           <SidebarMenu>
             <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+              <AccountMenu side="top" align="end" onNavigate={closeMobile}>
                   <SidebarMenuButton
                     size="lg"
                     tooltip={displayName}
@@ -239,66 +200,12 @@ export function AppSidebar() {
                     )}
                     <ChevronsUpDown className="ml-auto size-4 shrink-0 text-sidebar-foreground/50" />
                   </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent side="top" align="end" className="w-56">
-                  {/* Account switcher — only when the viewer can reach >1 account */}
-                  {accessibleAccounts.length > 1 && (
-                    <>
-                      <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
-                        Account
-                      </DropdownMenuLabel>
-                      <DropdownMenuGroup>
-                        {accessibleAccounts.map((account) => (
-                          <DropdownMenuItem
-                            key={account.ownerId}
-                            onSelect={() => switchAccount(account.ownerId)}
-                          >
-                            <Users className="size-4" />
-                            <span className="flex-1 truncate">
-                              {getAccountLabel(account)}
-                            </span>
-                            {account.ownerId === ownerId && (
-                              <Check className="ml-auto size-4 shrink-0 text-primary" />
-                            )}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuGroup>
-                      <DropdownMenuSeparator />
-                    </>
-                  )}
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem asChild>
-                      <SceneLink href="/dashboard/settings" onClick={closeMobile}>
-                        <Settings className="size-4" />
-                        Impostazioni
-                      </SceneLink>
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
-                    Preferenze
-                  </DropdownMenuLabel>
-                  <div className="flex items-center justify-between px-2 py-1.5">
-                    <span className="text-sm">Tema</span>
-                    <ThemePicker />
-                  </div>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => setConfirmLogout(true)}>
-                    <LogOut className="size-4" />
-                    Esci
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              </AccountMenu>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
 
-      <LogoutDialog
-        open={confirmLogout}
-        onOpenChange={setConfirmLogout}
-        onConfirm={handleSignOut}
-      />
     </>
   );
 }

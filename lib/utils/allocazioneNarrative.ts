@@ -204,19 +204,19 @@ export interface PacSubstitutionLabels {
 }
 
 /**
- * AL17, D-AL4 — the line above the Piano's moves while a plan is active: what the accumulation plan
+ * AL17, D-AL4 — the line above the Ordini' moves while a plan is active: what the accumulation plan
  * buys this month and that this Piano does not count it, plus, when the Piano buys an instrument
  * the plan replaced, which one the plan buys instead. «Il piano di accumulo compra questo mese
- * 4207 € in 7 strumenti; questo piano non ne tiene conto. Il piano di accumulo compra MFEH al posto di DBMFE.»
+ * 4207 € in 7 strumenti; gli ordini non ne tengono conto. Il piano di accumulo compra MFEH al posto di DBMFE.»
  */
 export function describePacOverlap(pac: PacVerdictInput, substitutions: PacSubstitutionLabels[] = []): Narrative {
   const head: Narrative = pac.allClosed
-    ? [prose(`La rata di ${pac.monthLabel} del piano di accumulo è chiusa, ma questo piano non ne tiene conto.`)]
+    ? [prose(`La rata di ${pac.monthLabel} del piano di accumulo è chiusa, ma gli ordini non ne tengono conto.`)]
     : [
         prose('Il piano di accumulo compra questo mese '),
         amount(pac.monthTotalEur),
         prose(pac.instrumentCount === 1 ? ' in 1 strumento' : ` in ${pac.instrumentCount} strumenti`),
-        prose('; questo piano non ne tiene conto.'),
+        prose('; gli ordini non ne tengono conto.'),
       ];
   if (substitutions.length === 0) return head;
   const items = substitutions.map((item) => [figure(item.buying), prose(' al posto di '), figure(item.replaced)]);

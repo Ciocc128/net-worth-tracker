@@ -67,30 +67,51 @@ export async function getAssetTransactionsAdmin(userId: string): Promise<AssetTr
       .where('userId', '==', userId)
       .get();
 
-    return querySnapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        userId: data.userId,
-        assetId: data.assetId,
-        type: data.type,
-        date: toDate(data.date),
-        quantity: data.quantity,
-        pricePerUnit: data.pricePerUnit,
-        priceEur: data.priceEur,
-        fees: data.fees,
-        linkedCashAssetId: data.linkedCashAssetId,
-        withheldTaxEur: data.withheldTaxEur,
-        isBaseline: data.isBaseline,
-        note: data.note,
-        createdAt: toDate(data.createdAt),
-        updatedAt: toDate(data.updatedAt),
-      } as AssetTransaction;
-    });
+    return querySnapshot.docs.map(docToLedgerTransaction);
   } catch (error) {
     console.error('[getAssetTransactionsAdmin] Error fetching asset transactions:', error);
     throw new Error('Failed to fetch asset transactions');
   }
+}
+
+/** One instrument's ledger (the dividends' entitled quantity reads it: doc/dividendi-quantita). */
+export async function getAssetTransactionsForAssetAdmin(
+  userId: string,
+  assetId: string
+): Promise<AssetTransaction[]> {
+  try {
+    const querySnapshot = await adminDb
+      .collection(ASSET_TRANSACTIONS_COLLECTION)
+      .where('userId', '==', userId)
+      .where('assetId', '==', assetId)
+      .get();
+
+    return querySnapshot.docs.map(docToLedgerTransaction);
+  } catch (error) {
+    console.error('[getAssetTransactionsForAssetAdmin] Error fetching asset transactions:', error);
+    throw new Error('Failed to fetch asset transactions');
+  }
+}
+
+function docToLedgerTransaction(doc: FirebaseFirestore.QueryDocumentSnapshot): AssetTransaction {
+  const data = doc.data();
+  return {
+    id: doc.id,
+    userId: data.userId,
+    assetId: data.assetId,
+    type: data.type,
+    date: toDate(data.date),
+    quantity: data.quantity,
+    pricePerUnit: data.pricePerUnit,
+    priceEur: data.priceEur,
+    fees: data.fees,
+    linkedCashAssetId: data.linkedCashAssetId,
+    withheldTaxEur: data.withheldTaxEur,
+    isBaseline: data.isBaseline,
+    note: data.note,
+    createdAt: toDate(data.createdAt),
+    updatedAt: toDate(data.updatedAt),
+  } as AssetTransaction;
 }
 
 /**

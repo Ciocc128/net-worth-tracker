@@ -35,7 +35,7 @@
  *
  * WHY every class carries `max-desktop:`: Tailwind 4 emits container queries AFTER media queries,
  * so `@[880px]:contents` alone would beat `desktop:grid-cols-12` at 1440 (the cascade, not the
- * width, decides). `max-desktop:@[880px]:` is `@media (width < 1440px) { @container … }`.
+ * width, decides). `max-desktop:@[880px]:` is `@media not (desktop) { @container … }` (RU0).
  * `__tests__/tabletComposition.test.ts` holds the rules over the constants and the composed grids;
  * `e2e/*.tablet.spec.ts` the widths.
  *
@@ -60,7 +60,7 @@ export const STAGE_CLASS =
 
 /** The verdict's box: in landscape the left column's top, still while the index scrolls. */
 export const VERDICT_CELL_CLASS =
-  'max-desktop:@[880px]:[grid-column:1] max-desktop:@[880px]:[grid-row:1] max-desktop:@[880px]:self-start max-desktop:@[880px]:mb-[calc(var(--lead-h,0px)+16px)] max-desktop:@[880px]:group-data-[stick=true]/stage:sticky max-desktop:@[880px]:top-4';
+  'max-desktop:@[880px]:[grid-column:1] max-desktop:@[880px]:[grid-row:1] max-desktop:@[880px]:self-start max-desktop:@[880px]:mb-[calc(var(--lead-h,0px)+16px)] max-desktop:@[880px]:group-data-[stick=true]/stage:sticky max-desktop:@[880px]:top-0';
 
 /** The grid's old wrapper, kept as a plain box below the landscape width and `contents` in it. */
 export const COMPACT_GRID_WRAPPER_CLASS = 'max-desktop:@[880px]:contents';
@@ -75,7 +75,7 @@ export const COMPACT_GRID_CLASS =
  * than 360px, more if its content asks — so a tile whose plot is `flex-1` grows its curve to the fold.
  */
 export const LEAD_CELL_CLASS =
-  'tablet:col-span-2 max-desktop:@[880px]:[grid-column:1] max-desktop:@[880px]:[grid-row:1] max-desktop:@[880px]:self-start max-desktop:@[880px]:group-data-[stick=true]/stage:sticky max-desktop:@[880px]:mt-[calc(var(--verdict-h,0px)+16px)] max-desktop:@[880px]:top-[calc(var(--verdict-h,0px)+32px)] max-desktop:@[880px]:min-h-[max(360px,calc(var(--fold,720px)-var(--verdict-h,0px)-16px))]';
+  'tablet:col-span-2 max-desktop:@[880px]:[grid-column:1] max-desktop:@[880px]:[grid-row:1] max-desktop:@[880px]:self-start max-desktop:@[880px]:group-data-[stick=true]/stage:sticky max-desktop:@[880px]:mt-[calc(var(--verdict-h,0px)+16px)] max-desktop:@[880px]:top-[calc(var(--verdict-h,0px)+16px)] max-desktop:@[880px]:min-h-[max(360px,calc(var(--fold,720px)-var(--verdict-h,0px)-16px))]';
 
 /**
  * The grid of before, for a page's states with no rows (no goal, no run, no budget, the overview
@@ -167,7 +167,10 @@ export function layoutTabletSections({ order, open }: LayoutTabletSectionsInput)
 /** The gap between the verdict and THE tile in landscape: `LEAD_CELL_CLASS`'s 16px, in the measure too. */
 const STAGE_GAP_PX = 16;
 
-/** Where the stuck verdict sits under the scroller's top:  of . */
+/**
+ * `main`'s top padding (`p-4`). A sticky box measures its `top` from the scroller's CONTENT edge, so the stuck verdict
+ * (`top-0`) sits exactly where it lies at rest, 16px under main's edge; the left stack needs this much room above it.
+ */
 const STICKY_TOP_PX = 16;
 
 export interface StageMetrics {

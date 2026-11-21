@@ -45,6 +45,14 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   the registry's dividends after it count for YOC; realized P&L lands in the sale's fiscal year; the snapshots stay
   frozen photos (Storico does not rewrite history). Recording history BEFORE a migrated asset's baseline is not
   supported: the baseline is the frozen opening position, and the owner chose not to add a replacement story.
+- **Every trade operation moves the instrument's OPEN dividends and coupons** (F09, 2026-11-18): after the commit of
+  create, edit, delete and delete-all, `syncOpenPaymentsForAsset` (`lib/server/dividendLedgerSync.ts`) re-reads the
+  quantity entitled at each open payment from the ledger (`entitledQuantity`: close of the day before the ex-date or
+  the payment), deletes a payment left with none, recomputes the amounts of another quantity at the instrument's tax
+  rate, and gives a bond with units back its next coupon and final premium. Outside the transaction, never critical:
+  a failure is logged and the trade still answers 200; the cron re-checks on the payment day. A paid payment is never
+  rewritten (listed by `npm run dividends:check`); a payment corrected by hand (`manuallyEdited`) is left alone.
+  Spec: `doc/dividendi-quantita/README.md`.
 - **The per-asset XIRR is date-exact and SEPARATE from `performanceService.calculateIRR`** — keep both; it returns a
   FRACTION, and `null` renders as "–", never 0. **`replayTransactions` replays ONE asset**, so `aggregateRealizedByYear`
   (same engine, consumed by `summarizeRealizedGains` → `PlusvalenzeTile.tsx`) must group by `assetId` FIRST: realized P&L is PMC-dependent

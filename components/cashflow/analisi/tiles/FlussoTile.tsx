@@ -27,6 +27,7 @@ import { SPENDING_BUCKET_LABELS, type SpendingBucket, type SpendingRoleSource, t
 import { buildTypeFlowBreakdown, type FlowSummary } from '@/lib/utils/analisiSummary';
 import type { ScheduledSlice } from '@/lib/utils/tracciamentoSummary';
 import { useCssColorTokens } from '@/lib/hooks/useCssColorTokens';
+import { DESKTOP_QUERY } from '@/lib/hooks/useCompactLayout';
 import { SPENDING_ROLE_TOKEN } from '@/lib/constants/spendingRoleColors';
 import { narrativeToText } from '@/lib/utils/narrative';
 import { cn } from '@/lib/utils';
@@ -108,7 +109,7 @@ export function isFlussoLiftedBlock(block: string): block is FlussoLiftedBlock {
  * 360px index and draws bar and rows, 2026-10-16), and again at 1440. Elsewhere nothing is fetched;
  * a rotation that brings the Sankey back downloads it at its first draw.
  */
-const SANKEY_DRAWN_QUERY = '(min-width: 640px) and (max-width: 911px), (min-width: 1440px)';
+const SANKEY_DRAWN_QUERY = `(min-width: 640px) and (max-width: 911px), ${DESKTOP_QUERY}`;
 const CashflowSankeyChart = lazyComponent(() => import('@/components/cashflow/CashflowSankeyChart').then((m) => m.CashflowSankeyChart));
 if (typeof window !== 'undefined' && window.matchMedia(SANKEY_DRAWN_QUERY).matches) {
   CashflowSankeyChart.preload().catch(() => {}); // a failure is retried by the first draw

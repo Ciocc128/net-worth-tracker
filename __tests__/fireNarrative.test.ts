@@ -603,7 +603,7 @@ describe('the disclosures', () => {
   it('read the Impostazioni and the scenario parameters', () => {
     expect(plain(describeImpostazioni(false))).toBe('Salvate nel profilo: ogni modifica qui è un\'anteprima finché non la salvi.');
     expect(plain(describeImpostazioni(true))).toBe('Anteprima non salvata: il verdetto e le tessere leggono i valori inseriti qui.');
-    expect(plain(describeScenarioParams())).toBe('Tre ipotesi dal portafoglio target: il verdetto usa il Base, il grafico del Traguardo le disegna tutte e tre. Si cambiano in Impostazioni › Simulazioni.');
+    expect(plain(describeScenarioParams())).toBe('Tre ipotesi dal portafoglio target: il verdetto usa il Base, il grafico di «Verso il FIRE» le disegna tutte e tre. Si cambiano in Impostazioni › Simulazioni.');
   });
 
   it('read the RITA preview under the controls', () => {

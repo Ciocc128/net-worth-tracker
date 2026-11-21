@@ -65,10 +65,10 @@ export function TraguardoTile({ reading, target, caption, view, onViewChange, fa
 
   return (
     <Tile
-      eyebrow="Traguardo"
+      eyebrow="Verso il FIRE"
       aside={fanAvailable ? <AsideToggle options={VIEW_OPTIONS} value={view} onChange={onViewChange} ariaLabel="Vista della proiezione" /> : undefined}
       reading={reading}
-      ariaLabel="Traguardo FIRE"
+      ariaLabel="Verso il FIRE"
       className={className}
     >
       <p className={cn(TILE_SUB_EYEBROW_CLASS, 'mt-3.5')}>Numero FIRE{target.isBridge && ' · modello ponte'}</p>

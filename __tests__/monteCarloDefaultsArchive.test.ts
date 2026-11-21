@@ -27,7 +27,8 @@ describe('Monte Carlo defaults archive (dossier § 14.13, RQ10)', () => {
     });
     expect(check.changed).toEqual([]);
     expect(check.absent).not.toContain('data/montecarlo/annual_series.csv');
-  });
+    // 30 s: the SHA-256 of the files is ~4 s alone and tipped the 5 s default on a loaded runner.
+  }, 30_000);
 
   it('AQ42: a changed file fails with its name', () => {
     const tiny: ArchiveManifest = {

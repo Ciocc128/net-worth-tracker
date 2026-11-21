@@ -8,11 +8,19 @@ const {
   createDividendMock,
   isDuplicateDividendMock,
   createExpenseFromDividendMock,
+  getDividendByIdMock,
+  updateDividendMock,
+  deleteDividendMock,
+  getTransactionsMock,
 } = vi.hoisted(() => ({
   scrapeDividendsByIsinMock: vi.fn(),
   createDividendMock: vi.fn(),
   isDuplicateDividendMock: vi.fn(),
   createExpenseFromDividendMock: vi.fn(),
+  getDividendByIdMock: vi.fn(),
+  updateDividendMock: vi.fn(),
+  deleteDividendMock: vi.fn(),
+  getTransactionsMock: vi.fn(),
 }));
 
 // Per-collection doc/query mocks — filled per-test in adminDb mock
@@ -34,13 +42,22 @@ vi.mock('@/lib/services/borsaItalianaScraperService', () => ({
 vi.mock('@/lib/services/dividendService', () => ({
   createDividend: createDividendMock,
   isDuplicateDividend: isDuplicateDividendMock,
+  getDividendById: getDividendByIdMock,
+  updateDividend: updateDividendMock,
+  deleteDividend: deleteDividendMock,
+}));
+
+vi.mock('@/lib/server/assetAdminRepository', () => ({
+  getAssetTransactionsForAssetAdmin: getTransactionsMock,
 }));
 
 vi.mock('@/lib/services/dividendIncomeService', () => ({
   createExpenseFromDividend: createExpenseFromDividendMock,
 }));
 
-vi.mock('@/lib/utils/dateHelpers', () => ({
+// The entitlement rule reads the real Italian-day helpers; only the eligibility check is stubbed.
+vi.mock('@/lib/utils/dateHelpers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/utils/dateHelpers')>()),
   isDateOnOrAfter: vi.fn(() => true),
 }));
 
@@ -98,7 +115,10 @@ function makeCollection(queryResult: unknown) {
 // Phase 1: runDividendScraping
 // ────────────────────────────────────────────────────────────────────────────
 describe('runDividendScraping', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getTransactionsMock.mockResolvedValue([]); // no ledger: the asset quantity
+  });
 
   it('skips assets without ISIN', async () => {
     const assetWithoutIsin = {
@@ -180,11 +200,86 @@ describe('runDividendScraping', () => {
   });
 });
 
+describe('runDividendScraping — the quantity entitled at the ex-date (D1, D6)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const daysAgo = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    d.setHours(12, 0, 0, 0);
+    return d;
+  };
+  const buy = (date: Date, quantity: number, id: string) => ({
+    id,
+    userId: 'u1',
+    assetId: 'a1',
+    type: 'buy',
+    date,
+    quantity,
+    pricePerUnit: 10,
+    priceEur: 10,
+    createdAt: date,
+    updatedAt: date,
+  });
+  const sell = (date: Date, quantity: number, id: string) => ({ ...buy(date, quantity, id), type: 'sell' });
+
+  function setUp(asset: Record<string, unknown>) {
+    collectionMocks['assets'] = makeCollection(makeQuerySnapshot([makeAssetDoc(asset)]));
+    scrapeDividendsByIsinMock.mockResolvedValue([
+      { exDate: daysAgo(5), paymentDate: daysAgo(3), dividendPerShare: 0.5, currency: 'EUR', dividendType: 'ordinary' },
+    ]);
+    isDuplicateDividendMock.mockResolvedValue(false);
+    createDividendMock.mockResolvedValue('div-1');
+  }
+  const base = { id: 'a1', ticker: 'ENI', isin: 'IT0003132476', assetClass: 'equity', type: 'stock', averageCost: 12 };
+
+  it('DQ1: a purchase after the ex-date does not enlarge the dividend', async () => {
+    setUp({ ...base, quantity: 200, taxRate: 26 });
+    getTransactionsMock.mockResolvedValue([buy(daysAgo(900), 100, 't1'), buy(daysAgo(2), 100, 't2')]);
+
+    const result = await runDividendScraping([makeUserDoc('u1')], daysAgo(30));
+
+    expect(result.newDividends).toBe(1);
+    const data = createDividendMock.mock.calls[0][1];
+    expect(data.quantity).toBe(100);
+    expect(data.grossAmount).toBeCloseTo(50, 10);
+    expect(data.taxAmount).toBeCloseTo(13, 10);
+    expect(data.netAmount).toBeCloseTo(37, 10);
+  });
+
+  it('DQ4: sold before the ex-date = no record', async () => {
+    setUp({ ...base, quantity: 0 });
+    getTransactionsMock.mockResolvedValue([buy(daysAgo(900), 100, 't1'), sell(daysAgo(8), 100, 't2')]);
+
+    const result = await runDividendScraping([makeUserDoc('u1')], daysAgo(30));
+
+    expect(createDividendMock).not.toHaveBeenCalled();
+    expect(result.newDividends).toBe(0);
+  });
+
+  it('TX3/TX4: the instrument rate rules, a written 0 included', async () => {
+    setUp({ ...base, quantity: 100, taxRate: 12.5 });
+    getTransactionsMock.mockResolvedValue([]);
+    await runDividendScraping([makeUserDoc('u1')], daysAgo(30));
+    expect(createDividendMock.mock.calls[0][1].taxAmount).toBeCloseTo(6.25, 10);
+
+    vi.clearAllMocks();
+    setUp({ ...base, quantity: 100, taxRate: 0 });
+    getTransactionsMock.mockResolvedValue([]);
+    await runDividendScraping([makeUserDoc('u1')], daysAgo(30));
+    expect(createDividendMock.mock.calls[0][1].taxAmount).toBe(0);
+  });
+});
+
 // ────────────────────────────────────────────────────────────────────────────
 // Phase 2: runExpenseCreation
 // ────────────────────────────────────────────────────────────────────────────
 describe('runExpenseCreation', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getTransactionsMock.mockResolvedValue([]);
+    collectionMocks['assets'] = { doc: vi.fn(() => makeDocRef({ exists: false })) };
+  });
 
   // Fixed Italian-day window so eligibility checks are deterministic.
   const todayStart = Timestamp.fromDate(new Date('2026-06-10T00:00:00.000Z'));
@@ -280,6 +375,100 @@ describe('runExpenseCreation', () => {
 
     expect(createExpenseFromDividendMock).toHaveBeenCalledOnce();
     expect(result.processedCount).toBe(1);
+  });
+
+  describe('the payment-day re-check against the ledger (RQ9, CQ7)', () => {
+    const ledgerBuy = (iso: string, quantity: number, id: string) => ({
+      id,
+      userId: 'u1',
+      assetId: 'a1',
+      type: 'buy',
+      date: new Date(iso),
+      quantity,
+      pricePerUnit: 1,
+      priceEur: 1,
+      createdAt: new Date(iso),
+      updatedAt: new Date(iso),
+    });
+    const sellAll = (iso: string, quantity: number) => ({ ...ledgerBuy(iso, quantity, 'sx'), type: 'sell' });
+
+    function staleCoupon(extra: Record<string, unknown> = {}) {
+      return makeDividendDoc({
+        dividendType: 'coupon',
+        isAutoGenerated: true,
+        dividendPerShare: 0.01,
+        quantity: 5000,
+        grossAmount: 50,
+        taxAmount: 6.25,
+        netAmount: 43.75,
+        ...extra,
+      });
+    }
+    function bondAsset() {
+      collectionMocks['assets'] = {
+        doc: vi.fn(() => makeDocRef({ exists: true, data: () => ({ quantity: 10000, taxRate: 12.5 }) })),
+      };
+    }
+
+    it('CQ7: a stale coupon is updated to the entitled quantity and pays that', async () => {
+      configureUserCategory();
+      bondAsset();
+      collectionMocks['dividends'] = makeCollection(makeQuerySnapshot([staleCoupon()]));
+      getTransactionsMock.mockResolvedValue([
+        ledgerBuy('2025-01-10T10:00:00Z', 5000, 't1'),
+        ledgerBuy('2026-04-10T10:00:00Z', 5000, 't2'),
+      ]);
+      getDividendByIdMock.mockResolvedValue({
+        quantity: 10000,
+        grossAmount: 100,
+        taxAmount: 12.5,
+        netAmount: 87.5,
+      });
+      createExpenseFromDividendMock.mockResolvedValue('exp-1');
+
+      const result = await runExpenseCreation([makeUserDoc('u1')], todayStart, todayEnd, lookbackStart);
+
+      expect(updateDividendMock).toHaveBeenCalledOnce();
+      const updates = updateDividendMock.mock.calls[0][1];
+      expect(updates.quantity).toBe(10000);
+      expect(updates.grossAmount).toBeCloseTo(100, 10);
+      expect(updates.netAmount).toBeCloseTo(87.5, 10);
+      const paid = createExpenseFromDividendMock.mock.calls[0][0];
+      expect(paid.netAmount).toBe(87.5);
+      expect(result.processedCount).toBe(1);
+    });
+
+    it('CQ3: sold before the payment — the record goes and no row is written', async () => {
+      configureUserCategory();
+      bondAsset();
+      collectionMocks['dividends'] = makeCollection(makeQuerySnapshot([staleCoupon()]));
+      getTransactionsMock.mockResolvedValue([
+        ledgerBuy('2025-01-10T10:00:00Z', 5000, 't1'),
+        sellAll('2026-04-10T10:00:00Z', 5000),
+      ]);
+
+      const result = await runExpenseCreation([makeUserDoc('u1')], todayStart, todayEnd, lookbackStart);
+
+      expect(deleteDividendMock).toHaveBeenCalledOnce();
+      expect(createExpenseFromDividendMock).not.toHaveBeenCalled();
+      expect(result.processedCount).toBe(0);
+    });
+
+    it('CQ5: a hand-corrected record is paid as it is', async () => {
+      configureUserCategory();
+      bondAsset();
+      collectionMocks['dividends'] = makeCollection(
+        makeQuerySnapshot([staleCoupon({ manuallyEdited: true, grossAmount: 60 })])
+      );
+      getTransactionsMock.mockResolvedValue([ledgerBuy('2025-01-10T10:00:00Z', 5000, 't1')]);
+      createExpenseFromDividendMock.mockResolvedValue('exp-1');
+
+      await runExpenseCreation([makeUserDoc('u1')], todayStart, todayEnd, lookbackStart);
+
+      expect(updateDividendMock).not.toHaveBeenCalled();
+      expect(deleteDividendMock).not.toHaveBeenCalled();
+      expect(createExpenseFromDividendMock.mock.calls[0][0].grossAmount).toBe(60);
+    });
   });
 
   it('does not back-date a past equity dividend without an expense', async () => {

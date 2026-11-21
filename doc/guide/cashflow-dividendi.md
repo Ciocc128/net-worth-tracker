@@ -9,8 +9,8 @@
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
-- **Dividendi**: `components/dividends/DividendTrackingTab.tsx` + `tiles/*` + `DividendiDettaglio.tsx`, pure `lib/utils/{dividendAnalytics,dividendiNarrative,dividendEligibility}.ts` (`resolveDividendFloor` = the ONE floor under a scraped dividend), `lib/hooks/useDividendStats.ts` (`useDividendRegistry` for the page's list, `useDividendStats` for the tab's measures: ONE request) → `app/api/dividends/stats/route.ts`; registry and coupons `components/dividends/{DividendTable,DividendCalendar,DividendDialog,DividendDetailsDialog,DividendRecordDetailsDialog,InflationRateDialog,ProvisionalCouponBanner}.tsx`, `lib/utils/couponUtils.ts` (`resolveCoupon` for both mechanisms, `resolveInflationIndexation`, `hasCouponPayments`, the coefficient lookups), `lib/services/couponScheduling.ts`, `types/dividend.ts`
-- **Suites to run after a change here — Dividendi / cron** (moved from `AGENTS.md` § Commands on 2026-09-30): `dividendUseCase`, `dividendProcessor`, `dividendAccount`, `dividendIncomeService`, `floatNoise` · **Email** `monthlyEmailService`
+- **Dividendi**: `components/dividends/DividendTrackingTab.tsx` + `tiles/*` + `DividendiDettaglio.tsx`, pure `lib/utils/{dividendAnalytics,dividendiNarrative,dividendEligibility}.ts` (`resolveDividendFloor` = the ONE floor under a scraped dividend), `lib/hooks/useDividendStats.ts` (`useDividendRegistry` for the page's list, `useDividendStats` for the tab's measures: ONE request) → `app/api/dividends/stats/route.ts`; registry and coupons `components/dividends/{DividendTable,DividendCalendar,DividendDialog,DividendDetailsDialog,DividendRecordDetailsDialog,InflationRateDialog,ProvisionalCouponBanner}.tsx`, `lib/utils/couponUtils.ts` (`resolveCoupon` for both mechanisms, `resolveInflationIndexation`, `hasCouponPayments`, the coefficient lookups), `lib/services/couponScheduling.ts`, `lib/utils/{dividendEntitlement,couponRecord}.ts`, `lib/server/dividendLedgerSync.ts`, `types/dividend.ts`
+- **Suites to run after a change here — Dividendi / cron** (moved from `AGENTS.md` § Commands on 2026-09-30): `dividendUseCase`, `dividendProcessor`, `dividendEntitlement`, `dividendLedgerSync`, `dividendScrapeRoute`, `dividendManualCorrectionRoute`, `dividendAccount`, `dividendIncomeService`, `floatNoise` · **Email** `monthlyEmailService`
 - **Suites to run after a change here — Cashflow › Dividendi** (moved from `AGENTS.md` § Commands on 2026-09-30): `dividendAnalytics`, `dividendiNarrative` (with `describeDividendiClosedAnswers`, the landscape index), `tabletComposition` (+ `patrimonioNarrative` for the articles) · **The stats route** `dividendStatsRoute` (its answer pinned on a fixture, 2026-10-05)
 
 ## Cashflow › Dividendi (`components/dividends/DividendTrackingTab.tsx`, `components/dividends/tiles/*`)
@@ -185,7 +185,23 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **Adding a `DividendType` is a six-file fan-out** and nothing enforces it: `types/dividend.ts`, `DividendTable`,
   `DividendDetailsDialog`, `DividendTrackingTab`, `DividendDialog`, plus the `byType` initializer of
   `summarizeDividendStats` in `dividendAnalytics.ts` (in `dividendService.ts` until 2026-10-05).
-- **A coupon's tax rate is the asset's own `taxRate`** (12,5% government, 26% corporate), never a constant.
+- **A payment's tax rate is the asset's own `taxRate`** (12,5% government, 26% corporate, `?? 26`, a written 0 is a
+  value) for EVERY app-generated payment — scrape, cron phases 1 and 3, the client scheduler, the ledger hook —
+  through `resolveDividendWithholding` (`lib/utils/dividendEntitlement.ts`, RT1–RT2); never a constant. The foreign
+  withholding and the frontier net of foreign shares are postponed (`doc/dividendi-quantita/README.md` PA-5).
+- **The quantity of a payment is the ledger's, not today's** (F09, 2026-11-18; `doc/dividendi-quantita/README.md`,
+  `entitledQuantity`): the position at the close of the Italian day BEFORE the ex-date (dividends) or the payment
+  date (coupons and the final premium), a ledger that does not know yet → the baseline's quantity or
+  `asset.quantity` (RQ3), nothing entitled → no record (RQ4; the scrape route counts it in `notEntitled`, not in
+  `filtered`, which stays «below the floor» for the toast), a reference day after today = a forecast on today's
+  quantity (RQ6). **An OPEN payment** (app-generated, no `expenseId`, not `manuallyEdited`, paid today or later)
+  FOLLOWS the ledger: `syncOpenPaymentsForAsset` runs after the commit of every trade operation, outside its
+  transaction and never critical (RQ7–RQ8), and the cron's phase 2 re-reads the quantity before it writes the cashflow
+  row (RQ9). **A hand correction wins** (RQ10): the PUT marks `Dividend.manuallyEdited` when an app-generated
+  record's quantity or amounts are edited; the client cannot send the mark. **Closed payments are never rewritten**
+  (D-DV4): the scrape route returns `mismatches`, `npm run dividends:check -- <email>` lists them for the account
+  (read only). POST `/api/dividends` re-reads quantity and tax of an app-generated coupon / final premium from the
+  saved asset (RQ11). Phase 3 schedules nothing for a bond with no units.
 - **YOC and Current Yield share one pure function**, `computeDividendYieldMetrics`, prospective and per-share:
   `annualizedDPS = Σ(grossEur/div.quantity)` annualized, YOC = `DPS ÷ averageCost`, Current Yield = `DPS ÷ price`, only
   `quantity > 0` contributing. Never reintroduce an inline YOC in Rendimenti or `/api/dividends/stats`.

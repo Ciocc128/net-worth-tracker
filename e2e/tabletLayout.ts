@@ -6,7 +6,7 @@
  *
  * In landscape the page is a STAGE (lib/utils/tabletComposition.ts): the verdict and THE tile on the
  * left, still while the page scrolls, and on the right ONE card, the index, holding «Il resto della
- * pagina» and every row; the 56px icon rail on the left of the screen in place of the bar.
+ * pagina» and every row; the folder row on top in place of the bar.
  *
  * A helper, not a spec: no project collects it (`testMatch`), it only exports.
  */
@@ -20,8 +20,6 @@ export const TRIGGER_HEIGHT = 52;
 /** The index's width (`STAGE_CLASS`: `grid-cols-[minmax(0,1fr)_360px]`) and the stage's gap. */
 export const INDEX_WIDTH = 360;
 export const STAGE_GAP = 16;
-/** The icon rail of a tablet in landscape (`TabletRail`, `w-14`). */
-export const ICON_RAIL_WIDTH = 56;
 
 export interface Rect {
   x: number;
@@ -32,7 +30,7 @@ export interface Rect {
   bottom: number;
 }
 
-/** Whether this project is the landscape one: the stage, the icon rail, no pill. */
+/** Whether this project is the landscape one: the stage, the folder row, no pill. */
 export const isLandscape = (page: Page): boolean => (page.viewportSize()?.width ?? 0) >= 992;
 
 export async function rectOf(locator: Locator): Promise<Rect> {
@@ -73,23 +71,28 @@ export async function foldOf(page: Page): Promise<number> {
   return page.locator('#page-main').evaluate((el) => el.getBoundingClientRect().top + el.clientHeight);
 }
 
-/** The shell in landscape: the icon rail on the left, `main` from the top with the whole height. */
+/**
+ * The shell in landscape: the shell's band on top (D-FD16, in place of the icon rail), full width, `main` under it
+ * with the rest of the height. Its navigation — the wordmark, the groups, the Assistente, the open group's pages and
+ * the person — is 44px on touch; one group is open.
+ */
 export async function expectLandscapeShell(page: Page): Promise<void> {
-  const rail = page.locator('nav[data-nav="rail"]');
-  await expect(rail).toBeVisible();
-  const box = await rectOf(rail);
-  expect(box.x, 'the rail on the left edge').toBe(0);
-  expect(Math.abs(box.width - ICON_RAIL_WIDTH), `the rail measured ${box.width}px`).toBeLessThanOrEqual(1);
-  for (const target of await rail.locator('a, button').all()) {
+  const band = page.locator('[data-shell-band]');
+  await expect(band).toBeVisible();
+  const box = await rectOf(band);
+  expect(box.y, 'the band at the top edge').toBe(0);
+  expect(Math.abs(box.width - page.viewportSize()!.width), `the band measured ${box.width}px`).toBeLessThanOrEqual(1);
+  for (const target of await band.locator('nav a, a[href="/dashboard"], [data-account-menu]').all()) {
     const target_box = (await target.boundingBox())!;
-    const name = (await target.getAttribute('aria-label')) ?? '';
+    const name = (await target.getAttribute('aria-label')) ?? (await target.textContent()) ?? '';
     expect(target_box.width, name).toBeGreaterThanOrEqual(TOUCH_FLOOR);
     expect(target_box.height, name).toBeGreaterThanOrEqual(TOUCH_FLOOR);
   }
-  await expect(rail.locator('a[aria-current="page"]'), 'the current page marked').toHaveCount(1);
+  await expect(band.locator('nav[data-nav="folders"] [aria-current]'), 'the open group marked').toHaveCount(1);
+  await expect(band.locator('nav[data-band-pages] [aria-current="page"]'), 'the open page marked').toHaveCount(1);
   const main = await page.locator('#page-main').evaluate((el) => ({ top: el.getBoundingClientRect().top, height: el.clientHeight }));
-  expect(main.top, 'no bar over main').toBe(0);
-  expect(main.height).toBe(page.viewportSize()!.height);
+  expect(main.top, 'main starts where the band ends').toBeCloseTo(box.y + box.height, 0);
+  expect(main.top + main.height).toBe(page.viewportSize()!.height);
   await expect(page.locator('[data-sidebar="trigger"]').filter({ visible: true })).toHaveCount(0);
 }
 

@@ -38,6 +38,7 @@
  * running, but its link to the late sync was NOT isolated — if it comes back, start there.
  */
 
+import { openAccountMenu } from './account';
 import { test, expect, type Page } from '@playwright/test';
 
 const PREFERENCES_DOC =
@@ -161,7 +162,7 @@ test('at 1440 a client navigation measures no node of the hidden bottom nav', as
   await expect(page.locator('nav[data-nav="pill"]')).toHaveCount(1);
 
   await resetSpies(page);
-  await page.getByRole('link', { name: 'Storico', exact: true }).filter({ visible: true }).first().click();
+  await page.getByRole('link', { name: 'Storia', exact: true }).filter({ visible: true }).first().click();
   await page.waitForURL('**/dashboard/history');
   await waitForPage(page, /./);
   await page.getByRole('link', { name: 'Hall of Fame', exact: true }).filter({ visible: true }).first().click();
@@ -178,7 +179,7 @@ test('the chart palette is read once per theme: a client navigation to Storico a
   expect((await readSpies(page)).paletteTokenReads).toBeGreaterThan(0);
 
   await resetSpies(page);
-  await page.getByRole('link', { name: 'Storico', exact: true }).filter({ visible: true }).first().click();
+  await page.getByRole('link', { name: 'Storia', exact: true }).filter({ visible: true }).first().click();
   await page.waitForURL('**/dashboard/history');
   await waitForPage(page, /./);
   // Storico draws its charts with the palette (Composizione at least): give the old per-host
@@ -186,7 +187,7 @@ test('the chart palette is read once per theme: a client navigation to Storico a
   await expect(page.locator('main svg.recharts-surface').first()).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(500);
 
-  await page.getByRole('link', { name: 'FIRE e Simulazioni', exact: true }).filter({ visible: true }).first().click();
+  await page.getByRole('link', { name: 'Futuro', exact: true }).filter({ visible: true }).first().click();
   await page.waitForURL('**/dashboard/fire-simulations');
   await waitForPage(page, /./);
   await page.waitForTimeout(500);
@@ -220,7 +221,7 @@ test('the tile cascade plays on the first opening of the session only', async ({
   expect(await minOpacity()).toBeLessThan(0.5);
 
   // Away and back through the sidebar: the same JS session, the cells opaque from their first frame.
-  await page.getByRole('link', { name: 'Storico', exact: true }).filter({ visible: true }).first().click();
+  await page.getByRole('link', { name: 'Storia', exact: true }).filter({ visible: true }).first().click();
   await page.waitForURL('**/dashboard/history');
   await expect(page.locator('main h1').filter({ visible: true }).first()).toBeVisible({ timeout: 30_000 });
   await page.evaluate(() => ((window as unknown as { __cascade: { minOpacity: number | null } }).__cascade.minOpacity = null));
@@ -248,8 +249,8 @@ test('the light/dark circle covers the whole page: no named region during a them
     };
     requestAnimationFrame(tick);
   });
-  // The picker sits in the profile menu of the sidebar's footer.
-  await page.locator('[data-sidebar="footer"] button').filter({ visible: true }).first().click();
+  // The picker sits in the account menu of the band's person.
+  await openAccountMenu(page);
   const isDark = await page.evaluate(() => document.documentElement.classList.contains('dark'));
   await page.locator(`button[title="${isDark ? 'Chiaro' : 'Scuro'}"]`).filter({ visible: true }).first().click();
   await page.waitForTimeout(1_000);

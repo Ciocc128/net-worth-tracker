@@ -7,12 +7,13 @@ import { Slot } from "radix-ui"
 
 // PROJECT OVERRIDE: use the project's hook (an SSR-safe external store: `false` on the server
 // and during hydration, the real value right after; since 2026-09-28) instead of the shadcn default.
-// The 1439px threshold matches the custom `desktop:` breakpoint in app/globals.css
-// (min-width: 1440px). Because the shell is in the prerendered HTML, the FIRST frame is decided
+// `COMPACT_QUERY` is the negation of the custom `desktop:` variant in app/globals.css
+// (1440 and up, or 1280 and up with a mouse). Because the shell is in the prerendered HTML, the FIRST frame is decided
 // by CSS, not by this value: the fixed sidebar below is `hidden desktop:block`, and the mobile
 // Sheet mounts only when opened — so a phone paints no sidebar before JS corrects `isMobile`.
 // ⚠️ shadcn@latest add sidebar will overwrite this import — restore it after upgrades.
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery"
+import { COMPACT_QUERY } from "@/lib/hooks/useCompactLayout"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -73,7 +74,7 @@ function SidebarProvider({
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }) {
-  const isMobile = useMediaQuery('(max-width: 1439px)')
+  const isMobile = useMediaQuery(COMPACT_QUERY)
   const [openMobile, setOpenMobile] = React.useState(false)
 
   // This is the internal state of the sidebar.

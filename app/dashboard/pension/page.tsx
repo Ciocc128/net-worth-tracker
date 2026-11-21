@@ -3,7 +3,7 @@
 /**
  * Previdenza Complementare — dedicated view for the fondo pensione.
  *
- * Lives in `planningNav` (Pianificazione), not as a `fire-simulations` tab: contributions, tax
+ * Lives in the «Futuro» group of `navGroups`, not as a `fire-simulations` tab: contributions, tax
  * benefit and plafond are planning content in their own right, and this is also the target of the
  * "Vai a Previdenza" quick link on a pensionFund asset card in Patrimonio.
  *

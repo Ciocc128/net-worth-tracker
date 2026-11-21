@@ -5,8 +5,9 @@
  * with a history behind it, and 47 snapshots on the base account would move every other spec.
  */
 
-import { test as setup, expect } from '@playwright/test';
+import { test as setup } from '@playwright/test';
 import { HOF_STORAGE_STATE } from '../playwright.config';
+import { expectSignedInAs } from './account';
 import { stripPersistedQueryCache } from './persistedCache';
 
 /** Matches `scripts/seedHallOfFameE2E.mts`. */
@@ -21,9 +22,9 @@ setup('authenticate hof user', async ({ page }) => {
   await page.getByRole('button', { name: 'Accedi', exact: true }).click();
 
   await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
-  // The profile in the sidebar footer, not `navigation`/`main`: those are in the HTML before the
+  // The person in the band (its menu names the account), not `navigation`/`main`: those are in the HTML before the
   // login since 2026-09-28 (see auth.setup.ts).
-  await expect(page.locator('[data-sidebar="footer"]')).toContainText(EMAIL);
+  await expectSignedInAs(page, EMAIL);
 
   // indexedDB: true — the Firebase Web SDK parks its session there (see auth.setup.ts).
   await page.context().storageState({ path: HOF_STORAGE_STATE, indexedDB: true });

@@ -59,6 +59,13 @@ const BLOCKS = [
   '.dark[data-theme="graphite"]',
 ];
 
+/**
+ * D-FD20: on the shell's band the closed groups (15px) and the closed page tabs (16px) are words at 86% of the band's
+ * ink (`--band-ink-closed`) — normal text, so the 4.5:1 floor. The 72% titles of the first version (large text, 3:1)
+ * read as not clickable (owner, 2026-11-20); 78% left Graphite's blue at 4,06:1.
+ */
+const CLOSED_INK = 0.86;
+
 describe('the top band', () => {
   it.each(BLOCKS)('%s names a band and its ink', (selector) => {
     const tokens = readBlock(selector);
@@ -66,12 +73,25 @@ describe('the top band', () => {
     expect(tokens['top-band-foreground']).toBeDefined();
   });
 
-  it.each(BLOCKS)('%s: the ink and the 88%% line read at 4.5:1 on the band', (selector) => {
+  it.each(BLOCKS)('%s: the ink and its two attenuations read on the band', (selector) => {
     const tokens = readBlock(selector);
     const band = tokens['top-band'];
     const ink = tokens['top-band-foreground'];
     expect(contrast(toLab(ink), toLab(band))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(mix(ink, band, 0.88), toLab(band))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(mix(ink, band, CLOSED_INK), toLab(band))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  // D-FD20, every other theme: the band is the ink at 5% over the ground, the closed words the ink at 86%.
+  it.each(BLOCKS)('%s: with «Nessuna» the closed words read at 4.5:1 on the neutral band', (selector) => {
+    const tokens = readBlock(selector);
+    const tint = mix(tokens['foreground'], tokens['background'], 0.05);
+    expect(contrast(mix(tokens['foreground'], tint, CLOSED_INK), tint)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('the band\'s closed words and the neutral band are the measured shares', () => {
+    expect(css).toMatch(/--band-ink-closed:\s*color-mix\(in oklab, var\(--foreground\) 86%, transparent\)/);
+    expect(css).toMatch(/--shell-band-fill:\s*color-mix\(in oklab, var\(--foreground\) 5%, var\(--background\)\)/);
   });
 
   const OPTION_RULES = [...css.matchAll(/^(\S[^{\n]*\[data-band="[a-z]+"\](?::not\(\.dark\))?) \{([^}\n]*)\}$/gm)];
@@ -80,7 +100,7 @@ describe('the top band', () => {
     expect(OPTION_RULES.length).toBe(8);
   });
 
-  it.each(OPTION_RULES.map((match) => [match[1].trim(), match[2]] as const))('%s: ink and 88%% line at 4.5:1', (_selector, body) => {
+  it.each(OPTION_RULES.map((match) => [match[1].trim(), match[2]] as const))('%s: ink and its two attenuations read on the band', (_selector, body) => {
     const read = (name: string) => {
       const found = body.match(new RegExp(`--${name}:\\s*oklch\\(([\\d. ]+)\\)`));
       if (!found) throw new Error(`--${name} missing`);
@@ -90,6 +110,7 @@ describe('the top band', () => {
     const ink = read('top-band-foreground');
     expect(contrast(toLab(ink), toLab(band))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(mix(ink, band, 0.88), toLab(band))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(mix(ink, band, CLOSED_INK), toLab(band))).toBeGreaterThanOrEqual(4.5);
   });
 
   it('the shared default leaves every other theme as it was', () => {
