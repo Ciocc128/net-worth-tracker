@@ -1,52 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase/admin';
-import { Timestamp } from 'firebase-admin/firestore';
 import {
   assertCanAccessAccount,
   getApiAuthErrorResponse,
   requireFirebaseAuth,
 } from '@/lib/server/apiAuth';
-import { invalidateDashboardOverviewSummaryServer } from '@/lib/services/dashboardOverviewInvalidation.server';
+import { readAssetUsage } from '@/lib/server/assetUsageReader';
+import { deleteAssetWithCleanup } from '@/lib/server/assetDeletion';
 import { assetDeleteSchema, assetIdParamSchema, parseOr400 } from '@/lib/server/validation';
 
 /**
  * DELETE /api/assets/[assetId]
  *
- * Delete asset with cascade cleanup of related data
+ * Deletes an asset after RE-READING where it is used (doc/cancellazione-strumenti/README.md § 4.4):
+ * the client's report is never trusted.
  *
- * Cascade Logic:
- *   - Asset document: Deleted
- *   - Future dividends (exDate > today): Deleted
- *   - Historical dividends (exDate <= today): Preserved
- *   - Linked expenses: Preserved (user's cashflow history)
+ * Body: `{ userId, ledger?: 'keep' | 'delete' }` — `ledger` is required when the asset has ledger
+ * operations or pension contributions (D4): `keep` leaves them, `delete` removes them in batches.
  *
- * Why preserve historical data?
- *   - User needs historical dividend/expense records for taxes
- *   - Asset deletion represents "I no longer own this" not "this never existed"
- *   - Past cashflow impacts (expenses) should remain in financial history
- *
- * Request Body:
- *   {
- *     userId: string  // Required for ownership verification
- *   }
- *
- * URL Parameters:
- *   @param assetId - Asset document ID to delete
- *
- * Response:
- *   {
- *     success: boolean,
- *     message: string,
- *     deletedFutureDividends: number  // Count of future dividends removed
- *   }
- *
- * Security:
- *   - Uses Admin SDK (bypasses security rules)
- *   - Manual asset ownership verification required
- *
- * Related:
- *   - dividends/[dividendId]/route.ts: Delete individual dividends
- *   - assetService.ts: Asset management logic
+ * Responses: 409 `asset/in-use` with the blocking lines (nothing is written); 400 when the ledger
+ * choice is missing; 404/403 as before; 200 with what was removed.
+ * Order (idempotent, asset last): cleanups → ledger → future dividends → asset document.
  */
 export async function DELETE(
   request: NextRequest,
@@ -58,96 +32,32 @@ export async function DELETE(
     if (!assetIdResult.ok) return assetIdResult.response;
     const assetId = assetIdResult.data;
 
-    // Get userId from request body (strict schema, doc/snapshot-integri/README.md § 5.9)
     const parsed = parseOr400(assetDeleteSchema, await request.json());
     if (!parsed.ok) return parsed.response;
-    const { userId } = parsed.data;
+    const { userId, ledger } = parsed.data;
     await assertCanAccessAccount(decodedToken, userId);
 
-    // Verify asset exists and belongs to user
     const assetDoc = await adminDb.collection('assets').doc(assetId).get();
-
     if (!assetDoc.exists) {
-      return NextResponse.json(
-        { error: 'Asset not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+    }
+    if (assetDoc.data()?.userId !== userId) {
+      return NextResponse.json({ error: 'Asset does not belong to user' }, { status: 403 });
     }
 
-    const asset = assetDoc.data();
-    if (asset?.userId !== userId) {
-      return NextResponse.json(
-        { error: 'Asset does not belong to user' },
-        { status: 403 }
-      );
+    const usage = await readAssetUsage(userId, assetId);
+    if (!usage) {
+      return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+    }
+    if (usage.blockers.length > 0) {
+      return NextResponse.json({ error: 'asset/in-use', blockers: usage.blockers }, { status: 409 });
+    }
+    if (usage.needsLedgerChoice && !ledger) {
+      return NextResponse.json({ error: 'asset/ledger-choice-required' }, { status: 400 });
     }
 
-    // Future dividends deletion strategy: Delete > today, preserve <= today
-    //
-    // Calculate today at midnight for clean date-only comparison
-    // (Firestore Timestamp includes time component, need consistent cutoff)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayTimestamp = Timestamp.fromDate(today);
-
-    // Query FUTURE dividends (exDate > today)
-    //
-    // Why only future?
-    //   - Historical dividends (exDate <= today): Already paid, part of financial history
-    //   - User may need for tax records, portfolio performance calculations
-    //   - Future dividends: Speculative, no longer relevant if asset sold
-    //
-    // Example: User sells AAPL on 2024-06-15
-    //   - Dividends with exDate <= 2024-06-15: Keep (user was eligible)
-    //   - Dividends with exDate > 2024-06-15: Delete (user no longer owns shares)
-    //
-    // Note: We use exDate (not paymentDate) because exDate determines eligibility
-    const dividendsSnapshot = await adminDb
-      .collection('dividends')
-      .where('assetId', '==', assetId)
-      .where('exDate', '>', todayTimestamp)
-      .get();
-
-    // Atomic batch deletion: All-or-nothing transaction
-    //
-    // Why batch instead of sequential deletes?
-    //   - Atomicity: If asset deletion fails, dividends won't be orphaned
-    //   - Performance: Single network round-trip for multiple deletes
-    //   - Consistency: Avoids race conditions (concurrent reads see consistent state)
-    //
-    // Firestore batch limitations:
-    //   - Max 500 operations per batch
-    //   - Not a concern here (users rarely have 500+ future dividends)
-    //   - If needed in future: Implement batch chunking
-    //
-    // Transaction order:
-    //   1. Add all dividend deletes to batch
-    //   2. Add asset delete to batch
-    //   3. Commit atomically (all succeed or all fail)
-    const batch = adminDb.batch();
-
-    // Only the account's own: the query is by `assetId` alone (no composite index with
-    // `userId`), so another account's document carrying the same id is filtered out here
-    // (doc/sicurezza/README.md RS6b, D-SI9).
-    const ownFutureDividends = dividendsSnapshot.docs.filter(dividendDoc => dividendDoc.data().userId === userId);
-    ownFutureDividends.forEach(dividendDoc => {
-      batch.delete(dividendDoc.ref);
-    });
-
-    // Delete the asset
-    batch.delete(assetDoc.ref);
-
-    // Commit atomically
-    await batch.commit();
-    await invalidateDashboardOverviewSummaryServer(userId, 'asset_deleted');
-
-    console.log(`Asset ${assetId} deleted with ${ownFutureDividends.length} future dividends removed`);
-
-    return NextResponse.json({
-      success: true,
-      message: 'Asset deleted successfully',
-      deletedFutureDividends: ownFutureDividends.length,
-    });
+    const result = await deleteAssetWithCleanup(userId, assetId, usage, ledger);
+    return NextResponse.json({ success: true, message: 'Asset deleted successfully', ...result });
   } catch (error) {
     const authErrorResponse = getApiAuthErrorResponse(error);
     if (authErrorResponse) {

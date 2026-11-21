@@ -82,6 +82,7 @@ export const ROUTE_TABLE: RouteRow[] = [
   { route: 'asset-transactions/by-asset/[assetId]', method: 'DELETE', kind: 'owner', request: (account) => ({ query: { userId: account }, params: { assetId: `asset-${account}` } }) },
   { route: 'asset-transactions/migrate', method: 'POST', kind: 'owner', request: body({}) },
   { route: 'asset-transactions/backfill-average-cost-eur', method: 'POST', kind: 'owner', request: body({}) },
+  { route: 'assets/[assetId]/usage', method: 'GET', kind: 'owner', request: (account) => ({ query: { userId: account }, params: { assetId: `asset-${account}` } }), note: 'F14: the delete dialog’s report' },
   { route: 'assets/[assetId]', method: 'DELETE', kind: 'owner', request: (account) => ({ body: { userId: account }, params: { assetId: `asset-${account}` } }), note: 'RS6b' },
 
   { route: 'auth/activate', method: 'POST', kind: 'activation', request: () => ({}), note: 'RU2: the token’s email, never a body' },
