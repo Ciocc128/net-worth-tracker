@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, type RefObject } from 'react';
+import type { RefObject } from 'react';
 import { Pencil, Trash2, Wallet } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import type { Asset } from '@/types/assets';
@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { formatCurrency } from '@/lib/services/chartService';
 import { calculateAssetValue } from '@/lib/services/assetService';
-import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 import { describeCashAccountReading } from '@/lib/utils/dialogNarrative';
 
 const ITALIAN_DATE = new Intl.DateTimeFormat('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -23,7 +22,7 @@ interface CashAccountDialogProps {
   open: boolean;
   onClose: () => void;
   onEdit: (asset: Asset) => void;
-  onDelete: (assetId: string) => void;
+  onDelete: (asset: Asset) => void;
   isDemo: boolean;
   /** The Liquidità row that opened the detail: the focus goes back to it on close. */
   returnFocusTo?: RefObject<HTMLElement | null>;
@@ -33,7 +32,7 @@ interface CashAccountDialogProps {
 
 /**
  * Read-only detail of one cash account — balance, currency, name, last update — with Modifica
- * (opens AssetDialog) and the two-click Elimina. Opened from a row of the Liquidità tile.
+ * (opens AssetDialog) and Elimina (opens `AssetDeleteDialog`, the confirmation). Opened from a row of the Liquidità tile.
  *
  * The delete is armed by `useArmedDelete` (no timer, Escape disarms through the modal's
  * `hasArmedConfirm` check) and, while armed, the READING says what the second press loses —
@@ -57,9 +56,7 @@ export function CashAccountDialog({
   onExitComplete,
 }: CashAccountDialogProps) {
   const value = calculateAssetValue(asset);
-  const deleteRef = useRef<HTMLButtonElement | null>(null);
-  const { armed, onClick, onBlur } = useArmedDelete(deleteRef, () => onDelete(asset.id));
-  const reading = describeCashAccountReading({ name: asset.name, balanceEur: value, armed, isDemo });
+  const reading = describeCashAccountReading({ name: asset.name, balanceEur: value, armed: false, isDemo });
 
   return (
     <ResponsiveModal
@@ -84,18 +81,15 @@ export function CashAccountDialog({
             Modifica
           </Button>
           <Button
-            ref={deleteRef}
             type="button"
-            variant={armed ? 'destructive' : 'outlineDestructive'}
+            variant="outlineDestructive"
             className="flex-1"
-            onClick={onClick}
-            onBlur={onBlur}
+            onClick={() => onDelete(asset)}
             disabled={isDemo}
-            aria-pressed={armed}
-            aria-label={armed ? `Premi di nuovo per eliminare ${asset.name}` : `Elimina ${asset.name}`}
+            aria-label={`Elimina ${asset.name}`}
           >
             <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
-            {armed ? 'Premi di nuovo' : 'Elimina'}
+            Elimina
           </Button>
         </>
       }

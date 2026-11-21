@@ -31,7 +31,7 @@
  */
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeftRight,
@@ -50,7 +50,6 @@ import {
   Trash2,
   TrendingUp,
 } from 'lucide-react';
-import { toast } from 'sonner';
 import { isLoanAsset, type Asset, type FamilyMember } from '@/types/assets';
 import { describeAssetOwnerLabel, isOwnershipEnabled, listAssetOwnerFilterOptions, matchesAssetOwnerFilter } from '@/lib/utils/assetOwnership';
 import { OWNER_FILTER_ALL } from '@/lib/utils/movementsOwnerFilter';
@@ -61,9 +60,8 @@ import { calculateAssetValue } from '@/lib/services/assetService';
 import { formatCurrency, formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { formatPrice } from '@/lib/utils/formatters';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useDeleteAsset } from '@/lib/hooks/useAssets';
+import { AssetDeleteDialog } from '@/components/assets/AssetDeleteDialog';
 import { useAddedRows } from '@/lib/hooks/useAddedRows';
-import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 import { useCompactLayout } from '@/lib/hooks/useCompactLayout';
 import { resolveDisplayAssetClass } from '@/lib/utils/assetDisplayClass';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
@@ -73,7 +71,6 @@ import { getMetricValueColor } from '@/lib/utils/metricColors';
 import type { AssetPerformanceData } from '@/lib/utils/assetPerformanceDeltas';
 import { computeTopWeightShare, computeUnrealizedGain, hasCostBasis, isHeld } from '@/lib/utils/patrimonioSummary';
 import { describeInstruments } from '@/lib/utils/patrimonioNarrative';
-import { describeWriteError } from '@/lib/utils/dialogNarrative';
 import { cn } from '@/lib/utils';
 import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { Button } from '@/components/ui/button';
@@ -184,48 +181,24 @@ function SortHead({ column, children, align = 'right', sortState, onSort, classN
 
 interface DeleteButtonProps {
   asset: Asset;
-  onDelete: (assetId: string) => void;
+  onDelete: (asset: Asset) => void;
   disabled: boolean;
-  /** The tile's one live region: arm and disarm are sentences, spoken there. */
-  announce: (text: string) => void;
 }
 
-/**
- * The row's two-click delete without a timer (`useArmedDelete`): a 3-second auto-disarm was a
- * WCAG 2.2.1 time limit, kept on these rows until 2026-09-14. The armed label repeats what the
- * second press loses; the arm and the disarm are announced through ONE live region per tile
- * (emptying a live region announces nothing, and one region per row made a keyboard reader hear
- * «annullata» on every Tab away).
- */
-function DeleteButton({ asset, onDelete, disabled, announce }: DeleteButtonProps) {
-  const ref = useRef<HTMLButtonElement | null>(null);
-  const { armed, onClick, onBlur } = useArmedDelete(ref, () => onDelete(asset.id));
-  const wasArmed = useRef(false);
-  useEffect(() => {
-    if (armed) {
-      wasArmed.current = true;
-      announce(`Premi di nuovo per eliminare ${asset.name}`);
-    } else if (wasArmed.current) {
-      wasArmed.current = false;
-      announce('Eliminazione annullata');
-    }
-  }, [armed, announce, asset.name]);
-
+/** The row's delete: it opens `AssetDeleteDialog`, whose single «Elimina» is the confirmation. */
+function DeleteButton({ asset, onDelete, disabled }: DeleteButtonProps) {
   return (
     <Button
-      ref={ref}
       type="button"
-      variant={armed ? 'destructive' : 'ghost'}
+      variant="ghost"
       size="sm"
-      className={cn(armed ? 'h-8' : ICON_BUTTON_CLASS, 'group')}
-      onClick={onClick}
-      onBlur={onBlur}
+      className={cn(ICON_BUTTON_CLASS, 'group')}
+      onClick={() => onDelete(asset)}
       disabled={disabled}
-      aria-pressed={armed}
-      aria-label={armed ? `Premi di nuovo per eliminare ${asset.name}` : `Elimina ${asset.name}`}
+      aria-label={`Elimina ${asset.name}`}
       title={disabled ? 'Non disponibile in modalità demo' : undefined}
     >
-      {armed ? <span className="px-1 text-xs">Conferma</span> : <Trash2 className="h-4 w-4 text-muted-foreground group-hover:text-destructive group-focus-visible:text-destructive" aria-hidden="true" />}
+      <Trash2 className="h-4 w-4 text-muted-foreground group-hover:text-destructive group-focus-visible:text-destructive" aria-hidden="true" />
     </Button>
   );
 }
@@ -291,7 +264,8 @@ export function StrumentiTile({
   allAssets,
   className,
 }: StrumentiTileProps) {
-  const deleteAssetMutation = useDeleteAsset(ownerId || '');
+  // The asset the delete dialog is open on (`AssetDeleteDialog`); null = closed.
+  const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
   // The «Intestatario» filter (session-only: a lens, not a view the reader keeps): the options are
   // the Movimenti filter's — «Tutti · In comune · {members}», «Senza intestatario» when such an
   // asset exists. A mortgage resolves through the property it finances, so the lookup list is the
@@ -324,7 +298,6 @@ export function StrumentiTile({
   const [showDeltas, setShowDeltas] = useState(() => readStoredToggle(STORAGE_KEYS.showDeltas));
   const [groupByClass, setGroupByClass] = useState(() => readStoredToggle(STORAGE_KEYS.groupByClass));
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const [announcement, setAnnouncement] = useState('');
   // The dates under a row («scade il…», «valore a mano dal…») are read against one clock per mount.
   const now = useMemo(() => new Date(), []);
 
@@ -353,20 +326,6 @@ export function StrumentiTile({
 
   // Ledger row actions apply to ledger asset types once migration has produced the meta doc.
   const showLedgerActions = (asset: Asset) => ledgerReady && isLedgerAssetType(asset.type);
-
-  const handleDelete = useCallback(
-    async (assetId: string) => {
-      if (!ownerId) return;
-      try {
-        await deleteAssetMutation.mutateAsync(assetId);
-        toast.success('Asset eliminato');
-      } catch (error) {
-        console.error('Error deleting asset:', error);
-        toast.error(describeWriteError(error));
-      }
-    },
-    [ownerId, deleteAssetMutation],
-  );
 
   const toggleShowDeltas = () => {
     setShowDeltas((prev) => {
@@ -629,7 +588,7 @@ export function StrumentiTile({
             ) : (
               <span className={ICON_BUTTON_CLASS} aria-hidden="true" />
             )}
-            <DeleteButton asset={asset} onDelete={handleDelete} disabled={isDemo} announce={setAnnouncement} />
+            <DeleteButton asset={asset} onDelete={setDeleteTarget} disabled={isDemo} />
           </div>
         </td>
       </tr>
@@ -739,11 +698,6 @@ export function StrumentiTile({
         </div>
       ) : (
         <>
-          {/* One live region for the whole tile: the arm and the disarm of any row's delete. */}
-          <span className="sr-only" role="status" aria-live="polite">
-            {announcement}
-          </span>
-
           {!isDesktop ? (
             // Below desktop: flat expandable rows (the Δ windows and actions live inside each).
             <div className="mt-2 flex flex-col divide-y divide-border">
@@ -754,8 +708,7 @@ export function StrumentiTile({
                   totalValue={totalValue}
                   now={now}
                   onEdit={onEdit}
-                  onDelete={handleDelete}
-                  announce={setAnnouncement}
+                  onDelete={setDeleteTarget}
                   onCalculateTaxes={hasCostBasis(asset) ? onCalculateTaxes : undefined}
                   isManualPrice={requiresManualPricing(asset)}
                   isDemo={isDemo}
@@ -848,6 +801,15 @@ export function StrumentiTile({
           </p>
         </>
       )}
+      <AssetDeleteDialog
+        asset={deleteTarget}
+        ownerId={ownerId}
+        onClose={() => setDeleteTarget(null)}
+        onRegisterSale={(asset) => {
+          setDeleteTarget(null);
+          onRegisterTrade(asset);
+        }}
+      />
     </Tile>
   );
 }

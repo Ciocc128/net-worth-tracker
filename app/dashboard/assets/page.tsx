@@ -41,7 +41,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { useAssets, useDeleteAsset } from '@/lib/hooks/useAssets';
+import { useAssets } from '@/lib/hooks/useAssets';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { calculateAssetValue, calculateTotalValue } from '@/lib/services/assetService';
 import { summarizeOwnership } from '@/lib/utils/assetOwnership';
@@ -101,7 +101,6 @@ import { Button } from '@/components/ui/button';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure } from '@/lib/utils/statesNarrative';
 import { resolveLivedCashflow } from '@/lib/utils/overviewNarrative';
-import { describeWriteError } from '@/lib/utils/dialogNarrative';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { PageVerdict } from '@/components/ui/page-verdict';
@@ -127,6 +126,7 @@ import { TransactionDialog } from '@/components/assets/TransactionDialog';
 import { AssetMovementsDialog } from '@/components/assets/AssetMovementsDialog';
 import { TaxCalculatorModal } from '@/components/assets/TaxCalculatorModal';
 import { CashAccountDialog } from '@/components/assets/CashAccountDialog';
+import { AssetDeleteDialog } from '@/components/assets/AssetDeleteDialog';
 import Link from 'next/link';
 
 /** The page's own skeleton spans — the grid above, no numbers. */
@@ -207,7 +207,6 @@ export default function AssetsPage() {
   const { data: assets = [], isLoading: loadingAssets, isError: assetsError } = assetsQuery;
   const { data: snapshots = [], isLoading: loadingSnapshots } = snapshotsQuery;
   const { data: overview, isLoading: loadingOverview, isError: overviewError } = overviewQuery;
-  const deleteAssetMutation = useDeleteAsset(ownerId || '');
 
   // ─── Trade-ledger migration trigger ───────────────────────────────────────────
   // The first time an owner has no ledger meta doc, fire the idempotent one-shot migration.
@@ -554,16 +553,11 @@ export default function AssetsPage() {
     openAssetDialog(row, asset);
   };
 
-  // The two-click arm lives in the dialog (`useArmedDelete`, no timer); the page only deletes.
-  const handleCashDelete = async (assetId: string) => {
-    try {
-      await deleteAssetMutation.mutateAsync(assetId);
-      toast.success('Conto eliminato');
-      closeCashDetail();
-    } catch (error) {
-      console.error('Error deleting cash account:', error);
-      toast.error(describeWriteError(error));
-    }
+  // Elimina hands the account over to `AssetDeleteDialog`, which says where it is used first.
+  const [cashDeleteTarget, setCashDeleteTarget] = useState<Asset | null>(null);
+  const handleCashDelete = (asset: Asset) => {
+    closeCashDetail();
+    setCashDeleteTarget(asset);
   };
 
   const headerActions = (
@@ -951,6 +945,13 @@ export default function AssetsPage() {
           onExitComplete={handleCashDetailExited}
         />
       )}
+
+      <AssetDeleteDialog
+        asset={cashDeleteTarget}
+        ownerId={ownerId}
+        onClose={() => setCashDeleteTarget(null)}
+        successMessage="Conto eliminato"
+      />
 
       {tradeAsset && <TransactionDialog open onClose={() => setTradeAsset(null)} asset={tradeAsset} />}
 
