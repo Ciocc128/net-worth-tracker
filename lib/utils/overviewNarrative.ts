@@ -246,7 +246,10 @@ function resolveHeadline(input: OverviewVerdictInput): ResolvedHeadline {
       return { headline: taxedGrowthHeadline(month, taxedGrowth, input.sales), tone: 'warning', taxIsTheStory: true };
     }
     if ((input.savingsRate !== null && input.savingsRate < 0) || overspendInEuro(input) !== null) {
-      return { headline: `${month} cresce, ma le spese superano le entrate.`, tone: 'warning', taxIsTheStory: false };
+      // N2 (D-RU9): the calendar still ahead covers the lived shortfall → neutral, same words.
+      const cashflow = input.cashflow;
+      const calendarCovers = !!cashflow && cashflow.savings + cashflow.scheduledIncome - cashflow.scheduledExpenses >= 0;
+      return { headline: `${month} cresce, ma le spese superano le entrate.`, tone: calendarCovers ? 'neutral' : 'warning', taxIsTheStory: false };
     }
     return { headline: `${month} sta andando bene.`, tone: 'positive', taxIsTheStory: false };
   }

@@ -458,7 +458,10 @@ export function buildCashflowVerdict(input: CashflowVerdictInput): PageVerdictMo
 
   const settled = settleTotals(totals, scheduled);
   const headline = resolveHeadline(subject, settled, true);
-  const tone = resolveTone(settled.savingsRate, settled.expenses);
+  // N2 (D-RU9): lived part in the red but the period, calendar included, closes in the black → the
+  // tone steps back to neutral. Never `positive`: the verdict judges what happened (2026-09-14).
+  const livedTone = resolveTone(settled.savingsRate, settled.expenses);
+  const tone: VerdictTone = livedTone === 'negative' && totals.net >= 0 ? 'neutral' : livedTone;
   const calendar = calendarSentence(input.period, totals, scheduled);
 
   if (settled.income <= 0 && settled.expenses <= 0) {
