@@ -189,6 +189,8 @@ test('a role saved in the dialog reaches Analisi\'s Flusso without a reload', as
 
   // Analisi reached client-side, so the categories land in the React Query cache the page keeps —
   // the global staleTime is 5 minutes, and that copy is what a missing invalidation would serve back.
+  // The band: the folder «Entrate e spese» first, then the group's page «Analisi spese».
+  await page.getByRole('link', { name: 'Entrate e spese', exact: true }).filter({ visible: true }).first().click();
   await page.locator('a[href="/dashboard/analisi"]:visible').first().click();
   await expect(page).toHaveURL(/\/dashboard\/analisi/);
   const chart = page.getByRole('region', { name: 'Flusso', exact: true }).getByRole('img', { name: /^Flusso del periodo/ });
@@ -198,12 +200,15 @@ test('a role saved in the dialog reaches Analisi\'s Flusso without a reload', as
   await expect(roleNode('Necessità')).toHaveCount(0);
 
   // Back to Impostazioni through the history — still client-side — and classify Alimentari.
+  // (two entries back: the band took the folder first, then the page).
+  await page.goBack();
   await page.goBack();
   await expect(rolesTile(page)).toBeVisible({ timeout: 30_000 });
   await pickFoodRole(page, /^Necessità/);
   await expect.poll(async () => (await readFields(FOOD_DOC)).spendingRole?.stringValue).toBe('need');
 
   // Forward to the same Analisi: its categories were invalidated by the write, so the role is there.
+  await page.goForward();
   await page.goForward();
   await expect(roleNode('Necessità')).toHaveCount(1, { timeout: 30_000 });
 });

@@ -64,7 +64,11 @@ test('la tabella degli strumenti mostra le colonne del Δ senza scorrere, con e 
   expect(narrow.scrollWidth, 'con la selezione aperta la tabella non scorre').toBe(narrow.clientWidth);
   expect(narrow.clipped).toEqual([]);
   expect(narrow.heads).toEqual(expect.arrayContaining(['di cui prezzo', 'di cui quantità']));
-  expect(narrow.heads).not.toContain('Quantità');
+  // Quantità and Quota are columns of their own from a container of 760px (`@[760px]` in ValoreStrumentoTile): with
+  // the band the page is the whole 1440 window, so the selection's 5/12 leaves the table wider than that and the
+  // columns stay, painted and unclipped. The fold is asserted where the table is narrower than the threshold.
+  if (narrow.clientWidth < 740) expect(narrow.heads).not.toContain('Quantità');
+  else expect(narrow.heads).toContain('Quantità');
 });
 
 test('il registro del Driver somma, all’euro, alla crescita su cui chiude', async ({ page }) => {

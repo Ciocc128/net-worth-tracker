@@ -422,3 +422,5 @@ prima riga chiusa resta sotto la pill (DESIGN.md → The First-Screen Rule), la 
 ## Per-page blind spots
 
 - **La tabella del fixture è il budget, non la misura di un giorno**: le celle sono i valori di `perf/mobile-budget.json`, e una corsa che legge qualche centesimo più in basso resta verde senza stringere (la deriva del giorno e della macchina, `doc/guide/prima-schermata.md` § Per-page blind spots).
+
+**2026-11-21, fascia desktop (PR #197)**: il giro Mac sullo stesso fixture (`census@example.com`, build `perf:build` su :3200) contro la build del padre 14e694d7: 57 voci oltre il budget prima, 59 dopo. **Voci allargate a mano** (`raisedBy` «fascia desktop»): `allocazione` @1024 `tilesFullyAboveFold` 5 → 4 e `fire-obiettivi` @1024 `tilesFullyAboveFold` 4 → 3 (la fascia di 110px prende altezza al tablet orizzontale); le altre differenze sono di ±0,01 schermate. Le 57 voci già rosse restano com'erano.
