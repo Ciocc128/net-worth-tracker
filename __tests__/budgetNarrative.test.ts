@@ -189,7 +189,7 @@ describe('buildBudgetVerdict', () => {
     expect(v.headline).toBe('3 budget su 12 rischiano di sforare.');
     expect(v.tone).toBe('warning');
     expect(plain(v.sentence)).toBe(
-      'Nessun tetto complessivo: ad agosto 3 categorie su 12 chiudono oltre il loro budget al ritmo attuale, Ristoranti di più (+73 €). Impostane uno nelle impostazioni per leggere il mese nel suo insieme.',
+      'Nessun tetto complessivo: ad agosto 3 categorie su 12 chiudono oltre il loro budget al ritmo attuale, Ristoranti di più (+73 €). Impostane uno con «Imposta il tetto» per leggere il mese nel suo insieme.',
     );
     const one = buildBudgetVerdict({ ceiling: null, risk: risk({ atRisk: risk().atRisk.slice(0, 1) }), hasItems: true, now: NOW });
     expect(one.headline).toBe('1 budget su 12 rischia di sforare.');
@@ -331,7 +331,7 @@ describe('describeAlerts', () => {
   it('footer and aside name where the forecasts live and which thresholds are armed', () => {
     expect(plain(describeAlertsFooter(true, 3))).toBe('Gli sforamenti previsti (3) stanno in Categorie a rischio. Gli stessi avvisi arrivano nell\'email mensile.');
     expect(plain(describeAlertsFooter(true, 0))).toBe("Gli stessi avvisi arrivano nell'email mensile.");
-    expect(plain(describeAlertsFooter(false, 3))).toBe("Riattivali nelle impostazioni per vedere qui le soglie superate e riceverle nell'email mensile.");
+    expect(plain(describeAlertsFooter(false, 3))).toBe("Riattivali dalla matita del tetto per vedere qui le soglie superate e riceverle nell'email mensile.");
     expect(plain(describeAlertsAside([90, 100], true))).toBe('soglie di quota 90 · 100');
     expect(plain(describeAlertsAside([90, 100], false))).toBe('disattivati');
   });

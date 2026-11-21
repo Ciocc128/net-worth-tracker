@@ -273,7 +273,7 @@ function categoriesVerdict(risk: BudgetRiskSummary, now: Date): PageVerdictModel
       prose(n === 1 ? ' chiude oltre il suo budget al ritmo attuale, ' : ' chiudono oltre il loro budget al ritmo attuale, '),
       prose(n === 1 ? `${worst.label} (` : `${worst.label} di più (`),
       signed(`+${euro(worst.overBy)}`, 'negative'),
-      prose('). Impostane uno nelle impostazioni per leggere il mese nel suo insieme.'),
+      prose('). Impostane uno con «Imposta il tetto» per leggere il mese nel suo insieme.'),
     ],
   };
 }
@@ -432,7 +432,7 @@ export function describeAlerts(rows: BudgetAlert[], enabled: boolean, now: Date)
 }
 
 export function describeAlertsFooter(enabled: boolean, forecastOnlyCount: number): Narrative {
-  if (!enabled) return [prose("Riattivali nelle impostazioni per vedere qui le soglie superate e riceverle nell'email mensile.")];
+  if (!enabled) return [prose("Riattivali dalla matita del tetto per vedere qui le soglie superate e riceverle nell'email mensile.")];
   if (forecastOnlyCount > 0) {
     return [prose('Gli sforamenti previsti ('), count(forecastOnlyCount), prose(") stanno in Categorie a rischio. Gli stessi avvisi arrivano nell'email mensile.")];
   }
@@ -613,7 +613,7 @@ export function describeCeilingSetting(v: BudgetAllocationValidation): Narrative
 
 export const ALERTS_SETTING_READING: Narrative = [prose('Un avviso quando una categoria o il tetto supera una soglia.')];
 export const ALERTS_SETTING_FOOTER: Narrative = [prose('Gli sforamenti previsti si vedono in Categorie a rischio anche senza avvisi.')];
-export const CEILING_SETTING_FOOTER: Narrative = [prose('«Assegnati» somma i budget mensili di spesa per categoria; annuali, entrate e sottocategorie restano fuori. Si salva da solo.')];
+export const CEILING_SETTING_FOOTER: Narrative = [prose('«Assegnati» somma i budget mensili di spesa per categoria; annuali, entrate e sottocategorie restano fuori.')];
 export const CEILING_SETTING_INVALID: Narrative = [prose('La somma dei budget mensili supera il tetto: le modifiche non vengono salvate finché non rientri nel limite.')];
 
 // ─── Ultimi mesi ──────────────────────────────────────────────────────────────

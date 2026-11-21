@@ -1,12 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { BudgetAlert } from '@/types/budget';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
 import { cn } from '@/lib/utils';
 import { describeAlertRowCaption } from '@/lib/utils/budgetNarrative';
-import { Tile, type TileCollapse } from '@/components/ui/tile';
+import { Tile, TILE_FOOTER_ACTION_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
 
 interface AvvisiTileProps {
@@ -69,11 +70,13 @@ export function AvvisiTile({ rows, enabled, aside, reading, footer, collapse, as
           })}
         </ul>
       )}
-      <NarrativeText
-        segments={footer}
-        className="mt-auto border-t border-border pt-3.5 text-[11px] leading-[1.45] text-muted-foreground"
-        figureClassName="font-medium"
-      />
+      <div className="mt-auto flex flex-col gap-1 border-t border-border pt-3.5 text-[11px] leading-[1.45] text-muted-foreground">
+        <NarrativeText segments={footer} figureClassName="font-medium" />
+        {/* The switch of the weekly email lives in Impostazioni › Preferenze: the rimando Fable asked for (R6). */}
+        <Link href="/dashboard/settings?tab=generale" className={cn(TILE_FOOTER_ACTION_CLASS, 'self-start')}>
+          Email settimanale del budget
+        </Link>
+      </div>
     </Tile>
   );
 }

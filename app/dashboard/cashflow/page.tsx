@@ -63,9 +63,9 @@ import type { TabDef } from '@/components/layout/PageTabs';
 // Analisi tab removed — it now lives at /dashboard/analisi as a standalone page.
 const CASHFLOW_TABS_BASE: TabDef[] = [
   { value: 'tracking',  label: 'Tracciamento', icon: ArrowRightLeft },
-  { value: 'dividends', label: 'Dividendi',    icon: Coins          },
   { value: 'budget',    label: 'Budget',       icon: Target         },
 ];
+const CASHFLOW_TAB_DIVIDENDS: TabDef = { value: 'dividends', label: 'Dividendi', icon: Coins };
 
 const VALID_CASHFLOW_TABS = ['tracking', 'dividends', 'budget', 'cost-centers', 'split'] as const;
 /** The cashflow floor when the settings carry none: last year (the same default Analisi uses). */
@@ -236,8 +236,9 @@ export default function CashflowPage() {
 
   const allTabs: TabDef[] = [
     ...CASHFLOW_TABS_BASE,
-    ...(costCentersEnabled ? [{ value: 'cost-centers', label: 'Centri di Costo', icon: Layers }] : []),
     ...(expenseSplitEnabled ? [{ value: 'split', label: 'Divisione', icon: Users }] : []),
+    ...(costCentersEnabled ? [{ value: 'cost-centers', label: 'Centri di Costo', icon: Layers }] : []),
+    CASHFLOW_TAB_DIVIDENDS,
   ];
 
   // A URL naming an OPTIONAL tab whose feature is off used to leave the page blank — no tab bar
@@ -347,17 +348,23 @@ export default function CashflowPage() {
                 </Button>
               </>
             )}
-            <Button
-              size="icon"
-              variant="ghost"
-              asChild
-              aria-label="Impostazioni Spese"
-              className="size-11 desktop:size-9"
-            >
-              <Link href="/dashboard/settings?tab=spese">
-                <Settings className="h-4 w-4" />
-              </Link>
-            </Button>
+            {/* One gear per page, and it opens THIS page's settings (P2): the categories on Tracciamento,
+                the dividend preferences on Dividendi; Budget has its pencil on the ceiling, Divisione and
+                Centri only the switch in Impostazioni › Preferenze (R6, D-RU7). */}
+            {(effectiveTab === 'tracking' || effectiveTab === 'dividends') && (
+              <Button
+                size="icon"
+                variant="ghost"
+                asChild
+                aria-label={effectiveTab === 'tracking' ? 'Categorie' : 'Impostazioni dei dividendi'}
+                title={effectiveTab === 'tracking' ? 'Categorie' : 'Impostazioni dei dividendi'}
+                className="size-11 desktop:size-9"
+              >
+                <Link href={effectiveTab === 'tracking' ? '/dashboard/settings?tab=spese' : '/dashboard/settings?tab=dividendi'}>
+                  <Settings className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
           </div>
         }
       />

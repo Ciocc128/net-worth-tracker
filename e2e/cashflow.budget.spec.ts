@@ -161,3 +161,54 @@ test('every progress track tells a screen reader its real share, never a clamped
   await removeDecoyRows(page);
   await expect.poll(savedBudgetAmounts).not.toContain(DECOY_AMOUNT);
 });
+
+test('the ceiling is set from a modal on a draft: «Annulla» discards, «Salva» writes (R6)', async ({ page }) => {
+  const CEILING = 1500;
+  const savedCeiling = async (): Promise<number | null> => {
+    const res = await fetch(`${FIRESTORE}/budgets/test-user-1`, { headers: { Authorization: 'Bearer owner' } });
+    if (res.status === 404) return null;
+    const doc = (await res.json()) as { fields?: { overallMonthlyAmount?: { integerValue?: string; doubleValue?: number } } };
+    const v = doc.fields?.overallMonthlyAmount;
+    return v ? Number(v.integerValue ?? v.doubleValue) : null;
+  };
+
+  // No ceiling: a small tile says so (it used to be an empty cell), and the disclosure at the foot is gone.
+  const tile = page.getByRole('region', { name: 'Tetto del mese' });
+  await expect(tile.getByText('Nessun tetto mensile.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Impostazioni del budget' })).toHaveCount(0);
+
+  const opener = tile.getByRole('button', { name: 'Imposta il tetto' });
+  await opener.click();
+  const modal = page.getByRole('dialog', { name: 'Tetto e avvisi' });
+  await expect(modal).toBeVisible();
+  const save = modal.getByRole('button', { name: 'Salva', exact: true });
+  await expect(save).toBeDisabled(); // the draft equals the saved values
+
+  // Typing is a draft: nothing is written, and «Annulla» throws it away.
+  await modal.getByLabel('Tetto (€)').fill(String(CEILING));
+  await expect(save).toBeEnabled();
+  await page.waitForTimeout(1200); // longer than the debounce of the old autosave
+  expect(await savedCeiling()).toBeNull();
+  await modal.getByRole('button', { name: 'Annulla' }).click();
+  await expect(modal).toBeHidden();
+  await expect(opener).toBeFocused();
+  expect(await savedCeiling()).toBeNull();
+
+  // «Salva» writes; the tile now has the ceiling and the pencil.
+  await opener.click();
+  await modal.getByLabel('Tetto (€)').fill(String(CEILING));
+  await save.click();
+  await expect(modal).toBeHidden();
+  await expect.poll(savedCeiling, { timeout: 10_000 }).toBe(CEILING);
+  const pencil = page.getByRole('button', { name: 'Modifica tetto e avvisi del budget' });
+  await expect(pencil).toBeVisible();
+
+  // Back to no ceiling through the app, so the base account is as the next spec expects it.
+  await pencil.click();
+  await modal.getByLabel('Tetto (€)').fill('');
+  await save.click();
+  await expect(modal).toBeHidden();
+  await expect(page.getByRole('region', { name: 'Tetto del mese' }).getByText('Nessun tetto mensile.')).toBeVisible();
+  // The write is debounced: wait for the document, or the next spec starts on a ceiling.
+  await expect.poll(savedCeiling, { timeout: 10_000 }).toBeNull();
+});

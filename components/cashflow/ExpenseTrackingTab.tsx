@@ -429,6 +429,8 @@ export function ExpenseTrackingTab({
   // Remembered (localStorage), like Patrimonio's toggles: a reader who works in the table
   // should not re-pick it on every visit (it reset to «Feed» until 2026-09-14).
   const [desktopListView, setDesktopListView] = useState<'feed' | 'table'>(() => readStoredListView());
+  // The feed sits beside the categories from `desktop:`; the table needs the full width (R5, D-RU6).
+  const feedBeside = desktopListView === 'feed';
   const changeListView = (view: 'feed' | 'table') => {
     setDesktopListView(view);
     writeStoredListView(view);
@@ -1304,7 +1306,7 @@ export function ExpenseTrackingTab({
           (The First-Screen Rule) — THE tile, «Il resto della pagina», then the rows (inside the index) ── */}
       <div className={COMPACT_GRID_WRAPPER_CLASS}>
       <div className={COMPACT_GRID_CLASS}>
-        <div data-stage="lead" className={cn(TILE_CELL_CLASS, LEAD_CELL_CLASS, 'desktop:col-span-5 desktop:row-span-2')}>
+        <div data-stage="lead" className={cn(TILE_CELL_CLASS, LEAD_CELL_CLASS, 'desktop:col-span-5 desktop:row-span-2 desktop:col-start-1 desktop:row-start-1')}>
           <CashflowPeriodoTile
             id={TRACKING_SECTION_IDS.periodo}
             eyebrow={`Cashflow · ${periodLabel(period)}`}
@@ -1332,7 +1334,7 @@ export function ExpenseTrackingTab({
         <div className={INDEX_CLASS}>
         <PageRest key={active ? 'attiva' : 'inattiva'} sections={sections} className={REST_CELL_CLASS} />
 
-        <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(TRACKING_SECTION_IDS.spese), 'desktop:col-span-4')}>
+        <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(TRACKING_SECTION_IDS.spese), feedBeside ? 'desktop:col-span-5 desktop:col-start-8 desktop:row-start-4' : 'desktop:col-span-7 desktop:col-start-6 desktop:row-start-4')}>
           <CategoryTile
             eyebrow="Spese per categoria"
             total={expenseRanking.total}
@@ -1346,7 +1348,7 @@ export function ExpenseTrackingTab({
           />
         </div>
 
-        <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(TRACKING_SECTION_IDS.entrate), 'desktop:col-span-3')}>
+        <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(TRACKING_SECTION_IDS.entrate), feedBeside ? 'desktop:col-span-5 desktop:col-start-8 desktop:row-start-3' : 'desktop:col-span-5 desktop:col-start-1 desktop:row-start-4')}>
           <CategoryTile
             eyebrow="Entrate per categoria"
             total={incomeRanking.total}
@@ -1362,7 +1364,7 @@ export function ExpenseTrackingTab({
         </div>
 
         {trend && trendReading && (
-          <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(TRACKING_SECTION_IDS.andamento), 'desktop:col-span-7')}>
+          <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(TRACKING_SECTION_IDS.andamento), 'desktop:col-span-7 desktop:col-start-6 desktop:row-start-1')}>
             <AndamentoTile
               trend={trend}
               chosen={trendChosen}
@@ -1374,7 +1376,7 @@ export function ExpenseTrackingTab({
           </div>
         )}
 
-        <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(TRACKING_SECTION_IDS.risparmio), trend ? 'desktop:col-span-12' : 'desktop:col-span-7')}>
+        <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(TRACKING_SECTION_IDS.risparmio), trend ? 'desktop:col-span-7 desktop:col-start-6 desktop:row-start-2' : 'desktop:col-span-7 desktop:col-start-6 desktop:row-start-1 desktop:row-span-2')}>
           <RisparmioTile
             history={savingsHistory}
             aside={describeMonthWindow(savingsHistory.months, now)}
@@ -1386,8 +1388,12 @@ export function ExpenseTrackingTab({
           />
         </div>
 
-        <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(TRACKING_SECTION_IDS.movimenti), 'desktop:col-span-12')}>
+        <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(TRACKING_SECTION_IDS.movimenti), feedBeside ? 'desktop:col-span-7 desktop:col-start-1 desktop:row-start-3 desktop:row-span-2 desktop:relative desktop:min-h-[480px]' : 'desktop:col-span-12 desktop:col-start-1 desktop:row-start-3')}>
+          {/* With the feed beside the categories the cell's height is the categories' stack: the tile
+              fills it and only the list scrolls (R5, D-RU6). */}
+          <div className={cn(TILE_CELL_CLASS, 'flex-1', feedBeside && 'desktop:absolute desktop:inset-0')}>
           <MovimentiTile
+            scrollBody={feedBeside}
             aside={describeMovementsCount(filteredExpenses.length, expenses.length)}
             reading={describeMovements(movementsSummary)}
             toolbar={movimentiToolbar}
@@ -1416,6 +1422,7 @@ export function ExpenseTrackingTab({
               </>
             )}
           </MovimentiTile>
+          </div>
         </div>
         </div>
         </RowAnswers>
