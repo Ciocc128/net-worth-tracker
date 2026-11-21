@@ -195,10 +195,37 @@ describe('buildCashflowVerdict', () => {
       scheduled: { count: 7, expenses: 1297, income: 2456, throughMonth: 9 },
     });
     expect(verdict.headline).toBe('A settembre hai speso più di quanto è entrato.');
-    expect(verdict.tone).toBe('negative');
+    // N2 (D-RU9): the calendar takes the month to +805 €, so the tone steps back to neutral (never positive).
+    expect(verdict.tone).toBe('neutral');
     expect(plain(verdict.sentence)).toBe(
       'A settembre finora le spese superano le entrate di 354 €: entrate 302 €, spese 656 €. Il mese chiude a +805 € (il 29%).',
     );
+  });
+
+  it('should go neutral when the calendar covers a lived deficit, and stay negative when it does not (N2)', () => {
+    // Worked by hand — 15 of the month: lived income 0, lived spending 1500. Calendar: income 2800, spending 400.
+    // Period totals: income 2800, spending 1900, net +900 → covered → neutral, words unchanged.
+    const month: Period = { kind: 'month', year: 2026, month: 9 };
+    const now = new Date(2026, 8, 15, 12);
+    const covered = buildCashflowVerdict({
+      period: month,
+      now,
+      totals: { income: 2800, expenses: 1900, net: 900, savingsRate: 32.14, coverageRatio: 1.47, transferCount: 0 },
+      delta: null,
+      scheduled: { count: 3, expenses: 400, income: 2800, throughMonth: 9 },
+    });
+    expect(covered.headline).toBe('A settembre hai speso senza entrate.');
+    expect(covered.tone).toBe('neutral');
+    // Calendar income 1000 instead: net = 1000 − 1900 = −900 → not covered → negative as before.
+    const notCovered = buildCashflowVerdict({
+      period: month,
+      now,
+      totals: { income: 1000, expenses: 1900, net: -900, savingsRate: -90, coverageRatio: 0.53, transferCount: 0 },
+      delta: null,
+      scheduled: { count: 3, expenses: 400, income: 1000, throughMonth: 9 },
+    });
+    expect(notCovered.headline).toBe(covered.headline);
+    expect(notCovered.tone).toBe('negative');
   });
 
   it('should name the EMPTY side of the calendar — instalments are materialised, salaries are not', () => {

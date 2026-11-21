@@ -72,6 +72,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   the sign colour (the sign tokens mean gained and lost, and it is neither yet). The two month charts draw the months not started at reduced opacity, never outlined — the
   outline stays the month in progress. **The figures of a running year therefore contain a forecast; that is the
   owner's decision, and the page says so.**
+- **N2 — the calendar covering the shortfall makes the tone neutral** (2026-11-21, D-RU9, `doc/riordino-ui/README.md` § 5.8): lived part in the red (`negative`) but `totals.net ≥ 0` (the period WITH the calendar, what the Risparmio tile prints) → `tone: 'neutral'`; words unchanged, never `positive`. Without cover (`net < 0`) it stays `negative`. The Panoramica does the same (`resolveHeadline`: `cashflow.savings + scheduledIncome − scheduledExpenses ≥ 0` → `neutral` instead of `warning`; a taxed sale's verdict is not touched).
 - **The verdict judges what has HAPPENED, and a second sentence says where the calendar takes it** (2026-09-14, the
   owner's call after the critique). With nothing in the calendar the totals ARE what happened: one sentence, as before.
   With something ahead, `buildCashflowVerdict` takes headline, tone and the first sentence from `settleTotals(totals,

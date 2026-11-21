@@ -535,6 +535,27 @@ describe('projectMonthEndSpending', () => {
   });
 });
 
+describe('buildOverviewVerdict — the calendar covers a lived deficit (N2)', () => {
+  // Worked by hand: lived savings −1500, calendar income 2800, calendar spending 400 → −1500 + 2800 − 400 = +900 → neutral.
+  const base: OverviewVerdictInput = { ...AUGUST, savingsRate: -40 };
+
+  it('should be neutral, with the same words, when the month closes at 0 or above', () => {
+    const covered = buildOverviewVerdict({ ...base, cashflow: { savings: -1500, savingsRate: -40, scheduledExpenses: 400, scheduledIncome: 2800 } });
+    expect(covered.tone).toBe('neutral');
+    expect(covered.headline).toBe('Agosto cresce, ma le spese superano le entrate.');
+  });
+
+  it('should stay warning when the calendar does not cover (−1500 + 1000 − 400 = −900), or without the lived cashflow', () => {
+    const short = buildOverviewVerdict({ ...base, cashflow: { savings: -1500, savingsRate: -40, scheduledExpenses: 400, scheduledIncome: 1000 } });
+    expect(short.tone).toBe('warning');
+    expect(buildOverviewVerdict(base).tone).toBe('warning');
+  });
+
+  it('should leave a lived rate at 0 or above alone', () => {
+    expect(buildOverviewVerdict({ ...AUGUST, cashflow: { savings: 500, savingsRate: 20, scheduledExpenses: 0, scheduledIncome: 0 } }).tone).toBe('positive');
+  });
+});
+
 describe('buildOverviewVerdict — a savings rate past meaning says the euros (AL3)', () => {
   // 16 ottobre 2026: 77 € of income so far, 1559 € of expenses, 2050 € still in the calendar.
   const OTTOBRE: OverviewVerdictInput = {
