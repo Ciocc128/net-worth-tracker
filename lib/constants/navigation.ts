@@ -26,7 +26,7 @@ export const primaryNav: NavItem[] = [
 ];
 
 // Menu groups by object (RU1, doc/riordino-ui/README.md § 5.3) — THE one source of the groups: Sidebar,
-// SecondaryMenuDrawer and the desktop folder row (FolderNav) read it. `null` label = a loose route.
+// SecondaryMenuDrawer and the shell's band (ShellBand) read it. `null` label = a loose route.
 // Traguardi and Hall of Fame as a Storico tab are wave 3: Hall of Fame still sits alone under STORIA.
 export type NavGroup = { label: string | null; items: NavItem[] };
 
@@ -88,10 +88,17 @@ export const secondaryHrefs: string[] = [
 ];
 
 /**
- * Where the phone's bottom pill is on screen: the complement of `desktop:hidden
- * max-desktop:landscape:hidden` on its container (BottomNavigation.tsx). Kept in step with those
+ * Where the band of the shell is on screen (doc/fascia-desktop/README.md, D-FD16): the groups, the page tabs, the
+ * page's fact and actions at the top of every dashboard page. The same condition as Tailwind's `band:` in
+ * globals.css (held by __tests__/desktopQuery.test.ts). Wider than `desktop:` on purpose: a 1440 screen zoomed to
+ * 125% (1152 CSS px) or 150% (960) with a mouse keeps the same band; a phone turned sideways (≤ 932, touch) does not.
+ */
+export const BAND_QUERY = '(width >= 1440px) or ((width >= 960px) and (pointer: fine)) or ((orientation: landscape) and (width >= 1000px))';
+
+/**
+ * Where the phone's bottom pill is on screen: in portrait, below the band (`band:hidden
+ * max-desktop:landscape:hidden` on its container, BottomNavigation.tsx). Kept in step with those
  * classes — change one, change the other. Also where a navigation is the soft scene, not a view
  * transition (`useSceneNavigation`).
  */
-export const PILL_VISIBLE_QUERY =
-  '(width < 1440px) and (not ((width >= 1280px) and (pointer: fine))) and (orientation: portrait)';
+export const PILL_VISIBLE_QUERY = `(orientation: portrait) and (not (${BAND_QUERY}))`;

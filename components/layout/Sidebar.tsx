@@ -75,7 +75,7 @@ function NavItems({ items }: { items: NavItem[] }) {
 
 /**
  * The sidebar, now only the Sheet of a phone turned sideways (from `desktop:` and on a tablet in landscape the
- * navigation is the folder row, `FolderNav`). Chrome is kept to what
+ * navigation is the shell's band, `ShellBand`). Chrome is kept to what
  * separates: a wordmark, three groups of routes with the tiles' eyebrow as group label, one
  * hairline before the assistant, the account at the bottom. The active route is the only
  * highlighted surface and it is `--sidebar-accent` — no hue in the navigation of the default
@@ -95,7 +95,7 @@ export function AppSidebar() {
 
   const showAssistant = process.env.NEXT_PUBLIC_ASSISTANT_AI_ENABLED !== 'false';
 
-  // From `desktop:` and on a tablet in landscape the navigation is the folder row (`FolderNav`, D-FD1, D-FD9):
+  // From `desktop:` and on a tablet in landscape the navigation is the shell's band (`ShellBand`, D-FD16):
   // this sidebar is now only the Sheet of a phone turned sideways.
   if (!isMobile) return null;
 

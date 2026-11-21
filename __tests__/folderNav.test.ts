@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildFolders, findOpenFolder, findOpenPage, folderTarget, rememberFolderPage } from '@/lib/utils/folderNav';
+import { bandPages, buildFolders, findOpenFolder, findOpenPage, folderTarget, rememberFolderPage } from '@/lib/utils/folderNav';
 
 /** A Map behind the two methods the helpers use. */
 function fakeStorage(initial: Record<string, string> = {}) {
@@ -45,5 +45,22 @@ describe('folder row', () => {
     const invest = folders[2];
     const storage = fakeStorage({ [`nwt:folder-last:${invest.key}`]: '/dashboard/gone' });
     expect(folderTarget(invest, storage)).toBe('/dashboard/assets');
+  });
+
+  // D-FD19: the band's tabs carry the menu's names, so Analisi is «Analisi spese» wherever it is read.
+  it('lists the open group\'s pages by their menu names on the band\'s edge', () => {
+    const money = findOpenFolder(folders, '/dashboard/analisi');
+    expect(bandPages(money, '/dashboard/analisi')).toEqual([
+      { href: '/dashboard/cashflow', name: 'Cashflow' },
+      { href: '/dashboard/analisi', name: 'Analisi spese' },
+    ]);
+    // The same two tabs from Cashflow: the name never changes with the page you are on.
+    expect(bandPages(findOpenFolder(folders, '/dashboard/cashflow'), '/dashboard/cashflow')).toEqual(bandPages(money, '/dashboard/analisi'));
+  });
+
+  it('gives a page outside the groups its own single tab, and nothing to an unknown route', () => {
+    expect(bandPages(undefined, '/dashboard/settings')).toEqual([{ href: '/dashboard/settings', name: 'Impostazioni' }]);
+    expect(bandPages(findOpenFolder(folders, '/dashboard/assistant'), '/dashboard/assistant').map((p) => p.name)).toEqual(['Assistente AI']);
+    expect(bandPages(undefined, '/dashboard/nowhere')).toEqual([]);
   });
 });

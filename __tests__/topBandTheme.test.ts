@@ -60,11 +60,11 @@ const BLOCKS = [
 ];
 
 /**
- * D-FD4: on the desktop band the other pages of the group are 24px semibold titles at 72% of the ink — WCAG's
- * large text, floor 3:1 (the dossier asked 4.5:1; white at 72% on Graphite's blue and the Verde/Ghiaccio options
- * measures 3.7–4.1, so 4.5 would take 85%, which blurs the open title against the others: owner's call).
+ * D-FD20: on the shell's band the closed groups (15px) and the closed page tabs (16px) are words at 86% of the band's
+ * ink (`--band-ink-closed`) — normal text, so the 4.5:1 floor. The 72% titles of the first version (large text, 3:1)
+ * read as not clickable (owner, 2026-11-20); 78% left Graphite's blue at 4,06:1.
  */
-const TITLE_FLOOR = 3;
+const CLOSED_INK = 0.86;
 
 describe('the top band', () => {
   it.each(BLOCKS)('%s names a band and its ink', (selector) => {
@@ -79,14 +79,19 @@ describe('the top band', () => {
     const ink = tokens['top-band-foreground'];
     expect(contrast(toLab(ink), toLab(band))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(mix(ink, band, 0.88), toLab(band))).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(mix(ink, band, 0.72), toLab(band))).toBeGreaterThanOrEqual(TITLE_FLOOR);
+    expect(contrast(mix(ink, band, CLOSED_INK), toLab(band))).toBeGreaterThanOrEqual(4.5);
   });
 
-  // D-FD2: a closed folder is the band's colour at 20% over the ground, its words the foreground at 72%.
-  it.each(BLOCKS)('%s: the closed folder\'s words read at 4.5:1 on its tint', (selector) => {
+  // D-FD20, every other theme: the band is the ink at 5% over the ground, the closed words the ink at 86%.
+  it.each(BLOCKS)('%s: with «Nessuna» the closed words read at 4.5:1 on the neutral band', (selector) => {
     const tokens = readBlock(selector);
-    const tint = mix(tokens['top-band'], tokens['background'], 0.2);
-    expect(contrast(mix(tokens['foreground'], tokens['background'], 0.72), tint)).toBeGreaterThanOrEqual(4.5);
+    const tint = mix(tokens['foreground'], tokens['background'], 0.05);
+    expect(contrast(mix(tokens['foreground'], tint, CLOSED_INK), tint)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('the band\'s closed words and the neutral band are the measured shares', () => {
+    expect(css).toMatch(/--band-ink-closed:\s*color-mix\(in oklab, var\(--foreground\) 86%, transparent\)/);
+    expect(css).toMatch(/--shell-band-fill:\s*color-mix\(in oklab, var\(--foreground\) 5%, var\(--background\)\)/);
   });
 
   const OPTION_RULES = [...css.matchAll(/^(\S[^{\n]*\[data-band="[a-z]+"\](?::not\(\.dark\))?) \{([^}\n]*)\}$/gm)];
@@ -105,7 +110,7 @@ describe('the top band', () => {
     const ink = read('top-band-foreground');
     expect(contrast(toLab(ink), toLab(band))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(mix(ink, band, 0.88), toLab(band))).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(mix(ink, band, 0.72), toLab(band))).toBeGreaterThanOrEqual(TITLE_FLOOR);
+    expect(contrast(mix(ink, band, CLOSED_INK), toLab(band))).toBeGreaterThanOrEqual(4.5);
   });
 
   it('the shared default leaves every other theme as it was', () => {

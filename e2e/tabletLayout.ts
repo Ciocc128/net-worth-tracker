@@ -71,22 +71,27 @@ export async function foldOf(page: Page): Promise<number> {
   return page.locator('#page-main').evaluate((el) => el.getBoundingClientRect().top + el.clientHeight);
 }
 
-/** The shell in landscape: the folder row on top (D-FD9, in place of the icon rail), `main` under it with the rest of the height. */
+/**
+ * The shell in landscape: the shell's band on top (D-FD16, in place of the icon rail), full width, `main` under it
+ * with the rest of the height. Its navigation — the wordmark, the groups, the Assistente, the open group's pages and
+ * the person — is 44px on touch; one group is open.
+ */
 export async function expectLandscapeShell(page: Page): Promise<void> {
-  const row = page.locator('nav[data-nav="folders"]');
-  await expect(row).toBeVisible();
-  const box = await rectOf(row);
-  expect(box.y, 'the folder row at the top edge').toBe(0);
-  expect(Math.abs(box.width - page.viewportSize()!.width), `the row measured ${box.width}px`).toBeLessThanOrEqual(1);
-  for (const target of await row.locator('a, button').all()) {
+  const band = page.locator('[data-shell-band]');
+  await expect(band).toBeVisible();
+  const box = await rectOf(band);
+  expect(box.y, 'the band at the top edge').toBe(0);
+  expect(Math.abs(box.width - page.viewportSize()!.width), `the band measured ${box.width}px`).toBeLessThanOrEqual(1);
+  for (const target of await band.locator('nav a, a[href="/dashboard"], [data-account-menu]').all()) {
     const target_box = (await target.boundingBox())!;
-    const name = (await target.textContent()) ?? '';
+    const name = (await target.getAttribute('aria-label')) ?? (await target.textContent()) ?? '';
     expect(target_box.width, name).toBeGreaterThanOrEqual(TOUCH_FLOOR);
     expect(target_box.height, name).toBeGreaterThanOrEqual(TOUCH_FLOOR);
   }
-  await expect(row.locator('[aria-current]'), 'the open folder marked').toHaveCount(1);
+  await expect(band.locator('nav[data-nav="folders"] [aria-current]'), 'the open group marked').toHaveCount(1);
+  await expect(band.locator('nav[data-band-pages] [aria-current="page"]'), 'the open page marked').toHaveCount(1);
   const main = await page.locator('#page-main').evaluate((el) => ({ top: el.getBoundingClientRect().top, height: el.clientHeight }));
-  expect(main.top, 'main starts where the row ends').toBeCloseTo(box.y + box.height, 0);
+  expect(main.top, 'main starts where the band ends').toBeCloseTo(box.y + box.height, 0);
   expect(main.top + main.height).toBe(page.viewportSize()!.height);
   await expect(page.locator('[data-sidebar="trigger"]').filter({ visible: true })).toHaveCount(0);
 }
