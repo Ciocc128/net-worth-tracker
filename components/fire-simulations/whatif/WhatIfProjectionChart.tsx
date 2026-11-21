@@ -20,6 +20,7 @@ import type { WhatIfComparisonPoint } from '@/lib/utils/whatIfSummary';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
+import { formatAxisEuro, resolveFireAxis } from '@/lib/utils/fireChartAxis';
 
 const BASELINE_STROKE = 'var(--muted-foreground)';
 
@@ -94,6 +95,15 @@ export function WhatIfProjectionChart({
     return <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">Nessun dato di proiezione disponibile.</div>;
   }
 
+  // RU4 (N1): no series may leave here, so the axis only gives round ticks and the one-line labels.
+  // With a negative capital that is not a depletion the minimum stays automatic, as before.
+  const axis = resolveFireAxis(
+    [clipped.rows.map((r) => r.before), clipped.rows.map((r) => r.after), clipped.rows.map((r) => r.targetBefore), clipped.rows.map((r) => r.targetAfter)],
+    [],
+  );
+  const hasNegative = !anyDepletion && clipped.rows.some((r) => (r.before ?? 0) < 0 || (r.after ?? 0) < 0);
+  const fixedAxis = axis && !hasNegative ? axis : null;
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart
@@ -109,7 +119,14 @@ export function WhatIfProjectionChart({
       >
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="calendarYear" tick={CHART_TICK_STYLE} tickMargin={6} />
-        <YAxis width={80} domain={[(dataMin: number) => (dataMin >= 0 || anyDepletion ? 0 : dataMin), "auto"]} allowDataOverflow={anyDepletion} tickFormatter={(value) => formatCurrencyCompact(Number(value))} tick={CHART_TICK_STYLE} />
+        <YAxis
+          width={76}
+          {...(fixedAxis
+            ? { domain: [0, fixedAxis.top] as [number, number], ticks: fixedAxis.ticks }
+            : { domain: [(dataMin: number) => (dataMin >= 0 || anyDepletion ? 0 : dataMin), 'auto'] as [(dataMin: number) => number, 'auto'], allowDataOverflow: anyDepletion })}
+          tickFormatter={(value) => (axis ? formatAxisEuro(Number(value), axis.step) : formatCurrencyCompact(Number(value)))}
+          tick={CHART_TICK_STYLE}
+        />
         <Tooltip content={<ComparisonTooltip afterColor={afterColor} pensionUnlockCalendarYear={pensionUnlockCalendarYear} depletion={clipped.depletion} />} />
         {targetsDiffer && (
           <Line {...chartMotion} type="monotone" dataKey="targetBefore" stroke={BASELINE_STROKE} strokeWidth={1.5} strokeDasharray="8 4" name="Numero FIRE senza l'evento" dot={false} connectNulls={false} />

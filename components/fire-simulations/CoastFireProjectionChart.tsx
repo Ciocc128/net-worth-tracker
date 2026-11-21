@@ -35,6 +35,7 @@ import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 import { clipDepletedSeries } from '@/lib/utils/fireDepletion';
 import { SeriesLegend } from '@/components/ui/series-legend';
+import { formatAxisEuro, resolveFireAxis } from '@/lib/utils/fireChartAxis';
 import {
   CartesianGrid,
   Line,
@@ -175,6 +176,23 @@ export function CoastFireProjectionChart({
     ? clipped.rows.map((point, index) => ({ ...point, paceValue: pace.series[index] }))
     : clipped.rows;
 
+  // RU4 (N1): the axis follows Base, the pace and the required capital; Bull may leave the chart, and the note says where it goes.
+  const axis = resolveFireAxis(
+    [
+      clipped.rows.map((r) => r.basePortfolioValue),
+      data.map((r) => r.paceValue),
+      clipped.rows.map((r) => r.fireNumberTarget),
+    ],
+    [clipped.rows.map((r) => r.bullPortfolioValue)],
+  );
+  const bullPeak = axis?.cut
+    ? clipped.rows.reduce<{ year: number; value: number }>(
+        (best, r) => (r.bullPortfolioValue !== null && r.bullPortfolioValue > best.value ? { year: r.calendarYear, value: r.bullPortfolioValue } : best),
+        { year: 0, value: 0 },
+      )
+    : null;
+  const cutNote = bullPeak ? `Lo scenario Bull esce dal grafico: nel ${bullPeak.year} arriva a ${formatCurrencyCompact(bullPeak.value)}.` : null;
+
   return (
     <div className="flex h-full min-h-0 flex-col" style={typeof height === 'number' ? { height } : undefined}>
       <div className="min-h-0 flex-1">
@@ -185,6 +203,7 @@ export function CoastFireProjectionChart({
             role="img"
             aria-label={
               (anyDepletion ? `Capitale esaurito nel ${[depletion.bear, depletion.base, depletion.bull].filter((year) => year !== null).join(' · ')}: le linee si fermano a zero. ` : '') +
+              (cutNote ? `${cutNote} ` : '') +
               (pace
                 ? "Grafico proiezione Coast FIRE: il patrimonio che cresce senza nuovi versamenti negli scenari Bear, Base e Bull, la linea punteggiata del base con il risparmio attuale e la linea tratteggiata del capitale richiesto al target"
                 : "Grafico proiezione Coast FIRE: il patrimonio che cresce senza nuovi versamenti negli scenari Bear, Base e Bull, con la linea tratteggiata del capitale richiesto al target")
@@ -194,11 +213,12 @@ export function CoastFireProjectionChart({
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.5} />
             <XAxis dataKey="calendarYear" tick={CHART_TICK_STYLE} tickMargin={6} />
             <YAxis
-              width={marginLeft <= 20 ? 70 : 100}
-              tickFormatter={(value) => formatCurrencyCompact(Number(value))}
+              width={76}
+              tickFormatter={(value) => (axis ? formatAxisEuro(Number(value), axis.step) : formatCurrencyCompact(Number(value)))}
               tick={CHART_TICK_STYLE}
-              domain={anyDepletion ? [0, 'auto'] : undefined}
-              allowDataOverflow={anyDepletion}
+              {...(axis
+                ? { domain: [0, axis.top] as [number, number], ticks: axis.ticks, allowDataOverflow: axis.cut }
+                : { domain: anyDepletion ? ([0, 'auto'] as [number, 'auto']) : undefined, allowDataOverflow: anyDepletion })}
             />
             <Tooltip
               content={
@@ -274,6 +294,7 @@ export function CoastFireProjectionChart({
           </LineChart>
         </ResponsiveContainer>
       </div>
+      {cutNote && <p className="mt-1 text-[11px] text-muted-foreground">{cutNote}</p>}
       <SeriesLegend
         className="mt-1.5 justify-center"
         items={[

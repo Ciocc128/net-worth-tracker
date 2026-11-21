@@ -18,6 +18,7 @@ import type { PercentilesData } from '@/types/assets';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
+import { formatAxisEuro, resolveFireAxis } from '@/lib/utils/fireChartAxis';
 
 interface MonteCarloFanChartProps {
   percentiles: PercentilesData[];
@@ -124,12 +125,31 @@ export function MonteCarloFanChart({ percentiles, startCalendarYear, unlockCalen
     [percentiles, startCalendarYear, referenceSeries, floorAtZero],
   );
 
+  // RU4 (N1): the axis follows the median, the 75th percentile and the threshold (a typed figure counts as core, D-RU13);
+  // only the 90th percentile may leave the chart.
+  const axis = useMemo(
+    () =>
+      resolveFireAxis(
+        [rows.map((r) => r.p50), rows.map((r) => r.p75), rows.map((r) => r.reference), referenceLine ? [referenceLine.value] : []],
+        [rows.map((r) => r.p90)],
+      ),
+    [rows, referenceLine],
+  );
+  const cutNote = axis?.cut ? `Il 90° percentile esce dal grafico: a fine orizzonte arriva a ${formatCurrencyCompact(rows[rows.length - 1]?.p90 ?? 0)}.` : null;
+
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <ComposedChart data={rows} margin={{ left: 4, right: 8, top: 8, bottom: 4 }} role="img" aria-label={ariaLabel} accessibilityLayer={false}>
+    <div className="flex h-full min-h-0 flex-col" style={typeof height === 'number' ? { height } : undefined}>
+    <div className="min-h-0 flex-1">
+    <ResponsiveContainer width="100%" height="100%">
+      <ComposedChart data={rows} margin={{ left: 4, right: 8, top: 8, bottom: 4 }} role="img" aria-label={cutNote ? `${ariaLabel} ${cutNote}` : ariaLabel} accessibilityLayer={false}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis dataKey="calendarYear" tick={CHART_TICK_STYLE} tickMargin={6} />
-        <YAxis width={64} tickFormatter={(value) => formatCurrencyCompact(Number(value))} tick={CHART_TICK_STYLE} />
+        <YAxis
+          width={76}
+          tickFormatter={(value) => (axis ? formatAxisEuro(Number(value), axis.step) : formatCurrencyCompact(Number(value)))}
+          tick={CHART_TICK_STYLE}
+          {...(axis ? { domain: [0, axis.top] as [number, number], ticks: axis.ticks, allowDataOverflow: axis.cut } : {})}
+        />
         <Tooltip content={<FanTooltip referenceLabel={referenceSeries?.label} />} />
         <Area dataKey="band1090" name="10°–90° percentile" stroke="none" fill={fanColor} fillOpacity={0.1} isAnimationActive={false} activeDot={false} />
         <Area dataKey="band2575" name="25°–75° percentile" stroke="none" fill={fanColor} fillOpacity={0.18} isAnimationActive={false} activeDot={false} />
@@ -146,5 +166,8 @@ export function MonteCarloFanChart({ percentiles, startCalendarYear, unlockCalen
         )}
       </ComposedChart>
     </ResponsiveContainer>
+    </div>
+    {cutNote && <p className="mt-1 text-[11px] text-muted-foreground">{cutNote}</p>}
+    </div>
   );
 }
