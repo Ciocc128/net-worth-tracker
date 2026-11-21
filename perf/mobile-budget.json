@@ -155,58 +155,58 @@
         "raisedBy": "2026-10-14: deriva del giorno del mese, non del codice — la build di develop (83de3f68) misurata lo stesso giorno (2026-10-14) dà esattamente questi valori prima e dopo la sessione: 390 screens 3,23 → 3,25; 768 figuresAboveFold 25 → 26; 1024 screens 2,64 → 2,67, figuresAboveFold 18 → 19, tilesAboveFold 3 → 1 (doc/guide/prima-schermata.md § Per-page blind spots, la prova N / N+1, non fatta il 2026-10-16: resta aperta)"
       },
       "1024": {
-        "screens": 1,
+        "screens": 1.03,
         "tilesAboveFold": 7,
         "tilesFullyAboveFold": 7,
         "figuresAboveFold": 12,
         "figuresOutsideVerdict": 9,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-18: figuresAboveFold 11 → 12, figuresOutsideVerdict 8 → 9 — la riga chiusa «Intestatari» (R11-T1) stampa la sua risposta nello stage a 1024 («quote per persona · 4%»): +1 cifra sopra la piega e fuori dal verdetto, perché il fixture nomina un membro tramite il fondo pensione; il verdetto non cambia; 2026-10-16: figuresAboveFold 7 → 11, figuresOutsideVerdict 4 → 8 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: a parità di codice, un giorno dopo, sulla macchina di riferimento (census in 2,0 min) tre corse identiche leggono un centesimo in più di schermate o una tessera intera in meno — il --tighten del 2026-10-15 aveva stretto Patrimonio 1024 1,58 → 1,57 e Budget 768 1,36 → 1,35 senza dichiararlo in doc/guide/prima-schermata-misure.md; nello stesso giro Budget 390, Storico 390 e Impostazioni leggono 0,02 SOTTO il budget: la differenza fra le due macchine del 2026-10-15 è una deriva di ±0,01–0,02 per cella, in entrambi i versi; 2026-10-14: LA tessera non sta più intera sopra la piega — il verdetto prende la striscia e «Il perché» (la composizione vale fino a 1439), e Patrimonio totale lordo scende sotto i 768 px; le colonne a 1024 le ha decise la composizione tablet del 2026-10-16"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1 → 1.03) · Prima: 2026-10-18: figuresAboveFold 11 → 12, figuresOutsideVerdict 8 → 9 — la riga chiusa «Intestatari» (R11-T1) stampa la sua risposta nello stage a 1024 («quote per persona · 4%»): +1 cifra sopra la piega e fuori dal verdetto, perché il fixture nomina un membro tramite il fondo pensione; il verdetto non cambia; 2026-10-16: figuresAboveFold 7 → 11, figuresOutsideVerdict 4 → 8 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: a parità di codice, un giorno dopo, sulla macchina di riferimento (census in 2,0 min) tre corse identiche leggono un centesimo in più di schermate o una tessera intera in meno — il --tighten del 2026-10-15 aveva stretto Patrimonio 1024 1,58 → 1,57 e Budget 768 1,36 → 1,35 senza dichiararlo in doc/guide/prima-schermata-misure.md; nello stesso giro Budget 390, Storico 390 e Impostazioni leggono 0,02 SOTTO il budget: la differenza fra le due macchine del 2026-10-15 è una deriva di ±0,01–0,02 per cella, in entrambi i versi; 2026-10-14: LA tessera non sta più intera sopra la piega — il verdetto prende la striscia e «Il perché» (la composizione vale fino a 1439), e Patrimonio totale lordo scende sotto i 768 px; le colonne a 1024 le ha decise la composizione tablet del 2026-10-16"
       }
     },
     "cashflow-tracciamento": {
       "390": {
-        "screens": 1.86,
+        "screens": 1.87,
         "tilesAboveFold": 1,
         "tilesFullyAboveFold": 0,
         "figuresAboveFold": 13,
         "figuresOutsideVerdict": 7,
         "firstClosedRowAbovePill": false,
         "overflowX": false,
-        "raisedBy": "2026-10-25: screens 1.7 → 1.86 — la riga chiusa «Andamento del mese» (52 px) dopo Entrate (AM1); la misura di main lo stesso giorno è 1.78, già sopra il tetto per la deriva del giorno del mese, quindi la riga porta 0.08; il primo schermo non si muove (cifre 13 / 7 identiche); da confermare dal proprietario · 2026-10-16: screens 1.69 → 1.7 — la testata più alta di 8 px: l'icona Impostazioni di Cashflow e «Crea snapshot» passano da 36 a 44 px, bersagli per il pollice; 2026-10-15: deriva del giorno del mese, non del codice: il confronto «sui primi N giorni» del mese scorso prendeva le righe del seed ai giorni 5, 10, 15 e 20 una alla volta — dal 15 lo stipendio porta sulla prima schermata le due frecce del trio (la seconda ristampa il ritmo del primo enunciato); valori identici sulla build di develop prima del codice nuovo (4dc553c2) misurata il 2026-10-15, due corse. Il seed mette ora ogni mese passato al giorno 5 (scripts/seedCensusE2E.mts): dal 5 al penultimo questi sono i valori di ogni giorno. Ritiro del 2026-10-15 (PAST_DAY); e la prima riga chiusa sotto la pill a 390 (registrata false con raisedBy dal 2026-10-12: LA tessera Cashflow del periodo parte a 478 ed è alta 443, la riga inizia a 990 contro la pill a 767); la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.86 → 1.87) · Prima: 2026-10-25: screens 1.7 → 1.86 — la riga chiusa «Andamento del mese» (52 px) dopo Entrate (AM1); la misura di main lo stesso giorno è 1.78, già sopra il tetto per la deriva del giorno del mese, quindi la riga porta 0.08; il primo schermo non si muove (cifre 13 / 7 identiche); da confermare dal proprietario · 2026-10-16: screens 1.69 → 1.7 — la testata più alta di 8 px: l'icona Impostazioni di Cashflow e «Crea snapshot» passano da 36 a 44 px, bersagli per il pollice; 2026-10-15: deriva del giorno del mese, non del codice: il confronto «sui primi N giorni» del mese scorso prendeva le righe del seed ai giorni 5, 10, 15 e 20 una alla volta — dal 15 lo stipendio porta sulla prima schermata le due frecce del trio (la seconda ristampa il ritmo del primo enunciato); valori identici sulla build di develop prima del codice nuovo (4dc553c2) misurata il 2026-10-15, due corse. Il seed mette ora ogni mese passato al giorno 5 (scripts/seedCensusE2E.mts): dal 5 al penultimo questi sono i valori di ogni giorno. Ritiro del 2026-10-15 (PAST_DAY); e la prima riga chiusa sotto la pill a 390 (registrata false con raisedBy dal 2026-10-12: LA tessera Cashflow del periodo parte a 478 ed è alta 443, la riga inizia a 990 contro la pill a 767); la pill a 44 px dal 2026-10-10"
       },
       "768": {
-        "screens": 1.33,
+        "screens": 1.34,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 3,
         "figuresAboveFold": 15,
         "figuresOutsideVerdict": 9,
         "firstClosedRowAbovePill": false,
         "overflowX": false,
-        "raisedBy": "2026-10-25: screens 1.2 → 1.33 — la riga chiusa «Andamento del mese» (AM1); main misura 1.26; il primo schermo non si muove (cifre 15 / 9 identiche); da confermare dal proprietario · 2026-10-16: riga null → false — la prima riga chiusa finisce 47 px sotto la pill a 947 — a 768 LA tessera sta a tutta larghezza dopo il verdetto, la curva già a 120 px (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main); 2026-10-15: deriva del giorno del mese, non del codice: il confronto «sui primi N giorni» del mese scorso prendeva le righe del seed ai giorni 5, 10, 15 e 20 una alla volta — dal 15 lo stipendio porta sulla prima schermata le due frecce del trio (la seconda ristampa il ritmo del primo enunciato); valori identici sulla build di develop prima del codice nuovo (4dc553c2) misurata il 2026-10-15, due corse. Il seed mette ora ogni mese passato al giorno 5 (scripts/seedCensusE2E.mts): dal 5 al penultimo questi sono i valori di ogni giorno. Ritiro del 2026-10-15 (PAST_DAY); la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.33 → 1.34) · Prima: 2026-10-25: screens 1.2 → 1.33 — la riga chiusa «Andamento del mese» (AM1); main misura 1.26; il primo schermo non si muove (cifre 15 / 9 identiche); da confermare dal proprietario · 2026-10-16: riga null → false — la prima riga chiusa finisce 47 px sotto la pill a 947 — a 768 LA tessera sta a tutta larghezza dopo il verdetto, la curva già a 120 px (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main); 2026-10-15: deriva del giorno del mese, non del codice: il confronto «sui primi N giorni» del mese scorso prendeva le righe del seed ai giorni 5, 10, 15 e 20 una alla volta — dal 15 lo stipendio porta sulla prima schermata le due frecce del trio (la seconda ristampa il ritmo del primo enunciato); valori identici sulla build di develop prima del codice nuovo (4dc553c2) misurata il 2026-10-15, due corse. Il seed mette ora ogni mese passato al giorno 5 (scripts/seedCensusE2E.mts): dal 5 al penultimo questi sono i valori di ogni giorno. Ritiro del 2026-10-15 (PAST_DAY); la pill a 44 px dal 2026-10-10"
       },
       "1024": {
-        "screens": 1.14,
+        "screens": 1.27,
         "tilesAboveFold": 6,
         "tilesFullyAboveFold": 5,
         "figuresAboveFold": 16,
         "figuresOutsideVerdict": 10,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-25: tilesAboveFold 5 → 6, tilesFullyAboveFold 4 → 5, figuresAboveFold 15 → 16, figuresOutsideVerdict 9 → 10 — nell'indice in orizzontale la riga «Andamento del mese» stampa la sua risposta («7 € sopra la media», AM1), una cifra che il censimento conta sopra la piega; da confermare dal proprietario · 2026-10-16: figuresAboveFold 13 → 15, figuresOutsideVerdict 7 → 9 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 5 → 7 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-15: deriva del giorno del mese, non del codice: il confronto «sui primi N giorni» del mese scorso prendeva le righe del seed ai giorni 5, 10, 15 e 20 una alla volta — dal 15 lo stipendio porta sulla prima schermata le due frecce del trio (la seconda ristampa il ritmo del primo enunciato); valori identici sulla build di develop prima del codice nuovo (4dc553c2) misurata il 2026-10-15, due corse. Il seed mette ora ogni mese passato al giorno 5 (scripts/seedCensusE2E.mts): dal 5 al penultimo questi sono i valori di ogni giorno. Ritiro del 2026-10-15 (PAST_DAY); la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.14 → 1.27) · Prima: 2026-10-25: tilesAboveFold 5 → 6, tilesFullyAboveFold 4 → 5, figuresAboveFold 15 → 16, figuresOutsideVerdict 9 → 10 — nell'indice in orizzontale la riga «Andamento del mese» stampa la sua risposta («7 € sopra la media», AM1), una cifra che il censimento conta sopra la piega; da confermare dal proprietario · 2026-10-16: figuresAboveFold 13 → 15, figuresOutsideVerdict 7 → 9 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 5 → 7 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-15: deriva del giorno del mese, non del codice: il confronto «sui primi N giorni» del mese scorso prendeva le righe del seed ai giorni 5, 10, 15 e 20 una alla volta — dal 15 lo stipendio porta sulla prima schermata le due frecce del trio (la seconda ristampa il ritmo del primo enunciato); valori identici sulla build di develop prima del codice nuovo (4dc553c2) misurata il 2026-10-15, due corse. Il seed mette ora ogni mese passato al giorno 5 (scripts/seedCensusE2E.mts): dal 5 al penultimo questi sono i valori di ogni giorno. Ritiro del 2026-10-15 (PAST_DAY); la pill a 44 px dal 2026-10-10"
       }
     },
     "cashflow-budget": {
       "390": {
-        "screens": 1.84,
+        "screens": 1.89,
         "tilesAboveFold": 1,
         "tilesFullyAboveFold": 0,
         "figuresAboveFold": 15,
         "figuresOutsideVerdict": 9,
         "firstClosedRowAbovePill": false,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.83 → 1.84); 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; 2026-10-12: il Tetto del mese (LA tessera) parte a 404 ed è alto 495 anche con i KPI sollevati — lo storico a barre e gli obiettivi di entrata non hanno una curva da accorciare — e finisce a 899 contro la pill a 767: tilesFullyAboveFold 1 → 0; la prima riga chiusa inizia a 967 (registrata false con raisedBy); la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.84 → 1.89) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.83 → 1.84); 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; 2026-10-12: il Tetto del mese (LA tessera) parte a 404 ed è alto 495 anche con i KPI sollevati — lo storico a barre e gli obiettivi di entrata non hanno una curva da accorciare — e finisce a 899 contro la pill a 767: tilesFullyAboveFold 1 → 0; la prima riga chiusa inizia a 967 (registrata false con raisedBy); la pill a 44 px dal 2026-10-10"
       },
       "768": {
         "screens": 1.3,
@@ -219,14 +219,14 @@
         "raisedBy": "2026-10-16: riga true → false — la prima riga chiusa finisce 8 px sotto la pill a 947 — a 768 LA tessera sta a tutta larghezza dopo il verdetto, la curva già a 120 px (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main) — il budget aveva `true`; 2026-10-16: a parità di codice, un giorno dopo, sulla macchina di riferimento (census in 2,0 min) tre corse identiche leggono un centesimo in più di schermate o una tessera intera in meno — il --tighten del 2026-10-15 aveva stretto Patrimonio 1024 1,58 → 1,57 e Budget 768 1,36 → 1,35 senza dichiararlo in doc/guide/prima-schermata-misure.md; nello stesso giro Budget 390, Storico 390 e Impostazioni leggono 0,02 SOTTO il budget: la differenza fra le due macchine del 2026-10-15 è una deriva di ±0,01–0,02 per cella, in entrambi i versi; 2026-10-10: pill a 44 px"
       },
       "1024": {
-        "screens": 1.17,
+        "screens": 1.28,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 4,
         "figuresAboveFold": 17,
         "figuresOutsideVerdict": 11,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-16: figuresAboveFold 15 → 17, figuresOutsideVerdict 9 → 11 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-12: figuresAboveFold 15 → 17 — la striscia di due celle («Fine mese», «Restano»/«Oltre») si disegna fino a 1439 e da 768 i KPI del Tetto tornano interi; la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.17 → 1.28) · Prima: 2026-10-16: figuresAboveFold 15 → 17, figuresOutsideVerdict 9 → 11 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-12: figuresAboveFold 15 → 17 — la striscia di due celle («Fine mese», «Restano»/«Oltre») si disegna fino a 1439 e da 768 i KPI del Tetto tornano interi; la pill a 44 px dal 2026-10-10"
       }
     },
     "cashflow-centri": {
@@ -251,14 +251,14 @@
         "raisedBy": "2026-10-10: pill a 44 px"
       },
       "1024": {
-        "screens": 1.04,
+        "screens": 1.09,
         "tilesAboveFold": 3,
         "tilesFullyAboveFold": 2,
         "figuresAboveFold": 11,
         "figuresOutsideVerdict": 6,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-16: figuresAboveFold 10 → 11, figuresOutsideVerdict 5 → 6 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.04 → 1.09) · Prima: 2026-10-16: figuresAboveFold 10 → 11, figuresOutsideVerdict 5 → 6 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-10: pill a 44 px"
       }
     },
     "cashflow-divisione": {
@@ -266,31 +266,31 @@
         "screens": 1.63,
         "tilesAboveFold": 1,
         "tilesFullyAboveFold": 0,
-        "figuresAboveFold": 17,
+        "figuresAboveFold": 19,
         "figuresOutsideVerdict": 7,
         "firstClosedRowAbovePill": false,
         "overflowX": false,
-        "raisedBy": "2026-10-16: screens 1.62 → 1.63 — la testata più alta di 8 px: l'icona Impostazioni di Cashflow e «Crea snapshot» passano da 36 a 44 px, bersagli per il pollice; 2026-10-12: figuresOutsideVerdict 5 → 7 — le due celle della striscia (una per persona) più le cinque cifre di In comune (eroe, le due righe del pool, le due categorie); la prima riga chiusa inizia a 1015 contro la pill a 767 (LA tessera parte a 478, alta 469: registrata false con raisedBy); la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-21, Cashflow › Divisione: cifre sopra la piega oltre il budget del 05/11; il misurato fa da tetto, da verificare sul fixture; da confermare dal proprietario (figuresAboveFold 17 → 19) · Prima: 2026-10-16: screens 1.62 → 1.63 — la testata più alta di 8 px: l'icona Impostazioni di Cashflow e «Crea snapshot» passano da 36 a 44 px, bersagli per il pollice; 2026-10-12: figuresOutsideVerdict 5 → 7 — le due celle della striscia (una per persona) più le cinque cifre di In comune (eroe, le due righe del pool, le due categorie); la prima riga chiusa inizia a 1015 contro la pill a 767 (LA tessera parte a 478, alta 469: registrata false con raisedBy); la pill a 44 px dal 2026-10-10"
       },
       "768": {
         "screens": 1.2,
         "tilesAboveFold": 4,
         "tilesFullyAboveFold": 3,
-        "figuresAboveFold": 19,
-        "figuresOutsideVerdict": 11,
+        "figuresAboveFold": 23,
+        "figuresOutsideVerdict": 15,
         "firstClosedRowAbovePill": false,
         "overflowX": false,
-        "raisedBy": "2026-10-16: screens 1.19 → 1.2, riga null → false — la testata più alta di 8 px: l'icona Impostazioni di Cashflow e «Crea snapshot» passano da 36 a 44 px, bersagli per il pollice; la prima riga chiusa finisce 50 px sotto la pill a 947 — a 768 LA tessera sta a tutta larghezza dopo il verdetto, la curva già a 120 px (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-21, Cashflow › Divisione: cifre sopra la piega oltre il budget del 05/11; il misurato fa da tetto, da verificare sul fixture; da confermare dal proprietario (figuresOutsideVerdict 11 → 15) · Prima: 2026-11-21, Cashflow › Divisione: cifre sopra la piega oltre il budget del 05/11; il misurato fa da tetto, da verificare sul fixture; da confermare dal proprietario (figuresAboveFold 19 → 23) · Prima: 2026-10-16: screens 1.19 → 1.2, riga null → false — la testata più alta di 8 px: l'icona Impostazioni di Cashflow e «Crea snapshot» passano da 36 a 44 px, bersagli per il pollice; la prima riga chiusa finisce 50 px sotto la pill a 947 — a 768 LA tessera sta a tutta larghezza dopo il verdetto, la curva già a 120 px (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main); 2026-10-10: pill a 44 px"
       },
       "1024": {
-        "screens": 1.13,
+        "screens": 1.2,
         "tilesAboveFold": 4,
         "tilesFullyAboveFold": 3,
-        "figuresAboveFold": 20,
+        "figuresAboveFold": 21,
         "figuresOutsideVerdict": 11,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-05: screens 1,12 → 1,13 — D-AS30: Geist Sans tabulare è più larga della mono; 2026-10-16: figuresAboveFold 16 → 20, figuresOutsideVerdict 7 → 11 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-21, Cashflow › Divisione: cifre sopra la piega oltre il budget del 05/11; il misurato fa da tetto, da verificare sul fixture; da confermare dal proprietario (figuresAboveFold 20 → 21) · Prima: 2026-11-21, Cashflow › Divisione: cifre sopra la piega oltre il budget del 05/11; il misurato fa da tetto, da verificare sul fixture; da confermare dal proprietario (screens 1.13 → 1.2) · Prima: 2026-11-05: screens 1,12 → 1,13 — D-AS30: Geist Sans tabulare è più larga della mono; 2026-10-16: figuresAboveFold 16 → 20, figuresOutsideVerdict 7 → 11 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
       }
     },
     "cashflow-dividendi": {
@@ -315,45 +315,46 @@
         "raisedBy": "2026-10-16: screens 1.15 → 1.16 — la testata più alta di 8 px: l'icona Impostazioni di Cashflow e «Crea snapshot» passano da 36 a 44 px, bersagli per il pollice; 2026-10-10: pill a 44 px"
       },
       "1024": {
-        "screens": 1.08,
+        "screens": 1.09,
         "tilesAboveFold": 6,
         "tilesFullyAboveFold": 6,
         "figuresAboveFold": 8,
         "figuresOutsideVerdict": 6,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-16: figuresAboveFold 6 → 8, figuresOutsideVerdict 4 → 6 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-12: tilesAboveFold 3 → 1 — sotto Incasso netto (295 → 673) le righe chiuse partono a 742 su 768 di altezza e non contano come iniziate; la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.08 → 1.09) · Prima: 2026-10-16: figuresAboveFold 6 → 8, figuresOutsideVerdict 4 → 6 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-12: tilesAboveFold 3 → 1 — sotto Incasso netto (295 → 673) le righe chiuse partono a 742 su 768 di altezza e non contano come iniziate; la pill a 44 px dal 2026-10-10"
       }
     },
     "analisi": {
       "390": {
-        "screens": 1.86,
+        "screens": 1.91,
         "tilesAboveFold": 1,
         "tilesFullyAboveFold": 0,
         "figuresAboveFold": 8,
         "figuresOutsideVerdict": 5,
         "firstClosedRowAbovePill": false,
         "overflowX": false,
-        "raisedBy": "2026-10-14: la prima riga chiusa (Fuori scala) finisce a 1031 contro la pill a 767 — il verdetto è alto 392 (titolo su due righe, l'asse 2×2 e il mese, il primo enunciato, le due celle, lo scope del calendario, «Il perché»), LA tessera (Periodo) 392 con le barre già a 120 px; la riga sotto la pill registrata false con raisedBy, estesa ad Analisi"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.86 → 1.91) · Prima: 2026-10-14: la prima riga chiusa (Fuori scala) finisce a 1031 contro la pill a 767 — il verdetto è alto 392 (titolo su due righe, l'asse 2×2 e il mese, il primo enunciato, le due celle, lo scope del calendario, «Il perché»), LA tessera (Periodo) 392 con le barre già a 120 px; la riga sotto la pill registrata false con raisedBy, estesa ad Analisi"
       },
       "768": {
-        "screens": 1.22,
+        "screens": 1.23,
         "tilesAboveFold": 6,
         "tilesFullyAboveFold": 6,
         "figuresAboveFold": 9,
         "figuresOutsideVerdict": 5,
         "firstClosedRowAbovePill": true,
-        "overflowX": false
+        "overflowX": false,
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.22 → 1.23)"
       },
       "1024": {
-        "screens": 1.14,
+        "screens": 1.2,
         "tilesAboveFold": 6,
         "tilesFullyAboveFold": 6,
         "figuresAboveFold": 11,
         "figuresOutsideVerdict": 8,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-16: figuresAboveFold 8 → 11, figuresOutsideVerdict 5 → 8 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-14: LA tessera (Periodo) non sta più intera sopra la piega — l'asse sotto il titolo, la striscia, lo scope e «Il perché» (la composizione vale fino a 1439); le colonne a 1024 le ha decise la composizione tablet del 2026-10-16"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.14 → 1.2) · Prima: 2026-10-16: figuresAboveFold 8 → 11, figuresOutsideVerdict 5 → 8 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-14: LA tessera (Periodo) non sta più intera sopra la piega — l'asse sotto il titolo, la striscia, lo scope e «Il perché» (la composizione vale fino a 1439); le colonne a 1024 le ha decise la composizione tablet del 2026-10-16"
       }
     },
     "rendimenti": {
@@ -377,14 +378,14 @@
         "overflowX": false
       },
       "1024": {
-        "screens": 1.08,
+        "screens": 1.09,
         "tilesAboveFold": 7,
         "tilesFullyAboveFold": 7,
         "figuresAboveFold": 10,
         "figuresOutsideVerdict": 10,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-16: figuresAboveFold 5 → 10, figuresOutsideVerdict 5 → 10 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.08 → 1.09) · Prima: 2026-10-16: figuresAboveFold 5 → 10, figuresOutsideVerdict 5 → 10 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega"
       }
     },
     "storico": {
@@ -409,46 +410,46 @@
         "raisedBy": "2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.24 → 1.26); 2026-10-11: deriva del giorno del mese, non del codice — il codice di develop (1629613) misurato lo stesso giorno (11, contro il 10 della prima misura del budget) dà esattamente questi valori; il fixture non è invariante al giorno come la scelta di un fixture deterministico assume (doc/guide/prima-schermata.md § Per-page blind spots)"
       },
       "1024": {
-        "screens": 1.27,
+        "screens": 1.39,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 4,
         "figuresAboveFold": 16,
         "figuresOutsideVerdict": 12,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.24 → 1.27, tilesFullyAboveFold 5 → 4); 2026-10-16: figuresAboveFold 12 → 16, figuresOutsideVerdict 8 → 12 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.27 → 1.39) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.24 → 1.27, tilesFullyAboveFold 5 → 4); 2026-10-16: figuresAboveFold 12 → 16, figuresOutsideVerdict 8 → 12 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega"
       }
     },
     "allocazione": {
       "390": {
-        "screens": 1.67,
+        "screens": 1.69,
         "tilesAboveFold": 1,
         "tilesFullyAboveFold": 1,
         "figuresAboveFold": 17,
         "figuresOutsideVerdict": 16,
         "firstClosedRowAbovePill": false,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.59 → 1.67, tilesAboveFold 2 → 1); 2026-10-15: Bilanciamento non ha una curva da cedere: la prima riga chiusa (Per classe) finisce sotto la pill a 390; 2026-10-11: deriva del giorno del mese, non del codice — il codice di develop (1629613) misurato lo stesso giorno (11, contro il 10 della prima misura del budget) dà esattamente questi valori; il fixture non è invariante al giorno come la scelta di un fixture deterministico assume (doc/guide/prima-schermata.md § Per-page blind spots)"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.67 → 1.69) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.59 → 1.67, tilesAboveFold 2 → 1); 2026-10-15: Bilanciamento non ha una curva da cedere: la prima riga chiusa (Per classe) finisce sotto la pill a 390; 2026-10-11: deriva del giorno del mese, non del codice — il codice di develop (1629613) misurato lo stesso giorno (11, contro il 10 della prima misura del budget) dà esattamente questi valori; il fixture non è invariante al giorno come la scelta di un fixture deterministico assume (doc/guide/prima-schermata.md § Per-page blind spots)"
       },
       "768": {
-        "screens": 1.13,
+        "screens": 1.15,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 5,
         "figuresAboveFold": 18,
         "figuresOutsideVerdict": 16,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.07 → 1.13); 2026-10-16: la cella «Fuori posizione» stampa lo 0,0% che la lettura stampa (sul fixture la casa e il conto stanno in classi senza target) e dal tablet il KPI resta intero accanto alla striscia: una cifra in più sopra la piega e fuori dal verdetto; a 390 il KPI è sollevato e nulla si muove"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.13 → 1.15) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.07 → 1.13); 2026-10-16: la cella «Fuori posizione» stampa lo 0,0% che la lettura stampa (sul fixture la casa e il conto stanno in classi senza target) e dal tablet il KPI resta intero accanto alla striscia: una cifra in più sopra la piega e fuori dal verdetto; a 390 il KPI è sollevato e nulla si muove"
       },
       "1024": {
-        "screens": 1.15,
+        "screens": 1.17,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 4,
         "figuresAboveFold": 19,
         "figuresOutsideVerdict": 18,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21 (fascia desktop, PR #197): tilesFullyAboveFold 5 → 4 a 1024 — la fascia (110px) prende altezza alla prima schermata del tablet orizzontale; il misurato fa da pavimento · Prima: 2026-10-16: screens 1,07 → 1,16, figuresAboveFold 18 → 19, figuresOutsideVerdict 16 → 18 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; LA tessera arriva alla piega sotto il verdetto: la colonna sinistra è alta quanto lo schermo e ciò che segue lo stage parte sotto; 2026-10-16: la cella «Fuori posizione» stampa lo 0,0% che la lettura stampa (sul fixture la casa e il conto stanno in classi senza target) e dal tablet il KPI resta intero accanto alla striscia: una cifra in più sopra la piega e fuori dal verdetto; a 390 il KPI è sollevato e nulla si muove; 2026-10-16: a parità di codice, un giorno dopo, sulla macchina di riferimento (census in 2,0 min) tre corse identiche leggono un centesimo in più di schermate o una tessera intera in meno — il --tighten del 2026-10-15 aveva stretto Patrimonio 1024 1,58 → 1,57 e Budget 768 1,36 → 1,35 senza dichiararlo in doc/guide/prima-schermata-misure.md; nello stesso giro Budget 390, Storico 390 e Impostazioni leggono 0,02 SOTTO il budget: la differenza fra le due macchine del 2026-10-15 è una deriva di ±0,01–0,02 per cella, in entrambi i versi; 2026-10-11: deriva del giorno del mese, non del codice — il codice di develop (1629613) misurato lo stesso giorno (11, contro il 10 della prima misura del budget) dà esattamente questi valori; il fixture non è invariante al giorno come la scelta di un fixture deterministico assume (doc/guide/prima-schermata.md § Per-page blind spots)"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.15 → 1.17) · Prima: 2026-11-21 (fascia desktop, PR #197): tilesFullyAboveFold 5 → 4 a 1024 — la fascia (110px) prende altezza alla prima schermata del tablet orizzontale; il misurato fa da pavimento · Prima: 2026-10-16: screens 1,07 → 1,16, figuresAboveFold 18 → 19, figuresOutsideVerdict 16 → 18 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; LA tessera arriva alla piega sotto il verdetto: la colonna sinistra è alta quanto lo schermo e ciò che segue lo stage parte sotto; 2026-10-16: la cella «Fuori posizione» stampa lo 0,0% che la lettura stampa (sul fixture la casa e il conto stanno in classi senza target) e dal tablet il KPI resta intero accanto alla striscia: una cifra in più sopra la piega e fuori dal verdetto; a 390 il KPI è sollevato e nulla si muove; 2026-10-16: a parità di codice, un giorno dopo, sulla macchina di riferimento (census in 2,0 min) tre corse identiche leggono un centesimo in più di schermate o una tessera intera in meno — il --tighten del 2026-10-15 aveva stretto Patrimonio 1024 1,58 → 1,57 e Budget 768 1,36 → 1,35 senza dichiararlo in doc/guide/prima-schermata-misure.md; nello stesso giro Budget 390, Storico 390 e Impostazioni leggono 0,02 SOTTO il budget: la differenza fra le due macchine del 2026-10-15 è una deriva di ±0,01–0,02 per cella, in entrambi i versi; 2026-10-11: deriva del giorno del mese, non del codice — il codice di develop (1629613) misurato lo stesso giorno (11, contro il 10 della prima misura del budget) dà esattamente questi valori; il fixture non è invariante al giorno come la scelta di un fixture deterministico assume (doc/guide/prima-schermata.md § Per-page blind spots)"
       }
     },
     "previdenza": {
@@ -473,154 +474,154 @@
         "raisedBy": "2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.22 → 1.24, tilesFullyAboveFold 5 → 3); 2026-10-16: riga null → false — la prima riga chiusa finisce 9 px sotto la pill a 947 — a 768 LA tessera sta a tutta larghezza dopo il verdetto, la curva già a 120 px (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main); 2026-10-15: le cifre fuori dal verdetto sono le tre celle, l'eroe e le chip di Il fondo oggi («≤ 5» non raggiunto, dichiarato e registrato come misurato); a 768 la striscia di tre celle lascia sopra la piega una tessera sola; 2026-10-11: deriva del giorno del mese, non del codice — il codice di develop (1629613) misurato lo stesso giorno (11, contro il 10 della prima misura del budget) dà esattamente questi valori; il fixture non è invariante al giorno come la scelta di un fixture deterministico assume (doc/guide/prima-schermata.md § Per-page blind spots)"
       },
       "1024": {
-        "screens": 1.2,
+        "screens": 1.27,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 4,
         "figuresAboveFold": 14,
         "figuresOutsideVerdict": 14,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-16: figuresAboveFold 9 → 14, figuresOutsideVerdict 9 → 14 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: a parità di codice, un giorno dopo, sulla macchina di riferimento (census in 2,0 min) tre corse identiche leggono un centesimo in più di schermate o una tessera intera in meno — il --tighten del 2026-10-15 aveva stretto Patrimonio 1024 1,58 → 1,57 e Budget 768 1,36 → 1,35 senza dichiararlo in doc/guide/prima-schermata-misure.md; nello stesso giro Budget 390, Storico 390 e Impostazioni leggono 0,02 SOTTO il budget: la differenza fra le due macchine del 2026-10-15 è una deriva di ±0,01–0,02 per cella, in entrambi i versi; 2026-10-11: deriva del giorno del mese, non del codice — il codice di develop (1629613) misurato lo stesso giorno (11, contro il 10 della prima misura del budget) dà esattamente questi valori; il fixture non è invariante al giorno come la scelta di un fixture deterministico assume (doc/guide/prima-schermata.md § Per-page blind spots)"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.2 → 1.27) · Prima: 2026-10-16: figuresAboveFold 9 → 14, figuresOutsideVerdict 9 → 14 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: a parità di codice, un giorno dopo, sulla macchina di riferimento (census in 2,0 min) tre corse identiche leggono un centesimo in più di schermate o una tessera intera in meno — il --tighten del 2026-10-15 aveva stretto Patrimonio 1024 1,58 → 1,57 e Budget 768 1,36 → 1,35 senza dichiararlo in doc/guide/prima-schermata-misure.md; nello stesso giro Budget 390, Storico 390 e Impostazioni leggono 0,02 SOTTO il budget: la differenza fra le due macchine del 2026-10-15 è una deriva di ±0,01–0,02 per cella, in entrambi i versi; 2026-10-11: deriva del giorno del mese, non del codice — il codice di develop (1629613) misurato lo stesso giorno (11, contro il 10 della prima misura del budget) dà esattamente questi valori; il fixture non è invariante al giorno come la scelta di un fixture deterministico assume (doc/guide/prima-schermata.md § Per-page blind spots)"
       }
     },
     "fire-calcolatore": {
       "390": {
-        "screens": 1.94,
+        "screens": 1.96,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
         "figuresAboveFold": 14,
         "figuresOutsideVerdict": 10,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.81 → 3.94, figuresAboveFold 13 → 17, figuresOutsideVerdict 10 → 13); 2026-10-15: la prima riga chiusa (Base di calcolo) finisce sotto la pill a 390 con il grafico del Traguardo già a 120 px; le cifre fuori dal verdetto sono le due celle, il numero FIRE, il chip e la didascalia del Traguardo («≤ 5» non raggiunto, dichiarato e registrato come misurato); la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.94 → 1.96) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.81 → 3.94, figuresAboveFold 13 → 17, figuresOutsideVerdict 10 → 13); 2026-10-15: la prima riga chiusa (Base di calcolo) finisce sotto la pill a 390 con il grafico del Traguardo già a 120 px; le cifre fuori dal verdetto sono le due celle, il numero FIRE, il chip e la didascalia del Traguardo («≤ 5» non raggiunto, dichiarato e registrato come misurato); la pill a 44 px dal 2026-10-10"
       },
       "768": {
-        "screens": 1.34,
+        "screens": 1.35,
         "tilesAboveFold": 4,
-        "tilesFullyAboveFold": 4,
+        "tilesFullyAboveFold": 2,
         "figuresAboveFold": 18,
         "figuresOutsideVerdict": 14,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.22 → 2.56, figuresAboveFold 18 → 24, figuresOutsideVerdict 11 → 21, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 1, firstClosedRowAbovePill True → False); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (tilesFullyAboveFold 4 → 2) · Prima: 2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.34 → 1.35) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.22 → 2.56, figuresAboveFold 18 → 24, figuresOutsideVerdict 11 → 21, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 1, firstClosedRowAbovePill True → False); 2026-10-10: pill a 44 px"
       },
       "1024": {
-        "screens": 1.27,
+        "screens": 1.4,
         "tilesAboveFold": 7,
         "tilesFullyAboveFold": 6,
         "figuresAboveFold": 17,
         "figuresOutsideVerdict": 13,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-18: figuresAboveFold 16 → 17, figuresOutsideVerdict 12 → 13 — la risposta «servono +X» della riga chiusa Età obiettivo nell'indice del Calcolatore (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.2 → 3.03, figuresAboveFold 15 → 21, figuresOutsideVerdict 12 → 18); 2026-10-16: figuresAboveFold 14 → 15, figuresOutsideVerdict 11 → 12 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 9 → 11 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.27 → 1.4) · Prima: 2026-10-18: figuresAboveFold 16 → 17, figuresOutsideVerdict 12 → 13 — la risposta «servono +X» della riga chiusa Età obiettivo nell'indice del Calcolatore (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.2 → 3.03, figuresAboveFold 15 → 21, figuresOutsideVerdict 12 → 18); 2026-10-16: figuresAboveFold 14 → 15, figuresOutsideVerdict 11 → 12 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 9 → 11 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
       }
     },
     "fire-coast": {
       "390": {
-        "screens": 1.92,
+        "screens": 1.95,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
         "figuresAboveFold": 17,
         "figuresOutsideVerdict": 10,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.8 → 2.12, figuresAboveFold 17 → 19, figuresOutsideVerdict 12 → 14); 2026-10-15: la prima riga chiusa (Afflussi) finisce sotto la pill a 390 con il grafico del Traguardo già a 120 px; le cifre fuori dal verdetto sono le due celle, l'eroe, il chip e la didascalia del Traguardo e le etichette del grafico («≤ 5» non raggiunto, dichiarato e registrato come misurato); la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.92 → 1.95) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.8 → 2.12, figuresAboveFold 17 → 19, figuresOutsideVerdict 12 → 14); 2026-10-15: la prima riga chiusa (Afflussi) finisce sotto la pill a 390 con il grafico del Traguardo già a 120 px; le cifre fuori dal verdetto sono le due celle, l'eroe, il chip e la didascalia del Traguardo e le etichette del grafico («≤ 5» non raggiunto, dichiarato e registrato come misurato); la pill a 44 px dal 2026-10-10"
       },
       "768": {
-        "screens": 1.32,
+        "screens": 1.34,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 2,
         "figuresAboveFold": 23,
         "figuresOutsideVerdict": 17,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.21 → 1.35, figuresAboveFold 22 → 29, figuresOutsideVerdict 14 → 24, tilesAboveFold 3 → 1, tilesFullyAboveFold 3 → 0, firstClosedRowAbovePill True → False); 2026-10-16: figuresOutsideVerdict 12 → 14 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.32 → 1.34) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.21 → 1.35, figuresAboveFold 22 → 29, figuresOutsideVerdict 14 → 24, tilesAboveFold 3 → 1, tilesFullyAboveFold 3 → 0, firstClosedRowAbovePill True → False); 2026-10-16: figuresOutsideVerdict 12 → 14 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
       },
       "1024": {
-        "screens": 1.42,
+        "screens": 1.54,
         "tilesAboveFold": 3,
         "tilesFullyAboveFold": 2,
         "figuresAboveFold": 22,
         "figuresOutsideVerdict": 17,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-05: figuresOutsideVerdict 15 → 17 — D-AS30: Geist Sans tabulare è più larga della mono; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.25 → 1.55, figuresAboveFold 18 → 22, figuresOutsideVerdict 14 → 18, tilesAboveFold 3 → 2, tilesFullyAboveFold 2 → 1); 2026-10-16: figuresAboveFold 17 → 18, figuresOutsideVerdict 13 → 14 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 11 → 13 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.42 → 1.54) · Prima: 2026-11-05: figuresOutsideVerdict 15 → 17 — D-AS30: Geist Sans tabulare è più larga della mono; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.25 → 1.55, figuresAboveFold 18 → 22, figuresOutsideVerdict 14 → 18, tilesAboveFold 3 → 2, tilesFullyAboveFold 2 → 1); 2026-10-16: figuresAboveFold 17 → 18, figuresOutsideVerdict 13 → 14 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 11 → 13 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
       }
     },
     "fire-what-if": {
       "390": {
-        "screens": 1.89,
+        "screens": 1.91,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
         "figuresAboveFold": 17,
         "figuresOutsideVerdict": 5,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.73 → 2.08, figuresAboveFold 15 → 23, figuresOutsideVerdict 5 → 9); 2026-10-15: Evento è un modulo senza curva da cedere: la prima riga chiusa (Prima e dopo) finisce sotto la pill a 390; la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.89 → 1.91) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.73 → 2.08, figuresAboveFold 15 → 23, figuresOutsideVerdict 5 → 9); 2026-10-15: Evento è un modulo senza curva da cedere: la prima riga chiusa (Prima e dopo) finisce sotto la pill a 390; la pill a 44 px dal 2026-10-10"
       },
       "768": {
-        "screens": 1.36,
+        "screens": 1.38,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
         "figuresAboveFold": 18,
         "figuresOutsideVerdict": 5,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.26 → 1.38, figuresAboveFold 21 → 24, tilesAboveFold 3 → 1, tilesFullyAboveFold 1 → 0); 2026-10-16: riga null → false — la prima riga chiusa finisce 113 px sotto la pill a 947 — a 768 LA tessera — Evento, un modulo senza curva da accorciare — sta a tutta larghezza dopo il verdetto (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.36 → 1.38) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.26 → 1.38, figuresAboveFold 21 → 24, tilesAboveFold 3 → 1, tilesFullyAboveFold 1 → 0); 2026-10-16: riga null → false — la prima riga chiusa finisce 113 px sotto la pill a 947 — a 768 LA tessera — Evento, un modulo senza curva da accorciare — sta a tutta larghezza dopo il verdetto (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main); 2026-10-10: pill a 44 px"
       },
       "1024": {
-        "screens": 1.49,
+        "screens": 1.64,
         "tilesAboveFold": 4,
         "tilesFullyAboveFold": 3,
         "figuresAboveFold": 17,
         "figuresOutsideVerdict": 5,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.25 → 1.62, figuresAboveFold 18 → 23, figuresOutsideVerdict 8 → 12, tilesAboveFold 4 → 3, tilesFullyAboveFold 3 → 2); 2026-10-16: figuresAboveFold 14 → 18, figuresOutsideVerdict 6 → 8 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.49 → 1.64) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.25 → 1.62, figuresAboveFold 18 → 23, figuresOutsideVerdict 8 → 12, tilesAboveFold 4 → 3, tilesFullyAboveFold 3 → 2); 2026-10-16: figuresAboveFold 14 → 18, figuresOutsideVerdict 6 → 8 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-10: pill a 44 px"
       }
     },
     "fire-monte-carlo": {
       "390": {
-        "screens": 2.04,
+        "screens": 2.07,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
         "figuresAboveFold": 12,
         "figuresOutsideVerdict": 4,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-18: figuresAboveFold 10 → 12, figuresOutsideVerdict 2 → 4 — la terza cella «Spesa al 90%» della striscia di Dopo il FIRE (D-CU17) e Spesa sostenibile come ultima riga chiusa con la sua risposta (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.83 → 2.69, figuresAboveFold 5 → 15, figuresOutsideVerdict 2 → 9); 2026-10-15: la prima riga chiusa (Distribuzione) finisce sotto la pill a 390 con il ventaglio già a 120 px; le cifre fuori dal verdetto sono le due celle; 2026-10-12: screens oscilla fra 4,87 e 4,89 a parità di codice — due corse consecutive sulla stessa build di develop (e450d00e, 2026-10-12, ritiro) leggono prima l'uno e poi l'altro; il --tighten della sessione aveva scritto 4,87 come deriva del giorno; la composizione di Monte Carlo (2026-10-15) rimisura; la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 2.04 → 2.07) · Prima: 2026-10-18: figuresAboveFold 10 → 12, figuresOutsideVerdict 2 → 4 — la terza cella «Spesa al 90%» della striscia di Dopo il FIRE (D-CU17) e Spesa sostenibile come ultima riga chiusa con la sua risposta (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.83 → 2.69, figuresAboveFold 5 → 15, figuresOutsideVerdict 2 → 9); 2026-10-15: la prima riga chiusa (Distribuzione) finisce sotto la pill a 390 con il ventaglio già a 120 px; le cifre fuori dal verdetto sono le due celle; 2026-10-12: screens oscilla fra 4,87 e 4,89 a parità di codice — due corse consecutive sulla stessa build di develop (e450d00e, 2026-10-12, ritiro) leggono prima l'uno e poi l'altro; il --tighten della sessione aveva scritto 4,87 come deriva del giorno; la composizione di Monte Carlo (2026-10-15) rimisura; la pill a 44 px dal 2026-10-10"
       },
       "768": {
-        "screens": 1.31,
+        "screens": 1.33,
         "tilesAboveFold": 4,
         "tilesFullyAboveFold": 2,
         "figuresAboveFold": 14,
         "figuresOutsideVerdict": 7,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-18: figuresAboveFold 12 → 14, figuresOutsideVerdict 5 → 7 — la terza cella «Spesa al 90%» della striscia di Dopo il FIRE (D-CU17) e Spesa sostenibile come ultima riga chiusa con la sua risposta (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.18 → 1.57, figuresAboveFold 6 → 18, figuresOutsideVerdict 3 → 12, tilesAboveFold 4 → 1, tilesFullyAboveFold 4 → 1, firstClosedRowAbovePill True → False); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.31 → 1.33) · Prima: 2026-10-18: figuresAboveFold 12 → 14, figuresOutsideVerdict 5 → 7 — la terza cella «Spesa al 90%» della striscia di Dopo il FIRE (D-CU17) e Spesa sostenibile come ultima riga chiusa con la sua risposta (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.18 → 1.57, figuresAboveFold 6 → 18, figuresOutsideVerdict 3 → 12, tilesAboveFold 4 → 1, tilesFullyAboveFold 4 → 1, firstClosedRowAbovePill True → False); 2026-10-10: pill a 44 px"
       },
       "1024": {
-        "screens": 1.29,
+        "screens": 1.43,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 4,
         "figuresAboveFold": 17,
         "figuresOutsideVerdict": 9,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-18: figuresAboveFold 13 → 17, figuresOutsideVerdict 5 → 9 — la terza cella «Spesa al 90%» della striscia di Dopo il FIRE (D-CU17) e Spesa sostenibile come ultima riga chiusa con la sua risposta (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.1 → 1.79, figuresAboveFold 8 → 18, figuresOutsideVerdict 5 → 12, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 2); 2026-10-16: figuresAboveFold 6 → 8, figuresOutsideVerdict 3 → 5 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 2 → 3 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.29 → 1.43) · Prima: 2026-10-18: figuresAboveFold 13 → 17, figuresOutsideVerdict 5 → 9 — la terza cella «Spesa al 90%» della striscia di Dopo il FIRE (D-CU17) e Spesa sostenibile come ultima riga chiusa con la sua risposta (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.1 → 1.79, figuresAboveFold 8 → 18, figuresOutsideVerdict 5 → 12, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 2); 2026-10-16: figuresAboveFold 6 → 8, figuresOutsideVerdict 3 → 5 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 2 → 3 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
       }
     },
     "fire-obiettivi": {
       "390": {
-        "screens": 1.41,
+        "screens": 1.44,
         "tilesAboveFold": 3,
         "tilesFullyAboveFold": 2,
         "figuresAboveFold": 11,
         "figuresOutsideVerdict": 10,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-05: tilesFullyAboveFold 3 → 2, screens 1,39 → 1,41 — D-AS30: Geist Sans tabulare è più larga della mono; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.32 → 1.57, figuresAboveFold 9 → 17, figuresOutsideVerdict 9 → 13, tilesAboveFold 4 → 1, tilesFullyAboveFold 3 → 0, firstClosedRowAbovePill True → False); 2026-10-15: Obiettivi acceso nel fixture con un obiettivo: le cifre e le schermate sono quelle di Obiettivi aperta, senza striscia («≤ 5» non raggiunto, dichiarato e registrato come misurato)"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.41 → 1.44) · Prima: 2026-11-05: tilesFullyAboveFold 3 → 2, screens 1,39 → 1,41 — D-AS30: Geist Sans tabulare è più larga della mono; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.32 → 1.57, figuresAboveFold 9 → 17, figuresOutsideVerdict 9 → 13, tilesAboveFold 4 → 1, tilesFullyAboveFold 3 → 0, firstClosedRowAbovePill True → False); 2026-10-15: Obiettivi acceso nel fixture con un obiettivo: le cifre e le schermate sono quelle di Obiettivi aperta, senza striscia («≤ 5» non raggiunto, dichiarato e registrato come misurato)"
       },
       "768": {
         "screens": 1,
@@ -633,14 +634,14 @@
         "raisedBy": "2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1 → 1.04, figuresAboveFold 9 → 17, figuresOutsideVerdict 9 → 17, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 3); 2026-10-16: figuresOutsideVerdict 0 → 9 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule)"
       },
       "1024": {
-        "screens": 1.08,
+        "screens": 1.09,
         "tilesAboveFold": 4,
         "tilesFullyAboveFold": 3,
         "figuresAboveFold": 13,
         "figuresOutsideVerdict": 12,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21 (fascia desktop, PR #197): tilesFullyAboveFold 4 → 3 a 1024 — la fascia (110px) prende altezza alla prima schermata del tablet orizzontale; il misurato fa da pavimento · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.08 → 1.1, figuresAboveFold 11 → 19, figuresOutsideVerdict 11 → 19, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 3); 2026-10-16: screens 1 → 1,08, figuresAboveFold 9 → 11, figuresOutsideVerdict 9 → 11 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; LA tessera arriva alla piega sotto il verdetto: la colonna sinistra è alta quanto lo schermo e ciò che segue lo stage parte sotto; 2026-10-16: figuresOutsideVerdict 0 → 9 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule)"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.08 → 1.09) · Prima: 2026-11-21 (fascia desktop, PR #197): tilesFullyAboveFold 4 → 3 a 1024 — la fascia (110px) prende altezza alla prima schermata del tablet orizzontale; il misurato fa da pavimento · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.08 → 1.1, figuresAboveFold 11 → 19, figuresOutsideVerdict 11 → 19, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 3); 2026-10-16: screens 1 → 1,08, figuresAboveFold 9 → 11, figuresOutsideVerdict 9 → 11 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; LA tessera arriva alla piega sotto il verdetto: la colonna sinistra è alta quanto lo schermo e ciò che segue lo stage parte sotto; 2026-10-16: figuresOutsideVerdict 0 → 9 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule)"
       }
     },
     "hall-of-fame": {
@@ -655,55 +656,56 @@
         "raisedBy": "2026-10-10: la striscia (3 cifre) e il podio a cinque righe sopra la pill, la prima riga chiusa sotto la pill con il grafico già a 120 px (doc/guide/hall-of-fame.md § Composizione mobile)"
       },
       "768": {
-        "screens": 1.24,
+        "screens": 1.25,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 5,
         "figuresAboveFold": 19,
         "figuresOutsideVerdict": 17,
         "firstClosedRowAbovePill": true,
-        "overflowX": false
+        "overflowX": false,
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.24 → 1.25)"
       },
       "1024": {
-        "screens": 1.22,
+        "screens": 1.31,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 4,
         "figuresAboveFold": 22,
         "figuresOutsideVerdict": 20,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-16: figuresAboveFold 17 → 22, figuresOutsideVerdict 15 → 20 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-10: la striscia (3 cifre) e il podio a cinque righe sopra la pill, la prima riga chiusa sotto la pill con il grafico già a 120 px (doc/guide/hall-of-fame.md § Composizione mobile)"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.22 → 1.31) · Prima: 2026-10-16: figuresAboveFold 17 → 22, figuresOutsideVerdict 15 → 20 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-10: la striscia (3 cifre) e il podio a cinque righe sopra la pill, la prima riga chiusa sotto la pill con il grafico già a 120 px (doc/guide/hall-of-fame.md § Composizione mobile)"
       }
     },
     "impostazioni": {
       "390": {
-        "screens": 2.27,
+        "screens": 2.38,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
-        "figuresAboveFold": 2,
-        "figuresOutsideVerdict": 2,
+        "figuresAboveFold": 5,
+        "figuresOutsideVerdict": 4,
         "firstClosedRowAbovePill": null,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 2.1 → 2.27); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresOutsideVerdict 2 → 4) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresAboveFold 2 → 5) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (screens 2.27 → 2.38) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 2.1 → 2.27); 2026-10-10: pill a 44 px"
       },
       "768": {
-        "screens": 1.52,
+        "screens": 1.58,
         "tilesAboveFold": 3,
         "tilesFullyAboveFold": 2,
-        "figuresAboveFold": 4,
-        "figuresOutsideVerdict": 4,
+        "figuresAboveFold": 7,
+        "figuresOutsideVerdict": 7,
         "firstClosedRowAbovePill": null,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.38 → 1.52); 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresOutsideVerdict 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresAboveFold 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (screens 1.52 → 1.58) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.38 → 1.52); 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
       },
       "1024": {
-        "screens": 1.75,
+        "screens": 2.0,
         "tilesAboveFold": 3,
         "tilesFullyAboveFold": 2,
-        "figuresAboveFold": 4,
-        "figuresOutsideVerdict": 4,
+        "figuresAboveFold": 7,
+        "figuresOutsideVerdict": 7,
         "firstClosedRowAbovePill": null,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.56 → 1.75); 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresOutsideVerdict 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresAboveFold 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (screens 1.75 → 2.0) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.56 → 1.75); 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
       }
     },
     "allocazione-accumulo": {
@@ -711,63 +713,63 @@
         "screens": 1.8,
         "tilesAboveFold": 1,
         "tilesFullyAboveFold": 0,
-        "figuresAboveFold": 10,
-        "figuresOutsideVerdict": 6,
+        "figuresAboveFold": 11,
+        "figuresOutsideVerdict": 7,
         "firstClosedRowAbovePill": false,
         "overflowX": false,
-        "raisedBy": "2026-10-18: prima misura (D-CU19) — Accumulo composto per il telefono (tappa A, doc/contributi-upstream/composizione-mobile.md § 8, D-CU19), sul fixture con un modello di 3 strumenti e un piano attivo di 12 rate"
+        "raisedBy": "2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (figuresOutsideVerdict 6 → 7) · Prima: 2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (figuresAboveFold 10 → 11) · Prima: 2026-10-18: prima misura (D-CU19) — Accumulo composto per il telefono (tappa A, doc/contributi-upstream/composizione-mobile.md § 8, D-CU19), sul fixture con un modello di 3 strumenti e un piano attivo di 12 rate"
       },
       "768": {
-        "screens": 1.27,
-        "tilesAboveFold": 3,
+        "screens": 1.29,
+        "tilesAboveFold": 1,
         "tilesFullyAboveFold": 1,
         "figuresAboveFold": 13,
         "figuresOutsideVerdict": 10,
         "firstClosedRowAbovePill": false,
         "overflowX": false,
-        "raisedBy": "2026-10-18: prima misura (D-CU19) — Accumulo composto per il telefono (tappa A, doc/contributi-upstream/composizione-mobile.md § 8, D-CU19), sul fixture con un modello di 3 strumenti e un piano attivo di 12 rate"
+        "raisedBy": "2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (tilesAboveFold 3 → 1) · Prima: 2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (screens 1.27 → 1.29) · Prima: 2026-10-18: prima misura (D-CU19) — Accumulo composto per il telefono (tappa A, doc/contributi-upstream/composizione-mobile.md § 8, D-CU19), sul fixture con un modello di 3 strumenti e un piano attivo di 12 rate"
       },
       "1024": {
-        "screens": 1.27,
+        "screens": 1.38,
         "tilesAboveFold": 4,
         "tilesFullyAboveFold": 3,
         "figuresAboveFold": 11,
         "figuresOutsideVerdict": 8,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-18: prima misura (D-CU19) — Accumulo composto per il telefono (tappa A, doc/contributi-upstream/composizione-mobile.md § 8, D-CU19), sul fixture con un modello di 3 strumenti e un piano attivo di 12 rate"
+        "raisedBy": "2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (screens 1.27 → 1.38) · Prima: 2026-10-18: prima misura (D-CU19) — Accumulo composto per il telefono (tappa A, doc/contributi-upstream/composizione-mobile.md § 8, D-CU19), sul fixture con un modello di 3 strumenti e un piano attivo di 12 rate"
       }
     },
     "fire-proiezione": {
       "390": {
-        "screens": 1.96,
+        "screens": 2.0,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
         "figuresAboveFold": 22,
         "figuresOutsideVerdict": 11,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-05: figuresAboveFold 20 → 22, figuresOutsideVerdict 8 → 11 — D-AS30: le cifre in Geist Sans tabulare, più larga della mono, cambiano a-capo e conteggio; 2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.96 → 2.0) · Prima: 2026-11-05: figuresAboveFold 20 → 22, figuresOutsideVerdict 8 → 11 — D-AS30: le cifre in Geist Sans tabulare, più larga della mono, cambiano a-capo e conteggio; 2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
       },
       "768": {
-        "screens": 1.31,
+        "screens": 1.33,
         "tilesAboveFold": 4,
         "tilesFullyAboveFold": 2,
         "figuresAboveFold": 40,
         "figuresOutsideVerdict": 35,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
+        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.31 → 1.33) · Prima: 2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
       },
       "1024": {
-        "screens": 1.29,
+        "screens": 1.44,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 4,
         "figuresAboveFold": 36,
         "figuresOutsideVerdict": 27,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
+        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.29 → 1.44) · Prima: 2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
       }
     }
   }
