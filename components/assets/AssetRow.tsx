@@ -6,6 +6,7 @@ import { ChevronDown, Pencil, Trash2, Calculator, ArrowLeftRight, ScrollText, Pi
 import { isLoanAsset, type Asset } from '@/types/assets';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { formatPrice } from '@/lib/utils/formatters';
 import { formatCurrency, formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { computeUnrealizedGain, resolveBondRowFacts } from '@/lib/utils/patrimonioSummary';
@@ -304,10 +305,10 @@ export function AssetRow({
       ? []
       : [
           { label: 'Quantità', value: formatNumber(asset.quantity, 2) },
-          { label: 'Prezzo', value: formatCurrency(asset.currentPrice, asset.currency, 4) },
+          { label: 'Prezzo', value: formatPrice(asset.currentPrice, asset.currency) },
         ]),
-    ...(pmcEur !== undefined ? [{ label: 'PMC', value: formatCurrency(pmcEur, 'EUR', 4) }] : []),
-    ...(nativePmc !== undefined ? [{ label: `PMC (${asset.currency})`, value: formatCurrency(nativePmc, asset.currency, 4) }] : []),
+    ...(pmcEur !== undefined ? [{ label: 'PMC', value: formatPrice(pmcEur, 'EUR') }] : []),
+    ...(nativePmc !== undefined ? [{ label: `PMC (${asset.currency})`, value: formatPrice(nativePmc, asset.currency) }] : []),
     ...(asset.totalExpenseRatio ? [{ label: 'TER', value: formatPercentage(asset.totalExpenseRatio, 2) }] : []),
     { label: 'Peso', value: weight === null ? '—' : formatPercentage(weight, 2) },
     ...(hasGainLoss

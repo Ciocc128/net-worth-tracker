@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   formatCurrency,
+  formatPrice,
   formatEuroMinus,
   formatPercentage,
   formatDate,
@@ -71,6 +72,24 @@ describe('withTypographicMinus / formatEuroMinus / isPrintedZero', () => {
     expect(isPrintedZero('0,00 €')).toBe(true)
     expect(isPrintedZero('−0,00%')).toBe(true)
     expect(isPrintedZero('0,01 €')).toBe(false)
+  })
+})
+
+describe('formatPrice', () => {
+  /** Node's Intl writes a no-break space before «€»: read it as a plain one. */
+  const plain = (text: string) => text.replace(/[\u00a0\u202f]/g, ' ')
+  // Hand-worked: 2 decimals at least, 4 at most, trailing zeros past the second dropped.
+  it('keeps two decimals on a round price', () => {
+    expect(plain(formatPrice(55000))).toBe('55.000,00 €')
+  })
+  it('keeps four decimals where the price has them', () => {
+    expect(plain(formatPrice(138.1579))).toBe('138,1579 €')
+  })
+  it('pads a one-decimal price to two, not four', () => {
+    expect(plain(formatPrice(25.1))).toBe('25,10 €')
+  })
+  it('rounds past the fourth decimal and takes the currency', () => {
+    expect(plain(formatPrice(1.23456, 'USD'))).toMatch(/1,2346/)
   })
 })
 

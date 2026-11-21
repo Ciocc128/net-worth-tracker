@@ -42,6 +42,7 @@ import {
   ChevronUp,
   Info,
   LayoutGrid,
+  MoreHorizontal,
   Pencil,
   PiggyBank,
   Plus,
@@ -58,6 +59,8 @@ import { isLedgerAssetType } from '@/types/assetTransactions';
 import { describeZeroQuantityChip } from '@/lib/utils/zeroQuantityChip';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { formatCurrency, formatNumber, formatPercentage } from '@/lib/services/chartService';
+import { formatPrice } from '@/lib/utils/formatters';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useDeleteAsset } from '@/lib/hooks/useAssets';
 import { useAddedRows } from '@/lib/hooks/useAddedRows';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
@@ -214,7 +217,7 @@ function DeleteButton({ asset, onDelete, disabled, announce }: DeleteButtonProps
       type="button"
       variant={armed ? 'destructive' : 'ghost'}
       size="sm"
-      className={armed ? 'h-8' : ICON_BUTTON_CLASS}
+      className={cn(armed ? 'h-8' : ICON_BUTTON_CLASS, 'group')}
       onClick={onClick}
       onBlur={onBlur}
       disabled={disabled}
@@ -222,7 +225,7 @@ function DeleteButton({ asset, onDelete, disabled, announce }: DeleteButtonProps
       aria-label={armed ? `Premi di nuovo per eliminare ${asset.name}` : `Elimina ${asset.name}`}
       title={disabled ? 'Non disponibile in modalità demo' : undefined}
     >
-      {armed ? <span className="px-1 text-xs">Conferma</span> : <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />}
+      {armed ? <span className="px-1 text-xs">Conferma</span> : <Trash2 className="h-4 w-4 text-muted-foreground group-hover:text-destructive group-focus-visible:text-destructive" aria-hidden="true" />}
     </Button>
   );
 }
@@ -512,15 +515,15 @@ export function StrumentiTile({
           <>
             <td className={cn(CELL_CLASS, 'font-mono tabular-nums')}>{isHandValued ? dash : formatNumber(asset.quantity, 2)}</td>
             <td className={cn(CELL_CLASS, 'font-mono tabular-nums')}>
-              {isHandValued ? dash : formatCurrency(asset.currentPrice, asset.currency, 4)}
+              {isHandValued ? dash : formatPrice(asset.currentPrice, asset.currency)}
             </td>
             <td className={cn(CELL_CLASS, 'font-mono tabular-nums')}>
               {pmcEur !== undefined || nativePmc !== undefined ? (
                 <span className="flex flex-col items-end leading-tight">
-                  {pmcEur !== undefined && <span>{formatCurrency(pmcEur, 'EUR', 4)}</span>}
+                  {pmcEur !== undefined && <span>{formatPrice(pmcEur, 'EUR')}</span>}
                   {nativePmc !== undefined && (
                     <span className={cn(pmcEur !== undefined && 'text-[11px] text-muted-foreground')}>
-                      {formatCurrency(nativePmc, asset.currency, 4)}
+                      {formatPrice(nativePmc, asset.currency)}
                     </span>
                   )}
                 </span>
@@ -562,37 +565,24 @@ export function StrumentiTile({
             </td>
           ))}
         <td className={cn(CELL_CLASS, stickyCellClass, isManualPrice && MANUAL_ROW_TINT)}>
+          {/* Four fixed places, left to right: Registra · Modifica · «⋯» · Elimina. An action the row
+              lacks leaves its place empty, so the icons stay in their columns from row to row. */}
           <div className="flex justify-end gap-0.5">
-            {withCost && (
-              <Button type="button" variant="ghost" size="sm" className={ICON_BUTTON_CLASS} onClick={() => onCalculateTaxes(asset)} aria-label={`Calcola plusvalenze di ${asset.name}`}>
-                <Calculator className="h-4 w-4" aria-hidden="true" />
+            {showLedgerActions(asset) ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={ICON_BUTTON_CLASS}
+                onClick={() => onRegisterTrade(asset)}
+                disabled={isDemo}
+                aria-label={`Registra operazione su ${asset.name}`}
+                title={isDemo ? 'Non disponibile in modalità demo' : undefined}
+              >
+                <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
               </Button>
-            )}
-            {showLedgerActions(asset) && (
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={ICON_BUTTON_CLASS}
-                  onClick={() => onRegisterTrade(asset)}
-                  disabled={isDemo}
-                  aria-label={`Registra operazione su ${asset.name}`}
-                  title={isDemo ? 'Non disponibile in modalità demo' : undefined}
-                >
-                  <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
-                </Button>
-                <Button type="button" variant="ghost" size="sm" className={ICON_BUTTON_CLASS} onClick={() => onMovements(asset)} aria-label={`Movimenti di ${asset.name}`}>
-                  <ScrollText className="h-4 w-4" aria-hidden="true" />
-                </Button>
-              </>
-            )}
-            {asset.type === 'pensionFund' && (
-              <Button type="button" variant="ghost" size="sm" className={ICON_BUTTON_CLASS} asChild>
-                <Link href="/dashboard/pension" aria-label={`${asset.name} in Previdenza`}>
-                  <PiggyBank className="h-4 w-4" aria-hidden="true" />
-                </Link>
-              </Button>
+            ) : (
+              <span className={ICON_BUTTON_CLASS} aria-hidden="true" />
             )}
             <Button
               type="button"
@@ -606,6 +596,39 @@ export function StrumentiTile({
             >
               <Pencil className="h-4 w-4" aria-hidden="true" />
             </Button>
+            {withCost || showLedgerActions(asset) || asset.type === 'pensionFund' ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="sm" className={ICON_BUTTON_CLASS} aria-label={`Altre azioni su ${asset.name}`}>
+                    <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {withCost && (
+                    <DropdownMenuItem onSelect={() => onCalculateTaxes(asset)}>
+                      <Calculator className="h-4 w-4" aria-hidden="true" />
+                      Calcola plusvalenze
+                    </DropdownMenuItem>
+                  )}
+                  {showLedgerActions(asset) && (
+                    <DropdownMenuItem onSelect={() => onMovements(asset)}>
+                      <ScrollText className="h-4 w-4" aria-hidden="true" />
+                      Movimenti
+                    </DropdownMenuItem>
+                  )}
+                  {asset.type === 'pensionFund' && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/pension">
+                        <PiggyBank className="h-4 w-4" aria-hidden="true" />
+                        Apri in Previdenza
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <span className={ICON_BUTTON_CLASS} aria-hidden="true" />
+            )}
             <DeleteButton asset={asset} onDelete={handleDelete} disabled={isDemo} announce={setAnnouncement} />
           </div>
         </td>

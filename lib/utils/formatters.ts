@@ -130,6 +130,20 @@ export function formatCurrency(
 }
 
 /**
+ * Format a unit price (an instrument's price or average cost): at least 2 decimals, up to 4,
+ * so 55000 reads «55.000,00 €» and 138,1579 keeps its four. `formatCurrency` is left alone:
+ * the ledger, the capital-gains calculator and the dividends read it at a fixed 4 decimals.
+ */
+export function formatPrice(value: number, currency: string = 'EUR'): string {
+  return new Intl.NumberFormat('it-IT', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(value);
+}
+
+/**
  * Format a number as a percentage
  * @param value - The value to format (e.g., 12.34 for 12.34%)
  * @param decimals - Number of decimal places (default: 2)

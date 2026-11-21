@@ -503,8 +503,8 @@ https://claude.ai/artifact/M6bf52DueZx6WaL4JYv4PB. Ogni PR corre `npx tsc --noEm
 **Con il menu a linguette** (`doc/fascia-desktop/README.md`, D-FD10, presa) l'ordine è RU0 → RU1 → fascicolo → RU2 →
 RU3, così R3 e R5 si misurano una volta sola senza Sidebar.
 
-**Stato al 2026-11-21**: RU0 #194, RU1 #195, fascicolo #196–#199, RU2 #200 in main. Restano RU3, RU4, RU5, RU6. RU4 e RU6
-sono le prossime (nessun file in comune con RU3 né fra loro); RU5 può andare con loro.
+**Stato al 2026-11-21**: RU0 #194, RU1 #195, fascicolo #196–#199, RU2 #200 in main. Restano RU3, RU4, RU5, RU6. RU6 implementata il 2026-11-21 (misura a 1280×800 e 1440×900 col mouse: la tabella non scorre, Nome a 260 px; restano i controlli Mac). RU4
+e RU6 erano le prossime (nessun file in comune con RU3 né fra loro); RU5 può andare con loro.
 
 RU4, RU5 e RU6 sono indipendenti dal resto e fra loro: possono partire in parallelo a RU1–RU3. Dopo l'ondata, **una sola**
 rimisura di `mobile:budget` (prestazioni, proposta 7): ogni PR dichiara la voce toccata, la rimisura finale le chiude.
