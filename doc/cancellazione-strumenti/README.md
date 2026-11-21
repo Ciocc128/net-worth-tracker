@@ -9,7 +9,7 @@
 >
 > **Stato delle decisioni**: la scelta di fondo di D4 è **presa** dal proprietario il 2026-11-14 («si sceglie nella conferma»
 > tra «tieni la storia» e «cancella tutto», con il numero di operazioni che restano). Tutte le altre, D-CA1…D-CA12 (§ 8), sono
-> **proposte di questa specifica, da far confermare**.
+> **prese dal proprietario il 2026-11-21** («Ok va bene» alla proposta, così com'è scritta, compresi D-CA4, D-CA5, D-CA8).
 
 ## 1. Obiettivo
 
@@ -261,7 +261,7 @@ Fixture: strumento `ETF-A` con operazioni buy 10 × 50, buy 5 × 60, sell 15 × 
 - **D-CA2 (base)**: nella conferma si sceglie tra «tieni la storia» e «cancella tutto», con il numero di operazioni che restano.
   La regola su quale voce è già scelta (§ 4.3) è una proposta di questa specifica, da confermare.
 
-### Proposte da confermare
+### Prese dal proprietario il 2026-11-21 (D-CA1…D-CA12, come proposte)
 
 **D-CA1 — La finestra si apre sempre.** Un solo modo di cancellare (anche con niente da dire: «Non è usato altrove» e un
 pulsante), al posto dell'arm a due clic.
