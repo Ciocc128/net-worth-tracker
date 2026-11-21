@@ -30,6 +30,7 @@ import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 import { clipDepletedSeries } from '@/lib/utils/fireDepletion';
 import { SeriesLegend } from '@/components/ui/series-legend';
+import { formatAxisEuro, resolveFireAxis } from '@/lib/utils/fireChartAxis';
 import {
   LineChart,
   Line,
@@ -211,6 +212,19 @@ export function FIREProjectionChart({
   };
   const anyDepletion = depletion.bear !== null || depletion.base !== null || depletion.bull !== null;
 
+  // RU4 (N1): the axis follows Base and the FIRE number; Bull may leave the chart, and the note says where it goes.
+  const axis = resolveFireAxis(
+    [clipped.rows.map((r) => r.baseNetWorth), clipped.rows.map((r) => r.baseFireNumber)],
+    [clipped.rows.map((r) => r.bullNetWorth)],
+  );
+  const bullPeak = axis?.cut
+    ? clipped.rows.reduce<{ year: number; value: number }>(
+        (best, r) => (r.bullNetWorth !== null && r.bullNetWorth > best.value ? { year: r.calendarYear, value: r.bullNetWorth } : best),
+        { year: 0, value: 0 },
+      )
+    : null;
+  const cutNote = bullPeak ? `Lo scenario Bull esce dal grafico: nel ${bullPeak.year} arriva a ${formatCurrencyCompact(bullPeak.value)}.` : null;
+
   const markers = buildFireYearMarkers(
     [
       { name: 'Bear', years: bearYearsToFIRE, color: bearColor, isBase: false },
@@ -234,11 +248,12 @@ export function FIREProjectionChart({
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="calendarYear" tick={CHART_TICK_STYLE} tickMargin={6} />
             <YAxis
-              width={marginLeft <= 20 ? 80 : 100}
-              tickFormatter={(value) => formatCurrencyCompact(Number(value))}
+              width={76}
+              tickFormatter={(value) => (axis ? formatAxisEuro(Number(value), axis.step) : formatCurrencyCompact(Number(value)))}
               tick={CHART_TICK_STYLE}
-              domain={anyDepletion ? [0, 'auto'] : undefined}
-              allowDataOverflow={anyDepletion}
+              {...(axis
+                ? { domain: [0, axis.top] as [number, number], ticks: axis.ticks, allowDataOverflow: axis.cut }
+                : { domain: anyDepletion ? ([0, 'auto'] as [number, 'auto']) : undefined, allowDataOverflow: anyDepletion })}
             />
             <Tooltip
               content={
@@ -318,6 +333,7 @@ export function FIREProjectionChart({
           </LineChart>
         </ResponsiveContainer>
       </div>
+      {cutNote && <p className="mt-1 text-[11px] text-muted-foreground">{cutNote}</p>}
       <SeriesLegend
         className="mt-1.5 justify-center"
         items={[

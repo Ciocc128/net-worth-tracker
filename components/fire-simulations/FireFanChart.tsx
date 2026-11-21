@@ -36,6 +36,7 @@ import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartServi
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 import { SeriesLegend } from '@/components/ui/series-legend';
+import { formatAxisEuro, resolveFireAxis } from '@/lib/utils/fireChartAxis';
 
 interface FireFanChartProps {
   result: AccumulationSimulationResult;
@@ -154,6 +155,20 @@ export function FireFanChart({ result, startCalendarYear, verdict, height }: Fir
     return { rows: builtRows, spaghettiKeys: keys };
   }, [result, startCalendarYear]);
 
+  // RU4 (N1): the axis is sized on what must be seen whole (median, p75, target); p90 and the sample paths may leave.
+  const axis = useMemo(
+    () =>
+      resolveFireAxis(
+        [rows.map((r) => r.p50), rows.map((r) => r.p75), rows.map((r) => r.fireTarget)],
+        [rows.map((r) => r.p90), ...spaghettiKeys.map((key) => rows.map((r) => r[key]))],
+      ),
+    [rows, spaghettiKeys],
+  );
+  const pathsOut = axis?.cut ? spaghettiKeys.some((key) => rows.some((r) => r[key] > axis.top)) : false;
+  const cutNote = axis?.cut
+    ? `Il 90° percentile esce dal grafico: a fine orizzonte arriva a ${formatCurrencyCompact(rows[rows.length - 1]?.p90 ?? 0)}${pathsOut ? ' e alcuni percorsi' : ''}.`
+    : null;
+
   return (
     <div className="flex h-full min-h-0 flex-col" style={typeof height === 'number' ? { height } : undefined}>
       <div className="min-h-0 flex-1">
@@ -167,16 +182,18 @@ export function FireFanChart({ result, startCalendarYear, verdict, height }: Fir
           `${spaghettiKeys.length} percorsi campione in trasparenza, linea tratteggiata del target FIRE. ` +
           (verdict.atStart
             ? 'FIRE già raggiunto oggi in tutti i percorsi.'
-            : `Probabilità di FIRE entro il ${verdict.calendarYear}: ${verdict.probabilityPct}%.`)
+            : `Probabilità di FIRE entro il ${verdict.calendarYear}: ${verdict.probabilityPct}%.`) +
+          (cutNote ? ` ${cutNote}` : '')
         }
         accessibilityLayer={false}
       >
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis dataKey="calendarYear" tick={CHART_TICK_STYLE} tickMargin={6} />
         <YAxis
-          width={70}
-          tickFormatter={(value) => formatCurrencyCompact(Number(value))}
+          width={76}
+          tickFormatter={(value) => (axis ? formatAxisEuro(Number(value), axis.step) : formatCurrencyCompact(Number(value)))}
           tick={CHART_TICK_STYLE}
+          {...(axis ? { domain: [0, axis.top] as [number, number], ticks: axis.ticks, allowDataOverflow: axis.cut } : {})}
         />
         <Tooltip content={FanChartTooltip} />
         <Area
@@ -229,6 +246,7 @@ export function FireFanChart({ result, startCalendarYear, verdict, height }: Fir
       </ComposedChart>
       </ResponsiveContainer>
       </div>
+      {cutNote && <p className="mt-1 text-[11px] text-muted-foreground">{cutNote}</p>}
       {/* The band swatches carry the band's own transparency, so the key matches the plot. */}
       <SeriesLegend
         className="mt-1.5 justify-center"
