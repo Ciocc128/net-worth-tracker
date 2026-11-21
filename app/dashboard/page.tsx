@@ -68,7 +68,7 @@ import { CategoryTile } from '@/components/dashboard/overview/CategoryTile';
 import { AssetPrincipaliTile } from '@/components/dashboard/overview/AssetPrincipaliTile';
 import { IntestatariTile } from '@/components/dashboard/overview/IntestatariTile';
 import { OverviewTile, TILE_CELL_CLASS } from '@/components/dashboard/overview/OverviewTile';
-import { TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
+import { TILE_EYEBROW_CLASS, TILE_ROW_CELL_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { VerdictStrip } from '@/components/ui/verdict-strip';
 import { PageRest } from '@/components/ui/page-rest';
 import { RowAnswers } from '@/components/ui/row-answers';
@@ -95,9 +95,13 @@ import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarr
  * each answering ONE question with a one-line reading above its figures. Dense, but it scrolls:
  * the third row (categories, top assets) sits below the fold at 1440×900 by design.
  *
- *   Desktop (12 col): Patrimonio(5, 2 rows) | Sintesi(3) | Cashflow(4)
- *                                           | Composizione(3) | Costi(2) | Obiettivo(2)
- *                     Spese(4) | Entrate(4) | Asset principali(4)
+ *   Desktop (12 col, R3 2026-11-21): «Quanto ho» (7) | «Come va il mese» (5), each with its label
+ *                     Patrimonio(7, 2 rows)              | Cashflow(5)
+ *                                                        | Entrate(5)
+ *                     Composizione(3) | Asset principali(4) | Spese(5, 2 rows)
+ *                     Sintesi(3) | Costi(2) | Obiettivo(2)  |
+ *                     Intestatari(12, a closed row)
+ *                     Placed with `col-start`/`row-start`, never `order-*`: the DOM is unchanged.
  *   Below desktop:    ONE sequence, the DOM above (DESIGN.md → The First-Screen Rule;
  *                     since 2026-10-11): title → the strip of three figures → «Il perché» →
  *                     Patrimonio, open, its chips lifted and its curve at 120px → «Il resto della
@@ -233,6 +237,20 @@ export default function DashboardPage() {
   const chartColors = useChartColors();
   const [sparklinePeriod, setSparklinePeriod] = useState<SparklinePeriod>('1A');
   // Decided once per mount: a later opening in the session finds the cascade already played.
+  // «Di chi è?» is a closed row at desktop too (R3, D-RU5): a rare reading. Below `desktop:` the
+  // page's own controller owns the row; this state answers only where that returns `undefined`.
+  const [intestatariOpen, setIntestatariOpen] = useState(false);
+  const [intestatariMounted, setIntestatariMounted] = useState(false);
+  const desktopIntestatari: TileCollapse = {
+    id: OVERVIEW_SECTION_IDS.intestatari,
+    open: intestatariOpen,
+    mounted: intestatariMounted,
+    failed: false,
+    onOpenChange: (open) => {
+      setIntestatariOpen(open);
+      if (open) setIntestatariMounted(true);
+    },
+  };
   const [playsEntrance] = useState(() => !tileGridEntrance.played);
 
   // ─── Derived metrics ──────────────────────────────────────────────────────────
@@ -542,10 +560,14 @@ export default function DashboardPage() {
           animate="visible"
           className={COMPACT_GRID_CLASS}
         >
+          {/* The two columns' labels (R3, D-RU5): desktop only, `h3` like every eyebrow, row 1 of the grid. */}
+          <h3 className={cn(TILE_EYEBROW_CLASS, 'hidden desktop:block desktop:col-span-7 desktop:col-start-1 desktop:row-start-1')}>Quanto ho</h3>
+          <h3 className={cn(TILE_EYEBROW_CLASS, 'hidden desktop:block desktop:col-span-5 desktop:col-start-8 desktop:row-start-1')}>Come va il mese</h3>
+
           <motion.div
             variants={cardItem}
             data-stage="lead"
-            className={cn(CELL_CLASS, LEAD_CELL_CLASS, 'desktop:col-span-5 desktop:row-span-2')}
+            className={cn(CELL_CLASS, LEAD_CELL_CLASS, 'desktop:col-span-7 desktop:col-start-1 desktop:row-start-2 desktop:row-span-2')}
           >
             <PatrimonioTile
               id={OVERVIEW_PATRIMONIO_ID}
@@ -569,7 +591,7 @@ export default function DashboardPage() {
 
           <motion.div
             variants={cardItem}
-            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.sintesi), 'desktop:col-span-3')}
+            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.sintesi), 'desktop:col-start-1 desktop:row-start-5', costsVisible || hasGoals ? 'desktop:col-span-3' : 'desktop:col-span-7')}
           >
             <SintesiTile
               metrics={overview.metrics}
@@ -581,7 +603,7 @@ export default function DashboardPage() {
 
           <motion.div
             variants={cardItem}
-            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.cashflow), 'desktop:col-span-4')}
+            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.cashflow), 'desktop:col-span-5 desktop:col-start-8 desktop:row-start-2', !expenseStats && 'desktop:row-span-2')}
           >
             {expenseStats ? (
               <CashflowTile
@@ -609,7 +631,7 @@ export default function DashboardPage() {
 
           <motion.div
             variants={cardItem}
-            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.composizione), 'desktop:col-span-3')}
+            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.composizione), 'desktop:col-span-3 desktop:col-start-1 desktop:row-start-4')}
           >
             <ComposizioneTile
               data={assetClassData}
@@ -622,7 +644,7 @@ export default function DashboardPage() {
           {costsVisible && (
             <motion.div
               variants={cardItem}
-              className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.costi), hasGoals ? 'desktop:col-span-2' : 'desktop:col-span-4')}
+              className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.costi), 'desktop:col-start-4 desktop:row-start-5', hasGoals ? 'desktop:col-span-2' : 'desktop:col-span-4')}
             >
               <CostiTile
                 metrics={overview.metrics}
@@ -637,7 +659,7 @@ export default function DashboardPage() {
           {hasGoals && (
             <motion.div
               variants={cardItem}
-              className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.obiettivo), costsVisible ? 'desktop:col-span-2' : 'desktop:col-span-4')}
+              className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.obiettivo), 'desktop:row-start-5', costsVisible ? 'desktop:col-span-2 desktop:col-start-6' : 'desktop:col-span-4 desktop:col-start-4')}
             >
               <ObiettivoTile
                 goals={goals}
@@ -647,16 +669,11 @@ export default function DashboardPage() {
             </motion.div>
           )}
 
-          {/* Keeps the second desktop row closed when neither optional tile renders. */}
-          {!costsVisible && !hasGoals && (
-            <div className="hidden desktop:block desktop:col-span-4" aria-hidden="true" />
-          )}
-
           {expenseStats && (
             <>
               <motion.div
                 variants={cardItem}
-                className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.spese), 'desktop:col-span-4')}
+                className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.spese), 'desktop:col-span-5 desktop:col-start-8 desktop:row-start-4 desktop:row-span-2')}
               >
                 <CategoryTile
                   eyebrow="Spese per categoria"
@@ -674,7 +691,7 @@ export default function DashboardPage() {
               </motion.div>
               <motion.div
                 variants={cardItem}
-                className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.entrate), 'desktop:col-span-4')}
+                className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.entrate), 'desktop:col-span-5 desktop:col-start-8 desktop:row-start-3')}
               >
                 <CategoryTile
                   eyebrow="Entrate per categoria"
@@ -698,9 +715,8 @@ export default function DashboardPage() {
             className={cn(
               TILE_ROW_CELL_CLASS,
               tablet.cellClass(OVERVIEW_SECTION_IDS.asset),
-              // Three equal tiles on the third row (4 · 4 · 4): at 3 columns the income tile
-              // could not hold a label, a 40px bar and two figures without overflowing its row.
-              expenseStats ? 'desktop:col-span-4' : 'desktop:col-span-12',
+              // Never under 4 columns (R3, D-RU5): at 3 the names shrink to one letter.
+              'desktop:col-span-4 desktop:col-start-4 desktop:row-start-4',
             )}
           >
             <AssetPrincipaliTile
@@ -716,11 +732,11 @@ export default function DashboardPage() {
           {overview.ownership && (
             <motion.div
               variants={cardItem}
-              className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.intestatari), 'desktop:col-span-12')}
+              className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.intestatari), 'desktop:col-span-12 desktop:col-start-1 desktop:row-start-6')}
             >
               <IntestatariTile
                 summary={overview.ownership}
-                collapse={sections.collapse(OVERVIEW_SECTION_IDS.intestatari)}
+                collapse={sections.collapse(OVERVIEW_SECTION_IDS.intestatari) ?? desktopIntestatari}
                 asideWhenClosed={asides[OVERVIEW_SECTION_IDS.intestatari]}
               />
             </motion.div>
