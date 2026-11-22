@@ -452,42 +452,27 @@ html[data-vt="page"]::view-transition-group(page-verdict) {
   animation-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* Soft scene (2026-10-23): where the phone's pill shows, a navigation is no view transition  */
-/* (useSceneNavigation.ts). <main> fades out in 140 ms, the route is pushed, and the next page  */
-/* fades in through template.tsx; the pill stays live glass the whole time. The opacity comes  */
-/* back with no transition: the new page's own fade is the entrance.                          */
-html[data-page-leaving] #page-main {
-  opacity: 0;
-  transition: opacity 0.14s ease-in;
-}
-
-/* Band trial «a» (UM2, doc/ui-movimento/README.md § 5.2; `?fascia=a`, lib/utils/bandVariant.ts). The band is a
- * descendant of `<main>`, so an opacity on `<main>` fades it too (today, «c»). Here `<main>` and the band's
- * ancestors stay opaque and the fade moves to the largest subtrees that do NOT hold the band — plus what sits
- * ON the band (its title row and fact line): the band's colour and the sheet's ground never leave the screen.
- * The entrance mirrors it: the template's own fade stands down and the same subtrees fade in. `backwards`, not
- * `both`: a finished entrance must not hold `opacity: 1` over the next page-leaving transition. */
-html[data-fascia="a"][data-page-leaving] #page-main {
-  opacity: 1;
-  transition: none;
-}
-html[data-fascia="a"][data-page-leaving] :is(#page-main, #page-main :has(.top-band)) > :not(.top-band):not(:has(.top-band)),
-html[data-fascia="a"][data-page-leaving] #page-main .top-band > * {
+/* Soft scene (2026-10-23; the band stays since UM2, 2026-11-22, D-UM4): where the phone's pill shows, a      */
+/* navigation is no view transition (useSceneNavigation.ts). The band is a descendant of `<main>`, so an      */
+/* opacity on `<main>` faded it too and the band blinked at every tap (the owner's iPhone video). Now `<main>`  */
+/* and the band's ancestors stay opaque and the fade moves to the largest subtrees that do NOT hold the band, */
+/* plus what sits ON the band (its title row and fact line): the band's colour and the sheet's ground never  */
+/* leave the screen. Out in 140 ms; the next page lands with `data-page-entering` (template.tsx) and the same */
+/* subtrees fade in. `backwards`, not `both`: a finished entrance must not hold `opacity: 1` over the next    */
+/* leaving transition. Chosen on a real iPhone over (b), the band out of `<main>` (doc/ui-movimento § 5.2).   */
+html[data-page-leaving] :is(#page-main, #page-main :has(.top-band)) > :not(.top-band):not(:has(.top-band)),
+html[data-page-leaving] #page-main .top-band > * {
   opacity: 0;
   transition: opacity 0.14s ease-in;
   animation: none;
 }
-html[data-fascia="a"] #page-main [data-page-enter] {
-  opacity: 1 !important;
-  transform: none !important;
-}
-@keyframes band-trial-in {
+@keyframes page-soft-in {
   from { opacity: 0; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  html[data-fascia="a"] :is(#page-main, #page-main :has(.top-band)) > :not(.top-band):not(:has(.top-band)),
-  html[data-fascia="a"] #page-main .top-band > * {
-    animation: band-trial-in 0.32s cubic-bezier(0.25, 1, 0.5, 1) backwards;
+  html[data-page-entering] :is(#page-main, #page-main :has(.top-band)) > :not(.top-band):not(:has(.top-band)),
+  html[data-page-entering] #page-main .top-band > * {
+    animation: page-soft-in 0.32s cubic-bezier(0.25, 1, 0.5, 1) backwards;
   }
 }
 
