@@ -461,6 +461,36 @@ html[data-page-leaving] #page-main {
   transition: opacity 0.14s ease-in;
 }
 
+/* Band trial «a» (UM2, doc/ui-movimento/README.md § 5.2; `?fascia=a`, lib/utils/bandVariant.ts). The band is a
+ * descendant of `<main>`, so an opacity on `<main>` fades it too (today, «c»). Here `<main>` and the band's
+ * ancestors stay opaque and the fade moves to the largest subtrees that do NOT hold the band — plus what sits
+ * ON the band (its title row and fact line): the band's colour and the sheet's ground never leave the screen.
+ * The entrance mirrors it: the template's own fade stands down and the same subtrees fade in. `backwards`, not
+ * `both`: a finished entrance must not hold `opacity: 1` over the next page-leaving transition. */
+html[data-fascia="a"][data-page-leaving] #page-main {
+  opacity: 1;
+  transition: none;
+}
+html[data-fascia="a"][data-page-leaving] :is(#page-main, #page-main :has(.top-band)) > :not(.top-band):not(:has(.top-band)),
+html[data-fascia="a"][data-page-leaving] #page-main .top-band > * {
+  opacity: 0;
+  transition: opacity 0.14s ease-in;
+  animation: none;
+}
+html[data-fascia="a"] #page-main [data-page-enter] {
+  opacity: 1 !important;
+  transform: none !important;
+}
+@keyframes band-trial-in {
+  from { opacity: 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html[data-fascia="a"] :is(#page-main, #page-main :has(.top-band)) > :not(.top-band):not(:has(.top-band)),
+  html[data-fascia="a"] #page-main .top-band > * {
+    animation: band-trial-in 0.32s cubic-bezier(0.25, 1, 0.5, 1) backwards;
+  }
+}
+
 /* The phone's bottom pill (BottomNavigation.tsx), frosted glass since 2026-10-23: the     */
 /* theme's own --sidebar at 55% over the page, which shows through blurred and saturated, */
 /* a hairline edge and a 1px highlight on top. Every theme gets it from tokens it already */
