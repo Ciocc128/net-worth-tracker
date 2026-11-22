@@ -647,7 +647,7 @@ export function QuestoMeseTile({
                         >
                           {ACCUMULO_ACTION_IGNORE_MATCH}
                         </Button>
-                        <Button className={ROW_ACTION_CLASS} onClick={() => void confirmMatch(installmentIndex, line.positionId, match)}>
+                        <Button variant="outline" className={ROW_ACTION_CLASS} onClick={() => void confirmMatch(installmentIndex, line.positionId, match)}>
                           {ACCUMULO_ACTION_CONFIRM}
                         </Button>
                       </span>
@@ -763,7 +763,7 @@ export function QuestoMeseTile({
                           >
                             {ACCUMULO_ACTION_IGNORE_MATCH}
                           </Button>
-                          <Button className={ROW_ACTION_CLASS} onClick={() => void confirmDisposalMatch(disposal.assetId, match)}>
+                          <Button variant="outline" className={ROW_ACTION_CLASS} onClick={() => void confirmDisposalMatch(disposal.assetId, match)}>
                             {ACCUMULO_ACTION_CONFIRM}
                           </Button>
                         </span>
@@ -772,7 +772,7 @@ export function QuestoMeseTile({
                         <span className="text-[11px] text-muted-foreground">{DELETED_INSTRUMENT_PLAN_NOTE}</span>
                       )}
                       {!isDemo && asset && (status === 'todo' || status === 'late') && (
-                        <Button className={ROW_ACTION_CLASS} onClick={() => setRegisterTarget({ kind: 'disposal', assetId: disposal.assetId })}>
+                        <Button variant="outline" className={ROW_ACTION_CLASS} onClick={() => setRegisterTarget({ kind: 'disposal', assetId: disposal.assetId })}>
                           {ACCUMULO_ACTION_REGISTER}
                         </Button>
                       )}

@@ -463,6 +463,14 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
   }, [baseExpenses, currentYear]);
   const pastYears = useMemo(() => availableYears.filter((y) => y < currentYear), [availableYears, currentYear]);
 
+  // «Anno» offers PAST years only: with a single year of data there is none, so the mode is not
+  // offered and a bookmarked `?period=year` falls back to the running year (UM5 follow-up).
+  if (!loading && periodMode === 'year' && pastYears.length === 0) {
+    setPeriodMode('current');
+    setSelectedYear(currentYear);
+    setSelectedMonth(null);
+  }
+
   // A bookmarked `?year=` below the floor names a year the page cannot show (the KPIs are
   // floored, the Select has no such option): settled during render on the loaded floor, it
   // degrades to the newest past year — the same stance as readPeriodFromSearchParams.

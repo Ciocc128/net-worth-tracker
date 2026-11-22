@@ -196,6 +196,24 @@ describe('rankTopExpenses', () => {
     expect(top.rows[1]).toMatchObject({ label: 'Vacanze', occurrences: 1, caption: '12 ago' });
   });
 
+  it('should not count a row twice when the same rent sits in a series AND as loose rows (UM5 N10 follow-up)', () => {
+    // Reference, by hand: rent 750 x 4 in one series = 3000; three more 750 rows with no series id stay
+    // apart (750 each). Total = 3000 + 3 x 750 = 5250, never more: a row belongs to exactly ONE entry.
+    // Entries = 1 series + 3 loose = 4; the shown rows add up to the whole 5250.
+    const series = { type: 'fixed' as const, amount: -750, categoryId: 'cat-casa', categoryName: 'Casa', recurringParentId: 'rent-2' };
+    const loose = { type: 'fixed' as const, amount: -750, categoryId: 'cat-casa', categoryName: 'Casa' };
+    const rows3 = [
+      on(2026, 11, series, 1), on(2026, 12, series, 1), on(2027, 1, series, 1), on(2027, 2, series, 1),
+      on(2026, 8, loose, 1), on(2026, 7, loose, 1), on(2026, 6, loose, 1),
+    ];
+    const top = rankTopExpenses(rows3, dayOf, 5);
+    expect(top.total).toBe(5250);
+    expect(top.count).toBe(4);
+    expect(top.rows[0]).toMatchObject({ amount: 3000, occurrences: 4 });
+    expect(top.rows.slice(1).map((row) => row.amount)).toEqual([750, 750, 750]);
+    expect(top.shownTotal).toBe(5250);
+  });
+
   it('should group the instalments of one purchase by their parent', () => {
     // 4 instalments of 250 = 1000 > a single 800 purchase: the series ranks first.
     const instalment = { type: 'variable' as const, amount: -250, categoryName: 'Casa', installmentParentId: 'p-1' };
