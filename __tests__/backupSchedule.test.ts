@@ -4,9 +4,9 @@
  */
 import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { buildLaunchAgentPlist, scheduledCommand, shellQuote } from '@/scripts/lib/backup/schedule';
+import { buildLaunchAgentPlist, scheduledCommand, schedulePath, shellQuote } from '@/scripts/lib/backup/schedule';
 
-const options = { repoDir: "/Users/g/Desktop/net worth's", logFile: '/Users/g/Documents/b/backup.log', weekday: 0, hour: 21, minute: 0 };
+const options = { repoDir: "/Users/g/Desktop/net worth's", logFile: '/Users/g/Documents/b/backup.log', weekday: 0, hour: 21, minute: 0, path: schedulePath('/Users/g/.nvm/versions/node/v24.0.0/bin') };
 
 describe('backup schedule', () => {
   it('quotes a shell word with an apostrophe', () => {
@@ -27,5 +27,10 @@ describe('backup schedule', () => {
     expect(plist).toContain('<string>/bin/zsh</string>\n    <string>-lc</string>');
     expect(plist).toContain('&gt;&gt;');
     expect(plist).not.toMatch(/<string>[^<]*>>[^<]*<\/string>/);
+  });
+
+  it('gives the job the installing node first on its PATH (launchd has no nvm: «npm: command not found», 22/11)', () => {
+    expect(schedulePath('/usr/local/bin')).toBe('/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin');
+    expect(buildLaunchAgentPlist(options)).toContain('<key>PATH</key>\n    <string>/Users/g/.nvm/versions/node/v24.0.0/bin:/opt/homebrew/bin:');
   });
 });

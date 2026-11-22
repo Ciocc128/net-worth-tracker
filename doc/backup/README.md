@@ -146,9 +146,15 @@ del log), `--now` (lancialo subito), `--remove`.
 - Se a quell'ora il Mac **dorme**, launchd lo lancia al risveglio. Se è **spento**, salta fino alla
   domenica dopo.
 - Se si sposta il checkout, va rilanciato `backup:schedule`.
-- **Accesso a Scrivania e Documenti**: macOS protegge queste cartelle, e un agente launchd non mostra la
-  richiesta di accesso. Se il log dice `Operation not permitted`, bisogna dare l'accesso completo al disco
-  a `node` (Impostazioni › Privacy e sicurezza › Accesso completo al disco). È da verificare sul Mac (§ 10).
+- **Il PATH**: launchd parte con un PATH minimo, e una shell di login non legge `.zshrc`, dove nvm mette
+  `node`. La prima installazione sul Mac (22/11) è finita in `npm: command not found`. Da allora il plist
+  porta un `PATH` con, per prima, la cartella del `node` che ha lanciato `backup:schedule`. Se si cambia
+  versione di node con nvm, va rilanciato `backup:schedule`.
+- **Accesso a Scrivania e Documenti**: macOS non lascia scrivere un agente launchd in `~/Documents`, e non
+  chiede nemmeno il permesso. Nella prova del 22/11 il log diceva `operation not permitted`. Per questo il
+  job gira da una copia di `main` in `~/nwt-backup-runner`, fuori dalla Scrivania, con la sua `.env.local`
+  (permessi 600), e `BACKUP_DIR` punta fuori da Documenti. L'alternativa è dare l'accesso completo al disco
+  a `/bin/zsh` e a `node`.
 
 ## 9. Costo in letture
 
