@@ -538,6 +538,20 @@ export function QuestoMeseTile({
     const state = effectiveLineState(matchResult.lineStates[`${currentIndex}:${line.positionId}`] ?? 'todo', `${currentIndex}:${line.positionId}`, ignoredMatches, false);
     return state === 'todo' || state === 'toConfirm' || state === 'late';
   });
+  // N5 (UM5a): the rows in the order the list prints them, late ones first; «Registra» is filled only on
+  // the first one that can be registered (`firstDueKey`), an outline on every other.
+  const orderedLines = [
+    ...lateLines.map(({ installment, line }) => ({ installmentIndex: installment.index, line })),
+    ...currentLines.map((line) => ({ installmentIndex: currentIndex, line })),
+  ];
+  const firstDueKey = orderedLines
+    .map(({ installmentIndex, line }) => {
+      const key = `${installmentIndex}:${line.positionId}`;
+      const registrable = assetsById.has(line.assetId);
+      const status = effectiveLineState(matchResult.lineStates[key] ?? 'todo', key, ignoredMatches, installmentIndex < currentIndex);
+      return registrable && (status === 'todo' || status === 'late') ? key : null;
+    })
+    .find((key) => key !== null);
   // AL15: does the plan still say what the model says?
   const divergence = model ? comparePlanToModel(plan.positions, model) : null;
   const monthReading = describeMonthReading(
@@ -566,7 +580,7 @@ export function QuestoMeseTile({
             <NarrativeText segments={proposal.reading} className="text-[12px] leading-[1.5] text-warning-foreground" />
             {!isDemo && (
               <div className="mt-2 flex flex-wrap gap-2">
-                <Button className={ROW_ACTION_CLASS} disabled={applyRecalibrationMutation.isPending} onClick={() => void applyProposal()}>
+                <Button variant="outline" className={ROW_ACTION_CLASS} disabled={applyRecalibrationMutation.isPending} onClick={() => void applyProposal()}>
                   {ACCUMULO_ACTION_APPLY}
                 </Button>
                 <Button variant="outline" className={ROW_ACTION_CLASS} disabled={dismissRecalibrationMutation.isPending} onClick={() => void dismissProposal()}>
@@ -599,7 +613,7 @@ export function QuestoMeseTile({
         <div className="mt-3 min-w-0">
         {/* Lines of the current installment, late lines first (§10.2 point 4). */}
         <ul className="divide-y divide-border">
-          {[...lateLines.map(({ installment, line }) => ({ installmentIndex: installment.index, line })), ...currentLines.map((line) => ({ installmentIndex: currentIndex, line }))].map(
+          {orderedLines.map(
             ({ installmentIndex, line }) => {
               const key = `${installmentIndex}:${line.positionId}`;
               const isLateRow = installmentIndex < currentIndex;
@@ -643,6 +657,7 @@ export function QuestoMeseTile({
                     )}
                     {!isDemo && asset && (status === 'todo' || status === 'late') && (
                       <Button
+                        variant={key === firstDueKey ? 'default' : 'outline'}
                         className={ROW_ACTION_CLASS}
                         onClick={() => setRegisterTarget({ kind: 'line', installmentIndex, positionId: line.positionId })}
                       >
