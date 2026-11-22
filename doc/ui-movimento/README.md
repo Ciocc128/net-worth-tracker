@@ -10,8 +10,9 @@
 >
 > **Stato delle decisioni**: D-UM7 presa il 14/11/2026 (sulla card). Il 22/11/2026 il proprietario ha confermato **tutte le
 > altre D-UM tranne due**: D-UM10 (il «+» tiene la molla e il rimbalzo, resta com'è) e D-UM6 (i colori del Flusso restano
-> «per ora» come sono), e ha deciso P2 (via la cascata da Panoramica e Patrimonio). D-UM12–D-UM14 sono confermate ma **gli
-> schizzi di N5–N14 (P1) sono ancora da fare**: UM5 parte solo dopo che li ha visti. Le decisioni già prese altrove (D-AS1–31, D-AN1–15, D-FA1–13, D-RU*, D-FD*) non sono riproposte.
+> «per ora» come sono), e ha deciso P2 (via la cascata da Panoramica e Patrimonio). D-UM12–D-UM14 sono state confermate il 22/11/2026 dopo gli schizzi
+> (https://claude.ai/artifact/8e6ukzF67erGyjHUokAtsW), con due correzioni: **«vendi» resta viola** (è il viola di tutto Lime Frost; solo Bear
+> passa all'ardesia) e **la Composizione di Storico (N11) prende i toni nuovi ma tiene le curve morbide**, non a scalini. Le decisioni già prese altrove (D-AS1–31, D-AN1–15, D-FA1–13, D-RU*, D-FD*) non sono riproposte.
 
 ## 1. In breve
 
@@ -126,8 +127,8 @@ Vale solo sotto `band:`/sulla pillola; dal fascicolo non c'è nulla da fare (la 
   centesimi restano, più piccoli (`text-[0.6em]` come cifra dei decimali, `tabular-nums`, stessa linea di base); l'euro intero
   non cambia. `formatExactEuro` produce due parti (intero · centesimi) e il leaf le disegna; l'`aria-label` legge la cifra
   intera con i centesimi. Valore di riferimento: 1234,56 € → «1.234» + «,56 €» con il secondo pezzo piccolo.
-- **N12 · Il viola di «vendi» e di Bear.** «vendi» in inchiostro neutro (`--foreground`), Bear in ardesia (il grigio-blu del tema,
-  non il viola). Grep del viola in `components`/`lib` oggi: `costCenterColors.ts`, `dividendTypes.ts`, `benchmarks.ts`,
+- **N12 · Bear.** «vendi» **resta com'è** (viola, il colore di ruolo di Lime Frost; decisione 22/11/2026); solo lo scenario Bear passa
+  all'ardesia (il grigio-blu del tema, non il viola; in Graphite lo è già, quindi il cambio è solo Lime Frost). Grep del viola in `components`/`lib` oggi: `costCenterColors.ts`, `dividendTypes.ts`, `benchmarks.ts`,
   `colors.ts`, `CategoryManagementDialog.tsx` sono scelte dei dati dell'utente o palette selezionabili e **non** si toccano;
   la fase tocca solo i punti dove il viola è un ruolo (vendite, scenario Bear).
 - **N14 · Maiuscole e decimali.** Solo un audit scritto (quali pulsanti, schede e voci di Impostazioni sono in maiuscolo o
@@ -167,8 +168,8 @@ righe (Patrimonio, Analisi, Budget, Rendimenti): `empty reading + dato di riferi
 restano distinti (DESIGN → The Absence-Has-Three-Names Rule).
 **UM5b — Cashflow, Storico, Analisi**: **N6** feed e Versamenti a larghezza massima (`max-w-[720px]`), centrati nel tile; il
 passaggio a «Tabella» da desktop come vista iniziale resta alternativa; **N9** vedi P12; **N10** in Analisi, «Spese maggiori»
-una ricorrenza per riga (raggruppa per `recurrenceId`/serie, mostra il numero); **N11** la Composizione di Storico: aree a
-scalini e tono più basso (non tocca D-AS7); **N13** un solo selettore (la pillola segmentata `SegmentedPill`) al posto delle tre
+una ricorrenza per riga (raggruppa per `recurrenceId`/serie, mostra il numero); **N11** la Composizione di Storico: **toni nuovi più bassi, curve morbide come oggi** (niente aree a
+scalini: decisione 22/11/2026; non tocca D-AS7); **N13** un solo selettore (la pillola segmentata `SegmentedPill`) al posto delle tre
 forme in Panoramica, Storico, Allocazione, Rendimenti; **N16** Dividendi vuoto: un solo pulsante per azione;
 **N17** a 2560 il menu e il contenuto: `PageContainer` ha `max-w-[1920px] mx-auto`; la fascia (`ShellBand`) si centra sullo
 stesso asse (se il fascicolo non l'ha già fatto: da misurare a 2560).
@@ -189,7 +190,7 @@ stesso asse (se il fascicolo non l'ha già fatto: da misurare a 2560).
 | --- | --- | --- | --- | --- |
 | **UM1** | 1, 2, 3, 5, 9, 10 | Sonnet 5.5 | nessuna | guardia di `useCountUp`, `tsc`, lint, Vitest; E2E `motion.reduced`, `modal.origin`, Panoramica/Patrimonio; `perf:census` |
 | **UM2** | 4 | **Opus 5.5** | UM1 (stessi file della scena) | prova su iPhone vero; E2E di `mobile` della navigazione; census del telefono |
-| **UM3** | 6, 7, N12, N14 | Sonnet 5.5 | indipendente | `chartPaletteDistinctness`, E2E Analisi, contrasto nei quattro temi, census |
+| **UM3** | 7, N12 (solo Bear), N14 | Sonnet 5.5 | indipendente | `chartPaletteDistinctness`, E2E Analisi, contrasto nei quattro temi, census |
 | **UM4** | 8, 11–16 | Sonnet 5.5 | UM1 (`button.tsx`, durate) | E2E dei selettori a 390, `mobile:census` |
 | **UM5a / UM5b** | N5, N7, N8 / N6, N9–N11, N13, N16, N17 | Sonnet 5.5 | UM4; UM5b dopo RU3 (già su main) | E2E delle pagine toccate sul Mac, census desktop |
 
@@ -222,12 +223,12 @@ Giorgio lo chiede; UM2 sta per ultima del telefono perché richiede l'iPhone. Ne
 - **D-UM12 — N5: contorno sulle righe, pieno solo sulla prima da fare.** *Scartato*: un solo «Registra tutto» (scrive più
   operazioni in un gesto: il PAC propone e mai scrive da solo).
 - **D-UM13 — N6: larghezza massima del feed.** *Scartato*: «Tabella» come vista iniziale su desktop (nasconde la lista).
-- **D-UM14 — N12/N14: «vendi» neutro, Bear in ardesia; N14 solo audit più regola.** *Scartato*: unificare le maiuscole con
+- **D-UM14 — N12/N14: Bear in ardesia, «vendi» resta viola (22/11/2026); N14 solo audit più regola.** *Scartato*: unificare le maiuscole con
   un cambio globale (tocca ogni etichetta e i test che le cercano).
 
 ## 9. Punti aperti
 
-- **P1.** Gli schizzi «oggi / proposta» di N5–N14 non esistono (la review desktop non li ha): servono prima della conferma
+- **P1.** CHIUSO il 22/11/2026: schizzi fatti e decisioni confermate (vedi testata). Originale: gli schizzi «oggi / proposta» di N5–N14 non esistono (la review desktop non li ha): servono prima della conferma
   di D-UM12–D-UM14 (WORKFLOW.md § 1 regola 8). Proposto: una pagina pubblicata sola per UM5.
 - **P2.** CHIUSO il 22/11/2026: via la cascata da Panoramica e Patrimonio.
 - **P3.** Le tre varianti di UM2 vanno viste su iPhone vero: serve un giro con Giorgio (build su Vercel preview).
