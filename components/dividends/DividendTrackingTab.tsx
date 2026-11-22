@@ -372,6 +372,15 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
   // read's failure (open on every visit, its eyebrow red when closed); with nothing recorded
   // there are no rows, so nothing is ever written to the memory of an empty ledger.
   const nothingRecorded = dividends.length === 0;
+
+  // The first payment makes the empty tile (and the «Aggiungi dividendo» button the form was opened
+  // from) leave the page: the focus goes to the add button that takes its place (the page header's
+  // from `desktop:`, the axis's below it) instead of falling on `body` when the form closes.
+  useEffect(() => {
+    if (nothingRecorded || !formTriggerRef.current || formTriggerRef.current.isConnected) return;
+    const successor = Array.from(document.querySelectorAll<HTMLElement>('button[aria-label^="Aggiungi dividendo"]')).find((el) => el.offsetParent !== null);
+    if (successor) formTriggerRef.current = successor;
+  }, [nothingRecorded]);
   const sections = useMobileSections({
     route: 'cashflow',
     tab: 'dividends',
