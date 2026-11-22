@@ -29,7 +29,7 @@ import { MONTH_NAMES_SHORT } from '@/lib/utils/period';
 import { articleForPercent } from '@/lib/utils/patrimonioNarrative';
 import { describeEmptySelection, describePreviousMonthShort } from '@/lib/utils/storicoNarrative';
 import { NarrativeText } from '@/components/ui/narrative-text';
-import { isFlowDominated, type MonthAssetBreakdown, type MonthAssetRow, type SelectedAssetTrendPoint, type SelectionSummary, type SnapshotMonthOption } from '@/lib/utils/snapshotAssetBreakdown';
+import { describeRowIdentity, isFlowDominated, type MonthAssetBreakdown, type MonthAssetRow, type SelectedAssetTrendPoint, type SelectionSummary, type SnapshotMonthOption } from '@/lib/utils/snapshotAssetBreakdown';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { signTextClass } from '@/lib/utils/metricColors';
@@ -137,7 +137,9 @@ interface RowProps {
 // `@[760px]` is the container width from which Quantità and Quota are columns of their own; below
 // it they fold under the name and the value. Written out in full: Tailwind reads class names as text.
 
-function TableRow({ row, ticker, selected, onToggle, roving }: RowProps) {
+function TableRow({ row, ticker: rawTicker, selected, onToggle, roving }: RowProps) {
+  const { ticker, hasQuantity } = describeRowIdentity(row.name, rawTicker);
+  const quantity = hasQuantity ? formatNumber(row.quantity) : '–';
   return (
     <tr className={cn('border-t border-border', selected && 'bg-muted/30')}>
       <td className="w-8 align-middle">
@@ -151,13 +153,15 @@ function TableRow({ row, ticker, selected, onToggle, roving }: RowProps) {
         <span className="block max-w-[200px] truncate text-[13px] text-foreground @[760px]:max-w-[320px]">{row.name}</span>
         <span className="block max-w-[200px] truncate font-mono text-[11px] tabular-nums text-muted-foreground @[760px]:max-w-[320px]">
           {ticker}
-          <span className="@[760px]:hidden">
-            {ticker ? ' · ' : ''}
-            {formatNumber(row.quantity)}
-          </span>
+          {hasQuantity && (
+            <span className="@[760px]:hidden">
+              {ticker ? ' · ' : ''}
+              {quantity}
+            </span>
+          )}
         </span>
       </th>
-      <td className={cn(CELL_CLASS, 'hidden text-[13px] text-muted-foreground @[760px]:table-cell')}>{formatNumber(row.quantity)}</td>
+      <td className={cn(CELL_CLASS, 'hidden text-[13px] text-muted-foreground @[760px]:table-cell')}>{quantity}</td>
       <td className={cn(CELL_CLASS, 'text-[13px] text-foreground')}>
         {formatCurrency(row.totalValue)}
         <span className="block text-[11px] text-muted-foreground @[760px]:hidden">{formatPercentage(row.sharePct, 1)}</span>
@@ -177,16 +181,15 @@ function TableRow({ row, ticker, selected, onToggle, roving }: RowProps) {
 }
 
 /** The whole row is the tap target: a `<label>` around the checkbox, so a 16px square is never the only way to tick on a phone. */
-function FlatRow({ row, ticker, selected, onToggle, roving }: RowProps) {
+function FlatRow({ row, ticker: rawTicker, selected, onToggle, roving }: RowProps) {
+  const { ticker, hasQuantity } = describeRowIdentity(row.name, rawTicker);
+  const secondLine = [ticker, hasQuantity ? formatNumber(row.quantity) : ''].filter(Boolean).join(' · ');
   return (
     <label className={cn('flex min-h-[44px] cursor-pointer items-center gap-2.5 border-t border-border py-2', selected && 'bg-muted/30')}>
       <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={`Seleziona ${row.name}`} {...roving} />
       <div className="min-w-0 flex-1">
         <span className="block truncate text-[13px] text-foreground">{row.name}</span>
-        <span className="block truncate font-mono text-[11px] tabular-nums text-muted-foreground">
-          {ticker ? `${ticker} · ` : ''}
-          {formatNumber(row.quantity)}
-        </span>
+        {secondLine && <span className="block truncate font-mono text-[11px] tabular-nums text-muted-foreground">{secondLine}</span>}
         {row.delta !== null && (
           <span className="block font-mono text-[11px] tabular-nums text-muted-foreground">
             prezzo <Effect value={row.priceEffect} /> · quantità <Effect value={row.quantityEffect} flow />

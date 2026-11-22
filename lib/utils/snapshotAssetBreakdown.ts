@@ -265,6 +265,18 @@ export interface MonthAssetRow {
 }
 
 /**
+ * The second line of an instrument's row in Valore per strumento (UM5b N9): an account, a property
+ * or a pension fund has no ticker of its own, so its display ticker falls back to its NAME and the
+ * row printed the name twice (and a «quantity» that is the balance again). Such a row says nothing
+ * on the second line: no ticker, and its quantity is a dash.
+ */
+export function describeRowIdentity(name: string, ticker: string): { ticker: string; hasQuantity: boolean } {
+  const bare = ticker.trim();
+  const tickerless = bare === '' || bare.toLowerCase() === name.trim().toLowerCase();
+  return tickerless ? { ticker: '', hasQuantity: false } : { ticker: bare, hasQuantity: true };
+}
+
+/**
  * True when a change is mostly a FLOW: what was bought, sold or deposited moved the value more
  * than the prices did. Such a Δ is printed signed but never in a sign colour — a 38.596 € sale
  * read as the page's largest LOSS while its price effect was +348 € (critique of 2026-09-20).

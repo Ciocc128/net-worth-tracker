@@ -8,6 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  describeRowIdentity,
   getAvailableSnapshotMonths,
   sortAssetsByValue,
   sumSelectedValues,
@@ -411,5 +412,18 @@ describe('summarizeSelection', () => {
     expect(first).toMatchObject({ count: 1, value: 1000, delta: null, priceEffect: null, quantityEffect: null });
     const none = summarizeSelection(buildMonthAssetBreakdown([june, july], '2026-7')!, new Set());
     expect(none).toMatchObject({ count: 0, value: 0, sharePct: 0, delta: 0 });
+  });
+});
+
+describe('describeRowIdentity (UM5b N9)', () => {
+  // A tickerless asset's display ticker IS its name: the row must not print it twice, and a
+  // balance is not a quantity of anything, so its quantity is a dash.
+  it('drops the ticker that repeats the name, whatever the case', () => {
+    expect(describeRowIdentity('Conto Alfa', 'conto alfa')).toEqual({ ticker: '', hasQuantity: false });
+    expect(describeRowIdentity('Conto Alfa', '  ')).toEqual({ ticker: '', hasQuantity: false });
+  });
+
+  it('keeps a real ticker and its quantity', () => {
+    expect(describeRowIdentity('Fondo Mondo', 'VWCE')).toEqual({ ticker: 'VWCE', hasQuantity: true });
   });
 });
