@@ -27,6 +27,12 @@ interface AnalisiPeriodControlsProps {
  */
 const PICKER_TRIGGER_CLASS = 'bg-outline-surface transition-colors hover:bg-accent hover:text-accent-foreground';
 
+/** The «Periodo» menu's value below `sm`: a mode, or a past year as `year:2025` («Anno» and its year in one item). */
+export function periodMenuValue(periodMode: PeriodMode, selectedYear: number | null, pastYears: number[]): string {
+  if (periodMode !== 'year') return periodMode;
+  return `year:${selectedYear ?? pastYears[0] ?? ''}`;
+}
+
 const MODE_OPTIONS = [
   // «Da inizio anno» stops at today's month; «Anno corrente» is January → December and carries
   // what is only scheduled. Same words as the Cashflow picker, for the same two windows.
@@ -46,9 +52,11 @@ const SELECT_CLASS = 'h-11 data-[size=default]:h-11 desktop:h-9 desktop:data-[si
  * The page's ONE axis — the four-mode pill (Da inizio anno | Anno corrente | Anno | Storico) with the month
  * picker (and the year picker in «Anno») beside it. Deep-linked as `?period&year&month` by the
  * tab; rendered beside the verdict from `desktop:` and under it below. «Ripristina» clears the
- * month only: the mode and the year are the axis, not a filter. Below `sm` the four options
- * stand in two rows: four Italian labels do not fit a 358px pill, and a pill that scrolls
- * inside itself clipped «Storico» to «Storic» with nothing to say so (measured at 390, 2026-09-14).
+ * month only: the mode and the year are the axis, not a filter. Below `sm` the axis is ONE row of two
+ * menus, «Periodo» and «Mese» (UM4 P13, 2026-11-22): four Italian labels do not fit a 358px pill, a pill
+ * that scrolls inside itself clipped «Storico» to «Storic» (2026-09-14), and the 2×2 grid that replaced it
+ * took three rows, 152px, before any figure. The past years are items of «Periodo» (`year:2025`), so the
+ * year menu goes; «Ripristina» goes too, since «Tutto l'anno» is the month menu's first item.
  */
 export function AnalisiPeriodControls({
   periodMode,
@@ -76,8 +84,37 @@ export function AnalisiPeriodControls({
     </Select>
   );
 
+  const periodSelect = (
+    <Select
+      value={periodMenuValue(periodMode, selectedYear, pastYears)}
+      onValueChange={(value) => {
+        if (value.startsWith('year:')) {
+          onModeChange('year');
+          onYearChange(parseInt(value.slice(5), 10));
+        } else {
+          onModeChange(value as PeriodMode);
+        }
+      }}
+    >
+      <SelectTrigger className={cn(SELECT_CLASS, 'min-w-0 flex-1 sm:hidden', PICKER_TRIGGER_CLASS)} aria-label="Periodo di analisi">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="ytd">Da inizio anno</SelectItem>
+        <SelectItem value="current">Anno corrente</SelectItem>
+        {pastYears.map((year) => (
+          <SelectItem key={year} value={`year:${year}`} className="font-mono tabular-nums">
+            {year}
+          </SelectItem>
+        ))}
+        <SelectItem value="history">Storico</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+
   return (
-    <div className={cn('flex flex-wrap items-center justify-center gap-2 desktop:justify-end', className)}>
+    <div className={cn('flex items-center justify-center gap-2 max-sm:w-full sm:flex-wrap desktop:justify-end', className)}>
+      {periodSelect}
       <SegmentedPill
         ariaLabel="Periodo di analisi"
         layoutId="analisi-period-pill"
@@ -86,7 +123,7 @@ export function AnalisiPeriodControls({
         options={MODE_OPTIONS}
         semantics="radio"
         optionClassName={PILL_OPTION_CLASS}
-        className="max-sm:grid max-sm:w-full max-sm:grid-cols-2 max-sm:rounded-2xl"
+        className="max-sm:hidden"
       />
       <AnimatePresence mode="wait">
         {periodMode !== 'history' && (
@@ -95,11 +132,11 @@ export function AnalisiPeriodControls({
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
-            className="flex flex-wrap items-center justify-center gap-2"
+            className="flex items-center justify-center gap-2 max-sm:min-w-0 max-sm:flex-1 sm:flex-wrap"
           >
             {periodMode === 'year' && (
               <Select value={selectedYear?.toString() ?? pastYears[0]?.toString()} onValueChange={(value) => onYearChange(parseInt(value, 10))}>
-                <SelectTrigger className={cn(SELECT_CLASS, 'w-[110px] font-mono tabular-nums', PICKER_TRIGGER_CLASS)} aria-label="Anno">
+                <SelectTrigger className={cn(SELECT_CLASS, 'w-[110px] font-mono tabular-nums max-sm:hidden', PICKER_TRIGGER_CLASS)} aria-label="Anno">
                   <SelectValue placeholder="Anno" />
                 </SelectTrigger>
                 <SelectContent>
@@ -113,7 +150,7 @@ export function AnalisiPeriodControls({
             )}
             {monthSelect}
             {selectedMonth !== null && (
-              <Button variant="ghost" size="sm" onClick={() => onMonthChange(null)} className={cn(CONTROL_CLASS, 'whitespace-nowrap text-muted-foreground hover:text-foreground')}>
+              <Button variant="ghost" size="sm" onClick={() => onMonthChange(null)} className={cn(CONTROL_CLASS, 'whitespace-nowrap text-muted-foreground hover:text-foreground max-sm:hidden')}>
                 Ripristina
               </Button>
             )}

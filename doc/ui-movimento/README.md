@@ -19,8 +19,8 @@
 > `non-scaling-stroke`; via la cascata da Panoramica e Patrimonio (`tileGridEntrance` rimosso); uscite di dialog/alert-dialog 200/130, popover e
 > menu 150/100, foglio 500/300, curve ease-out-quart dentro e `ease-in` fuori. Misure sul Mac ancora da fare (vedi la PR).
 
-> **UM4 implementata il 2026-11-22** (#218, più l'anello di focus unico in una PR successiva): punti 8, 11, 12, 14, 15, 16; **P13 aspetta il
-> census a 390 sul Mac** prima di toccare i selettori. Regole nuove in DESIGN.md: The Press-Is-A-Step-Of-Colour Rule, The Resting-Bin Rule.
+> **UM4 implementata il 2026-11-22** (#218, più l'anello di focus unico in una PR successiva): punti 8, 11, 12, 14, 15, 16; P13 lo
+> stesso giorno, dopo la misura a 390 sul Mac (FIRE 382 px su 358, Analisi su tre righe). Regole nuove in DESIGN.md: The Press-Is-A-Step-Of-Colour Rule, The Resting-Bin Rule.
 
 > **UM2 implementata il 2026-11-22** (punto 4, D-UM4 variante (a)): provata su iPhone vero dietro `?fascia=a` (PR #219) e scelta da Giorgio lo
 > stesso giorno; il video dell'«oggi» (c) mostrava la fascia schiarirsi fino al fondo a ogni tocco. Nella scena morbida `<main>` e gli antenati
@@ -186,8 +186,11 @@ parametro di mercato)».
   sottocategoria, altrimenti il conto, altrimenti niente; **la categoria non è mai in entrambe le righe**. N9 (Storico ›
   Valore per strumento: conti col nome due volte) è la stessa regola: seconda riga «conto» o vuota; Quantità con il trattino.
   Test: `rowSubtitle(expense)` pura in `lib/utils`.
-- **P13 · Selettori a 390.** Rimisurare al census; se confermato, il periodo di Analisi su una riga (il campo del mese e le
-  frecce, le pillole in scorrimento) e la barra FIRE con la sesta icona raggiungibile (scorrimento con indizio, o cinque + «⋯»).
+- **P13 · Selettori a 390.** Confermato dalla misura sul Mac (2026-11-22). Fatto: sotto `sm` il periodo di Analisi è UNA
+  riga di due menu da 44 px, «Periodo» (Da inizio anno, Anno corrente, gli anni passati, Storico) e «Mese»; spariscono
+  il menu dell'anno e «Ripristina» («Tutto l'anno» è la prima voce del mese). Da `sm` in su le pillole di prima. Nella
+  pillola delle schede sotto la fascia la scheda aperta può avere un nome corto (`TabDef.shortLabel`): «Calcolatore» per
+  «Calcolatore FIRE», la barra FIRE passa da 382 a 348 px; le altre cinque entrano intere (la più larga «Dopo il FIRE», 352).
 - **P14 · «Dettaglio» in Dividendi.** Riga piatta come altrove (`DettaglioDisclosure`, l'altro disclosure dell'app).
 - **P15 · Cestini rimasti.** Pagamenti (`DividendTable`): grigio a riposo, rosso al passaggio e al fuoco, armato com'è.
   Stesso primitivo di RU6 (`group`, `group-hover:text-destructive`); se serve un terzo posto, si estrae `RestingBin`.

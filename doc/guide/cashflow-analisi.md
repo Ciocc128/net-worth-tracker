@@ -96,7 +96,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   The aside says «Con sottocategorie · prime 6 categorie»; the footer says what a click does, which lived in a hover tooltip only.
   Pinned by `cashflowSankey.test.ts`.
 - **Keyboard**: the axis is `SegmentedPill semantics="radio"` (a value the whole page reads) with 44px options below `desktop:` and a
-  2×2 grid below `sm` (four Italian labels do not fit a 358px pill; it scrolled inside itself and clipped «Storico»); closing the
+  below `sm` ONE row of two menus, «Periodo» (a past year is its own item, `periodMenuValue`) and «Mese» (UM4 P13,
+  2026-11-22: a scrolling pill clipped «Storico», the 2×2 grid after it took three rows); closing the
   Scheda — «Chiudi», «Indietro» at category level, or **Escape on the cell** — returns the focus to the control that opened it
   (`focusTriggerRef`, captured in `handleEntitySelect` when the opener is a control on the page), and the search's modal names its
   trigger through `returnFocusTo` and its listbox in Italian (cmdk's default was «Suggestions»). The month names of the months
