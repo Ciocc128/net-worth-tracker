@@ -1787,6 +1787,30 @@ html {
   right: -14px;
   background: radial-gradient(circle at 100% 0, transparent 13.5px, var(--page-ground) 14px);
 }
+/* A closed tab under the pointer takes the open tab's silhouette (same 48px height, 14px top corners, flat foot, the two
+   inverted corners at its feet), in the subtler `--band-hover`: the shape says «this is where you are about to land». */
+@media (hover: hover) {
+  .band-tab-closed:hover {
+    background-color: var(--band-hover);
+  }
+  .band-tab-closed:hover::before,
+  .band-tab-closed:hover::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    width: 14px;
+    height: 14px;
+    pointer-events: none;
+  }
+  .band-tab-closed:hover::before {
+    left: -14px;
+    background: radial-gradient(circle at 0 0, transparent 13.5px, var(--band-hover) 14px);
+  }
+  .band-tab-closed:hover::after {
+    right: -14px;
+    background: radial-gradient(circle at 100% 0, transparent 13.5px, var(--band-hover) 14px);
+  }
+}
 /* The page's fact and actions come into the band with the page (D-FD21): a short fade, none with reduced motion. */
 @keyframes shell-band-in {
   from { opacity: 0; transform: translateY(2px); }
