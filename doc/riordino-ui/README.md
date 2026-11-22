@@ -272,7 +272,7 @@ e le classi (`desktop:` davanti a ognuna):
   `feedBeside`) contiene il tile, così la lista non allunga la riga; la cella ha `min-h-[480px]`.
 - **Cosa scorre**: `MovimentiTile` riceve una prop nuova `scrollBody?: boolean`. Con `true` la `section` è `flex flex-col h-full`,
   occhiello, lettura e barra degli strumenti restano ferme, e il `div` dei figli diventa `min-h-0 flex-1 overflow-y-auto`
-  (barra di scorrimento della piattaforma). Senza la prop il tile è quello di oggi (telefono e Tabella).
+  (senza barra di scorrimento visibile: classe `no-scrollbar`, scorre comunque con rotella, trackpad, tastiera e touch). Senza la prop il tile è quello di oggi (telefono e Tabella).
 - La paginazione resta quella del feed («Carica altri 20», «N di M voci» nell'aside): niente «Mostra tutti» (D-RU6).
 - Misura nel render a 1440×900, mese di novembre del census: Movimenti comincia a ~960 px (oggi 1298) e la pagina è più corta
   di 540 px. Non entra nella prima schermata: il tile Cashflow si allunga quanto Andamento + Risparmio.
