@@ -83,7 +83,7 @@ export function PasswordReveal({ shown, onToggle, disabled, fieldLabel }: Passwo
       disabled={disabled}
       aria-pressed={shown}
       aria-label={shown ? `Nascondi ${fieldLabel}` : `Mostra ${fieldLabel}`}
-      className="-my-3.5 -mr-2 inline-flex h-11 shrink-0 items-center rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50 motion-reduce:transition-none"
+      className="-my-3.5 -mr-2 inline-flex h-11 shrink-0 items-center rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50 motion-reduce:transition-none"
     >
       {shown ? 'Nascondi' : 'Mostra'}
     </button>

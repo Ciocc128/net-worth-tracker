@@ -417,6 +417,10 @@ other). None is declared; a linter that flags them is right.
 
 **The Home-Page Rule.** Every piece of information has ONE page that is its home; anywhere else it appears only as a summary — at most half the rows, no controls, and a link home. A figure edited on two pages is two sources of truth (doc/riordino-ui/README.md § 5.1, 2026-11-20).
 
+**The Press-Is-A-Step-Of-Colour Rule** (UM4 P8, 2026-11-22, doc/ui-movimento/README.md § 5.4). A control or a row that opens something answers the finger with ONE step of colour, one step under its hover, in 100 ms: `Button`'s `active:` per variant, `active:bg-muted` on `TileRowShell`, `RankedRows` and the other opening rows. Never `scale`, never a ripple, never a shadow: the press is a change of colour, not of shape. The one wash for a row's hover is `hover:bg-muted/40`, and `__tests__/hoverMutedSteps.test.ts` fails on any other step.
+
+**The Resting-Bin Rule** (RU6 on Strumenti, UM4 P15 everywhere else). A row's delete is a grey bin at rest and red on hover and focus of its button (`RestingBin`, the button takes `group`): a page full of rows is not a page full of warnings. The armed state («Conferma») is the destructive button as before. A phone's «Elimina» outline button (D-CA*) is not a bin and stays as it is.
+
 **The Adjust-Where-You-Look Rule.** What tunes an object on a page is changed ON that page, by a pencil on the tile that shows it (a `ResponsiveModal`, The Modal-Is-A-Tile Rule). Impostazioni holds only what concerns the account or several pages; a gear in a page header opens that page's settings and nothing else.
 
 **The Frequent-First Rule.** A page reads: verdict, then the most frequent work, then context, then the closed deep-dive; tiles of one theme sit together. It is applied with `desktop:col-start-*` / `row-start-*`, never with `order` (The First-Screen Rule: the DOM is the reading order at every width).

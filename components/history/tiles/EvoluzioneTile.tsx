@@ -83,7 +83,20 @@ const SCRUB_SETTLE_MS = 220;
  * longer than its figure wraps under it instead of pushing the next chip away — at 1440 it opened
  * an uneven gap, on a phone it forced one chip per line.
  */
-function Chip({ value, caption, className, children }: { value: number | null; caption: string; className?: string; children: React.ReactNode }) {
+function Chip({
+  value,
+  caption,
+  className,
+  keepCaptionWhole = false,
+  children,
+}: {
+  value: number | null;
+  caption: string;
+  className?: string;
+  /** A short caption («ultimi 12 mesi») never breaks in the middle: the chip as a whole goes to the next line instead (UM4 P11). */
+  keepCaptionWhole?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     // The column is as wide as its pill: a long caption wraps under it (`w-0 min-w-full`) instead of
     // widening the column and pushing the next pill away (owner, 2026-09-15).
@@ -96,7 +109,7 @@ function Chip({ value, caption, className, children }: { value: number | null; c
       >
         {children}
       </span>
-      <span className="w-0 min-w-full text-[11px] leading-[1.35] text-muted-foreground">{caption}</span>
+      <span className={cn('w-0 min-w-full text-[11px] leading-[1.35] text-muted-foreground', keepCaptionWhole && 'whitespace-nowrap')}>{caption}</span>
     </div>
   );
 }
@@ -265,7 +278,7 @@ export function EvoluzioneTile({ aside, reading, growth, pace, points, noteCount
           per line they held the curve under the fold. */}
       <div className={cn('mt-4 flex flex-row flex-wrap items-start gap-x-2.5 gap-y-2.5', chipsRowLifted && LIFTED_FIGURE_CLASS)}>
         {growth.snapshotCount > 1 && (
-          <Chip value={growth.delta} caption="dal primo snapshot" className={lifted('growth') ? LIFTED_FIGURE_CLASS : undefined}>
+          <Chip value={growth.delta} caption="dal primo snapshot" keepCaptionWhole className={lifted('growth') ? LIFTED_FIGURE_CLASS : undefined}>
             <GrowthIcon className="h-[13px] w-[13px] shrink-0" aria-hidden="true" />
             {signed(growth.delta)}
             {growth.growthPct !== null && ` (${signedPct(growth.growthPct)})`}
@@ -282,7 +295,7 @@ export function EvoluzioneTile({ aside, reading, growth, pace, points, noteCount
           // unsigned and uncoloured (the printed-zero rule, AGENTS.md § Layout and Color Tokens; at
           // every width since 2026-10-14, the percentage beside it since 2026-10-15 — it read
           // «0 € (+0,0%)»); lifted on a phone, where the percentage stays alone.
-          <Chip value={printedSign(pace.trailingDelta, 0) === 0 ? null : pace.trailingDelta} caption="ultimi 12 mesi" className={trailingChipLifted ? LIFTED_FIGURE_CLASS : undefined}>
+          <Chip value={printedSign(pace.trailingDelta, 0) === 0 ? null : pace.trailingDelta} caption="ultimi 12 mesi" keepCaptionWhole className={trailingChipLifted ? LIFTED_FIGURE_CLASS : undefined}>
             <span className={lifted('trailing') ? LIFTED_FIGURE_CLASS : undefined}>{formatSignedEuro(pace.trailingDelta, true)}</span>
             {pace.trailingPct !== null && <span>({formatSignedPercentIt(pace.trailingPct, 1)})</span>}
           </Chip>

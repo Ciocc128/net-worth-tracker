@@ -5,25 +5,25 @@ import { Slot } from "radix-ui"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity] duration-100 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-action text-action-foreground hover:bg-action-hover",
+        default: "bg-action text-action-foreground hover:bg-action-hover active:bg-[color-mix(in_oklab,var(--action-hover)_88%,black)]",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
+          "bg-destructive text-white hover:bg-destructive/90 active:bg-destructive/80 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
         outline:
-          "border bg-outline-surface shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border bg-outline-surface shadow-xs hover:bg-accent hover:text-accent-foreground active:bg-[color-mix(in_oklab,var(--accent)_90%,var(--foreground))] dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         // A destructive action before it is armed: an outline button that reads red. Its fill,
         // hover and border are theme tokens (Lime Frost light keeps them near-neutral, so the red
         // does not vibrate on green); the default dark block gives them the outline variant's input wash.
         outlineDestructive:
-          "border border-destructive-outline bg-destructive-surface text-destructive shadow-xs hover:bg-destructive-surface-hover hover:text-destructive",
+          "border border-destructive-outline bg-destructive-surface text-destructive shadow-xs hover:bg-destructive-surface-hover hover:text-destructive active:bg-[color-mix(in_oklab,var(--destructive-surface-hover)_90%,var(--destructive))]",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80 active:bg-secondary/65",
         // A bin (an icon in text-destructive) keeps its red and hovers on the theme's destructive wash.
         ghost:
-          "hover:bg-ghost-hover hover:text-ghost-hover-foreground hover:has-[svg.text-destructive]:bg-ghost-destructive-hover",
+          "hover:bg-ghost-hover hover:text-ghost-hover-foreground active:bg-[color-mix(in_oklab,var(--ghost-hover)_90%,var(--foreground))] hover:has-[svg.text-destructive]:bg-ghost-destructive-hover",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

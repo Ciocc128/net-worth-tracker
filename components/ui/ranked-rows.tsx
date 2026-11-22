@@ -141,7 +141,7 @@ export function RankedRows({ rows, color, remainders, labelClassName, onRowClick
                 aria-label={`${row.label}${row.caption ? ` · ${row.caption}` : ''}, ${cachedFormatCurrencyEUR(row.amount, true)}, ${Math.round(row.percentage)}%`}
                 aria-current={active ? 'true' : undefined}
                 className={cn(
-                  'flex min-h-[44px] w-full items-center gap-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset desktop:-mx-2 desktop:min-h-0 desktop:w-[calc(100%+16px)] desktop:rounded-md desktop:px-2',
+                  'flex min-h-[44px] w-full items-center gap-3 py-2 text-left transition-colors hover:bg-muted/40 active:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset desktop:-mx-2 desktop:min-h-0 desktop:w-[calc(100%+16px)] desktop:rounded-md desktop:px-2',
                   active && 'bg-muted/40',
                 )}
               >

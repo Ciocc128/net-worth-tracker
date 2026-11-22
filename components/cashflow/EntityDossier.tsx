@@ -254,7 +254,7 @@ function YearRow({
         onClick={onToggle}
         aria-expanded={isExpanded}
         aria-controls={regionId}
-        className="flex w-full items-center justify-between gap-3 rounded-lg py-2 pl-1 pr-1 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="flex w-full items-center justify-between gap-3 rounded-lg py-2 pl-1 pr-1 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {summary}
       </button>

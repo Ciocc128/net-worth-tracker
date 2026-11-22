@@ -52,10 +52,11 @@ import { describeLedgerReturnVital, describeMovementsReading, describeWriteError
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { Button } from '@/components/ui/button';
+import { RestingBin } from '@/components/ui/resting-bin';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { TransactionDialog } from '@/components/assets/TransactionDialog';
 import { cn } from '@/lib/utils';
-import { Info, Pencil, Plus, Trash2, ScrollText } from 'lucide-react';
+import { Info, Pencil, Plus, ScrollText } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Asset } from '@/types/assets';
 import type { AssetTransaction } from '@/types/assetTransactions';
@@ -336,7 +337,7 @@ function DeleteButton({ transaction, isDemo, onDelete, className }: DeleteButton
         type="button"
         variant={armed ? 'destructive' : 'ghost'}
         size={armed ? 'sm' : 'icon'}
-        className={cn(armed ? 'h-8 px-2 text-[11px]' : 'h-8 w-8', className)}
+        className={cn('group', armed ? 'h-8 px-2 text-[11px]' : 'h-8 w-8', className)}
         onClick={onClick}
         onBlur={onBlur}
         disabled={isDemo}
@@ -346,7 +347,7 @@ function DeleteButton({ transaction, isDemo, onDelete, className }: DeleteButton
         {armed ? (
           transaction.linkedCashAssetId ? 'Di nuovo: storna il saldo' : 'Premi di nuovo'
         ) : (
-          <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
+          <RestingBin />
         )}
       </Button>
       <span className="sr-only" role="status" aria-live="polite">

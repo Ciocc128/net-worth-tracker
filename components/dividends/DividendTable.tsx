@@ -29,9 +29,10 @@ import { motion } from 'framer-motion';
 import { Dividend, DividendType } from '@/types/dividend';
 import { Timestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
+import { RestingBin } from '@/components/ui/resting-bin';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Edit, Trash2, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Info } from 'lucide-react';
+import { Edit, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { format } from 'date-fns';
@@ -232,7 +233,7 @@ function DesktopRow({ dividend, now, active, isDemo, busy, onEdit, onOpenDetails
     <tr
       onClick={() => onOpenDetails(dividend, openRef.current ?? document.body)}
       className={cn(
-        'cursor-pointer border-t border-border transition-colors motion-reduce:transition-none hover:bg-muted/30',
+        'cursor-pointer border-t border-border transition-colors motion-reduce:transition-none hover:bg-muted/40',
         active && 'bg-muted/40',
         armed && 'bg-destructive/5',
       )}
@@ -291,6 +292,7 @@ function DesktopRow({ dividend, now, active, isDemo, busy, onEdit, onOpenDetails
             ref={deleteRef}
             variant={armed ? 'destructive' : 'ghost'}
             size="sm"
+            className="group"
             onClick={(e) => {
               e.stopPropagation();
               onArmedClick();
@@ -300,7 +302,7 @@ function DesktopRow({ dividend, now, active, isDemo, busy, onEdit, onOpenDetails
             aria-pressed={armed}
             aria-label={isDemo ? 'Elimina — non disponibile in modalità demo' : armed ? `Premi di nuovo per eliminare ${name}` : `Elimina ${name}`}
           >
-            {armed ? <span className="px-1 text-xs">Conferma</span> : <Trash2 className="h-3.5 w-3.5 text-destructive" aria-hidden="true" />}
+            {armed ? <span className="px-1 text-xs">Conferma</span> : <RestingBin className="h-3.5 w-3.5" />}
           </Button>
         </div>
       </td>
@@ -421,7 +423,7 @@ export function DividendTable({
               aria-label={`Dettagli: ${rowName(dividend)}${announced ? ', attesa' : ''}`}
               className={cn(
                 'flex min-h-11 w-full items-center gap-3 py-2.5 text-left transition-colors motion-reduce:transition-none',
-                'hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 activeDividendId === dividend.id && 'bg-muted/40'
               )}
             >

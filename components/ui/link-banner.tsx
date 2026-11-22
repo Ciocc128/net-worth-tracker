@@ -39,7 +39,7 @@ export function LinkBanner({ href, title, description, onClick, className }: Rea
       onClick={onClick}
       className={cn(
         'flex items-center justify-between rounded-xl bg-muted/40 px-3.5 py-2.5',
-        'hover:bg-muted/60 transition-colors',
+        'hover:bg-muted/40 transition-colors',
         className,
       )}
     >

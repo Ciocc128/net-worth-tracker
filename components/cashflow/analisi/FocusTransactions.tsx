@@ -95,7 +95,7 @@ export function FocusTransactions({ expenses, isIncome, periodLabel }: FocusTran
           </thead>
           <tbody>
             {visible.map((expense) => (
-              <tr key={expense.id} className="border-b border-border hover:bg-muted/30">
+              <tr key={expense.id} className="border-b border-border hover:bg-muted/40">
                 <th scope="row" className="py-2 text-left font-mono text-[13px] font-normal tabular-nums">{format(toDate(expense.date), 'dd/MM/yyyy', { locale: it })}</th>
                 <td className={cn('py-2 text-right font-mono text-[13px] tabular-nums', amountClass)}>{formatCurrency(expense.amount)}</td>
                 <td className="py-2 pl-4 text-[13px] text-muted-foreground">{expense.notes || '—'}</td>

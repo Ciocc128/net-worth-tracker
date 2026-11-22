@@ -221,7 +221,7 @@ export function AssetAssignmentDialog({
                     key={asset.id}
                     type="button"
                     onClick={() => pickAsset(asset)}
-                    className={`w-full text-left px-3 py-2.5 hover:bg-muted/30 transition-colors ${
+                    className={`w-full text-left px-3 py-2.5 hover:bg-muted/40 transition-colors ${
                       isSelected ? 'bg-accent' : ''
                     }`}
                   >

@@ -19,7 +19,7 @@ import { ChevronDown } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger, DISCLOSURE_MOTION_CLASS } from '@/components/ui/collapsible';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Badge } from '@/components/ui/badge';
-import { Tile, TILE_CELL_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_CELL_CLASS, TILE_EYEBROW_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { getMetricValueColor } from '@/lib/utils/metricColors';
 import { formatPercentage } from '@/lib/services/chartService';
 import { formatNumber } from '@/lib/services/chartService';
@@ -65,8 +65,11 @@ export function DividendiDettaglio({ stats, now }: DividendiDettaglioProps) {
   return (
     <>
       <Collapsible open={open} onOpenChange={setOpen}>
-        <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 rounded-xl border border-border px-4 py-3 text-sm font-medium transition-colors hover:bg-muted/40">
-          <span>Dettaglio · crescita del dividendo e rendimento totale</span>
+        <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 border-t border-border/40 py-3 text-left" aria-label="Dettaglio">
+          <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className={TILE_EYEBROW_CLASS}>Dettaglio</span>
+            <span className="text-[13px] text-muted-foreground">crescita del dividendo e rendimento totale</span>
+          </span>
           <ChevronDown
             className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
             aria-hidden="true"
@@ -142,7 +145,7 @@ export function DividendiDettaglio({ stats, now }: DividendiDettaglioProps) {
                         key={asset.assetId}
                         type="button"
                         onClick={() => setSelectedAsset(asset)}
-                        className="flex min-h-11 items-center gap-3 py-2.5 text-left transition-colors hover:bg-muted/30"
+                        className="flex min-h-11 items-center gap-3 py-2.5 text-left transition-colors hover:bg-muted/40"
                       >
                         <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
                           {asset.assetTicker || asset.assetName}

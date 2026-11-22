@@ -523,6 +523,7 @@ export function TransactionFeed({
                     categoryColor={catMeta?.color}
                     scheduled={isScheduledRow(expense, now)}
                     ownerLabel={memberNames ? resolveOwnerLabel(expense, memberNames) : null}
+                    accountName={expense.linkedCashAssetId ? (accountNames?.get(expense.linkedCashAssetId) ?? null) : null}
                     buttonRef={expense.id === focusRowId ? focusRowRef : undefined}
                   />
                 </div>

@@ -47,7 +47,6 @@ import {
   PiggyBank,
   Plus,
   ScrollText,
-  Trash2,
   TrendingUp,
 } from 'lucide-react';
 import { isLoanAsset, type Asset, type FamilyMember } from '@/types/assets';
@@ -74,6 +73,7 @@ import { describeInstruments } from '@/lib/utils/patrimonioNarrative';
 import { cn } from '@/lib/utils';
 import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { Button } from '@/components/ui/button';
+import { RestingBin } from '@/components/ui/resting-bin';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tile, TILE_SUB_EYEBROW_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { usePreloadWhenIdle } from '@/components/ui/lazy-component';
@@ -198,7 +198,7 @@ function DeleteButton({ asset, onDelete, disabled }: DeleteButtonProps) {
       aria-label={`Elimina ${asset.name}`}
       title={disabled ? 'Non disponibile in modalità demo' : undefined}
     >
-      <Trash2 className="h-4 w-4 text-muted-foreground group-hover:text-destructive group-focus-visible:text-destructive" aria-hidden="true" />
+      <RestingBin />
     </Button>
   );
 }
@@ -612,7 +612,7 @@ export function StrumentiTile({
             type="button"
             onClick={() => toggleGroupCollapsed(cls)}
             aria-expanded={!isCollapsed}
-            className="flex w-full items-center justify-between px-1.5 py-2 text-left hover:bg-muted/60"
+            className="flex w-full items-center justify-between px-1.5 py-2 text-left hover:bg-muted/40"
           >
             <span className="flex items-center gap-2">
               <Chevron className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />

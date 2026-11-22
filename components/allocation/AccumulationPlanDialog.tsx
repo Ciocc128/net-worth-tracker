@@ -1072,7 +1072,7 @@ export function AccumulationPlanDialog({
                                 <button
                                   type="button"
                                   aria-pressed={selectedForGroup.has(assetId)}
-                                  className={`-mx-1.5 rounded-md px-1.5 py-1 text-left transition-colors ${selectedForGroup.has(assetId) ? 'bg-muted font-medium ring-1 ring-border' : 'hover:bg-muted/60'}`}
+                                  className={`-mx-1.5 rounded-md px-1.5 py-1 text-left transition-colors ${selectedForGroup.has(assetId) ? 'bg-muted font-medium ring-1 ring-border' : 'hover:bg-muted/40'}`}
                                   onClick={() =>
                                     setSelectedForGroup((prev) => {
                                       const next = new Set(prev);
