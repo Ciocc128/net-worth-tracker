@@ -24,6 +24,12 @@ export const VIEW_TRANSITION_ATTRIBUTE = 'data-vt';
  */
 export const PAGE_LEAVING_ATTRIBUTE = 'data-page-leaving';
 
+/**
+ * The soft scene's landing (UM2): set by `template.tsx` before the next page's first paint and taken off
+ * once its entrance is over; the stylesheet fades in every subtree of `<main>` but the band.
+ */
+export const PAGE_ENTERING_ATTRIBUTE = 'data-page-entering';
+
 export function supportsViewTransition(): boolean {
   return typeof document !== 'undefined' && 'startViewTransition' in document;
 }

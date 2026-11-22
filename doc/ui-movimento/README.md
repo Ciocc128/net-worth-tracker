@@ -19,6 +19,11 @@
 > `non-scaling-stroke`; via la cascata da Panoramica e Patrimonio (`tileGridEntrance` rimosso); uscite di dialog/alert-dialog 200/130, popover e
 > menu 150/100, foglio 500/300, curve ease-out-quart dentro e `ease-in` fuori. Misure sul Mac ancora da fare (vedi la PR).
 
+> **UM2 implementata il 2026-11-22** (punto 4, D-UM4 variante (a)): provata su iPhone vero dietro `?fascia=a` (PR #219) e scelta da Giorgio lo
+> stesso giorno; il video dell'«oggi» (c) mostrava la fascia schiarirsi fino al fondo a ogni tocco. Nella scena morbida `<main>` e gli antenati
+> della fascia restano opachi e sfumano i sottoalberi senza fascia più ciò che sta sulla fascia (`app/globals.css` → Soft scene); l'entrata la
+> fa il foglio di stile sotto `data-page-entering` (`template.tsx`), non più la dissolvenza del template. (b) non è servita. Interruttore tolto.
+
 > **UM3 implementata il 2026-11-22** (punto 7, N12 solo Bear, audit N14): `splitEuroCents` + `SettledFigure smallCents` disegnano i centesimi del trio
 > (Tracciamento e Analisi › Periodo) al 60% del corpo, stessa linea di base, il testo letto non cambia; `--scenario-bear` di Lime Frost passa dalla lavanda
 > all'ardesia (chiaro `oklch(0.52 0.035 257)`, scuro `oklch(0.78 0.03 257)`), «vendi» resta viola, Graphite era già ardesia. **Audit N14 e regola: § 5.3a
@@ -238,7 +243,7 @@ Giorgio lo chiede; UM2 sta per ultima del telefono perché richiede l'iPhone. Ne
 - **D-UM2 — «Altro» senza stagger.** *Scartato*: stagger ridotto a 20 ms (il costo resta, il guadagno è nullo con 11 righe).
 - **D-UM3 — Tratto della curva `non-scaling-stroke` a 2 px.** *Scartato*: ricalcolare il path alla larghezza reale (costo e
   nessun vantaggio).
-- **D-UM4 — La fascia del telefono non sfuma, il resto sì (UM2), con tre varianti da provare su iPhone vero.** *Scartato*:
+- **D-UM4 — La fascia del telefono non sfuma, il resto sì (UM2). Presa il 22/11/2026 con la variante (a), selettore CSS sul solo contenuto, dopo la prova su iPhone.** *Scartato*:
   lasciare la dissolvenza (è la fascia che «si accende» a ogni navigazione, l'opposto di una fascia).
 - **D-UM5 — Patrimonio e Panoramica entrano come le altre pagine (via la cascata da entrambe, 22/11/2026).** *Scartato*: la cascata ovunque (D-AN5).
 - **D-UM6 — SOSPESA (22/11/2026, «per ora lasciamo così»).** Proposta: colori del Flusso del tema, nastri pieni al 35%.** *Scartato*: tenere i colori fissi di Tailwind come
@@ -263,7 +268,7 @@ Giorgio lo chiede; UM2 sta per ultima del telefono perché richiede l'iPhone. Ne
 - **P1.** CHIUSO il 22/11/2026: schizzi fatti e decisioni confermate (vedi testata). Originale: gli schizzi «oggi / proposta» di N5–N14 non esistono (la review desktop non li ha): servono prima della conferma
   di D-UM12–D-UM14 (WORKFLOW.md § 1 regola 8). Proposto: una pagina pubblicata sola per UM5.
 - **P2.** CHIUSO il 22/11/2026: via la cascata da Panoramica e Patrimonio.
-- **P3.** Le tre varianti di UM2 vanno viste su iPhone vero: serve un giro con Giorgio (build su Vercel preview).
+- **P3.** CHIUSO il 22/11/2026: (a) provata su iPhone vero in produzione dietro `?fascia=a` (l'anteprima non ha l'account) e scelta; (c) era il video dell'«oggi».
 - **P4.** CHIUSO il 22/11/2026 (regola in AGENTS.md). Originale: N14: quali maiuscole e decimali sono «difetto» e quali scelta — l'audit lo dice, la regola la sceglie Giorgio.
 - **P5.** Misure da riprendere sul Mac: 8, 13, N17 (a 2560), il census dei selettori a 390.
 

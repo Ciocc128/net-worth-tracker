@@ -19,16 +19,23 @@
  * API, a `router.push` from a page, the back button.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { pageVariants } from '@/lib/utils/motionVariants';
-import { PAGE_LEAVING_ATTRIBUTE, VIEW_TRANSITION_ATTRIBUTE } from '@/lib/utils/viewTransition';
-import { applyBandVariant } from '@/lib/utils/bandVariant';
+import { PAGE_ENTERING_ATTRIBUTE, PAGE_LEAVING_ATTRIBUTE, VIEW_TRANSITION_ATTRIBUTE } from '@/lib/utils/viewTransition';
 
 /** True when this mount is the landing of a page scene: the view transition is the entrance. */
 function isInsidePageScene(): boolean {
   return typeof document !== 'undefined' && document.documentElement.getAttribute(VIEW_TRANSITION_ATTRIBUTE) === 'page';
 }
+
+/** True when this mount is the landing of a soft scene: the stylesheet, not this wrapper, is the entrance. */
+function isSoftSceneLanding(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.hasAttribute(PAGE_LEAVING_ATTRIBUTE);
+}
+
+/** The soft entrance's 320 ms (globals.css → Soft scene) plus a frame of slack. */
+const SOFT_ENTRANCE_MS = 360;
 
 export default function DashboardTemplate({
   children,
@@ -38,19 +45,30 @@ export default function DashboardTemplate({
   const prefersReducedMotion = useReducedMotion();
   // Read once, on the render that mounts the page: the attribute is gone by the time it lands.
   const [sceneEntrance] = useState(isInsidePageScene);
+  // The landing of a soft scene (the phone): the previous page faded out under `data-page-leaving`, still set.
+  const [softEntrance] = useState(isSoftSceneLanding);
   // The soft scene (the phone, `useSceneNavigation`) faded `<main>` out: this mount is the next
   // page landing, so give `<main>` back — the fade below is the entrance.
   useEffect(() => {
     document.documentElement.removeAttribute(PAGE_LEAVING_ATTRIBUTE);
-    // UM2 trial: `?fascia=a` keeps the phone's band solid through a navigation (globals.css → Band trial).
-    applyBandVariant();
   }, []);
+  // The soft scene's landing (UM2): the stylesheet fades in every subtree but the band, so the band never
+  // blinks. Set before the first paint (a layout effect), taken off once the 320 ms entrance is over.
+  useLayoutEffect(() => {
+    if (!softEntrance) return;
+    const root = document.documentElement;
+    root.setAttribute(PAGE_ENTERING_ATTRIBUTE, '');
+    const timer = setTimeout(() => root.removeAttribute(PAGE_ENTERING_ATTRIBUTE), SOFT_ENTRANCE_MS);
+    return () => {
+      clearTimeout(timer);
+      root.removeAttribute(PAGE_ENTERING_ATTRIBUTE);
+    };
+  }, [softEntrance]);
 
-  if (sceneEntrance) return <>{children}</>;
+  if (sceneEntrance || softEntrance) return <>{children}</>;
 
   return (
     <motion.div
-      data-page-enter=""
       initial="hidden"
       animate="visible"
       variants={pageVariants}
