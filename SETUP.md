@@ -257,6 +257,22 @@ Condivisione account). Three prerequisites, in this order, or the add fails:
 The guest's theme stays their own; everything else (data, mutations) operates on the
 owner's account via the account switcher in the sidebar.
 
+### Step 5c (Recommended): Backups from your computer
+
+Firestore on the free Spark plan has no point-in-time recovery and no scheduled backups, so the only copy
+of your data is the one you take (doc/backup/README.md):
+
+```bash
+npm run backup:export                       # whole database, read-only, Admin credentials of .env.local
+npm run backup:export -- --email <email>    # one account: its backup, or its package to move it
+npm run backup:schedule                     # macOS: every Sunday at 21:00, with a notification
+npm run backup:restore -- <file>            # a backup into the EMULATORS, to look at it in the app
+npm run backup:restore:prod -- <file> --doc <path>   # ONE document back into production
+```
+
+Files go to `BACKUP_DIR` (set it in `.env.local`) or `~/Documents/net-worth-tracker-backup`, never into the
+repository: the last 8 full backups plus the first of each month are kept, single-account exports forever.
+
 ### Step 6 (Optional but recommended): Local testing with the Firebase Emulator Suite
 
 Run the app against **local** Auth + Firestore emulators instead of the cloud project, so
