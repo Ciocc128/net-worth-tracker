@@ -148,7 +148,7 @@ export function ShellBand() {
               key={openFolder?.key ?? 'none'}
               aria-label="Pagine del gruppo"
               data-band-pages=""
-              className="flex shrink-0 items-end gap-0.5"
+              className="flex shrink-0 items-end gap-7"
               custom={direction}
               initial={reduced ? false : { opacity: 0, x: 12 * direction }}
               animate={{ opacity: 1, x: 0 }}
