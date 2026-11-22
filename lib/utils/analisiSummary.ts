@@ -100,8 +100,8 @@ export interface TopExpenseRow {
   caption: string;
   /** Dated after today: in the period's total, not spent yet (The Scheduled-Is-Not-Spent Rule). */
   scheduled: boolean;
-  /** How many rows of one series the entry sums (1 for a one-off). */
-  occurrences: number;
+  /** How many rows of one series the entry sums (absent or 1 for a one-off). */
+  occurrences?: number;
   amount: number;
   /** Share of the period's spending, 0-100. */
   percentage: number;
