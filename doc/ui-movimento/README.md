@@ -14,6 +14,11 @@
 > (https://claude.ai/artifact/8e6ukzF67erGyjHUokAtsW), con due correzioni: **«vendi» resta viola** (è il viola di tutto Lime Frost; solo Bear
 > passa all'ardesia) e **la Composizione di Storico (N11) prende i toni nuovi ma tiene le curve morbide**, non a scalini. Le decisioni già prese altrove (D-AS1–31, D-AN1–15, D-FA1–13, D-RU*, D-FD*) non sono riproposte.
 
+> **UM1 implementata il 2026-11-22** (P1, P2, P3, P5, P9; P10 non si fa): `landFirstValue` su `OverviewAnimatedCurrency`, `RendimentoTile`,
+> `EvoluzioneTile` e guardia `__tests__/countUpLandFirst.test.ts`; «Altro» senza stagger (`drawerContainer`/`drawerItem` tolti); Sparkline a 2 px
+> `non-scaling-stroke`; via la cascata da Panoramica e Patrimonio (`tileGridEntrance` rimosso); uscite di dialog/alert-dialog 200/130, popover e
+> menu 150/100, foglio 500/300, curve ease-out-quart dentro e `ease-in` fuori. Misure sul Mac ancora da fare (vedi la PR).
+
 ## 1. In breve
 
 - Dei 16 punti del 10/11, **13 sono ancora veri su `main`**, 1 è già risolto in parte (15: Strumenti l'ha chiuso RU6, restano

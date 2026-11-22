@@ -17,7 +17,6 @@ import { LogoutDialog } from '@/components/layout/LogoutDialog';
 import { ThemePicker } from '@/components/layout/ThemePicker';
 import { Settings, LogOut, MoreVertical, Users, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { drawerContainer, drawerItem } from '@/lib/utils/motionVariants';
 import { useLogout } from '@/lib/hooks/useLogout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
@@ -173,15 +172,8 @@ export function SecondaryMenuDrawer({ open, onOpenChange }: SecondaryMenuDrawerP
               </div>
 
               {/* Scrollable navigation area.
-                  motion.nav doubles as the stagger container, eliminating a redundant
-                  wrapper div while adding the <nav> landmark for AT discovery. */}
-              <motion.nav
-                aria-label="Navigazione secondaria"
-                className="flex-1 overflow-y-auto px-2 pb-3 pt-1"
-                variants={drawerContainer}
-                initial="hidden"
-                animate="visible"
-              >
+                  The voices are IN the sheet: no stagger (D-UM2, doc/ui-movimento § 5.1 P2). */}
+              <nav aria-label="Navigazione secondaria" className="flex-1 overflow-y-auto px-2 pb-3 pt-1">
                 {/* The same groups as the desktop sidebar (navGroups); the three pill routes are
                     left out here because the pill already shows them. */}
                 {navGroups.map((group, index) => {
@@ -190,15 +182,14 @@ export function SecondaryMenuDrawer({ open, onOpenChange }: SecondaryMenuDrawerP
                   return (
                     <div key={group.label ?? group.items[0].href} className="mb-1">
                       {group.label && (
-                        <motion.p variants={drawerItem} className={cn(sectionLabel, index > 1 && 'pt-2')}>
+                        <p className={cn(sectionLabel, index > 1 && 'pt-2')}>
                           {group.label}
-                        </motion.p>
+                        </p>
                       )}
-                      {/* motion.li carries the stagger variant; the inner Link keeps
-                          aria-current, Next.js prefetching, and right-click semantics. */}
+                      {/* The inner Link keeps aria-current, Next.js prefetching, and right-click semantics. */}
                       <ul className="m-0 list-none p-0">
                         {items.map((nav) => (
-                          <motion.li key={nav.href} variants={drawerItem}>
+                          <li key={nav.href}>
                             <SceneLink
                               href={nav.href}
                               aria-current={isActive(nav.href) ? 'page' : undefined}
@@ -208,7 +199,7 @@ export function SecondaryMenuDrawer({ open, onOpenChange }: SecondaryMenuDrawerP
                               <nav.icon className="size-5 shrink-0" />
                               {nav.name}
                             </SceneLink>
-                          </motion.li>
+                          </li>
                         ))}
                       </ul>
                     </div>
@@ -218,7 +209,7 @@ export function SecondaryMenuDrawer({ open, onOpenChange }: SecondaryMenuDrawerP
                 {/* Assistente AI — a route like the others, after a hairline */}
                 {process.env.NEXT_PUBLIC_ASSISTANT_AI_ENABLED !== 'false' && (
                   <ul className="m-0 list-none border-t border-sidebar-border p-0 pt-1 mx-1 mt-1">
-                    <motion.li variants={drawerItem}>
+                    <li>
                       <SceneLink
                         href={assistantNavItem.href}
                         aria-current={isActive(assistantNavItem.href) ? 'page' : undefined}
@@ -228,10 +219,10 @@ export function SecondaryMenuDrawer({ open, onOpenChange }: SecondaryMenuDrawerP
                         <assistantNavItem.icon className="size-5 shrink-0" />
                         {assistantNavItem.name}
                       </SceneLink>
-                    </motion.li>
+                    </li>
                   </ul>
                 )}
-              </motion.nav>
+              </nav>
 
               {/* Footer: user identity + account options dropdown */}
               <div className="shrink-0 border-t border-sidebar-border">

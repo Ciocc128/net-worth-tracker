@@ -140,7 +140,8 @@ export function NetWorthSparkline({
           </defs>
         )}
         {areaPath && <path d={areaPath} fill={`url(#${gradId})`} />}
-        <path d={linePath} stroke={strokeColor} strokeWidth={1.5} fill="none" strokeLinecap="round" />
+        {/* 2 px at ANY width: the SVG stretches (preserveAspectRatio="none"), a scaling stroke would thin out. */}
+        <path d={linePath} stroke={strokeColor} strokeWidth={2} fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
         {hoveredXY && (
           <line x1={hoveredXY[0]} y1={0} x2={hoveredXY[0]} y2={H} stroke="var(--foreground)" strokeOpacity={0.25} vectorEffect="non-scaling-stroke" />
         )}
