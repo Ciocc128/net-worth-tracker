@@ -16,6 +16,7 @@ import type { CategoryDeltaRow } from '@/lib/utils/comparisonDeltas';
 import { NO_SUBCATEGORY_KEY } from '@/types/expenses';
 import { getCategoryKey, getCategoryName, getSubCategoryKey, getSubCategoryLabel } from '@/lib/utils/expenseGrouping';
 import { MONTH_NAMES_SHORT } from '@/lib/utils/period';
+import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import {
   isSpendingType,
   resolveFlowAbsence,
@@ -99,6 +100,8 @@ export interface TopExpenseRow {
   caption: string;
   /** Dated after today: in the period's total, not spent yet (The Scheduled-Is-Not-Spent Rule). */
   scheduled: boolean;
+  /** How many rows of one series the entry sums (absent or 1 for a one-off). */
+  occurrences?: number;
   amount: number;
   /** Share of the period's spending, 0-100. */
   percentage: number;
@@ -113,24 +116,57 @@ export interface TopExpenses {
   shownTotal: number;
   /** The period's whole spending, what the shares are measured on. */
   total: number;
-  /** How many spending rows the period has. */
+  /** How many entries the period has: a series counts once. */
   count: number;
 }
 
 /**
- * The largest spending rows of the period, by magnitude. Income and transfers never rank;
+ * The series a row belongs to (UM5b N10): a recurring row by `recurringParentId`, an instalment by
+ * `installmentParentId`; null for a one-off. A series is ONE entry of the ranking — three months of
+ * rent are one expense that repeats, and used to take three of the five places.
+ */
+function seriesKeyOf(expense: Expense): string | null {
+  if (expense.recurringParentId) return `recurring:${expense.recurringParentId}`;
+  if (expense.installmentParentId) return `installment:${expense.installmentParentId}`;
+  return null;
+}
+
+/**
+ * The largest spending entries of the period, by magnitude. Income and transfers never rank;
  * the share is measured on the whole spending of the period, so the reading can say what
- * the top rows weigh.
+ * the top rows weigh. The rows of one series that fall in the period are ONE entry worth their
+ * sum (the caption says «3 volte · 900 € ciascuna»); a one-off, or a series with a single row in
+ * the period, ranks as the row it is. `count` counts entries, so «5 di N» is entries too.
  */
 export function rankTopExpenses(expenses: Expense[], dayOf: DayResolver, limit = 5, isScheduled: (expense: Expense) => boolean = () => false): TopExpenses {
   const spending = expenses.filter(isSpending);
   const total = spending.reduce((sum, expense) => sum + Math.abs(expense.amount), 0);
   if (spending.length === 0 || total <= 0) return { rows: [], shownTotal: 0, total: 0, count: 0 };
 
-  const rows = [...spending]
-    .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
+  const bySeries = new Map<string, Expense[]>();
+  const entries: Expense[][] = [];
+  for (const expense of spending) {
+    const key = seriesKeyOf(expense);
+    if (key === null) {
+      entries.push([expense]);
+      continue;
+    }
+    const group = bySeries.get(key);
+    if (group) group.push(expense);
+    else {
+      const created = [expense];
+      bySeries.set(key, created);
+      entries.push(created);
+    }
+  }
+  const sum = (group: Expense[]) => group.reduce((acc, expense) => acc + Math.abs(expense.amount), 0);
+
+  const rows = [...entries]
+    .sort((a, b) => sum(b) - sum(a))
     .slice(0, limit)
-    .map((expense): TopExpenseRow => {
+    .map((group): TopExpenseRow => {
+      // The largest occurrence speaks for the group (its category, its subcategory, its day).
+      const expense = group.reduce((best, candidate) => (Math.abs(candidate.amount) > Math.abs(best.amount) ? candidate : best));
       const when = dayOf(expense);
       // The subcategory follows the grouping rule (keyed by id): a name without an id is the
       // «no subcategory» bucket, and the click lands on the category.
@@ -138,23 +174,29 @@ export function rankTopExpenses(expenses: Expense[], dayOf: DayResolver, limit =
       const hasSubCategory = subCategoryKey !== NO_SUBCATEGORY_KEY;
       const subCategoryLabel = hasSubCategory ? getSubCategoryLabel(expense) : null;
       const day = `${when.day} ${MONTH_NAMES_SHORT[when.month - 1].toLowerCase()}`;
-      const scheduled = isScheduled(expense);
-      const captionParts = [day, subCategoryLabel, scheduled ? 'in calendario' : null].filter((part): part is string => part !== null);
+      const occurrences = group.length;
+      const scheduled = group.every((row) => isScheduled(row));
+      const amounts = new Set(group.map((row) => Math.abs(row.amount)));
+      const each = amounts.size === 1 ? ` · ${cachedFormatCurrencyEUR(Math.abs(expense.amount))} ciascuna` : '';
+      const lead = occurrences > 1 ? `${occurrences} volte${each}` : day;
+      const captionParts = [lead, subCategoryLabel, scheduled ? 'in calendario' : null].filter((part): part is string => part !== null);
+      const amount = sum(group);
       return {
         key: expense.id,
         label: getCategoryName(expense),
         subCategoryLabel,
         caption: captionParts.join(' · '),
         scheduled,
-        amount: Math.abs(expense.amount),
-        percentage: (Math.abs(expense.amount) / total) * 100,
+        occurrences,
+        amount,
+        percentage: (amount / total) * 100,
         expenseType: expense.type,
         categoryKey: getCategoryKey(expense),
         subCategoryKey: hasSubCategory ? subCategoryKey : null,
       };
     });
 
-  return { rows, shownTotal: rows.reduce((sum, row) => sum + row.amount, 0), total, count: spending.length };
+  return { rows, shownTotal: rows.reduce((acc, row) => acc + row.amount, 0), total, count: entries.length };
 }
 
 // ─── Spending series ──────────────────────────────────────────────────────────

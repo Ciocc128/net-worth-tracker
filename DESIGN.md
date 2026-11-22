@@ -1029,6 +1029,16 @@ A compact, text-only chip for contextual financial actions (buy / sell / hold si
 - Never use ActionChip for navigation or primary actions. It is a status indicator, not a button.
 - On touch devices, ensure minimum 32px tap height via parent padding.
 
+### The Selector-By-Role Rule
+
+One gesture, three forms, each by what it chooses (UM5b N13, 22/11/2026; the audit of that day found the code already following it):
+
+- **The page's period or axis → `SegmentedPill`**, beside the verdict (Panoramica, Rendimenti, Dividendi, Analisi, Storico). It picks a value the whole page reads.
+- **A tile's own view, cut or mode → `AsideToggle`** in the tile's aside (Composizione's cut, Allocazione's band and plan mode, Esposizione's view, Flusso's grouping). A 14px pill in the 10px aside slot reads as a second control register.
+- **More than about five options → `Select`** (the years of Storico).
+
+A new selector picks its form by what it chooses, never by what is at hand. A tile's own time window (e.g. «Finestra temporale» of Andamento risparmio) is a tile's choice, so an `AsideToggle`.
+
 ### Segmented Pill Control
 
 A tab switcher for mutually exclusive views within a section. Replaces `<Select>` dropdowns where options are few and always visible. The active pill animates via Framer Motion `layoutId` spring.

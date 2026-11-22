@@ -103,6 +103,9 @@ export function ShellBand() {
       data-pending={pending ? '' : undefined}
       className="top-band shell-band relative z-30 hidden shrink-0 text-foreground band:block"
     >
+      {/* The band's ground stays full width; its content shares the page's axis: `PageContainer` is 1920 and
+          centred, and at 2560 the band's edges stood 320px outside it (UM5b N17). */}
+      <div className="mx-auto w-full max-w-[1920px]">
       <div className="grid h-[60px] grid-cols-[1fr_auto_1fr] items-center px-7 max-desktop:px-5">
         <div className="min-w-0">
           <SceneLink
@@ -180,6 +183,7 @@ export function ShellBand() {
           data-band-actions-desktop=""
           className="mb-[10px] flex shrink-0 items-center gap-2"
         />
+      </div>
       </div>
     </header>
   );

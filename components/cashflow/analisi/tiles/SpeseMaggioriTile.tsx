@@ -59,7 +59,7 @@ export function SpeseMaggioriTile({ top, reading, onSelect, collapse, asideWhenC
               if (source) onSelect(source);
             }}
           />
-          <p className="mt-auto border-t border-border pt-3.5 text-[11px] text-muted-foreground">Quota sulle spese del periodo; una riga apre la scheda della voce.</p>
+          <p className="mt-auto border-t border-border pt-3.5 text-[11px] text-muted-foreground">Quota sulle spese del periodo; una serie che si ripete conta una volta; una riga apre la scheda della voce.</p>
         </div>
       )}
     </Tile>

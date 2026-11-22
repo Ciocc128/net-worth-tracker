@@ -318,7 +318,9 @@ export default function CashflowPage() {
                 Attribuisci spese
               </Button>
             )}
-            {effectiveTab === 'dividends' && (
+            {/* With nothing recorded (the tab's `nothingRecorded`) the empty Pagamenti tile owns both actions:
+                the header repeating them put two identical buttons on one screen (UM5b N16). */}
+            {effectiveTab === 'dividends' && dividends.length > 0 && (
               <>
                 <Button
                   size="sm"

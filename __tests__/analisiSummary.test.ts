@@ -173,6 +173,38 @@ describe('rankTopExpenses', () => {
     expect(rankTopExpenses(rows, dayOf, 5).rows.every((row) => !row.scheduled)).toBe(true);
   });
 
+  it('should rank a recurring series as ONE entry worth the sum of its rows (UM5b N10)', () => {
+    // Reference, by hand: rent 3 x 900 = 2700; a flight 640 and a service 480 are one-offs; a coffee 20.
+    // Total spending = 2700 + 640 + 480 + 20 = 3840. The rent takes the first place with 2700 / 3840 = 70,3125%;
+    // the entries are 4 (not 6 rows), so «5 di 4» never shows.
+    const rent = { type: 'fixed' as const, amount: -900, categoryId: 'cat-casa', categoryName: 'Casa', recurringParentId: 'rent-1' };
+    const series = [
+      on(2026, 8, rent, 3),
+      on(2026, 9, rent, 3),
+      on(2026, 10, rent, 3),
+      on(2026, 8, { type: 'variable', amount: -640, categoryId: 'cat-vac', categoryName: 'Vacanze' }, 12),
+      on(2026, 9, { type: 'fixed', amount: -480, categoryId: 'cat-auto', categoryName: 'Auto' }, 5),
+      on(2026, 9, { type: 'variable', amount: -20, categoryId: 'cat-cibo', categoryName: 'Cibo' }, 6),
+    ];
+
+    const top = rankTopExpenses(series, dayOf, 5);
+
+    expect(top.count).toBe(4);
+    expect(top.total).toBe(3840);
+    expect(top.rows[0]).toMatchObject({ label: 'Casa', amount: 2700, occurrences: 3, caption: expect.stringContaining('3 volte') });
+    expect(top.rows[0].percentage).toBeCloseTo(70.3125, 4);
+    expect(top.rows[1]).toMatchObject({ label: 'Vacanze', occurrences: 1, caption: '12 ago' });
+  });
+
+  it('should group the instalments of one purchase by their parent', () => {
+    // 4 instalments of 250 = 1000 > a single 800 purchase: the series ranks first.
+    const instalment = { type: 'variable' as const, amount: -250, categoryName: 'Casa', installmentParentId: 'p-1' };
+    const rows2 = [on(2026, 1, instalment), on(2026, 2, instalment), on(2026, 3, instalment), on(2026, 4, instalment), on(2026, 5, { type: 'variable', amount: -800, categoryId: 'cat-vac', categoryName: 'Vacanze' })];
+    const top = rankTopExpenses(rows2, dayOf, 5);
+    expect(top.rows[0]).toMatchObject({ amount: 1000, occurrences: 4 });
+    expect(top.rows[1]).toMatchObject({ amount: 800, occurrences: 1 });
+  });
+
   it('should treat a subcategory name without an id as no subcategory', () => {
     const top = rankTopExpenses([on(2026, 2, { type: 'variable', amount: -90, categoryId: 'cat-x', categoryName: 'Extra', subCategoryName: 'Orfana' })], dayOf);
     expect(top.rows[0]).toMatchObject({ caption: '15 feb', subCategoryLabel: null, subCategoryKey: null });
