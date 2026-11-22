@@ -12,7 +12,7 @@ interface OverviewAnimatedCurrencyProps {
   /** Final value to display. Passed as a stable computed prop from the page. */
   value: number;
   /**
-   * When true, animates from 0 to value on the first data load, then glides to every new value.
+   * When true, shows the first value whole and glides from the figure on screen to every new one.
    * When false, shows the final value immediately without any rAF loop.
    */
   animateOnMount: boolean;
@@ -25,7 +25,7 @@ interface OverviewAnimatedCurrencyProps {
   /** Optional Tailwind classes applied to the wrapping span. */
   className?: string;
   /**
-   * Fires once when the initial count-up animation completes.
+   * Fires once when the first value is on screen (it lands whole, D-UM1).
    * Only called when animateOnMount is true.
    * The page uses this to know when the hero has settled so it can
    * schedule the chart subtree mount via requestIdleCallback.
@@ -54,7 +54,7 @@ interface OverviewAnimatedCurrencyProps {
  * immediately — zero overhead on non-hero cards.
  *
  * SETTLED SIGNAL:
- * onSettled fires exactly once, when animated reaches value after the rAF loop.
+ * onSettled fires exactly once, when the first value is on screen (landed whole, D-UM1).
  * The reduced-motion branch of useCountUp also jumps straight to value, so
  * onSettled fires immediately in that case — correct behavior.
  */
@@ -68,11 +68,12 @@ export function OverviewAnimatedCurrency({
   duration = 420,
 }: OverviewAnimatedCurrencyProps) {
   // Pass null when not animating so useCountUp skips the rAF loop entirely. The first value counts
-  // up from zero; every later one — the fresh read landing over the figure restored from the
+  // lands whole (never from 0,00 €: DESIGN.md → The Net Worth Counter); every later one — the fresh read landing over the figure restored from the
   // persisted cache, a change after an edit — glides from the figure on screen in 600 ms
   // ease-out-quart (doc/animazioni/README.md § 5.7). Until 2026-10-23 `once` made it jump.
   const animated = useCountUp(animateOnMount ? value : null, {
     fromPrevious: true,
+    landFirstValue: true,
     startDelay,
     duration,
     nextDuration: FRESH_GLIDE_MS,

@@ -64,7 +64,7 @@ interface RendimentoTileProps {
  * to the new one — the tile is not remounted any more, so the number is seen changing.
  */
 function HeroValue({ value }: { value: number }) {
-  const animated = useCountUp(value, { duration: 620, fromPrevious: true });
+  const animated = useCountUp(value, { duration: 620, fromPrevious: true, landFirstValue: true });
   const shown = animated ?? value;
   // The sign follows the PRINTED value (AGENTS.md § Layout and Color Tokens, since 2026-10-14): «0,0%» for
   // +0,03, as the strip cell prints it.

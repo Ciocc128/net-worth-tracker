@@ -66,7 +66,7 @@ function DialogContent({
           // over is not lifted off anything. `rounded-2xl` for the same reason the cards have it —
           // the 16px radius says container — and the Float shadow because a modal is the canonical
           // element that leaves document flow (DESIGN.md → The Float Threshold).
-          "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-2xl border bg-card p-6 shadow-[0_4px_24px_rgba(0,0,0,0.28)] duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
+          "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-2xl border bg-card p-6 shadow-[0_4px_24px_rgba(0,0,0,0.28)] data-[state=open]:duration-200 data-[state=closed]:duration-[130ms] data-[state=open]:ease-[cubic-bezier(0.25,1,0.5,1)] data-[state=closed]:ease-in outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
           className
         )}
         {...props}

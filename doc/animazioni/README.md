@@ -172,7 +172,7 @@ Durate e curve vengono tutte da § 6. In ogni proposta «riduci movimento» = st
 - **Dove.** Le pagine che mostrano `TileGridSkeleton` prima dei dati.
 - **Come.** Il contenuto entra con opacità 0→1 in 180 ms solo se lo scheletro è stato davvero dipinto in questa visita;
   con i dati dalla cache persistita non c'è scheletro e quindi niente fade. Mai `translate` (la scena di pagina ha già
-  mosso il contenuto). La Panoramica tiene la sua cascata e non riceve questo fade.
+  mosso il contenuto). La Panoramica non ha più cascata dal 22/11/2026 (UM1, D-UM5): entra come le altre pagine.
 
 ### 5.9 G — Righe che escono ed entrano (P3, AN3)
 

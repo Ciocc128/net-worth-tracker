@@ -182,7 +182,7 @@ function activeIndexOf(state: MouseHandlerDataParam): number | null {
  * ticks re-render this span and nothing else (the count-up isolation rule).
  */
 function HeadValue({ value }: { value: number }) {
-  const animated = useCountUp(value, { fromPrevious: true, duration: SCRUB_SETTLE_MS, startDelay: 0 });
+  const animated = useCountUp(value, { fromPrevious: true, landFirstValue: true, duration: SCRUB_SETTLE_MS, startDelay: 0 });
   return (
     <span className="mt-2.5 block font-mono text-[30px] font-bold leading-none tracking-[0.01em] tabular-nums desktop:text-[40px]">
       {cachedFormatCurrencyEUR(animated ?? value)}

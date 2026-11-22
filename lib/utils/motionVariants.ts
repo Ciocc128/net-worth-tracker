@@ -75,24 +75,6 @@ export const chartReveal: Variants = {
   },
 };
 
-/** Stagger container for bottom-sheet drawer items (50ms stagger, small delay for sheet open) */
-export const drawerContainer: Variants = {
-  hidden: {},
-  visible: {
-    transition: { staggerChildren: 0.05, delayChildren: 0.05 },
-  },
-};
-
-/** Drawer list item: subtle slide-left + fade in (matches bottom-sheet direction) */
-export const drawerItem: Variants = {
-  hidden: { opacity: 0, x: -8 },
-  visible: {
-    opacity: 1,
-    x: 0,
-    transition: { duration: 0.2, ease: easeOutQuart },
-  },
-};
-
 /** Simple fade for cross-fade transitions (e.g. chart view switcher) */
 export const fadeVariants: Variants = {
   hidden: { opacity: 0 },

@@ -95,7 +95,8 @@ export interface ResponsiveModalProps {
    * the only direction a bottom sheet can honestly come from.
    *
    * Resolve it AT THE CLICK with `resolveCenteredModalOrigin` (lib/utils/modalOrigin.ts) and
-   * never change it while the modal lives, close included: the surface carries `duration-200`
+   * never change it while the modal lives, close included: the surface carries `duration-200` in and
+   * `duration-[130ms]` out (D-UM9: the exit is fixed by the `data-[state=closed]` class, never by a state; UM1)
    * with `transition-property` at its default `all`, so a changed origin is TWEENED and the
    * panel scales around a moving pivot. That is why there is no ref to measure the surface
    * with — the recipe that needed one set the origin a frame too late, by construction.

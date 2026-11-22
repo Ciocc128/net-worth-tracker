@@ -37,12 +37,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   it after every commit of the page for nothing; it is a plain `div`, and `springLayoutTransition` went with it (the
   same on Patrimonio). The period switch still shifts nothing (`e2e/motion.layout.spec.ts`, `layout-shift` 0 with a
   positive anchor).
-- **The tile cascade plays once per session** (owner's call, 2026-10-08, DESIGN.md → Tile Grid): `staggerContainer`
-  × 8 tiles + `cardItem` kept the figures semi-transparent ~1 s after the data (962 ms on a load, 944 ms on a client
-  navigation, measured on the mirror). A module-level `tileGridEntrance.played` is set once the grid has rendered, and a
-  later mount reads it in a `useState` initializer: `initial={false}`, the tiles there at once. A skeleton or a failed
-  read does not count as played; a reload starts a new session. Pinned by `e2e/motion.layout.spec.ts` (seen red with the
-  cascade forced). Patrimonio, the landing and `AuthShell` keep the shared variants on every opening.
+- **No tile cascade** (UM1, D-UM5, 2026-11-22; `doc/ui-movimento/README.md` § 5.1 P5): the tiles are there with the page, as on Patrimonio; the rule «once per session» of 2026-10-08 (`tileGridEntrance`) is gone with the cascade. Pinned by `e2e/motion.layout.spec.ts` (every cell opaque from its first frame, first opening and later). The hero figure lands whole (`landFirstValue`, P1) and only glides to a fresh value.
 - **The page is a verdict over a tile grid** (`components/dashboard/overview/*`): `Tile` (`components/ui/tile.tsx`,
   re-exported as `OverviewTile`; `NarrativeText` and `RankedRows` likewise live in `components/ui/`) is the ONE shell
   (eyebrow · aside · `reading` narrative · body), grid cells wrap it in `TILE_CELL_CLASS` (`flex min-w-0 [&>section]:flex-1`)

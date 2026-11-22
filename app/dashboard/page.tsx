@@ -1,10 +1,9 @@
 'use client';
 
-import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type MouseEvent, useCallback, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { motion, useReducedMotion } from 'framer-motion';
-import { cardItem, staggerContainer } from '@/lib/utils/motionVariants';
+import { useReducedMotion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { updateHallOfFame } from '@/lib/services/hallOfFameService';
@@ -160,17 +159,6 @@ const PATRIMONIO_CELL_EYEBROW = "l'andamento da inizio anno";
 /** The checked option of the curve's period picker — where the «Da inizio anno» cell lands the focus. */
 const CHECKED_PERIOD_SELECTOR = '[role="radiogroup"][aria-label="Periodo del grafico"] [role="radio"][aria-checked="true"]';
 
-/**
- * Whether the tile grid's entrance cascade has played in this session (until a reload). The
- * cascade — `staggerContainer` × 8 tiles + `cardItem` — keeps the figures semi-transparent for
- * ~1 s after the data (962 ms measured on the mirror, 2026-10-08); the Panoramica is the page
- * reopened most, and from the second opening the cascade reveals nothing the page scene does not
- * already say. So it plays the FIRST time the grid renders in a session, and later openings show
- * the tiles at once (owner's call, 2026-10-08). Set after the grid commits, never on a
- * skeleton or a failed read: those openings have not shown the cascade.
- */
-const tileGridEntrance = { played: false };
-
 // Module-level so the page's try block holds no conditional: keeps it compilable by the React Compiler.
 /**
  * The toast after «Crea snapshot» (doc/snapshot-integri/README.md § 5.8, D-SN7): as before when
@@ -251,7 +239,6 @@ export default function DashboardPage() {
       if (open) setIntestatariMounted(true);
     },
   };
-  const [playsEntrance] = useState(() => !tileGridEntrance.played);
 
   // ─── Derived metrics ──────────────────────────────────────────────────────────
   const totalValue = overview?.metrics.totalValue ?? 0;
@@ -412,10 +399,6 @@ export default function DashboardPage() {
     loading: loadingOverview,
     failed: overviewError || !overview || !verdict,
   });
-  useEffect(() => {
-    if (overviewState === 'ready') tileGridEntrance.played = true;
-  }, [overviewState]);
-  const entranceInitial = playsEntrance ? 'hidden' : false;
 
   const pageChrome = (
     <PageHeader title={header.title} description={header.date} freshness={freshness} />
@@ -543,29 +526,25 @@ export default function DashboardPage() {
         <RowAnswers value={rowAnswers}>
         <div className={STAGE_WRAPPER_CLASS}>
         <div ref={stageRef} className={STAGE_CLASS}>
-        <motion.div variants={cardItem} initial={entranceInitial} animate="visible" data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
+        <div data-stage="verdict" className={cn('pt-1', VERDICT_CELL_CLASS)}>
           <OverviewVerdict
             verdict={verdict}
             strip={<VerdictStrip figures={strip} onOpen={handleStripOpen} eyebrows={stripEyebrows} />}
             restCollapse={restCollapse}
           />
-        </motion.div>
+        </div>
 
         {/* ONE sequence: the DOM order is the reading order at every width, no `order-*`
             (The First-Screen Rule); a new tile takes its place in the JSX — inside the index if it is a row. */}
         <div className={COMPACT_GRID_WRAPPER_CLASS}>
-        <motion.div
-          variants={staggerContainer}
-          initial={entranceInitial}
-          animate="visible"
+        <div
           className={COMPACT_GRID_CLASS}
         >
           {/* The two columns' labels (R3, D-RU5): desktop only, `h3` like every eyebrow, row 1 of the grid. */}
           <h3 className={cn(TILE_EYEBROW_CLASS, 'hidden desktop:block desktop:col-span-7 desktop:col-start-1 desktop:row-start-1')}>Quanto ho</h3>
           <h3 className={cn(TILE_EYEBROW_CLASS, 'hidden desktop:block desktop:col-span-5 desktop:col-start-8 desktop:row-start-1')}>Come va il mese</h3>
 
-          <motion.div
-            variants={cardItem}
+          <div
             data-stage="lead"
             className={cn(CELL_CLASS, LEAD_CELL_CLASS, 'desktop:col-span-7 desktop:col-start-1 desktop:row-start-2 desktop:row-span-2')}
           >
@@ -584,13 +563,12 @@ export default function DashboardPage() {
               hasCurrentMonthSnapshot={overview.flags.currentMonthSnapshotExists}
               liftedFigures={liftedFigures}
             />
-          </motion.div>
+          </div>
 
           <div className={INDEX_CLASS}>
           <PageRest sections={sections} className={REST_CELL_CLASS} />
 
-          <motion.div
-            variants={cardItem}
+          <div
             className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.sintesi), 'desktop:col-start-1 desktop:row-start-5', costsVisible || hasGoals ? 'desktop:col-span-3' : 'desktop:col-span-7')}
           >
             <SintesiTile
@@ -599,10 +577,9 @@ export default function DashboardPage() {
               collapse={sections.collapse(OVERVIEW_SECTION_IDS.sintesi)}
               asideWhenClosed={asides[OVERVIEW_SECTION_IDS.sintesi]}
             />
-          </motion.div>
+          </div>
 
-          <motion.div
-            variants={cardItem}
+          <div
             className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.cashflow), 'desktop:col-span-5 desktop:col-start-8 desktop:row-start-2', !expenseStats && 'desktop:row-span-2')}
           >
             {expenseStats ? (
@@ -627,10 +604,9 @@ export default function DashboardPage() {
                 <p className="mt-3 text-[13px] text-muted-foreground">Nessun dato questo mese.</p>
               </OverviewTile>
             )}
-          </motion.div>
+          </div>
 
-          <motion.div
-            variants={cardItem}
+          <div
             className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.composizione), 'desktop:col-span-3 desktop:col-start-1 desktop:row-start-4')}
           >
             <ComposizioneTile
@@ -639,11 +615,10 @@ export default function DashboardPage() {
               collapse={sections.collapse(OVERVIEW_SECTION_IDS.composizione)}
               asideWhenClosed={asides[OVERVIEW_SECTION_IDS.composizione]}
             />
-          </motion.div>
+          </div>
 
           {costsVisible && (
-            <motion.div
-              variants={cardItem}
+            <div
               className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.costi), 'desktop:col-start-4 desktop:row-start-5', hasGoals ? 'desktop:col-span-2' : 'desktop:col-span-4')}
             >
               <CostiTile
@@ -653,12 +628,11 @@ export default function DashboardPage() {
                 collapse={sections.collapse(OVERVIEW_SECTION_IDS.costi)}
                 asideWhenClosed={asides[OVERVIEW_SECTION_IDS.costi]}
               />
-            </motion.div>
+            </div>
           )}
 
           {hasGoals && (
-            <motion.div
-              variants={cardItem}
+            <div
               className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.obiettivo), 'desktop:row-start-5', costsVisible ? 'desktop:col-span-2 desktop:col-start-6' : 'desktop:col-span-4 desktop:col-start-4')}
             >
               <ObiettivoTile
@@ -666,13 +640,12 @@ export default function DashboardPage() {
                 collapse={sections.collapse(OVERVIEW_SECTION_IDS.obiettivo)}
                 asideWhenClosed={asides[OVERVIEW_SECTION_IDS.obiettivo]}
               />
-            </motion.div>
+            </div>
           )}
 
           {expenseStats && (
             <>
-              <motion.div
-                variants={cardItem}
+              <div
                 className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.spese), 'desktop:col-span-5 desktop:col-start-8 desktop:row-start-4 desktop:row-span-2')}
               >
                 <CategoryTile
@@ -688,9 +661,8 @@ export default function DashboardPage() {
                   collapse={sections.collapse(OVERVIEW_SECTION_IDS.spese)}
                   asideWhenClosed={asides[OVERVIEW_SECTION_IDS.spese]}
                 />
-              </motion.div>
-              <motion.div
-                variants={cardItem}
+              </div>
+              <div
                 className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.entrate), 'desktop:col-span-5 desktop:col-start-8 desktop:row-start-3')}
               >
                 <CategoryTile
@@ -706,12 +678,11 @@ export default function DashboardPage() {
                   collapse={sections.collapse(OVERVIEW_SECTION_IDS.entrate)}
                   asideWhenClosed={asides[OVERVIEW_SECTION_IDS.entrate]}
                 />
-              </motion.div>
+              </div>
             </>
           )}
 
-          <motion.div
-            variants={cardItem}
+          <div
             className={cn(
               TILE_ROW_CELL_CLASS,
               tablet.cellClass(OVERVIEW_SECTION_IDS.asset),
@@ -725,13 +696,12 @@ export default function DashboardPage() {
               collapse={sections.collapse(OVERVIEW_SECTION_IDS.asset)}
               asideWhenClosed={asides[OVERVIEW_SECTION_IDS.asset]}
             />
-          </motion.div>
+          </div>
 
           {/* «Di chi è?» — the net worth by Intestatario, a full row in the tail (owner, 2026-10-17);
               absent when no held asset names a person. */}
           {overview.ownership && (
-            <motion.div
-              variants={cardItem}
+            <div
               className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.intestatari), 'desktop:col-span-12 desktop:col-start-1 desktop:row-start-6')}
             >
               <IntestatariTile
@@ -739,10 +709,10 @@ export default function DashboardPage() {
                 collapse={sections.collapse(OVERVIEW_SECTION_IDS.intestatari) ?? desktopIntestatari}
                 asideWhenClosed={asides[OVERVIEW_SECTION_IDS.intestatari]}
               />
-            </motion.div>
+            </div>
           )}
           </div>
-        </motion.div>
+        </div>
         </div>
         </div>
         </div>

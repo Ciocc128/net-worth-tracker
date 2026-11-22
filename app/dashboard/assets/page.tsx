@@ -35,7 +35,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import { Plus, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
@@ -57,7 +56,6 @@ import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { getItalyMonthYear } from '@/lib/utils/dateHelpers';
 import { ASSET_CLASS_CHART_INDEX } from '@/lib/utils/allocationUtils';
 import { filterSparklineByPeriod } from '@/lib/utils/sparklinePeriod';
-import { cardItem, staggerContainer } from '@/lib/utils/motionVariants';
 import { buildPatrimonioVerdict, describeLastPriceUpdate, formatHoldingCounts } from '@/lib/utils/patrimonioNarrative';
 import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
 import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
@@ -668,10 +666,7 @@ export default function AssetsPage() {
         <RowAnswers value={rowAnswers}>
         <div className={STAGE_WRAPPER_CLASS}>
         <div ref={stageRef} className={overviewUnavailable ? 'space-y-4' : STAGE_CLASS}>
-        <motion.div
-          variants={cardItem}
-          initial="hidden"
-          animate="visible"
+        <div
           data-stage="verdict"
           className={cn('pt-1', !overviewUnavailable && VERDICT_CELL_CLASS)}
         >
@@ -692,17 +687,14 @@ export default function AssetsPage() {
               restCollapse={sections.collapse(VERDICT_REST_SECTION)}
             />
           )}
-        </motion.div>
+        </div>
 
         <div className={overviewUnavailable ? undefined : COMPACT_GRID_WRAPPER_CLASS}>
-        <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          animate="visible"
+        <div
           className={overviewUnavailable ? PLAIN_GRID_CLASS : COMPACT_GRID_CLASS}
         >
           {!overviewUnavailable && (
-            <motion.div variants={cardItem} data-stage="lead" className={cn(TILE_CELL_CLASS, leadCellClass(!overviewUnavailable), 'desktop:col-span-5 desktop:row-span-2')}>
+            <div data-stage="lead" className={cn(TILE_CELL_CLASS, leadCellClass(!overviewUnavailable), 'desktop:col-span-5 desktop:row-span-2')}>
               <PatrimonioTile
                 id={PATRIMONIO_PATRIMONIO_ID}
                 className="scroll-mt-24"
@@ -738,7 +730,7 @@ export default function AssetsPage() {
                   )
                 }
               />
-            </motion.div>
+            </div>
           )}
 
           {/* «Il resto della pagina» right after THE tile — the grid's first child when the overview
@@ -752,8 +744,7 @@ export default function AssetsPage() {
               («cosa si è mosso?»), then the accounts. On desktop the two are placed by column so
               the row still reads hero · Liquidità · Movimenti; a CSS `order` swap used to make a
               screen reader meet Liquidità first while the eye met Movimenti. */}
-          <motion.div
-            variants={cardItem}
+          <div
             className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.movimenti), 'desktop:col-span-4 desktop:col-start-9 desktop:row-start-1')}
           >
             {movimentiFailed ? (
@@ -782,10 +773,9 @@ export default function AssetsPage() {
                 asideWhenClosed={monthName}
               />
             )}
-          </motion.div>
+          </div>
 
-          <motion.div
-            variants={cardItem}
+          <div
             className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.liquidita), 'desktop:col-span-3 desktop:col-start-6 desktop:row-start-1')}
           >
             <LiquiditaTile
@@ -797,12 +787,11 @@ export default function AssetsPage() {
               collapse={sections.collapse(PATRIMONIO_SECTION_IDS.liquidita)}
               asideWhenClosed={liquiditaCount || 'nessun conto'}
             />
-          </motion.div>
+          </div>
 
           {!overviewUnavailable && (
             <>
-              <motion.div
-                variants={cardItem}
+              <div
                 className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.classi), 'desktop:col-span-3')}
               >
                 <ComposizioneTile
@@ -820,10 +809,9 @@ export default function AssetsPage() {
                     </>
                   }
                 />
-              </motion.div>
+              </div>
 
-              <motion.div
-                variants={cardItem}
+              <div
                 className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.rendimento), 'desktop:col-span-4')}
               >
                 <RendimentoTile
@@ -834,7 +822,7 @@ export default function AssetsPage() {
                   asideWhenClosed="vs PMC"
                   liftedFigures={rendimentoLifted}
                 />
-              </motion.div>
+              </div>
             </>
           )}
 
@@ -842,8 +830,7 @@ export default function AssetsPage() {
               loans; absent when no held asset names a person. The same tile as the Panoramica's, on
               the live assets here. */}
           {ownership && (
-            <motion.div
-              variants={cardItem}
+            <div
               className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.intestatari), overviewUnavailable && 'tablet:col-span-2', 'desktop:col-span-12')}
             >
               <IntestatariTile
@@ -851,14 +838,13 @@ export default function AssetsPage() {
                 collapse={sections.collapse(PATRIMONIO_SECTION_IDS.intestatari)}
                 asideWhenClosed="quote per persona"
               />
-            </motion.div>
+            </div>
           )}
 
           {/* A failed read of the instalments is not «no mortgage»: it says so where the tile would be.
               With the overview unread (the plain grid) the loans and Strumenti take both columns at 768. */}
           {mortgageError ? (
-            <motion.div
-              variants={cardItem}
+            <div
               className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.mutuo), overviewUnavailable && 'tablet:col-span-2', 'desktop:col-span-12')}
             >
               <ErrorNotice
@@ -869,12 +855,11 @@ export default function AssetsPage() {
                   consequence: 'Le rate collegate ai prestiti non sono state lette: interessi e capitale pagati tornano al prossimo caricamento.',
                 })}
               />
-            </motion.div>
+            </div>
           ) : (
             mortgages.map((summary) => (
-              <motion.div
+              <div
                 key={summary.loanId}
-                variants={cardItem}
                 className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(patrimonioMutuoSectionId(summary.loanId)), overviewUnavailable && 'tablet:col-span-2', 'desktop:col-span-12')}
               >
                 <MutuoTile
@@ -883,12 +868,11 @@ export default function AssetsPage() {
                   collapse={sections.collapse(patrimonioMutuoSectionId(summary.loanId))}
                   asideWhenClosed={mortgages.length > 1 ? (summary.propertyName ?? summary.loanName) : 'interessi e capitale'}
                 />
-              </motion.div>
+              </div>
             ))
           )}
 
-          <motion.div
-            variants={cardItem}
+          <div
             className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.strumenti), overviewUnavailable && 'tablet:col-span-2', 'desktop:col-span-12')}
           >
             <StrumentiTile
@@ -911,9 +895,9 @@ export default function AssetsPage() {
               members={familyMembers}
               allAssets={assets}
             />
-          </motion.div>
           </div>
-        </motion.div>
+          </div>
+        </div>
         </div>
         </div>
         </div>

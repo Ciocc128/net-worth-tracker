@@ -15,13 +15,14 @@
  *    before it reads them (the provider), so the spy is live. The spy counts the TOKENS, not
  *    `getComputedStyle(<html>)`: Next's router reads that twice per navigation for its scroll
  *    handling (`getScrollPaddingTop`, measured 2026-10-08).
- * 4. The tile cascade plays the first time the grid renders in a session and not on a later
- *    opening (owner's call, 2026-10-08: ~1 s of semi-transparent figures at every return).
+ * 4. There is NO tile cascade (UM1, D-UM5, 2026-11-22): the grid's cells are opaque from their first
+ *    frame on the first opening of the session and on every later one (the template's entrance is
+ *    the page's only one).
  *
  * Seen red (2026-10-08): (2) with the media query inverted in `BottomNavigation.tsx`; (3) with
  * `ChartColorsProvider` taken out of `app/dashboard/layout.tsx` (the hooks fall back to reading
- * the theme per host: 85 token reads); (4) with the cascade forced on every opening (the second
- * opening's least opaque cell read 0). (1) is a regression guard: the period switch shifted
+ * the theme per host: 85 token reads); (4, UM1: the old «plays once» form) with the
+ * cascade forced on the first opening (the least opaque cell read 0). (1) is a regression guard: the period switch shifted
  * nothing with the old wrapper either.
  *
  * THE PRECONDITION every test here shares: no colour-theme change during the test. The browser's
@@ -195,7 +196,7 @@ test('the chart palette is read once per theme: a client navigation to Storico a
   expect((await readSpies(page)).paletteTokenReads).toBe(0);
 });
 
-test('the tile cascade plays on the first opening of the session only', async ({ page }) => {
+test('the tile grid has no cascade: its cells are opaque from the first frame, on every opening', async ({ page }) => {
   // Every frame, the LEAST opaque grid cell (its own opacity, not its ancestors': the page scene
   // and the template's fade are not the cascade).
   await page.addInitScript(() => {
@@ -214,11 +215,11 @@ test('the tile cascade plays on the first opening of the session only', async ({
   const minOpacity = () => page.evaluate(() => (window as unknown as { __cascade: { minOpacity: number | null } }).__cascade.minOpacity);
   const periods = page.getByRole('radiogroup', { name: 'Periodo del grafico' });
 
-  // First opening: the cells start transparent and cascade in.
+  // First opening: no cascade, the cells are opaque from their first frame.
   await page.goto('/dashboard');
   await expect(periods).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(1_500);
-  expect(await minOpacity()).toBeLessThan(0.5);
+  expect(await minOpacity()).toBe(1);
 
   // Away and back through the sidebar: the same JS session, the cells opaque from their first frame.
   await page.getByRole('link', { name: 'Storia', exact: true }).filter({ visible: true }).first().click();
