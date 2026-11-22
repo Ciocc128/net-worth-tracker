@@ -33,6 +33,13 @@
 > (la regola aspetta la scelta di Giorgio, P4).** Misure sul Mac ancora da fare (vedi la PR). Nota: in it-IT `Intl` raggruppa dalle cinque cifre,
 > quindi 1234,56 € si stampa «1234,56 €» (non «1.234,56 €»): il valore di riferimento del criterio 4 vale per 12345,67 € → «12.345» + «,67 €».
 
+> **UM5a implementata il 2026-11-22** (N5, N7, N8; la PR è in bozza): in Accumulo «Registra» è pieno solo sulla prima riga da fare (le in ritardo prima) e
+> «Applica» e «Ricalcola» sono secondari; la frase del Piano oltre tre operazioni dice il conteggio, i totali (da 4 a 9) e l'ordine maggiore
+> (`describeLargePlan`; da 10 solo conteggio e maggiore, scelta di Giorgio del 22/11/2026, dove il dossier non distingueva 4–9 da ≥10);
+> N7: sotto le liste con meno di tre righe, Analisi › Spese/Entrate per categoria mostra «Nello stesso periodo, 2025: …» e Rendimenti › Contributi una
+> riga «Dividendi» (rendimento, non un contributo) quando sono diversi da zero. Patrimonio › Movimenti del mese e Analisi › Fuori scala avevano già il
+> dato di riferimento di D-AS10; Benchmark «lettura fallita» resta com'è (un guasto, non un'assenza). Misure sul Mac ancora da fare (vedi la PR).
+
 ## 1. In breve
 
 - Dei 16 punti del 10/11, **13 sono ancora veri su `main`**, 1 è già risolto in parte (15: Strumenti l'ha chiuso RU6, restano
