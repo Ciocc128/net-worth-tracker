@@ -88,9 +88,11 @@ test('an announced coupon is chipped «Attesa» in the row, the totals and the c
   await expect(drawer).toBeHidden();
   await expect.poll(decoyDividendIds).toHaveLength(1);
 
-  // «Storico» holds the row whatever the month; the verdict knows something is coming.
+  // «Storico» holds the row whatever the month; the verdict knows something is coming. With paid history
+  // left in the shared emulator the headline is the portfolio's and the sentence names the next stacco:
+  // either wording says the announced coupon is seen.
   await page.getByRole('radio', { name: 'Storico' }).click();
-  await expect(page.getByRole('region', { name: 'Verdetto sui dividendi' })).toContainText('qualcosa è in arrivo');
+  await expect(page.getByRole('region', { name: 'Verdetto sui dividendi' })).toContainText(/qualcosa è in arrivo|prossimo stacco è BTP/);
 
   // Pagamenti is a closed row on a phone: open it before reading the list (its aside counts the rows).
   const pagamentiTrigger = page.locator('#dvd-pagamenti-trigger');

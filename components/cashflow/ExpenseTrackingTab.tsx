@@ -1402,7 +1402,7 @@ export function ExpenseTrackingTab({
             asideWhenClosed={narrativeToText(describeMovementsCount(filteredExpenses.length, expenses.length))}
           >
             {desktopListView === 'feed' ? (
-              feed
+              <div className="mx-auto w-full max-w-[720px]">{feed}</div>
             ) : (
               <>
                 {/* The table is a desktop view: below `desktop:` the switch is not offered, so the feed renders. */}

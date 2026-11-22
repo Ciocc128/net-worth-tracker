@@ -83,7 +83,7 @@ export function AnalisiPeriodControls({
         layoutId="analisi-period-pill"
         value={periodMode}
         onChange={onModeChange}
-        options={MODE_OPTIONS}
+        options={pastYears.length > 0 || periodMode === 'year' ? MODE_OPTIONS : MODE_OPTIONS.filter((option) => option.value !== 'year')}
         semantics="radio"
         optionClassName={PILL_OPTION_CLASS}
         className="max-sm:grid max-sm:w-full max-sm:grid-cols-2 max-sm:rounded-2xl"
