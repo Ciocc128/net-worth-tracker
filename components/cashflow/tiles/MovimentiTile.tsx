@@ -38,7 +38,7 @@ export function MovimentiTile({ aside, reading, toolbar, mobileToolbar, children
     <Tile eyebrow="Movimenti" aside={<NarrativeText segments={aside} figureClassName="font-medium" />} reading={reading} collapse={collapse} asideWhenClosed={asideWhenClosed} className={cn(scrollBody && 'desktop:flex desktop:h-full desktop:flex-col', className)}>
       {toolbar && <div className="mt-3.5 hidden desktop:block">{toolbar}</div>}
       {mobileToolbar && <div className="mt-3.5 desktop:hidden">{mobileToolbar}</div>}
-      <div className={cn('mt-4', scrollBody && 'desktop:min-h-0 desktop:flex-1 desktop:overflow-y-auto')}>{children}</div>
+      <div className={cn('mt-4', scrollBody && 'no-scrollbar desktop:min-h-0 desktop:flex-1 desktop:overflow-y-auto')}>{children}</div>
     </Tile>
   );
 }
