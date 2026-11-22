@@ -279,8 +279,8 @@ export function ComposizioneTile({ assetClassHistory, liquidityHistory, hasPensi
                       stackId="composition"
                       stroke={color}
                       fill={color}
-                      fillOpacity={0.75}
-                      strokeWidth={1}
+                      fillOpacity={0.45}
+                      strokeWidth={1.5}
                     />
                   );
                 })}
