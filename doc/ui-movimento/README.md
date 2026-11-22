@@ -19,6 +19,9 @@
 > `non-scaling-stroke`; via la cascata da Panoramica e Patrimonio (`tileGridEntrance` rimosso); uscite di dialog/alert-dialog 200/130, popover e
 > menu 150/100, foglio 500/300, curve ease-out-quart dentro e `ease-in` fuori. Misure sul Mac ancora da fare (vedi la PR).
 
+> **UM4 implementata il 2026-11-22** (#218, più l'anello di focus unico in una PR successiva): punti 8, 11, 12, 14, 15, 16; **P13 aspetta il
+> census a 390 sul Mac** prima di toccare i selettori. Regole nuove in DESIGN.md: The Press-Is-A-Step-Of-Colour Rule, The Resting-Bin Rule.
+
 > **UM2 implementata il 2026-11-22** (punto 4, D-UM4 variante (a)): provata su iPhone vero dietro `?fascia=a` (PR #219) e scelta da Giorgio lo
 > stesso giorno; il video dell'«oggi» (c) mostrava la fascia schiarirsi fino al fondo a ogni tocco. Nella scena morbida `<main>` e gli antenati
 > della fascia restano opachi e sfumano i sottoalberi senza fascia più ciò che sta sulla fascia (`app/globals.css` → Soft scene); l'entrata la
@@ -189,9 +192,11 @@ parametro di mercato)».
 - **P15 · Cestini rimasti.** Pagamenti (`DividendTable`): grigio a riposo, rosso al passaggio e al fuoco, armato com'è.
   Stesso primitivo di RU6 (`group`, `group-hover:text-destructive`); se serve un terzo posto, si estrae `RestingBin`.
 - **P16 · Pulizia.** Un solo passaggio del mouse sulle righe (`hover:bg-muted/40`), un solo anello di focus
-  (`focus-visible:ring-2 ring-ring ring-offset-2`, 21 usi su 25) via classi condivise; didascalie del tile Cashflow a due
-  righe; tolte da `multi-select.tsx` le animazioni mai usate (`wiggle`, `flipIn`, `slideInDown`, `scaleIn` se nessuno le chiede);
-  durate scritte a mano → token. Un test elenca i `hover:bg-muted/*` ammessi.
+  (`focus-visible:ring-2 ring-ring ring-offset-2`) anche su `Button`, `Input` e `Select`, che avevano l'alone morbido
+  `ring-[3px] ring-ring/50` (deciso il 22/11/2026 sullo schizzo https://claude.ai/artifact/9w9XkckYs4PGZLtTcpQEgq: sulla
+  fascia l'alone al 50% non si vedeva); tolte da `multi-select.tsx` le animazioni mai usate (`wiggle`, `flipIn`, `slideInDown`,
+  `scaleIn`). Un test elenca i `hover:bg-muted/*` ammessi. *Tolte il 22/11/2026* (troppo vaghe per un riferimento nel codice):
+  «didascalie del tile Cashflow a due righe» e «durate scritte a mano → token».
 
 ### 5.5 UM5 — Il seguito desktop (N5–N11, N13, N16, N17; Sonnet 5.5, due PR)
 
