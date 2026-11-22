@@ -973,6 +973,7 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
               activeKey={focus?.kind === 'expenses' ? activeSliceKey : null}
               onSelect={handleCategorySelect}
               emptyCopy="Nessuna spesa registrata nel periodo."
+              reference={pacing && baseline ? { label: baseline, amount: pacing.expenses.previous } : null}
             />
           </div>
 
@@ -988,6 +989,7 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
               activeKey={focus?.kind === 'income' ? activeSliceKey : null}
               onSelect={handleCategorySelect}
               emptyCopy="Nessuna entrata registrata nel periodo."
+              reference={pacing && baseline ? { label: baseline, amount: pacing.income.previous } : null}
               labelClassName="min-w-[72px]"
             />
           </div>
