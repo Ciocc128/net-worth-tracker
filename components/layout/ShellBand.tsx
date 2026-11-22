@@ -259,7 +259,7 @@ function PageTab({
         'relative flex items-center whitespace-nowrap px-[18px] transition-[color,font-size] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
         open
           ? 'h-12 text-[18px] font-semibold tracking-[-0.015em] text-[var(--page-ink)]'
-          : 'mb-1.5 h-[42px] rounded-xl text-[16px] font-medium text-[var(--band-ink-closed)] hover:bg-[var(--band-hover)] hover:text-foreground pointer-coarse:h-11',
+          : 'band-tab-closed h-12 rounded-t-[14px] text-[16px] font-medium text-[var(--band-ink-closed)] hover:text-foreground',
       )}
     >
       {open && (
