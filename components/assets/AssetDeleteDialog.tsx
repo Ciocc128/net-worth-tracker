@@ -65,7 +65,7 @@ function Lines({ lines, tone }: { lines: UsageLine[]; tone: 'stop' | 'clean' | '
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-1.5">
-      <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</h4>
+      <h4 className="text-xs font-medium text-muted-foreground">{title}</h4>
       {children}
     </section>
   );

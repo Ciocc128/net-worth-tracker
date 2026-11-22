@@ -5,7 +5,7 @@
  * The tokens default to the chart slots these surfaces always used (Bear `--chart-5`, Base
  * `--chart-1`, Bull `--chart-2`; `SCENARIO_SLOT` in ScenarioOverlayChart), so a theme that does
  * not name them renders as before. Lime Frost light names them in its data vocabulary: Bull the
- * money-in green, Base the net-worth ice blue, Bear frost lavender — a prudent scenario is not
+ * money-in green, Base the net-worth ice blue, Bear slate (UM3) — a prudent scenario is not
  * an error and never takes the red. A CSS variable is passed straight to SVG and Recharts: it
  * follows a theme switch with no JS read.
  */

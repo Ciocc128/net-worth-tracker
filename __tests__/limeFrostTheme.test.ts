@@ -130,6 +130,15 @@ describe.each([
     }
   });
 
+  // UM3 / D-UM14: only Bear leaves the lavender; «vendi» keeps it. Slate = hue ~257 and low chroma (hand check:
+  // light 0.52 / 0.035 / 257 and dark 0.78 / 0.03 / 257 sit at chroma < 0.05, lavender 295 at 0.12).
+  it('Bear is slate, never the lavender of «vendi», which stays', () => {
+    const [, bearChroma, bearHue] = tokens['scenario-bear'];
+    expect(bearChroma).toBeLessThan(0.05);
+    expect(Math.abs(bearHue - 257)).toBeLessThanOrEqual(5);
+    expect(tokens['trade-sell'][2]).toBe(295);
+  });
+
   it.each(ROLE_SERIES)('role series: --%s clears the 3:1 chart floor on --card', (name) => {
     expect(tokens[name], `--${name} written outright`).toBeDefined();
     expect(contrast(tokens[name], tokens.card)).toBeGreaterThanOrEqual(3);

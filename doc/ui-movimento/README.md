@@ -19,6 +19,12 @@
 > `non-scaling-stroke`; via la cascata da Panoramica e Patrimonio (`tileGridEntrance` rimosso); uscite di dialog/alert-dialog 200/130, popover e
 > menu 150/100, foglio 500/300, curve ease-out-quart dentro e `ease-in` fuori. Misure sul Mac ancora da fare (vedi la PR).
 
+> **UM3 implementata il 2026-11-22** (punto 7, N12 solo Bear, audit N14): `splitEuroCents` + `SettledFigure smallCents` disegnano i centesimi del trio
+> (Tracciamento e Analisi › Periodo) al 60% del corpo, stessa linea di base, il testo letto non cambia; `--scenario-bear` di Lime Frost passa dalla lavanda
+> all'ardesia (chiaro `oklch(0.52 0.035 257)`, scuro `oklch(0.78 0.03 257)`), «vendi» resta viola, Graphite era già ardesia. **Audit N14 e regola: § 5.3a
+> (la regola aspetta la scelta di Giorgio, P4).** Misure sul Mac ancora da fare (vedi la PR). Nota: in it-IT `Intl` raggruppa dalle cinque cifre,
+> quindi 1234,56 € si stampa «1234,56 €» (non «1.234,56 €»): il valore di riferimento del criterio 4 vale per 12345,67 € → «12.345» + «,67 €».
+
 ## 1. In breve
 
 - Dei 16 punti del 10/11, **13 sono ancora veri su `main`**, 1 è già risolto in parte (15: Strumenti l'ha chiuso RU6, restano
@@ -140,6 +146,27 @@ Vale solo sotto `band:`/sulla pillola; dal fascicolo non c'è nulla da fare (la 
   hanno decimali diversi) e una regola in AGENTS.md; la correzione dove il costo è minimo. Punto aperto P4.
 - Chiusura: contrasto dei ruoli in due temi chiari e due scuri (`chartPaletteDistinctness`, Playwright su Analisi), census.
 
+### 5.3a UM3 — Audit N14 (maiuscole e decimali, 2026-11-22)
+
+Cercato su `components`, `app`, `lib/constants` (i PDF e le email hanno i loro token e restano fuori).
+
+**Maiuscole.** La regola c'è già (DESIGN.md → The Sentence-Case-Label Rule: nessuna etichetta in maiuscolo o spaziata). Su `main` restano **due** `uppercase`:
+`AssistantThreadList.tsx:120` (il badge della modalità del thread) e `AssetDeleteDialog.tsx:68` (il titolo di sezione del dialog, `uppercase tracking-wide`:
+contro la regola, difetto). Le schede e le voci di Impostazioni sono tutte in maiuscola iniziale singola (Allocazione, Preferenze, Spese, Dividendi, Simulazioni,
+Condivisione, Aspetto), come le schede FIRE; i nomi propri a più parole maiuscole (Lime Frost, Coast FIRE, What If, Portfolio Tracker, Stati Uniti,
+Bloomberg Aggregate Bond) sono nomi, non difetti. Unico titolo con la seconda parola maiuscola senza essere un nome: «Dati Patrimonio» in
+`CreateDummySnapshotModal.tsx` (modale di prova, non in produzione).
+
+**Decimali.** In Impostazioni: la percentuale dei tile usa `pctLabel` (0 decimali se intera, 1 altrimenti), il tile Monte Carlo mostra 2 decimali per volatilità e
+correlazioni (`formatTwo`, `fmt2`), 1 per la media e 1–2 per lo spread della leva; il segnaposto del tasso privo di rischio (`AllocazioneTab.tsx:210`)
+usava il **punto** (`toFixed(2)`: «3.25» in una UI italiana, difetto). Le altre differenze (1 contro 2 decimali) seguono la grandezza del dato (una media
+contro una correlazione) e non sono difetti.
+
+**Corretti qui (costo minimo):** il segnaposto con la virgola e «Dati patrimonio». **Non toccati:** il badge dell'assistente (sigla) e i decimali dei tile Monte Carlo.
+**Regola (confermata da Giorgio il 22/11/2026, ora in AGENTS.md § Italian Localization; il titolo di `AssetDeleteDialog` è in frase, il badge dell'assistente resta una sigla):** «Un'etichetta, un pulsante, una scheda è in maiuscola iniziale singola; il maiuscolo pieno è solo
+una sigla (ETF, PAC, EUR); un numero decimale usa la virgola e i decimali di una percentuale seguono il dato (0 se intero, 1 altrimenti; 2 per un
+parametro di mercato)».
+
 ### 5.4 UM4 — Testi, righe e selettori (punti 8, 11–16; Sonnet 5.5)
 
 - **P8 · Riscontro al tocco.** Uno stato `active:` di solo colore, 100 ms, su `Button` (tutte le varianti) e sulle righe che
@@ -237,7 +264,7 @@ Giorgio lo chiede; UM2 sta per ultima del telefono perché richiede l'iPhone. Ne
   di D-UM12–D-UM14 (WORKFLOW.md § 1 regola 8). Proposto: una pagina pubblicata sola per UM5.
 - **P2.** CHIUSO il 22/11/2026: via la cascata da Panoramica e Patrimonio.
 - **P3.** Le tre varianti di UM2 vanno viste su iPhone vero: serve un giro con Giorgio (build su Vercel preview).
-- **P4.** N14: quali maiuscole e decimali sono «difetto» e quali scelta — l'audit lo dice, la regola la sceglie Giorgio.
+- **P4.** CHIUSO il 22/11/2026 (regola in AGENTS.md). Originale: N14: quali maiuscole e decimali sono «difetto» e quali scelta — l'audit lo dice, la regola la sceglie Giorgio.
 - **P5.** Misure da riprendere sul Mac: 8, 13, N17 (a 2560), il census dei selettori a 390.
 
 ## 10. Criteri di accettazione
