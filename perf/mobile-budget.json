@@ -126,11 +126,11 @@
         "screens": 1,
         "tilesAboveFold": 9,
         "tilesFullyAboveFold": 9,
-        "figuresAboveFold": 10,
-        "figuresOutsideVerdict": 10,
+        "figuresAboveFold": 11,
+        "figuresOutsideVerdict": 11,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-16: figuresAboveFold 5 → 10, figuresOutsideVerdict 5 → 10 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega"
+        "raisedBy": "2026-11-22: figuresAboveFold 10 → 11, figuresOutsideVerdict 10 → 11 — giro Mac dopo UM1 (#214, le cifre compaiono intere, senza count-up): il censimento a 1024 conta una cifra in più sopra la piega, stabile prima e dopo #215; da confermare dal proprietario · Prima: 2026-10-16: figuresAboveFold 5 → 10, figuresOutsideVerdict 5 → 10 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega"
       }
     },
     "patrimonio": {
@@ -698,7 +698,7 @@
         "raisedBy": "2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresOutsideVerdict 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresAboveFold 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (screens 1.52 → 1.58) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.38 → 1.52); 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
       },
       "1024": {
-        "screens": 2.0,
+        "screens": 2,
         "tilesAboveFold": 3,
         "tilesFullyAboveFold": 2,
         "figuresAboveFold": 7,
@@ -742,7 +742,7 @@
     },
     "fire-proiezione": {
       "390": {
-        "screens": 2.0,
+        "screens": 2,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
         "figuresAboveFold": 22,
