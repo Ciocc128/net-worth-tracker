@@ -14,7 +14,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { homedir, userInfo } from 'node:os';
 import path from 'node:path';
-import { LAUNCH_AGENT_LABEL, buildLaunchAgentPlist } from './lib/backup/schedule';
+import { LAUNCH_AGENT_LABEL, buildLaunchAgentPlist, schedulePath } from './lib/backup/schedule';
 
 const plistPath = path.join(homedir(), 'Library', 'LaunchAgents', `${LAUNCH_AGENT_LABEL}.plist`);
 const domain = `gui/${userInfo().uid}`;
@@ -31,7 +31,7 @@ function launchctl(...args: string[]): boolean {
 async function backupDir(): Promise<string> {
   const nextEnvModule = (await import('@next/env')) as { default?: { loadEnvConfig(dir: string): unknown }; loadEnvConfig?(dir: string): unknown };
   (nextEnvModule.default ?? nextEnvModule).loadEnvConfig!(process.cwd());
-  const dir = process.env.BACKUP_DIR ?? path.join(homedir(), 'Documents', 'net-worth-tracker-backup');
+  const dir = process.env.BACKUP_DIR ?? path.join(homedir(), 'net-worth-tracker-backup');
   return dir === '~' || dir.startsWith('~/') ? path.join(homedir(), dir.slice(1)) : path.resolve(dir);
 }
 
@@ -62,7 +62,7 @@ async function main() {
 
   await mkdir(dir, { recursive: true, mode: 0o700 });
   await mkdir(path.dirname(plistPath), { recursive: true });
-  await writeFile(plistPath, buildLaunchAgentPlist({ repoDir: process.cwd(), logFile, weekday: 0, hour: 21, minute: 0 }));
+  await writeFile(plistPath, buildLaunchAgentPlist({ repoDir: process.cwd(), logFile, weekday: 0, hour: 21, minute: 0, path: schedulePath(path.dirname(process.execPath)) }));
   launchctl('bootout', `${domain}/${LAUNCH_AGENT_LABEL}`);
   if (!launchctl('bootstrap', domain, plistPath)) throw new Error(`launchctl bootstrap failed for ${plistPath}`);
   console.info(`✓ backup ogni domenica alle 21:00 da ${process.cwd()}\n  log: ${logFile}\n  prova subito: npm run backup:schedule -- --now`);

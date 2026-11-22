@@ -11,7 +11,7 @@
  *   npm run backup:export:emulator -- …        # the same against the emulators (tests, the cloud)
  *
  * Production by default, with the service account of `.env.local`; only `.get()` and Auth reads.
- * The file goes to `BACKUP_DIR` (`.env.local`) or `~/Documents/net-worth-tracker-backup`, never into
+ * The file goes to `BACKUP_DIR` (`.env.local`) or `~/net-worth-tracker-backup`, never into
  * the repository; the folder is 700 and the file 600. After writing, the file is read back and its
  * documents re-counted; then the old FULL backups beyond the retention are deleted
  * (`selectBackupsToPrune`: the last 8 plus the first of each month). Single-account exports are
@@ -36,7 +36,7 @@ import { countByCollection } from './lib/backup/registry';
 
 const USAGE = 'usage: npm run backup:export [-- --uid <uid> | --email <email>] [--with-caches] [--out <dir>]';
 
-const DEFAULT_BACKUP_DIR = path.join(homedir(), 'Documents', 'net-worth-tracker-backup');
+const DEFAULT_BACKUP_DIR = path.join(homedir(), 'net-worth-tracker-backup');
 
 function parseArgs(argv: string[]) {
   const options: { uid?: string; email?: string; withCaches: boolean; out?: string } = { withCaches: false };

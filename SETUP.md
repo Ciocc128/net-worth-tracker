@@ -270,7 +270,7 @@ npm run backup:restore -- <file>            # a backup into the EMULATORS, to lo
 npm run backup:restore:prod -- <file> --doc <path>   # ONE document back into production
 ```
 
-Files go to `BACKUP_DIR` (set it in `.env.local`) or `~/Documents/net-worth-tracker-backup`, never into the
+Files go to `BACKUP_DIR` (set it in `.env.local`) or `~/net-worth-tracker-backup` (not `~/Documents`: macOS blocks a launchd job there), never into the
 repository: the last 8 full backups plus the first of each month are kept, single-account exports forever.
 
 ### Step 6 (Optional but recommended): Local testing with the Firebase Emulator Suite
