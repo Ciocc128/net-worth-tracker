@@ -1755,7 +1755,7 @@ html {
 }
 .shell-band {
   --band-ink-closed: color-mix(in oklab, var(--foreground) 86%, transparent);
-  --band-hover: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --band-hover: color-mix(in oklab, var(--foreground) 12%, var(--shell-band-fill));
   background-color: var(--shell-band-fill);
 }
 /* Not the phone's top bar: no iOS outset above it and no rounded ears under it — the joint is the open tab's. */
@@ -1769,28 +1769,41 @@ html {
 [data-theme="graphite"]:not([data-band="nessuna"]) .top-band.shell-band::after {
   display: none;
 }
-/* The open page's tab joins the sheet with two 14px inverted corners at its feet, in the page's ground. */
+/* The open page's tab joins the sheet with two 14px inverted corners at its feet, in the page's ground; a closed tab
+   under the pointer takes the same silhouette (48px, 14px top corners, flat foot, the two inverted corners) in the
+   subtler `--band-hover` (#212, reworked 2026-11-22). The geometry holds at any zoom because no two pieces ABUT:
+   - each inverted corner is 28px wide, centred on the tab's side: its outer 14px carry the concave curve, its inner
+     14px lie under the tab's body in the same colour, so a corner snapped to another device pixel than the body (125%:
+     14px = 17,5 device px) leaves no seam;
+   - the open tab and its corners go 1px down onto the sheet (same colour), so the band's last half-row never shows
+     as a line under the foot;
+   - `--band-hover` is OPAQUE (mixed into the band's fill), so where the pieces overlap the colour does not add up;
+   - the page tabs stand 28px apart (`ShellBand`, `gap-7`): two feet of 14px never touch, so a closed tab next to the
+     open one shows its whole silhouette. */
+.band-page-joint {
+  --tab-foot: var(--page-ground);
+  bottom: -1px;
+}
 .band-page-joint::before,
 .band-page-joint::after {
   content: "";
   position: absolute;
   bottom: 0;
-  width: 14px;
-  height: 14px;
+  width: 28px;
+  height: 15px;
   pointer-events: none;
 }
 .band-page-joint::before {
   left: -14px;
-  background: radial-gradient(circle at 0 0, transparent 13.5px, var(--page-ground) 14px);
+  background: radial-gradient(circle 14px at 0 0, transparent 13.5px, var(--tab-foot) 14px);
 }
 .band-page-joint::after {
   right: -14px;
-  background: radial-gradient(circle at 100% 0, transparent 13.5px, var(--page-ground) 14px);
+  background: radial-gradient(circle 14px at 100% 0, transparent 13.5px, var(--tab-foot) 14px);
 }
-/* A closed tab under the pointer takes the open tab's silhouette (same 48px height, 14px top corners, flat foot, the two
-   inverted corners at its feet), in the subtler `--band-hover`: the shape says «this is where you are about to land». */
 @media (hover: hover) {
   .band-tab-closed:hover {
+    --tab-foot: var(--band-hover);
     background-color: var(--band-hover);
   }
   .band-tab-closed:hover::before,
@@ -1798,17 +1811,17 @@ html {
     content: "";
     position: absolute;
     bottom: 0;
-    width: 14px;
+    width: 28px;
     height: 14px;
     pointer-events: none;
   }
   .band-tab-closed:hover::before {
     left: -14px;
-    background: radial-gradient(circle at 0 0, transparent 13.5px, var(--band-hover) 14px);
+    background: radial-gradient(circle 14px at 0 0, transparent 13.5px, var(--tab-foot) 14px);
   }
   .band-tab-closed:hover::after {
     right: -14px;
-    background: radial-gradient(circle at 100% 0, transparent 13.5px, var(--band-hover) 14px);
+    background: radial-gradient(circle 14px at 100% 0, transparent 13.5px, var(--tab-foot) 14px);
   }
 }
 /* The page's fact and actions come into the band with the page (D-FD21): a short fade, none with reduced motion. */
