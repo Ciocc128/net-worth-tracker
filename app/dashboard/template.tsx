@@ -23,6 +23,7 @@ import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { pageVariants } from '@/lib/utils/motionVariants';
 import { PAGE_LEAVING_ATTRIBUTE, VIEW_TRANSITION_ATTRIBUTE } from '@/lib/utils/viewTransition';
+import { applyBandVariant } from '@/lib/utils/bandVariant';
 
 /** True when this mount is the landing of a page scene: the view transition is the entrance. */
 function isInsidePageScene(): boolean {
@@ -41,12 +42,15 @@ export default function DashboardTemplate({
   // page landing, so give `<main>` back — the fade below is the entrance.
   useEffect(() => {
     document.documentElement.removeAttribute(PAGE_LEAVING_ATTRIBUTE);
+    // UM2 trial: `?fascia=a` keeps the phone's band solid through a navigation (globals.css → Band trial).
+    applyBandVariant();
   }, []);
 
   if (sceneEntrance) return <>{children}</>;
 
   return (
     <motion.div
+      data-page-enter=""
       initial="hidden"
       animate="visible"
       variants={pageVariants}
