@@ -8,9 +8,10 @@
 > Specifica scritta il 2026-11-21 **riletta contro `main` a `4750763`** (dopo riordino RU0–RU6, il fascicolo, #209);
 > **nessun codice in questo commit**.
 >
-> **Stato delle decisioni**: una sola è presa dal proprietario, il punto 7 (centesimi più piccoli, proposta A, 14/11/2026,
-> sulla card). Tutte le altre, D-UM1…D-UM14 (§ 8), sono **proposte di questo dossier, da confermare** prima che parta
-> l'implementazione. Le decisioni già prese altrove (D-AS1–31, D-AN1–15, D-FA1–13, D-RU*, D-FD*) non sono riproposte.
+> **Stato delle decisioni**: D-UM7 presa il 14/11/2026 (sulla card). Il 22/11/2026 il proprietario ha confermato **tutte le
+> altre D-UM tranne due**: D-UM10 (il «+» tiene la molla e il rimbalzo, resta com'è) e D-UM6 (i colori del Flusso restano
+> «per ora» come sono), e ha deciso P2 (via la cascata da Panoramica e Patrimonio). D-UM12–D-UM14 sono confermate ma **gli
+> schizzi di N5–N14 (P1) sono ancora da fare**: UM5 parte solo dopo che li ha visti. Le decisioni già prese altrove (D-AS1–31, D-AN1–15, D-FA1–13, D-RU*, D-FD*) non sono riproposte.
 
 ## 1. In breve
 
@@ -20,8 +21,8 @@
 - Il punto 1 è un **difetto contro una regola già scritta**: DESIGN.md → The Net Worth Counter dice «Numbers land — they count
   from a prior value, never from zero», e il codice conta da zero in cinque pagine. Il rimedio esiste già (`landFirstValue`,
   usato da `SettledFigure`).
-- Cinque fasi, una PR ciascuna, in coda per area di codice (§ 7): **UM1** ingressi e uscite (1, 2, 3, 5, 9, 10), **UM2** la
-  fascia sul telefono (4, Opus), **UM3** colori e cifre (6, 7, N12, N14), **UM4** testi, righe e selettori (8, 11–16), **UM5**
+- Cinque fasi, una PR ciascuna, in coda per area di codice (§ 7): **UM1** ingressi e uscite (1, 2, 3, 5, 9; il 10 non si fa), **UM2** la
+  fascia sul telefono (4, Opus), **UM3** colori e cifre (7, N12, N14; il 6 sospeso), **UM4** testi, righe e selettori (8, 11–16), **UM5**
   il seguito desktop (N5–N11, N13, N16, N17, in due PR).
 - Fuori perimetro: nessuna animazione nuova oltre a quelle dei 16 punti; niente di ciò che la review «lascia com'è».
 
@@ -90,15 +91,15 @@ della review; **per N5–N14 non c'è uno schizzo** e va fatto prima della confe
   dell'app (`--ease-spring`); resta lo stagger solo se ≤ 4 voci (nessuna oggi). `motionVariants.ts` perde le due costanti se
   nessun altro le usa (test di import).
 - **P3 · Tratto.** `vectorEffect="non-scaling-stroke"` e `strokeWidth={2}` sul path (la riga di hover l'ha già).
-- **P5 · Patrimonio.** Come le altre pagine interne: i `cardItem` perdono il `staggerContainer` (entrata unica della pagina
-  da `template.tsx`); la cifra non conta più (P1). Si lascia la cascata sulla Panoramica? **No**: la regola «cascata ovunque =
-  decorazione» è D-AN5. Se la Panoramica la usa, resta com'è finché non la scelgono Giorgio e il census (punto aperto P2).
+- **P5 · Patrimonio e Panoramica.** Via la cascata da **entrambe** (decisione del 22/11/2026, chiude P2): i `cardItem` perdono lo
+  `staggerContainer` e le pagine entrano con la sola entrata di `template.tsx` (la Panoramica lo fa a colonne, RU2: la regola «una
+  volta per sessione» di § 6.2 del dossier riordino cade e UM1 la corregge); la cifra non conta più (P1).
 - **P9 · Uscite.** Una sola coppia di durate nei primitivi: modale/dialog 200 dentro, 130 fuori; popover e menu 150 dentro,
   100 fuori; foglio laterale/basso 500 dentro e 300 fuori (già così: invariato). Le curve: `ease-out-quart`
   dentro, `ease-in` fuori. `ResponsiveModal` tiene la regola del suo commento (non cambiare la durata mentre il modale vive:
   **la durata di uscita si fissa con la classe `data-[state=closed]:duration-[130ms]`, non con uno stato**). Prova obbligata:
   `e2e/modal.origin.spec.ts` (intermittente in run completa, CLAUDE.md § Known Issues; si legge due volte).
-- **P10 · Il «+».** `FAB_MOTION`: opacità e `y: 12 → 0`, 220 ms, curva ease-out-quart (non più molla né `scale 0.5`);
+- **P10 · Il «+» — NON si fa (D-UM10 respinta il 22/11/2026): la molla con rimbalzo resta.** Proposta originale, per memoria: `FAB_MOTION`: opacità e `y: 12 → 0`, 220 ms, curva ease-out-quart (non più molla né `scale 0.5`);
   il segno non ruota; il bottone si monta solo dove la pillola si vede (`isAddExpenseFabShown` più la query `PILL_VISIBLE_QUERY`),
   così a 1440 non anima nascosto.
 - **Chiusura**: `useCountUp` guard test, Vitest; E2E `motion.reduced`, `modal.origin`; `perf:census` desktop e `--mobile` sugli
@@ -116,7 +117,7 @@ Vale solo sotto `band:`/sulla pillola; dal fascicolo non c'è nulla da fare (la 
 
 ### 5.3 UM3 — Colori e cifre (punti 6, 7; N12, N14; Sonnet 5.5)
 
-- **P6 · Flusso.** `COLORS`, `TYPE_COLORS`, `BUDGET_NODE_COLOR`, `SAVINGS_NODE_COLOR` diventano ruoli del tema letti da
+- **P6 · Flusso — SOSPESO (D-UM6, 22/11/2026, «per ora lasciamo così»): colori e nastri restano; non si implementa.** Proposta originale: `COLORS`, `TYPE_COLORS`, `BUDGET_NODE_COLOR`, `SAVINGS_NODE_COLOR` diventano ruoli del tema letti da
   `useChartColors` (nove slot, già «distinti» per `chartPaletteDistinctness.test.ts`): fisso/variabile/debito/entrate/
   trasferimento prendono slot dichiarati in `doc/guide/temi.md`, mai viola (DESIGN.md → No-Violet-Data); i nastri passano da
   sfumati a colore pieno al ~35% (`enableLinkGradient: false`, `linkOpacity`). Il Flusso a 50/30/20 (`spendingRoles`) segue. Il
@@ -206,15 +207,15 @@ Giorgio lo chiede; UM2 sta per ultima del telefono perché richiede l'iPhone. Ne
   nessun vantaggio).
 - **D-UM4 — La fascia del telefono non sfuma, il resto sì (UM2), con tre varianti da provare su iPhone vero.** *Scartato*:
   lasciare la dissolvenza (è la fascia che «si accende» a ogni navigazione, l'opposto di una fascia).
-- **D-UM5 — Patrimonio entra come le altre pagine.** *Scartato*: la cascata ovunque (D-AN5).
-- **D-UM6 — Colori del Flusso del tema, nastri pieni al 35%.** *Scartato*: tenere i colori fissi di Tailwind come
+- **D-UM5 — Patrimonio e Panoramica entrano come le altre pagine (via la cascata da entrambe, 22/11/2026).** *Scartato*: la cascata ovunque (D-AN5).
+- **D-UM6 — SOSPESA (22/11/2026, «per ora lasciamo così»).** Proposta: colori del Flusso del tema, nastri pieni al 35%.** *Scartato*: tenere i colori fissi di Tailwind come
   «semantici» (nei temi scuri e in Graphite non reggono il floor di distinzione).
 - **D-UM7 — Centesimi più piccoli.** **Presa da Giorgio il 14/11/2026.** *Scartato*: euro interi come D-AS31 (cambia il
   valore mostrato nel trio, che deve restare esatto).
 - **D-UM8 — Riscontro al tocco: un gradino di colore su `Button` e righe, 100 ms.** *Scartato*: rimpicciolire al tocco (slop).
 - **D-UM9 — Uscite: modale 200/130, menu 150/100, foglio 300.** *Scartato*: tutti a 200 (le uscite lunghe fanno apparire
   l'app lenta, e `modal.origin.spec.ts` campiona proprio la chiusura).
-- **D-UM10 — Il «+» a 220 ms, senza rotazione né rimbalzo, montato solo con la pillola.** *Scartato*: tenere la molla
+- **D-UM10 — RESPINTA (22/11/2026): il «+» tiene la molla e il rimbalzo.** Proposta: il «+» a 220 ms, senza rotazione né rimbalzo, montato solo con la pillola.** *Scartato*: tenere la molla
   (il rimbalzo del 6% è l'unico della shell).
 - **D-UM11 — Le righe non ripetono mai la categoria; seconda riga = sottocategoria, poi conto, poi niente.** *Scartato*:
   nascondere il titolo quando coincide (cambia l'altezza delle righe).
@@ -228,8 +229,7 @@ Giorgio lo chiede; UM2 sta per ultima del telefono perché richiede l'iPhone. Ne
 
 - **P1.** Gli schizzi «oggi / proposta» di N5–N14 non esistono (la review desktop non li ha): servono prima della conferma
   di D-UM12–D-UM14 (WORKFLOW.md § 1 regola 8). Proposto: una pagina pubblicata sola per UM5.
-- **P2.** La cascata a stagger della Panoramica: tenerla (D-RU* la cita come «una volta per sessione») o toglierla con
-  Patrimonio? Da decidere con la misura del census dopo UM1.
+- **P2.** CHIUSO il 22/11/2026: via la cascata da Panoramica e Patrimonio.
 - **P3.** Le tre varianti di UM2 vanno viste su iPhone vero: serve un giro con Giorgio (build su Vercel preview).
 - **P4.** N14: quali maiuscole e decimali sono «difetto» e quali scelta — l'audit lo dice, la regola la sceglie Giorgio.
 - **P5.** Misure da riprendere sul Mac: 8, 13, N17 (a 2560), il census dei selettori a 390.
