@@ -188,18 +188,17 @@ contiene GeoPoint, riferimento, byte e una mappa con `__type`, la memoria dell'a
 | ID | Decisione | Alternative scartate | Motivo |
 |---|---|---|---|
 | D-BK0 | Backup con uno script lanciato dal Mac, senza cambiare piano Firebase (Giorgio, 14/11) | PITR e backup di Firestore (richiedono Blaze) | Restare su Spark |
-| D-BK1 | Cartella `BACKUP_DIR`, di default `~/Documents/net-worth-tracker-backup` | Una cartella solo locale; un percorso fisso | Con iCloud su Documenti si ha una seconda copia fuori dal Mac senza fare niente. *Proposta, da confermare.* |
-| D-BK2 | Gli ultimi 8 completi più il primo di ogni mese, per sempre. Gli export di un account mai cancellati | Gli ultimi 12; tutti | Pochi MB l'uno; la storia mensile resta. *Proposta, da confermare.* |
-| D-BK3 | Agente launchd la domenica alle 21:00, con notifica dell'esito | Task ricorrente su Todoist | Non dipende dalla memoria. *Proposta, da confermare.* |
-| D-BK4 | Utenti di Authentication nell'export, senza hash delle password | Nessun utente; gli hash | Bastano per ricreare gli account negli emulatori; le password si spostano con `firebase auth:export` |
-| D-BK5 | In produzione si ripristina un documento alla volta; il file intero va negli emulatori | Ripristino di una collezione in produzione | Una scrittura di massa in produzione da un file vecchio è il danno che il backup deve evitare. *Proposta, da confermare.* |
+| D-BK1 | Cartella `BACKUP_DIR`, di default `~/Documents/net-worth-tracker-backup` | Una cartella solo locale; un percorso fisso | Con iCloud su Documenti si ha una seconda copia fuori dal Mac senza fare niente. Confermata da Giorgio il 22/11. |
+| D-BK2 | Gli ultimi 8 completi più il primo di ogni mese, per sempre. Gli export di un account mai cancellati | Gli ultimi 12; tutti | Pochi MB l'uno; la storia mensile resta. Confermata da Giorgio il 22/11. |
+| D-BK3 | Agente launchd la domenica alle 21:00, con notifica dell'esito | Task ricorrente su Todoist | Non dipende dalla memoria. Confermata da Giorgio il 22/11. |
+| D-BK4 | Utenti di Authentication nell'export, senza hash delle password | Nessun utente; gli hash | Bastano per ricreare gli account negli emulatori; le password si spostano con `firebase auth:export`. Confermata da Giorgio il 22/11. |
+| D-BK5 | In produzione si ripristina un documento alla volta; il file intero va negli emulatori | Ripristino di una collezione in produzione | Una scrittura di massa in produzione da un file vecchio è il danno che il backup deve evitare. Confermata da Giorgio il 22/11. |
 | D-BK6 | Il database intero si legge con `listCollections()`, non dal registro | Solo il registro | Una collezione nuova finisce nel backup anche se nessuno l'ha registrata |
 | D-BK7 | Le cache fuori di default (`--with-caches` per includerle) | Sempre dentro | Si ricalcolano da sole; costano letture e spazio |
 | D-BK8 | Il mirror (`mirror:seed`) resta com'è | Farlo leggere dal registro | Copia per un giro guidato, con gli id ricodificati: è un altro lavoro. Il registro è la fonte per backup e migrazione |
 
 ## 12. Punti aperti
 
-- Le conferme di D-BK1, D-BK2, D-BK3 e D-BK5 (domande nel thread del 22/11).
 - L'accesso al disco dell'agente launchd (§ 8), da verificare sul Mac.
 - `account:import` e `account:remove --uid` (card «Utenti · Piano di uscita») useranno questo formato e il
   registro. L'import dovrà decidere cosa fare dei documenti `account-access` di altri proprietari che il file
