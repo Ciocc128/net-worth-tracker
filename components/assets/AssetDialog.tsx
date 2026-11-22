@@ -1817,7 +1817,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                   role="radio"
                   aria-checked={selectedType === t}
                   onClick={() => handleTypeSelect(t)}
-                  className={`flex items-start gap-3 rounded-lg border border-border p-4 text-left transition-colors duration-150 ease-out hover:bg-muted/50 hover:border-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring${idx === TYPE_CARDS.length - 1 && TYPE_CARDS.length % 2 !== 0 ? ' sm:col-span-2' : ''}`}
+                  className={`flex items-start gap-3 rounded-lg border border-border p-4 text-left transition-colors duration-150 ease-out hover:bg-muted/40 hover:border-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring${idx === TYPE_CARDS.length - 1 && TYPE_CARDS.length % 2 !== 0 ? ' sm:col-span-2' : ''}`}
                 >
                   <Icon className="h-5 w-5 mt-0.5 text-muted-foreground shrink-0" aria-hidden="true" />
                   <div className="min-w-0">

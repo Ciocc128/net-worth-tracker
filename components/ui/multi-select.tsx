@@ -42,9 +42,9 @@ import {
  */
 export interface AnimationConfig {
 	/** Badge animation type */
-	badgeAnimation?: "lift" | "wiggle" | "fade" | "slide" | "none";
+	badgeAnimation?: "lift" | "fade" | "slide" | "none";
 	/** Popover animation type */
-	popoverAnimation?: "scale" | "slide" | "fade" | "flip" | "none";
+	popoverAnimation?: "fade" | "none";
 	/** Option hover animation type */
 	optionHoverAnimation?: "highlight" | "scale" | "glow" | "none";
 	/** Animation duration in seconds */
@@ -69,7 +69,6 @@ const multiSelectVariants = cva("m-1 transition-[background-color,opacity,transf
 		},
 		badgeAnimation: {
 			lift: "hover:-translate-y-0.5",
-			wiggle: "hover:animate-wiggle",
 			fade: "hover:opacity-80",
 			slide: "hover:translate-x-1",
 			none: "",
@@ -374,8 +373,6 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
 						return isAnimating
 							? "-translate-y-0.5"
 							: "hover:-translate-y-0.5";
-					case "wiggle":
-						return "hover:animate-wiggle";
 					case "fade":
 						return "hover:opacity-80";
 					case "slide":
@@ -392,14 +389,8 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
 		const getPopoverAnimationClass = () => {
 			if (animationConfig?.popoverAnimation) {
 				switch (animationConfig.popoverAnimation) {
-					case "scale":
-						return "animate-scaleIn";
-					case "slide":
-						return "animate-slideInDown";
 					case "fade":
 						return "animate-fadeIn";
-					case "flip":
-						return "animate-flipIn";
 					case "none":
 						return "";
 					default:

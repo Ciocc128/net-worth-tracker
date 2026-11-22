@@ -407,7 +407,7 @@ function CategoryFormBody({
         {subCategories.length > 0 && (
           <div className="divide-y divide-border/50 rounded-xl border border-border/60 overflow-hidden">
             {subCategories.map((sub) => (
-              <div key={sub.id} className="group flex items-center gap-2 px-3 py-1.5 hover:bg-muted/30 transition-colors">
+              <div key={sub.id} className="group flex items-center gap-2 px-3 py-1.5 hover:bg-muted/40 transition-colors">
                 <IconPickerPopover
                   value={sub.icon}
                   onChange={(icon) => handleUpdateSubCategoryIcon(sub.id, icon)}
@@ -417,7 +417,7 @@ function CategoryFormBody({
                 <Input
                   value={sub.name}
                   onChange={(e) => handleUpdateSubCategoryName(sub.id, e.target.value)}
-                  className="h-8 flex-1 border-transparent bg-transparent shadow-none hover:bg-muted/50 focus-visible:bg-background focus-visible:border-input text-sm px-2"
+                  className="h-8 flex-1 border-transparent bg-transparent shadow-none hover:bg-muted/40 focus-visible:bg-background focus-visible:border-input text-sm px-2"
                   aria-label="Nome sottocategoria"
                 />
                 {showRoles && (

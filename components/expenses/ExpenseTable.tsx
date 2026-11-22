@@ -46,10 +46,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { RestingBin } from '@/components/ui/resting-bin';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Edit, Trash2, TrendingUp, TrendingDown, Calendar, ChevronLeft, ChevronRight, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react';
+import { Edit, TrendingUp, TrendingDown, Calendar, ChevronLeft, ChevronRight, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -251,6 +252,7 @@ function ExpenseTableRow({ expense, scheduled, ownerLabel, singleType, categoryM
             ref={deleteRef}
             variant={armed ? 'destructive' : 'ghost'}
             size="sm"
+            className="group"
             onClick={isSeries ? () => onDelete(expense) : onArmedClick}
             onBlur={isSeries ? undefined : onBlur}
             disabled={disabled}
@@ -266,7 +268,7 @@ function ExpenseTableRow({ expense, scheduled, ownerLabel, singleType, categoryM
             }
             title={isDemo ? 'Non disponibile in modalità demo' : undefined}
           >
-            {armed ? <span className="px-1 text-xs">Conferma</span> : <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />}
+            {armed ? <span className="px-1 text-xs">Conferma</span> : <RestingBin />}
           </Button>
         </div>
       </TableCell>

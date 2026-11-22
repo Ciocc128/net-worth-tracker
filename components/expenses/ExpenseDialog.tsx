@@ -356,7 +356,7 @@ function ExpenseTypePicker({ selectedType, onSelect }: Readonly<ExpenseTypePicke
             onClick={() => onSelect(value)}
             className={cn(
               'flex items-start gap-3 rounded-lg border border-border bg-card p-4 text-left',
-              'transition-colors duration-150 ease-out hover:bg-muted/50 hover:border-primary/30',
+              'transition-colors duration-150 ease-out hover:bg-muted/40 hover:border-primary/30',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               index === TYPE_OPTIONS.length - 1 &&
                 TYPE_OPTIONS.length % 2 !== 0 &&

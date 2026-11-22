@@ -343,7 +343,7 @@ export function CategoryDeleteConfirmDialog({
             <label
               className={cn(
                 'flex cursor-pointer items-start gap-3 rounded-lg border p-3.5 transition-colors',
-                mode === 'reassign' ? 'border-border bg-muted' : 'border-border hover:bg-muted/50',
+                mode === 'reassign' ? 'border-border bg-muted' : 'border-border hover:bg-muted/40',
               )}
             >
               <input
@@ -475,7 +475,7 @@ export function CategoryDeleteConfirmDialog({
             <label
               className={cn(
                 'mt-3 flex cursor-pointer items-start gap-3 rounded-lg border p-3.5 transition-colors',
-                mode === 'delete' ? 'border-destructive bg-destructive/5' : 'border-border hover:bg-muted/50',
+                mode === 'delete' ? 'border-destructive bg-destructive/5' : 'border-border hover:bg-muted/40',
               )}
             >
               <input

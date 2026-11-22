@@ -200,7 +200,7 @@ export function HallOfFameNoteDialog({
           <label
             key={section}
             htmlFor={section}
-            className="flex min-h-8 cursor-pointer items-center gap-3 rounded-md px-1 text-sm hover:bg-muted/60 [@media(pointer:coarse)]:min-h-11"
+            className="flex min-h-8 cursor-pointer items-center gap-3 rounded-md px-1 text-sm hover:bg-muted/40 [@media(pointer:coarse)]:min-h-11"
           >
             <Checkbox
               id={section}

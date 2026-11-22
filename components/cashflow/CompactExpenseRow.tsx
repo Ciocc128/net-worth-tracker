@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { LAZY_CATEGORY_ICONS } from '@/components/expenses/IconPickerPopover';
 import type { Expense } from '@/types/expenses';
+import { rowSubtitle, rowTitle } from '@/lib/utils/expenseRowSubtitle';
 import { categoryIconBackground, categoryIconColor } from '@/lib/utils/categoryIconStyle';
 import { EXPENSE_TYPE_DOT_CLASS as TYPE_DOT_CLASS } from '@/lib/constants/expenseTypeColors';
 
@@ -22,6 +23,11 @@ export interface CompactExpenseRowProps {
    * the parent through `resolveOwnerLabel`, only with Divisione on.
    */
   ownerLabel?: string | null;
+  /**
+   * The name of the account the row moves, for the second line of a row with no note and no
+   * sub-category (`rowSubtitle`); null = none, the line stays blank.
+   */
+  accountName?: string | null;
   /**
    * The row's button, for the one row the feed has to put the focus on — the row just saved on
    * a phone (`TransactionFeed.focusRowId`): the modal that saved it hands the focus back here.
@@ -47,16 +53,15 @@ export function CompactExpenseRow({
   categoryColor,
   scheduled = false,
   ownerLabel = null,
+  accountName = null,
   buttonRef,
 }: Readonly<CompactExpenseRowProps>) {
   const isIncome = expense.type === 'income';
   const isTransfer = expense.type === 'transfer';
 
-  const subtitle = [expense.categoryName, expense.subCategoryName || null]
-    .filter(Boolean)
-    .join(' · ');
+  const subtitle = rowSubtitle(expense, accountName);
 
-  const title = expense.notes?.trim() || expense.categoryName;
+  const title = rowTitle(expense);
 
   const amountLabel = `${isIncome ? '+' : isTransfer ? '' : ''}${cachedFormatCurrencyEUR(Math.abs(expense.amount))}`;
 
@@ -126,7 +131,7 @@ export function CompactExpenseRow({
             </Badge>
           )}
         </div>
-        <p className="text-[12px] text-muted-foreground truncate mt-0.5">{subtitle}</p>
+        {subtitle && <p className="text-[12px] text-muted-foreground truncate mt-0.5">{subtitle}</p>}
       </div>
 
       {/* Amount — the feed figure tokens for income and spending, muted for a net-zero transfer

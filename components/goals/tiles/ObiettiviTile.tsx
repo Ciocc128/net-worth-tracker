@@ -56,7 +56,7 @@ function GoalRow({ row, featured, selected, onSelect }: { row: ObiettiviRow; fea
         aria-current={selected ? 'true' : undefined}
         aria-label={`${line.name}, ${verdict.label}`}
         className={cn(
-          'flex w-full flex-col text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset -mx-2 w-[calc(100%+16px)] rounded-md px-2 hover:bg-muted/30',
+          'flex w-full flex-col text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset -mx-2 w-[calc(100%+16px)] rounded-md px-2 hover:bg-muted/40',
           featured ? 'gap-2.5 pb-3.5 pt-1' : 'gap-2 py-3.5',
           selected && 'bg-muted/40',
         )}
