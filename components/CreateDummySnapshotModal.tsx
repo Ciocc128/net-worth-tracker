@@ -148,7 +148,7 @@ export function CreateDummySnapshotModal({
         <div className="grid gap-4">
           {/* Net Worth Section */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold">Dati Patrimonio</h3>
+            <h3 className="text-sm font-semibold">Dati patrimonio</h3>
 
             <div className="grid gap-2">
               <Label htmlFor="initial-net-worth">

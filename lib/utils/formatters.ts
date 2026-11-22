@@ -60,6 +60,17 @@ export function withTypographicMinus(value: number, printedMagnitude: string): s
   return `${value < 0 ? '−' : ''}${printedMagnitude}`;
 }
 
+/**
+ * A formatted euro figure in two pieces, the whole part and the cents: «1.234,56 €» → «1.234» + «,56 €»
+ * (the sign stays with the whole part). A figure with no decimals comes back whole, the cents empty.
+ * The Cashflow trio draws the second piece smaller (UM3, point 7); the two pieces joined are the
+ * original text, so a reader of the DOM hears «1.234,56 €» unchanged.
+ */
+export function splitEuroCents(text: string): { whole: string; cents: string } {
+  const match = /^(.*?\d)(,\d+.*)$/.exec(text);
+  return match ? { whole: match[1], cents: match[2] } : { whole: text, cents: '' };
+}
+
 /** The euro with the typographic minus, unsigned when it prints as zero; `compact` drops the cents (default), `false` keeps them (a real figure: D-AS27). */
 export function formatEuroMinus(value: number, compact = true): string {
   return withTypographicMinus(value, cachedFormatCurrencyEUR(Math.abs(value), compact));

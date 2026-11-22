@@ -17,6 +17,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useCountUp } from '@/lib/utils/useCountUp';
+import { splitEuroCents } from '@/lib/utils/formatters';
 
 /** The glide of a figure that changes window (§ 6: «Cifre che contano», 620 ms). */
 export const FIGURE_GLIDE_MS = 620;
@@ -54,18 +55,33 @@ interface SettledFigureProps {
   /** The slot in the page's `FigureMemory`, when the figure can be unmounted and come back. */
   memoryKey?: string;
   className?: string;
+  /** A euro figure whose cents print smaller (UM3, point 7: `0.6em`, same baseline); the text read is unchanged. */
+  smallCents?: boolean;
+}
+
+/** «1.234,56 €» as «1.234» and a smaller «,56 €»; text that has no cents passes through. */
+function withSmallCents(text: string) {
+  const { whole, cents } = splitEuroCents(text);
+  if (!cents) return text;
+  return (
+    <>
+      {whole}
+      <span className="text-[0.6em]">{cents}</span>
+    </>
+  );
 }
 
 /** A printed figure that glides; see the module comment. */
-export function SettledFigure({ value, format, memoryKey, className }: SettledFigureProps) {
+export function SettledFigure({ value, format, memoryKey, className, smallCents = false }: SettledFigureProps) {
   const frame = useSettledFigure(value, memoryKey) ?? value;
   const landed = format(value);
   const shown = format(frame);
   // `data-figure` names the slot for a probe (e2e/motion.transform.analisi.spec.ts).
-  if (shown === landed) return <span className={className} data-figure={memoryKey}>{landed}</span>;
+  const draw = (text: string) => (smallCents ? withSmallCents(text) : text);
+  if (shown === landed) return <span className={className} data-figure={memoryKey}>{draw(landed)}</span>;
   return (
     <span className={className} data-figure={memoryKey}>
-      <span aria-hidden="true">{shown}</span>
+      <span aria-hidden="true">{draw(shown)}</span>
       <span className="sr-only">{landed}</span>
     </span>
   );

@@ -207,7 +207,7 @@ export function AllocazioneTab({ slice, onChange, onClassChange, pendingFocus, o
                   max="100"
                   value={riskFreeRate ?? ''}
                   onChange={(e) => onChange({ riskFreeRate: e.target.value ? parseFloat(e.target.value) : undefined })}
-                  placeholder={riskFreeEstimate.value.toFixed(2)}
+                  placeholder={riskFreeEstimate.value.toFixed(2).replace('.', ',')}
                   className={cn('w-24 text-right font-mono', INTERACTIVE_CONTROL_CLASS)}
                 />
                 <span className="text-sm text-muted-foreground">%</span>

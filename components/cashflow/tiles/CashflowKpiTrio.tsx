@@ -91,14 +91,14 @@ export function CashflowKpiTrio({ totals, incomeDelta, expensesDelta, previousLa
       <div className="flex min-w-0 flex-col gap-1.5">
         <p className={TILE_SUB_EYEBROW_CLASS}><SeriesDot color="var(--flow-in)" />Entrate</p>
         <p className={cn(valueClass, income > 0 ? 'text-income-figure' : 'text-muted-foreground')}>
-          <SettledFigure value={income} format={formatExactEuro} memoryKey="trio:income" />
+          <SettledFigure value={income} format={formatExactEuro} memoryKey="trio:income" smallCents />
         </p>
         <DeltaLine delta={incomeDelta} positiveGood={true} previousLabel={previousLabel} />
       </div>
       <div className="flex min-w-0 flex-col gap-1.5">
         <p className={TILE_SUB_EYEBROW_CLASS}><SeriesDot color="var(--flow-out)" />Spese</p>
         <p className={cn(valueClass, expenses > 0 ? 'text-expense-figure' : 'text-muted-foreground')}>
-          <SettledFigure value={expenses} format={formatExactEuro} memoryKey="trio:expenses" />
+          <SettledFigure value={expenses} format={formatExactEuro} memoryKey="trio:expenses" smallCents />
         </p>
         <DeltaLine delta={expensesDelta} positiveGood={false} previousLabel={previousLabel} lifted={expensesDeltaLifted} />
       </div>
@@ -107,7 +107,7 @@ export function CashflowKpiTrio({ totals, incomeDelta, expensesDelta, previousLa
         {/* The strip's cell repeats this figure on a phone: ONE formatter decides the «−», and a
             net that prints as zero takes none (AGENTS.md § Layout and Color Tokens, 2026-10-12). */}
         <p className={cn(valueClass, netFigureClass(net))}>
-          <SettledFigure value={net} format={formatExactEuroMinus} memoryKey="trio:net" />
+          <SettledFigure value={net} format={formatExactEuroMinus} memoryKey="trio:net" smallCents />
         </p>
         <p className="text-[11px] text-muted-foreground">
           {savingsRate !== null ? (
