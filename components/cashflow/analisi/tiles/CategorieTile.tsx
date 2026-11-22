@@ -11,6 +11,8 @@ import { RankedRows } from '@/components/ui/ranked-rows';
 
 /** Rows shown before «Mostra tutte» takes over — enough for the shape, not a whole taxonomy. */
 const VISIBLE_ROWS = 8;
+/** Under this many rows the tile is stretched by its grid row and shows the comparison total (N7). */
+const SHORT_LIST_ROWS = 3;
 
 interface CategorieTileProps {
   eyebrow: string;
@@ -23,6 +25,8 @@ interface CategorieTileProps {
   activeKey: string | null;
   onSelect: (slice: CategorySlice) => void;
   emptyCopy: string;
+  /** N7 (UM5a): the same total in the comparison period, shown under a short list; null when there is none to compare. */
+  reference?: { label: string; amount: number } | null;
   labelClassName?: string;
   /** The row below `desktop:` (`useMobileSections().collapse(id)`); `undefined` at 1440. */
   collapse?: TileCollapse;
@@ -37,7 +41,7 @@ interface CategorieTileProps {
  * first eight rows show by default and the rest fold into a residual row, so the tile keeps
  * the grid's rhythm and the list still visibly adds up to its total.
  */
-export function CategorieTile({ eyebrow, kind, slices, total, reading, activeKey, onSelect, emptyCopy, labelClassName, collapse, asideWhenClosed, className }: CategorieTileProps) {
+export function CategorieTile({ eyebrow, kind, slices, total, reading, activeKey, onSelect, emptyCopy, reference = null, labelClassName, collapse, asideWhenClosed, className }: CategorieTileProps) {
   const [showAll, setShowAll] = useState(false);
   const bySliceKey = new Map(slices.map((slice) => [slice.key, slice]));
 
@@ -79,6 +83,11 @@ export function CategorieTile({ eyebrow, kind, slices, total, reading, activeKey
                 : null
             }
           />
+          {slices.length < SHORT_LIST_ROWS && reference && reference.amount > 0 && (
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              Nello stesso periodo, {reference.label}: <span className="font-mono tabular-nums text-foreground">{cachedFormatCurrencyEUR(reference.amount, true)}</span>
+            </p>
+          )}
           <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-3.5 text-[11px] text-muted-foreground">
             <span>Una riga apre la scheda della categoria.</span>
             {slices.length > VISIBLE_ROWS && !activeHidden && (

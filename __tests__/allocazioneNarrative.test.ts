@@ -337,6 +337,37 @@ describe('describePlan', () => {
     ...overrides,
   });
 
+  // N8 (UM5a). Worked by hand: sells 3000 + 2000 = 5000, buys 2500 + 2500 = 5000, four operations,
+  // the largest is the 3000 sale of equity. 4 → «quattro», totals named; 10 → «10», count and largest only.
+  it('past three operations says the totals and the largest order, not the list', () => {
+    const view: PlanView = {
+      mode: 'rebalance',
+      moves: [
+        move({ amount: 3000, requestedAmount: 3000 }),
+        move({ assetClass: 'bonds', label: 'Obbligazioni', amount: 2000, requestedAmount: 2000 }),
+        move({ assetClass: 'cash', label: 'Liquidità', action: 'COMPRA', amount: 2500, requestedAmount: 2500 }),
+        move({ assetClass: 'commodity', label: 'Materie Prime', action: 'COMPRA', amount: 2500, requestedAmount: 2500 }),
+      ],
+      trades: null,
+      resultingLeverageRatio: null,
+    };
+    expect(plain(describePlan(view, band))).toBe(
+      'Per rientrare nella soglia: quattro operazioni, vendi 5000 € e compra 5000 € in totale; la maggiore: vendi 3000 € di azioni.',
+    );
+  });
+
+  it('from ten operations keeps only the count and the largest order', () => {
+    const trades = Array.from({ length: 10 }, (_, i) => ({
+      assetId: `a${i}`,
+      ticker: `T${i}`,
+      name: `Fondo ${i}`,
+      amount: i === 0 ? -1000 : i % 2 === 0 ? -100 : 100,
+    }));
+    expect(plain(describePlan({ mode: 'rebalance', moves: [], trades, resultingLeverageRatio: null }, band))).toBe(
+      'Per rientrare nella soglia: 10 operazioni; la maggiore: vendi 1000 € di T0.',
+    );
+  });
+
   it('reads a rebalance as sells then buys, counting the operations', () => {
     const view: PlanView = {
       mode: 'rebalance',

@@ -275,7 +275,7 @@ export function PortafoglioModelloTile({
         {!model && !readFailed && <p className="mt-1 text-[11px] text-muted-foreground">{MODEL_ADD_CANDIDATE_NEEDS_MODEL}</p>}
 
         <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-3.5">
-          <Button className={TILE_ACTION_CLASS} onClick={() => setView('composition')} disabled={!targets || !objectivesOn}>
+          <Button variant="outline" className={TILE_ACTION_CLASS} onClick={() => setView('composition')} disabled={!targets || !objectivesOn}>
             {MODEL_ACTION_RECALCULATE}
           </Button>
           {canUsePlan && (

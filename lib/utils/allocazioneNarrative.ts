@@ -415,12 +415,54 @@ function countPlanOperations(moves: RebalanceMove[]): number {
   return moves.filter(isPlanOperation).length;
 }
 
+/** UM5a N8: from this many operations the reading stops listing them. */
+const PLAN_LIST_MAX_OPERATIONS = 3;
+/** From this many it also stops saying the totals and keeps the count and the largest. */
+const PLAN_COUNT_ONLY_FROM = 10;
+
+interface PlanOrder {
+  /** «azioni», «VWCE»: what the order is on, already as it reads after «di». */
+  object: string;
+  action: 'vendi' | 'compra';
+  amount: number;
+}
+
+/**
+ * The reading of a plan with more than three operations (N8): «sei operazioni, vendi 12.000 € e compra
+ * 12.000 € in totale; la maggiore: vendi 5000 € di azioni» from 4 to 9 operations, «10 operazioni; la
+ * maggiore: …» from 10, never the list. A tie keeps the first order.
+ */
+function describeLargePlan(orders: PlanOrder[]): Narrative {
+  const sold = orders.filter((o) => o.action === 'vendi').reduce((sum, o) => sum + Math.abs(o.amount), 0);
+  const bought = orders.filter((o) => o.action === 'compra').reduce((sum, o) => sum + Math.abs(o.amount), 0);
+  const largest = orders.reduce((best, o) => (Math.abs(o.amount) > Math.abs(best.amount) ? o : best), orders[0]);
+  const count = orders.length;
+  const sentence: Narrative = [prose(`Per rientrare nella soglia: ${numberWord(count)} operazioni`)];
+  if (count < PLAN_COUNT_ONLY_FROM) {
+    const totals: Narrative[] = [];
+    if (sold > 0) totals.push([prose('vendi '), amount(sold)]);
+    if (bought > 0) totals.push([prose('compra '), amount(bought)]);
+    sentence.push(prose(', '), ...joinList(totals), prose(' in totale'));
+  }
+  sentence.push(prose(`; la maggiore: ${largest.action} `), amount(largest.amount), prose(` di ${largest.object}`), prose('.'));
+  return sentence;
+}
+
 function describeMoves(moves: RebalanceMove[], band: RebalanceBand): Narrative {
   if (moves.length === 0) return [prose(`Tutto in linea: nessuna operazione necessaria ${bandClause(band)}.`)];
 
   const sells = moves.filter((move) => move.action === 'VENDI');
   const buys = moves.filter((move) => move.action === 'COMPRA');
   const operations = countPlanOperations(moves);
+  if (operations > PLAN_LIST_MAX_OPERATIONS) {
+    return describeLargePlan(
+      moves.filter(isPlanOperation).map((move) => ({
+        object: classSubject(move.assetClass, move.label).object,
+        action: move.action === 'VENDI' ? 'vendi' : 'compra',
+        amount: move.amount,
+      })),
+    );
+  }
   let sold = 0;
   let bought = 0;
 
@@ -464,6 +506,13 @@ function tradeItems(trades: InstrumentTrade[]): { sells: Narrative[]; buys: Narr
 
 function describeTrades(trades: InstrumentTrade[], resultingLeverageRatio: number | null): Narrative {
   if (trades.length === 0) return [prose('Tutto in linea: nessuna operazione riporta esposizione e leva più vicine al target.')];
+  if (trades.length > PLAN_LIST_MAX_OPERATIONS) {
+    const large = describeLargePlan(
+      trades.map((t) => ({ object: t.displayTicker || t.ticker, action: t.amount < 0 ? 'vendi' : 'compra', amount: t.amount })),
+    );
+    if (resultingLeverageRatio === null) return large;
+    return [...large.slice(0, -1), prose('; la leva risultante è '), figure(formatLeverage(resultingLeverageRatio)), prose('.')];
+  }
   const { sells, buys } = tradeItems(trades);
   const sentence: Narrative = [prose('Per rientrare nella soglia: ')];
   if (sells.length > 0) sentence.push(prose('vendi '), ...joinList(sells));

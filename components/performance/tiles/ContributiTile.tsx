@@ -84,7 +84,8 @@ export function ContributiTile({
 }: ContributiTileProps) {
   // When every month rode the cashflow the savings ARE a channel above: not a second time below.
   const cashflowIsAChannel = capital.channels.some((channel) => channel.key === 'cashflow' && channel.months >= numberOfMonths);
-  const showComparison = invested !== null || !cashflowIsAChannel;
+  const showDividends = Math.round(totalDividendIncome) > 0;
+  const showComparison = invested !== null || !cashflowIsAChannel || showDividends;
 
   const channelRow = (channel: CapitalEnteredChannel) => {
     if (channel.key === 'measured') {
@@ -160,6 +161,9 @@ export function ContributiTile({
                 amount={netCashFlow}
               />
             )}
+            {/* N7 (UM5a): the tile has room, and the dividends are the figure a reader looks for here
+                and does not find — they are return, never a contribution, and the row says so. */}
+            {showDividends && <Row muted label="Dividendi" caption="rendimento, non un contributo" amount={totalDividendIncome} />}
           </div>
         </>
       )}
