@@ -201,7 +201,7 @@ export function VersamentiTile({ taxYear, reading, aside, footer, rows, showFund
         <>
           {isDesktop ? (
             /* From desktop: the table, the last row without its border. */
-            <div className="mt-3.5">
+            <div className="mx-auto mt-3.5 max-w-[720px]">
               <table className="w-full border-collapse">
                 <thead>
                   <tr>

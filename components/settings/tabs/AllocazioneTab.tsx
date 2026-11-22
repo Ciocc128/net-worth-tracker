@@ -260,7 +260,7 @@ export function AllocazioneTab({ slice, onChange, onClassChange, pendingFocus, o
             problem: targetProblem,
           })}
         >
-          <div className="mt-1 flex flex-col divide-y divide-border">
+          <div className="mx-auto mt-1 flex max-w-[720px] flex-col divide-y divide-border">
             {SETTINGS_CLASS_ORDER.map((assetClass) => {
               const draft = classes[assetClass];
               if (!draft) return null;
