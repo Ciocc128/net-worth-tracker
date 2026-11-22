@@ -49,8 +49,8 @@ export function VentaglioTile({ reading, aside, p10, p50, p90, horizonLabel, cha
         <Kpi label="90° %ile" value={p90} />
       </div>
 
-      {/* The chart stretches with the tile's free height (the SVG's 100% resolves against the absolute box); below `desktop:` it yields to 120px, never the reading (The First-Screen Rule). */}
-      <div className="relative mt-4 flex-1 max-desktop:min-h-[120px] desktop:min-h-[240px]">
+      {/* The chart stretches with the tile's free height (the SVG's 100% resolves against the absolute box); below `desktop:` it yields to 176px (the chart's own note and legend take about 56px of it), never the reading (The First-Screen Rule). */}
+      <div className="relative mt-4 flex-1 max-desktop:min-h-[176px] desktop:min-h-[240px]">
         <div className="absolute inset-0">{chart}</div>
       </div>
 
