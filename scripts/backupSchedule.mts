@@ -31,7 +31,7 @@ function launchctl(...args: string[]): boolean {
 async function backupDir(): Promise<string> {
   const nextEnvModule = (await import('@next/env')) as { default?: { loadEnvConfig(dir: string): unknown }; loadEnvConfig?(dir: string): unknown };
   (nextEnvModule.default ?? nextEnvModule).loadEnvConfig!(process.cwd());
-  const dir = process.env.BACKUP_DIR ?? path.join(homedir(), 'Documents', 'net-worth-tracker-backup');
+  const dir = process.env.BACKUP_DIR ?? path.join(homedir(), 'net-worth-tracker-backup');
   return dir === '~' || dir.startsWith('~/') ? path.join(homedir(), dir.slice(1)) : path.resolve(dir);
 }
 

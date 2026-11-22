@@ -112,7 +112,7 @@ senza `:` (Finder mostrerebbe `/`). I nomi si ordinano nel tempo.
 
 ## 6. Dove e quante copie
 
-- **Cartella**: `BACKUP_DIR` in `.env.local`, altrimenti `~/Documents/net-worth-tracker-backup` (D-BK1).
+- **Cartella**: `BACKUP_DIR` in `.env.local`, altrimenti `~/net-worth-tracker-backup` (D-BK1).
   È creata con i permessi 700, il file 600. Il comando rifiuta una cartella dentro il repository.
 - **Scrittura sicura**: prima `….json.partial`, poi il file viene riletto e ricontato. Solo se i conteggi
   tornano diventa `….json`. Un file `.partial` rimasto in cartella non è affidabile.
@@ -153,7 +153,7 @@ del log), `--now` (lancialo subito), `--remove`.
 - **Accesso a Scrivania e Documenti**: macOS non lascia scrivere un agente launchd in `~/Documents`, e non
   chiede nemmeno il permesso. Nella prova del 22/11 il log diceva `operation not permitted`. Per questo il
   job gira da una copia di `main` in `~/nwt-backup-runner`, fuori dalla Scrivania, con la sua `.env.local`
-  (permessi 600), e `BACKUP_DIR` punta fuori da Documenti. L'alternativa è dare l'accesso completo al disco
+  (permessi 600), e la cartella dei backup è fuori da Documenti (D-BK1). L'alternativa, scartata, è dare l'accesso completo al disco
   a `/bin/zsh` e a `node`.
 
 ## 9. Costo in letture
@@ -194,7 +194,7 @@ contiene GeoPoint, riferimento, byte e una mappa con `__type`, la memoria dell'a
 | ID | Decisione | Alternative scartate | Motivo |
 |---|---|---|---|
 | D-BK0 | Backup con uno script lanciato dal Mac, senza cambiare piano Firebase (Giorgio, 14/11) | PITR e backup di Firestore (richiedono Blaze) | Restare su Spark |
-| D-BK1 | Cartella `BACKUP_DIR`, di default `~/Documents/net-worth-tracker-backup` | Una cartella solo locale; un percorso fisso | Con iCloud su Documenti si ha una seconda copia fuori dal Mac senza fare niente. Confermata da Giorgio il 22/11. |
+| D-BK1 | Cartella `BACKUP_DIR`, di default `~/net-worth-tracker-backup` (nella home, fuori da Documenti) | `~/Documents/…` con la copia iCloud (macOS blocca il job launchd, servirebbe l'accesso completo al disco per zsh e node); un percorso fisso | Funziona senza allargare i permessi del Mac. Scelta da Giorgio il 22/11, dopo che la prima prova in Documenti è fallita; prima la proposta era Documenti. |
 | D-BK2 | Gli ultimi 8 completi più il primo di ogni mese, per sempre. Gli export di un account mai cancellati | Gli ultimi 12; tutti | Pochi MB l'uno; la storia mensile resta. Confermata da Giorgio il 22/11. |
 | D-BK3 | Agente launchd la domenica alle 21:00, con notifica dell'esito | Task ricorrente su Todoist | Non dipende dalla memoria. Confermata da Giorgio il 22/11. |
 | D-BK4 | Utenti di Authentication nell'export, senza hash delle password | Nessun utente; gli hash | Bastano per ricreare gli account negli emulatori; le password si spostano con `firebase auth:export`. Confermata da Giorgio il 22/11. |
