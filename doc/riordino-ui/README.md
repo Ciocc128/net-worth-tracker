@@ -109,7 +109,7 @@ alto (P3), con le stesse parole per le stesse cose; e togliere i quattro difetti
 - N1 asse dei grafici FIRE (§ 5.7); N2 tono neutro (§ 5.8); N3 tabella Strumenti (§ 5.9); N4 1280 come desktop (§ 5.10).
 
 **Escluso**
-- R4 Patrimonio, R8 Allocazione, R10 Impostazioni (ondata 2); R9 FIRE in tre schede, R7 calendario, Traguardi e Hall of Fame
+- R4 Patrimonio, R8 Allocazione, R10 Impostazioni (ondata 2: `doc/riordino-ui/ondata-2.md` e `doc/allocazione-strategia/README.md`); R9 FIRE in tre schede, R7 calendario, Traguardi e Hall of Fame
   nel menu (ondata 3): il menu dell'ondata 1 non li sposta (D-RU4).
 - La riga fissa «Portafoglio X su Y di patrimonio» in testa ad Allocazione e FIRE (va con la striscia di R8, ondata 2: D-RU3).
 - Il taglio del verdetto a desktop dietro «Dettagli» (punto aperto § 9).
