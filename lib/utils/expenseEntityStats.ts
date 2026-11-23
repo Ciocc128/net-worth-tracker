@@ -314,10 +314,12 @@ export function buildEntitySubCategoryDeltas(
               : 'ongoing',
       };
     })
+    // Ties by key: the order of two equal rows must not depend on the order the rows arrived in —
+    // a month from the monthly totals arrives as one row per cell (totali mensili, Fase B).
     .sort((a, b) =>
-      baseline
+      (baseline
         ? Math.abs(b.delta ?? 0) - Math.abs(a.delta ?? 0)
-        : b.current - a.current
+        : b.current - a.current) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)
     );
 }
 

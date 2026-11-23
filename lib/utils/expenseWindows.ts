@@ -197,3 +197,22 @@ export function listExpenseYears(bounds: { oldest: Date; newest: Date } | null |
   for (let year = bounds.newest.getFullYear(); year >= bounds.oldest.getFullYear(); year--) years.push(year);
   return years;
 }
+
+/**
+ * Analisi (2026-11-23, totali mensili Fase B — doc/totali-mensili/README.md § 6.5): the REAL rows of
+ * one year, January → December. Every other month reaches the page from the monthly totals
+ * (`useExpenseFlows`); the year the period is about is read from its rows, because its tiles look at
+ * a row's day (the calendar, «in calendario»), its text (Spese maggiori, the Scheda's movements) and
+ * count rows («N spese», the transfers of the verdict).
+ */
+export function analisiYearWindow(year: number): ExpenseWindow {
+  return { from: startOfCalendarDay(year, 1, 1), to: endOfCalendarMonth(year, 12) };
+}
+
+/**
+ * Analisi: the real rows of ONE month — the comparison month when the running month is compared
+ * «agli stessi giorni» (`scope.throughDay`), which cuts both sides at today's day.
+ */
+export function analisiMonthWindow(year: number, month: number): ExpenseWindow {
+  return { from: startOfCalendarDay(year, month, 1), to: endOfCalendarMonth(year, month) };
+}

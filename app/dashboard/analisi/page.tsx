@@ -5,27 +5,25 @@
  * Owns its own data-fetching so it's usable independently from the Cashflow route.
  *
  * DATA FETCHING:
- * - Expenses + categories: React Query via useExpenses / useExpenseCategories. The expenses are
- *   the WHOLE collection, by declared need (2026-09-30, when Cashflow and FIRE moved to a window
- *   of their own — lib/utils/expenseWindows.ts): the Scheda, the Confronto, the Dettaglio and the
- *   search span the history from the floor on and the Andamento ranks its categories on the rows
- *   after this year too, so on the owner's account a window left out 48 rows of 1547.
+ * - Expenses: read by the TAB (`useAnalisiExpenses`, since the totali mensili Fase B, 2026-11-23 —
+ *   doc/totali-mensili/README.md § 6.5): the period's year as real rows, every other month from
+ *   the monthly totals, «Storico» the whole collection. What it reads follows the period the tab owns.
+ * - Categories: React Query via useExpenseCategories.
  * - cashflowHistoryStartYear + spendingRolesEnabled: `useSettings` (the ONE settings key, 2026-09-29;
  *   non-fatal, safe defaults on failure)
  *
  * WHY NOT SHARE STATE WITH THE CASHFLOW PAGE:
  * These are separate routes with separate lifecycles. Categories and settings are the same React
- * Query keys on both; the expenses key is the one Storico and Centri di Costo read, so a visit
- * after either opens on the cache (Tracciamento reads its period's window, not this list).
+ * Query keys on both; the totals' list is the one Storico reads, so a visit after it opens on the
+ * cache (Tracciamento reads its period's window, not this list).
  */
 
 'use client';
 
 import { useEffect } from 'react';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { useExpenses, useExpenseCategories } from '@/lib/hooks/useExpenses';
+import { useExpenseCategories } from '@/lib/hooks/useExpenses';
 import { useSettings } from '@/lib/hooks/useSettings';
-import { useFreshness } from '@/lib/hooks/useFreshness';
 import { AnalisiTab } from '@/components/cashflow/AnalisiTab';
 import { PageContainer } from '@/components/layout/PageContainer';
 
@@ -35,8 +33,6 @@ const DEFAULT_HISTORY_START_YEAR = new Date().getFullYear() - 1;
 export default function AnalisiPage() {
   const { ownerId } = useActiveAccount();
 
-  const expensesQuery = useExpenses(ownerId);
-  const { data: allExpenses = [], isLoading: expensesLoading, isError: expensesError } = expensesQuery;
   // The taxonomy feeds AnalisiTab directly (entity search + URL-focus label
   // resolution) and shares the RQ cache with the Cashflow page's sibling tabs.
   const categoriesQuery = useExpenseCategories(ownerId);
@@ -46,9 +42,6 @@ export default function AnalisiPage() {
   // settings key every page shares (2026-09-29): a visit after Cashflow opens on the cache.
   const settingsQuery = useSettings(ownerId);
   const { data: settings, isLoading: settingsLoading, isError: settingsError } = settingsQuery;
-  // The header's «Aggiornato alle…» while figures restored from the persisted cache are being
-  // reread; the tab owns the header, so the reading travels down as a prop.
-  const freshness = useFreshness([expensesQuery, categoriesQuery, settingsQuery]);
   // The URL-focus restore in AnalisiTab validates against the floored history, so it
   // must not fire until the DEFINITIVE floor is known — the restore is one-shot and
   // a wrong provisional floor would silently drop a valid bookmarked focus. The flag waits the
@@ -67,21 +60,24 @@ export default function AnalisiPage() {
     });
   }, [settingsError, ownerId]);
 
-  const loading = expensesLoading || categoriesLoading || !settingsSettled;
-  // A failed read is not an empty ledger: `= []` above hides the difference, so the flag
-  // travels with the data (lib/utils/statesNarrative.ts).
-  const loadFailed = expensesError || categoriesError;
+  // The movements are the tab's own read (their window follows its period): here the taxonomy and
+  // the settings. A failed read is not an empty taxonomy: `= []` above hides the difference, so the
+  // flag travels with the data (lib/utils/statesNarrative.ts).
+  const loading = categoriesLoading || !settingsSettled;
+  const loadFailed = categoriesError;
 
   return (
     <PageContainer>
       <AnalisiTab
-        allExpenses={allExpenses}
+        ownerId={ownerId}
         categories={categories}
         loading={loading}
         loadFailed={loadFailed}
         historyStartYear={cashflowHistoryStartYear}
         spendingRolesEnabled={spendingRolesEnabled}
-        freshness={freshness}
+        // The header's «Aggiornato alle…» while figures restored from the persisted cache are being
+        // reread: the tab adds its own reads to these two.
+        freshnessQueries={[categoriesQuery, settingsQuery]}
       />
     </PageContainer>
   );
