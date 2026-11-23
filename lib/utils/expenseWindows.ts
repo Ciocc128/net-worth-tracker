@@ -8,11 +8,10 @@
  * deriving its figures in memory with the same pure functions: the functions did not change, what
  * they receive did.
  *
- * WHO HAS NO WINDOW, by declared need, and stays on `useExpenses`: Storico (the Driver spans every
- * year), Centri di Costo (a centre is lifetime), Hall of Fame's recalculation — and Analisi. Its
- * Scheda, Confronto, Dettaglio and search span the history from the floor on, and the Andamento
- * ranks its categories on the rows after this year too: on the owner's account a window would
- * have left out 48 rows of 1547, for one more list in memory and on disk (measured 2026-09-30).
+ * WHO HAS NO WINDOW, by declared need: Centri di Costo (a centre is lifetime) and Analisi's
+ * «Storico» mode stay on `useExpenses`; Storico, FIRE, Rendimenti and the Hall of Fame read the
+ * monthly totals (doc/totali-mensili/README.md, Fase A), and Analisi's modes on a year read their
+ * year's rows (`analisiYearWindow`) laid over the totals (Fase B, lib/utils/analisiExpenses.ts).
  *
  * A window is the UNION of what its page reads, the readers outside the period included (the
  * savings history behind a month, a chart that draws a range's last month whole, a budget's

@@ -21,6 +21,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `writeExpenseRows` / the series and instalment writers (every occurrence), the gate `countsTowardBudget` in
   `lib/utils/budgetUtils.ts`, the words `EXPENSE_BUDGET_EXCLUSION_*` in `dialogNarrative.ts`, the chip in
   `CompactExpenseRow` and `ExpenseTable`; the rule in doc/guide/cashflow-budget.md
+- **Analisi on the totals** (Fase B, 2026-11-23): `lib/utils/analisiExpenses.ts` (`resolveAnalisiReads`, `composeAnalisiExpenses`, `selectAnalisiPeriodRows`), `lib/hooks/useAnalisiExpenses.ts`, `analisiYearWindow`/`analisiMonthWindow` in `lib/utils/expenseWindows.ts`; test `__tests__/analisiExpensesInvariance.test.ts` (the history shared with Fase A in `__tests__/helpers/expenseHistoryFixture.ts`)
 - **Monthly totals** (2026-11-23, doc/totali-mensili/README.md): types `types/expenseTotals.ts`, pure `lib/utils/expenseTotals.ts` (builder, aggregated rows, `planExpenseFlows`, `loadExpenseFlows`, `monthsToRebuild`), server `lib/server/expenseTotals.ts` (rebuild, nightly check, Admin source) + `lib/server/expenseTotalsRebuildAll.ts`, client `lib/services/expenseTotalsClient.ts` (`markExpenseMonthsChanged`, `readExpenseFlows`), hook `lib/hooks/useExpenseFlows.ts`, route `app/api/expense-totals/rebuild/route.ts`, script `scripts/buildExpenseTotals.mts` (`npm run expense-totals:build`); tests `__tests__/expenseTotals{,Server,Invariance,Writers}.test.ts`, CA10 in `__tests__/rules/firestoreRules.rules.ts`
 - **Expenses by window** (2026-09-30): pure `lib/utils/expenseWindows.ts` (`trackingWindow`, `budgetWindow`, `budgetSuggestionWindow`, `fireWindows`, `listExpenseYears`), hooks `useExpensesInRange` / `useExpenseBounds` / `expensesInRangeQueryOptions` in `lib/hooks/useExpenses.ts`, readers `getExpensesByDateRange` / `getExpenseDateBounds` in `lib/services/expenseService.ts`, keys `queryKeys.expenses.{range,bounds}`; tests `__tests__/expenseWindows.test.ts` (bounds and invariance), `__tests__/persistCache.test.ts` (the two builders), `e2e/cashflow.tracciamento.spec.ts` (the second window)
 - **Tabs on demand** (2026-10-05): the four `lazyComponent`s at the top of `app/dashboard/cashflow/page.tsx`, their
@@ -59,11 +60,11 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   oldest and of the newest row (two one-document reads, `['expenses', uid, 'bounds']`). The period pickers take their
   years from it (`listExpenseYears`), CONTIGUOUS from the oldest to the newest — a year with no row in between is
   offered too, and opens on an empty period.
-- **Who has NO window, by declared need**: Centri di Costo and «Collega spese…» (a centre is lifetime) — and Analisi, by the owner's decision of 2026-09-30:
-  its Scheda, Confronto, Dettaglio and search span the history from the floor on and the Andamento ranks its categories
-  on the rows after this year too, so a window left out 48 rows of 1547 on the real account, for one more list in
-  memory and in the persisted record. They share the one `useExpenses` list. **Measure before giving a page a
-  window**: a window pays where the page reads a small part of the collection, and costs a key everywhere.
+- **Who has NO window, by declared need**: Centri di Costo and «Collega spese…» (a centre is lifetime), and Analisi's
+  «Storico» mode (D-TM19: Spese maggiori sums a series over the whole history). Analisi's three modes on a year read
+  their year's rows and the monthly totals since 2026-11-23 (§ Monthly totals below); until then the page read the
+  whole collection by the owner's decision of 2026-09-30. **Measure before giving a page a window**: a window pays
+  where the page reads a small part of the collection, and costs a key everywhere.
 - **Every expense write invalidates `queryKeys.expenses.all`, and that is enough**: it is the prefix of every window
   and of the bounds. The windows on screen reread at once; the others (another period, another page) are marked and
   reread when next opened. Found while checking every writer: deleting or renaming a cost centre rewrites expense
@@ -84,7 +85,12 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   month, a year without its document (or of an old `schemaVersion`) and a closed month rebuilt before its end, the REAL
   rows (§ 4.3). Their builders sum by month, type and category, so the figures are the rows' (CA5,
   `__tests__/expenseTotalsInvariance.test.ts`). **A reader that looks at a row's day, text or count must not take this
-  list**: Analisi (Fase B) and everything with a window keep the rows; a count over several months uses `rowCountOf`.
+  list**: everything with a window keeps the rows; a count over several months uses `rowCountOf`.
+- **Analisi reads the totals too, with its year from the rows** (Fase B, 2026-11-23, D-TM19; § Analisi in
+  doc/guide/cashflow-analisi.md): `useAnalisiExpenses` lays the period's year (`analisiYearWindow`) and — the running
+  month compared «agli stessi giorni» — the same month a year before (`analisiMonthWindow`) over `useExpenseFlows`
+  (`composeAnalisiExpenses`, `lib/utils/analisiExpenses.ts`); «Storico» reads the whole collection. CA5 of Fase B:
+  `__tests__/analisiExpensesInvariance.test.ts`, every builder of the page on both lists, under both timezones.
 - **Only the server writes `expense-totals/{uid}_{year}`** (`allow write: if false`): a writer that changed rows of any
   month but the running one awaits `markExpenseMonthsChanged(ownerId, dates | 'all', reason)` after its commit — BOTH
   the old and the new date of a moved row; the server writers call `rebuildExpenseTotalsForDates`. The future months live

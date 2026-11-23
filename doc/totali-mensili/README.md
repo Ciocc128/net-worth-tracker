@@ -3,7 +3,8 @@
 > Dossier delle card Todoist «Utenti · Totali mensili delle spese salvati (spec)» e «Utenti · Hall of Fame
 > incrementale nel cron serale» (epic-utenti, p3). Fonte: Library `capacita/README.md` §§ 2, 6 e 9 e
 > `capacita/modello-tre-persone.py` (studio del 22/11/2026). Stato: **Fase A implementata** il
-> 23/11/2026 (PR in bozza; D-TM13–D-TM18 in § 9), Fase B da fare; decisioni D-TM1–D-TM12 confermate da Giorgio
+> 23/11/2026 (PR #230, D-TM13–D-TM18 in § 9), **Fase B implementata** lo stesso giorno (D-TM19–D-TM21; § 6.5 riscritto
+> sul codice); decisioni D-TM1–D-TM12 confermate da Giorgio
 > il 23/11/2026. Scritta il 23/11/2026 sul main `bf22453`, leggendo il codice.
 >
 > Un solo dossier per le due card: la Hall of Fame, con i totali, non ha più bisogno di una logica
@@ -312,23 +313,37 @@ cambia; nel PDF il raggruppamento dei movimenti a cavallo di mezzanotte diventa 
 
 ### 6.5 Analisi (Fase B)
 
-Analisi oggi passa `allExpenses` a dodici costruttori (`components/cashflow/AnalisiTab.tsx:353-820`). Con i
-totali:
+Implementata il 23/11/2026. La tabella è quella del passaggio tile per tile sul codice, che corregge la versione della
+spec in due punti: il modo Storico (D-TM19) e il periodo mostrato durante una lettura (D-TM20).
 
-| Cosa | Legge oggi | Legge con i totali |
-|---|---|---|
-| Periodo, Composizione, Flusso, ruoli, Spese maggiori, calendario, «in calendario», movimenti della Scheda (modi `ytd`, `current`, `year`, mese scelto) | `periodExpenses` = righe del periodo | **righe vere dell'anno scelto** (`useExpensesInRange`, finestra `analisiYearWindow(year)`) |
-| Ritmo e categorie che cambiano (`computeTotalsPacing`, `buildCategoryComparison`), Confronto | `allExpenses`, anno scelto contro anno di confronto | anno scelto dalle righe, anno di confronto dalle righe aggregate. **Eccezione**: con il confronto «agli stessi giorni» (`scope.throughDay`, mese in corso) il mese di confronto si legge dalle righe vere (una finestra di un mese) |
-| «Fuori scala» (`detectSpendingAnomalies`, `nearestToAnomaly`) | `allExpenses`, il mese e i sei prima | il mese dalle righe, i sei prima dalle righe aggregate (somme per categoria e mese) |
-| Scheda: ritmo e righe per anno (`computeEntityRunRate`, `buildEntityYearRows`) | `allExpenses` dal primo anno | anni chiusi da righe aggregate, anno in corso da righe vere (il ritmo divide vissuto e calendario solo nell'anno in corso) |
-| Dettaglio (`AndamentoStoricoSection`, `SavingsRateTrendSection`), anni del selettore, ricerca delle categorie (`EntitySearch`: cerca nomi di categoria e sottocategoria) | `allExpenses` / `baseExpenses` | righe aggregate + righe dell'anno in corso; gli anni dai limiti (`listExpenseYears`) |
-| Modo **Storico**: tutte le tile del periodo | tutte le righe | righe aggregate dei mesi chiusi + righe vere dell'anno in corso. **Spese maggiori** da una query `userId ==`, `amount <`  0, ordinata per `amount`, limitata a 50 e filtrata in memoria come oggi (indice nuovo `userId, amount`). I **movimenti della Scheda** si caricano quando si apre l'elenco, con una query per categoria (`userId`, `categoryId`) |
+**Cosa legge** (`resolveAnalisiReads`, `useAnalisiExpenses`; `lib/utils/analisiExpenses.ts`). È la scheda a leggere,
+perché il periodo è suo:
 
-Le funzioni che contano righe (`transactionCount`, «N movimenti», le occorrenze di `analisiSummary.ts:177`) usano
-`rowCountOf` (§ 4.2). Un test di invarianza per ogni riga di questa tabella (§ 13, CA5).
+- **un anno** («Da inizio anno», «Anno corrente», «Anno», con o senza mese): le **righe vere dell'anno**
+  (`analisiYearWindow`), il **mese dell'anno prima** quando il mese in corso si confronta «agli stessi giorni»
+  (`analisiMonthWindow`), e ogni altro mese da `useExpenseFlows` (la lista di Storico, stessa chiave in cache).
+  `composeAnalisiExpenses` sostituisce nella lista dei totali i mesi letti dalle righe; un mese non è mai entrambi;
+- **Storico**: tutte le righe, come prima (D-TM19).
 
-La Fase B è la parte più delicata: la sua impl comincia con un passaggio tile per tile su questa tabella e la
-completa se trova un costruttore che guarda il giorno o il testo di una riga di un mese che legge da totali.
+| Cosa | Legge oggi | Riceve con i totali | Perché le cifre non cambiano |
+|---|---|---|---|
+| Periodo (trio, barre), verdetto, Spese maggiori, Composizione, Flusso, ruoli, calendario, «in calendario», sottocategorie e movimenti della Scheda | `periodExpenses` | righe vere: il periodo sta dentro l'anno letto | stesse righe |
+| Barre dell'anno prima nel Periodo (`buildMonthlySpending`) | `baseExpenses` | righe aggregate dell'anno prima | somme per mese; «l'anno prima ha righe» resta vero (una cella per mese con righe) |
+| Ritmo e categorie che cambiano (`computeTotalsPacing`, `buildCategoryComparison`), Confronto annuale | `allExpenses` | anno scelto dalle righe, anno di confronto dalle righe aggregate; con `scope.throughDay` il mese di confronto dalle righe vere (anche per un altro anno scelto nel Confronto, che lo legge da sé) | somme per mese, tipo e categoria; il taglio al giorno solo su righe vere |
+| Fuori scala (`detectSpendingAnomalies`, `nearestToAnomaly`) | `allExpenses` | il mese (sempre nell'anno scelto, `resolveSingleMonth`) dalle righe, i sei prima anche aggregati | somme per categoria e mese; `magnitude` riga per riga = cella per segno (D-TM13) |
+| Scheda: ritmo, righe per anno, serie a 24 mesi, delta per sottocategoria | `allExpenses` | anni chiusi aggregati, mese in corso vero | il ritmo divide vissuto e calendario per **mese** (`isLived` sull'indice del mese), mai per giorno |
+| Dettaglio › Andamento del risparmio | `allExpenses` | l'anno scelto (solo quello: `scopeYear`) | righe vere |
+| Anni del selettore, ricerca, etichette di un fuoco da URL | `baseExpenses` | lista composta | un mese con righe ha almeno una cella; i nomi della cella sono quelli della riga più recente (§ 4.1) |
+| Modo **Storico**: ogni tile, Andamento storico, Confronto pluriennale | tutte le righe | tutte le righe (D-TM19) | stesse righe |
+
+Le funzioni che contano righe (`transactionCount`, «N spese», le occorrenze di `rankTopExpenses`) ricevono solo righe
+vere: nessuna passa a `rowCountOf`. Il test `__tests__/analisiExpensesInvariance.test.ts` esegue ogni costruttore della
+tabella sulle due liste, su sette periodi, due «oggi» (metà marzo; il primo di aprile prima del cron), due soglie della
+storia, sotto `TZ=Europe/Rome` e `TZ=UTC` (CA5 di Fase B).
+
+**Un ordine trovato dal test** (D-TM21): i delta per sottocategoria della Scheda (`buildEntitySubCategoryDeltas`) a pari
+delta restavano nell'ordine in cui arrivavano le righe. Ora a pari delta l'ordine è per chiave: le cifre sono le stesse,
+cambia solo l'ordine di due righe uguali.
 
 ## 7. Migrazione
 
@@ -363,8 +378,8 @@ Costo una volta: E letture per utente (sull'account di Giorgio circa 2.000 a fin
   con `allow read: if canAccess(userId)`; `allow write: if false` su entrambe. Test nella suite delle regole
   (`npm run test:rules`): lettura propria sì, di un altro account no, scrittura dal client mai. **Da
   pubblicare a mano.**
-- `firestore.indexes.json`: `expenses (userId ASC, updatedAt ASC)` per la verifica; in Fase B
-  `expenses (userId ASC, amount ASC)` per le Spese maggiori del modo Storico. **Da pubblicare a mano**
+- `firestore.indexes.json`: `expenses (userId ASC, updatedAt ASC)` per la verifica (l'indice `userId, amount` previsto
+  per le Spese maggiori del modo Storico **non serve**, D-TM19). **Da pubblicare a mano**
   (`firebase deploy --only firestore:indexes`).
 - `lib/query/queryKeys.ts`: `expenses.flows(ownerId, fromIso, realRowsCategoryId)`, **sotto** `expenses.all`
   (D-TM16): ogni scrittura di spese la invalida già, dopo la ricostruzione che ha atteso. La cache
@@ -401,6 +416,14 @@ Prese nell'impl (23/11/2026), le prime quattro confermate da Giorgio nel thread 
 | D-TM17 | Nel cron la Hall of Fame riceve dalla verifica anni, limiti e orologio, e si fida del mese in corso (`trustRunningMonth`) | Rileggere tutto dopo la verifica | Tiene il giro di un utente sotto le 160 letture (CA8: 113 documenti + 6 aggregazioni) |
 | D-TM18 | La route `POST /api/expense-totals/rebuild` accetta `months: 'all'` con un limite di 10 all'ora per account | Solo mesi espliciti | Le riscritture di massa (import, dati di prova) e «Aggiorna i record» ricostruiscono tutto con E letture, una volta |
 
+Prese nell'impl di Fase B (23/11/2026):
+
+| ID | Decisione | Alternative scartate | Motivo |
+|---|---|---|---|
+| D-TM19 | Il modo **Storico** di Analisi legge **tutte le righe**, come prima; i tre modi su un anno leggono l'anno dalle righe e il resto dai totali. **Proposta, in attesa della conferma di Giorgio** | La query delle 50 spese più grandi (indice `userId, amount`) prevista dalla spec; le serie come dimensione delle celle (`schemaVersion` 2) | Spese maggiori conta una **serie** (`recurringParentId`, `installmentParentId`) come una voce che vale tutte le sue righe («Affitto 36 volte»): le 50 righe più grandi non la vedono e il tile cambierebbe (D-TM1). Le serie nelle celle sono esatte ma riscrivono tutti i totali e il caso di una serie con una riga sola chiede comunque la riga. Il modo Storico costa le letture di prima; il modo di default prende tutto il guadagno |
+| D-TM20 | Durante la lettura di un anno nuovo la pagina **resta sul periodo che mostra**; i controlli e l'URL cambiano subito | Lo scheletro a ogni cambio d'anno (come le finestre di Tracciamento); il periodo nuovo sulla lista vecchia | Sulla lista vecchia l'anno nuovo è solo totali: una riga aggregata finirebbe tra le Spese maggiori e sul 15 del calendario. Lo scheletro a ogni cambio toglierebbe le animazioni di AN2 (la pagina trasforma). Un anno già letto si apre subito dalla cache |
+| D-TM21 | A pari delta i delta per sottocategoria della Scheda si ordinano per chiave | L'ordine di arrivo delle righe | Senza, l'ordine di due righe uguali dipende da come arrivano le righe (vere o aggregate). Nessuna cifra cambia |
+
 ## 10. Fasi
 
 **Fase A** (una impl, stima 3–4 giorni di thread):
@@ -414,7 +437,7 @@ Prese nell'impl (23/11/2026), le prime quattro confermate da Giorgio nel thread 
 6. Le guide: `doc/guide/cashflow.md` § Expenses by window (chi legge i totali), `hall-of-fame.md`,
    `storico.md`, `fire.md`, `rendimenti.md`; CLAUDE.md una riga.
 
-**Fase B** (una impl, stima 3–5 giorni): Analisi secondo § 6.5, l'indice `userId, amount`.
+**Fase B** (implementata il 23/11/2026): Analisi secondo § 6.5; l'indice `userId, amount` non serve (D-TM19).
 
 Dopo ciascuna: lo script sulla produzione dal Mac (con l'OK di Giorgio), poi il grafico «Letture» della console
 per una settimana.
@@ -430,8 +453,8 @@ Utente tipico dello studio: 80 righe al mese, 25 strumenti; S = snapshot (12 l'a
 | Storico (per visita) | E: 960 · 4.800 · 9.600 | Y + Em: circa 81 · 85 · 90 |
 | FIRE › Calcolatore (per visita) | due finestre, di fatto E: 960 · 4.800 · 9.600 | Y + Em: circa 81 · 85 · 90 |
 | Rendimenti, cache scaduta | E dal primo snapshot | Y + righe dividendi (circa 12 l'anno) + Em: circa 93 · 145 · 210 |
-| Analisi, un anno (Fase B) | E | righe dell'anno (al più 960) + Y + a volte un mese: circa 1.000, costante |
-| Analisi, modo Storico (Fase B) | E | righe dell'anno in corso + Y + 50: circa 1.000, costante |
+| Analisi, un anno (Fase B) | E | righe dell'anno (al più 960) + Y + 2 limiti + Em + a volte un mese: circa 1.100, costante; i totali sono già in cache dopo Storico |
+| Analisi, modo Storico (Fase B) | E | E, come prima (D-TM19) |
 
 Il primo del mese, fino al cron, ogni lettore legge un mese di righe in più (regola 3 di § 4.3).
 
@@ -491,7 +514,8 @@ Cifre inventate e tonde (WORKFLOW.md regola 7), valori di riferimento calcolati 
   `summarizeLaborMetrics`, `computeAnnualCashflowData`, `buildFIREData`, `getCashFlowsFromExpenses` +
   `buildReturnFlowAdjustments`) dà lo stesso risultato sulle righe vere e sulla lista di `loadExpenseFlows`,
   con «oggi» a metà marzo e il primo di aprile prima del cron (regola 3). Sotto `TZ=Europe/Rome` e `TZ=UTC`.
-  In Fase B lo stesso per ogni riga della tabella di § 6.5.
+  In Fase B lo stesso per ogni riga della tabella di § 6.5 (`__tests__/analisiExpensesInvariance.test.ts`, verde in
+  entrambi i fusi il 23/11/2026).
 - **CA6 — scrittura su un mese chiuso.** r3 spostata dal 15 marzo al 15 aprile 2025: dopo la ricostruzione
   marzo ha `rowCount = 6`, `amountSum = 1.927,10`, Supermercato −120,40 (1); aprile ha Supermercato −79,60 (1).
 - **CA7 — riparazione.** Una riga di marzo cancellata con l'Admin senza chiamare la ricostruzione: la verifica
@@ -519,5 +543,9 @@ Toccati: gli scrittori di § 5.2, `lib/services/hallOfFameService{,.server}.ts`,
 `app/api/cron/monthly-snapshot/route.ts`, `app/dashboard/history/page.tsx`,
 `components/fire-simulations/FireCalculatorTab.tsx`, `lib/hooks/useAnnualCashflow.ts`,
 `lib/services/performanceService.ts`, `lib/services/pdfDataService.ts`, `firestore.rules`,
-`firestore.indexes.json`, `lib/query/queryKeys.ts`, `scripts/lib/backup/registry.ts`, i seed; in Fase B
-`components/cashflow/AnalisiTab.tsx` e `components/cashflow/analisi/*`.
+`firestore.indexes.json`, `lib/query/queryKeys.ts`, `scripts/lib/backup/registry.ts`, i seed.
+Fase B: nuovi `lib/utils/analisiExpenses.ts`, `lib/hooks/useAnalisiExpenses.ts`,
+`__tests__/analisiExpensesInvariance.test.ts`, `__tests__/helpers/expenseHistoryFixture.ts` (la storia inventata, comune
+alle due fasi); toccati `components/cashflow/AnalisiTab.tsx`, `components/cashflow/analisi/ConfrontoDisclosure.tsx`,
+`app/dashboard/analisi/page.tsx`, `lib/utils/expenseWindows.ts` (`analisiYearWindow`, `analisiMonthWindow`),
+`lib/hooks/useExpenses.ts` (`enabled`), `lib/utils/expenseEntityStats.ts` (D-TM21).
