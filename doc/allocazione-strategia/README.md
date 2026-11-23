@@ -6,7 +6,7 @@
 > strumento e perimetro del portafoglio: una fonte sola (M4, L2, L3, L5)»), D-RU3 dell'ondata 1 (la riga «Portafoglio X su Y»
 > va con la striscia). Il piano comune, R4, R10 e P6 sono in `doc/riordino-ui/ondata-2.md`; questa è la task **RU8**.
 >
-> **Stato: specifica scritta il 2026-11-23 su main `7e930b1`; decisioni D-ST1…D-ST9 PROPOSTE, da confermare con Giorgio (§ 8).**
+> **Stato: specifica scritta il 2026-11-23 su main `7e930b1`; decisioni D-ST1…D-ST9 PRESE da Giorgio il 2026-11-23 («procedi»; D-ST6 semplificata: non usa gli strumenti specifici) (§ 8).**
 > Render «oggi / proposta» nella stessa pagina dell'ondata 2 (`doc/riordino-ui/ondata-2.md` § 1).
 
 ## 1. In breve
@@ -148,7 +148,7 @@ classe):
   - Con **Dai traguardi**: tutte le righe in sola lettura con i valori di `buildTargetsFromGoalAllocation`; i target a mano
     restano salvati e tornano con «A mano».
 - **Piede**: «Ripristina default» (bottone outline, i target di fabbrica nella bozza, non salva); la nota di metodo di oggi
-  («Salva» controlla il totale…); per D-ST6 la riga sugli strumenti specifici.
+  («Salva» controlla il totale…); per D-ST6 la riga sui pesi per strumento.
 
 **2 · Portafoglio modello e Criteri del modello** — `PortafoglioModelloTile` (7) e `ObiettiviTile` (5) **spostati** da
 Accumulo come sono, con i loro dialoghi (`IdealCompositionDialog`, `ModelEditDialog`, `ObiettiviDialog`) e `?obiettivi=1`.
@@ -203,10 +203,11 @@ solo per il blocco 2.
 
 R8 non cambia dati. La decisione M4 («il modello comanda sui pesi per strumento») si vede così:
 - la striscia mette il modello al passo 2, prima del piano; Strategia ha un solo posto per i pesi per strumento, il blocco 2;
-- nel blocco 1, il livello **strumenti specifici** di una sottocategoria (`specificAssets`, upstream) resta modificabile **com'è
-  oggi**, ma il suo interruttore si chiama «Strumenti specifici (solo per Bilanciamento)» e, quando esiste un modello, il piede
-  del tile dice «I pesi per strumento del piano di accumulo vengono dal portafoglio modello (2); gli strumenti specifici
-  dividono solo gli Ordini di Bilanciamento.»;
+- nel blocco 1 il livello **strumenti specifici** di una sottocategoria (`specificAssets`, upstream) **non si offre più**: Giorgio
+  non lo usa (risposta del 2026-11-23). L'interruttore «Abilita strumenti specifici» di `SubTargetEditor` compare solo su una
+  sottocategoria che ha già `specificAssetsEnabled` o una lista non vuota (un account che li usa, un dato di upstream): lì resta
+  com'è oggi, chiamato «Strumenti specifici (solo per Bilanciamento)», così nessun peso salvato agisce senza vedersi. Il piede
+  del tile dice «I pesi per strumento vengono dal portafoglio modello (2).»;
 - se il modello sostituisce `specificAssets` (e gli Ordini si dividono per i pesi del modello) lo decide la spec della card M4,
   che parte dopo RU8 e trova un posto solo dove farlo.
 
@@ -257,25 +258,22 @@ le spec di Accumulo (`e2e/accumulo*.spec.ts`, il modello e i criteri ora in Stra
 
 ## 8. Decisioni
 
-**Proposte il 2026-11-23, da confermare con Giorgio.**
+**Prese da Giorgio il 2026-11-23** («procedi»).
 
 | ID | Stato | Decisione | Alternative scartate e motivo |
 |----|-------|-----------|-------------------------------|
-| D-ST1 | Proposta | Tre schede **Bilanciamento · Accumulo · Strategia**, default Bilanciamento, `?tab=strategia`. | Strategia prima (ordine della catena): si apre una o due volte l'anno, non deve essere la porta. Strategia come pagina o modale a sé: la catena si spezzerebbe di nuovo fra due posti. |
-| D-ST2 | Proposta | La striscia di quattro celle sotto le schede, **sulle tre schede**, con stato e link per cella; da `desktop:` due righe per cella (~84 px), sotto `desktop:` una riga di 44 px con numero e cifra. | Solo su Accumulo e Strategia: su Bilanciamento si perderebbe il legame «questi target vengono da qui». Appiccicata in alto (sticky): ruba altezza a ogni scorrimento. Nascosta sotto `desktop:`: proprio sul telefono la mappa serve di più. |
-| D-ST3 | Proposta | Strategia senza verdetto, due blocchi numerati come la striscia: 1 Target per classe (12), 2 Portafoglio modello (7) con i Criteri accanto (5). | Un verdetto: una pagina di regolazioni non misura nulla (Declaration-Tile Rule), la striscia già riassume. I tre blocchi della review (1 Target, 2 Criteri, 3 Modello): la numerazione non tornerebbe con la striscia (2 = Modello); i criteri sono l'ingresso del «Ricalcola» del modello e stanno accanto a lui come oggi. |
-| D-ST4 | Proposta | La fonte dei target è **una pillola** nell'aside del tile: A mano · Formula per età · Dai traguardi; scrive i due campi di oggi (`autoCalculate`, `goalDrivenAllocationEnabled`); «Dai traguardi» solo con i Traguardi accesi; con la formula età e risk-free sono righe di sola lettura con il link a dove si cambiano. | Due interruttori come oggi, in due schede diverse: è il difetto che R8 cura. Un campo nuovo `targetSource`: cambierebbe il dato e i lettori (email, Panoramica) per lo stesso significato. Età e risk-free modificabili qui: secondo posto di scrittura per campi di FIRE e di Impostazioni. |
-| D-ST5 | Proposta | Bozza dei target nella pagina (`useTargetsDraft`), pallino sulla scheda, barra con Annulla · **Salva i target** (unico bottone pieno), stessa validazione e fuoco; scrittura con `setSettings` sul ramo che rilegge il documento; Impostazioni smette di scrivere `targets` nella stessa PR; «Ripristina default» nel piede del tile. | Salvataggio automatico a ogni cifra: un 60 → 70 a metà (6 → 7 → 70) passerebbe da totali non validi e rifarebbe gli Ordini a ogni tasto. Bozza dentro la scheda: Radix smonta la scheda inattiva e la bozza si perde passando a Bilanciamento. Impostazioni che continua a scrivere i target: un suo «Salva» con la pagina aperta da prima riporterebbe indietro quelli di Strategia (M1). |
-| D-ST6 | Proposta | M4 in R8 solo come posto: il modello è il passo 2 e l'unico blocco dei pesi per strumento; `specificAssets` resta modificabile com'è, chiamato «Strumenti specifici (solo per Bilanciamento)» con la riga che dice cosa fa; il dato e gli Ordini li decide la card M4, dopo RU8. | Nascondere `specificAssets` quando c'è un modello: pesi salvati che continuano ad agire senza che si vedano. Fare M4 dentro R8 (Ordini divisi per i pesi del modello, migrazione di `specificAssets`): cambia un motore e un dato upstream in una PR di riordino, e D-AL4 aveva detto che Versa e Ribilancia non cambiano. |
-| D-ST7 | Proposta | Bilanciamento: niente «Modifica target» in testata, matita su Per classe verso Strategia, Esposizione e Previdenza righe chiuse anche a desktop, testata «Portafoglio X su Y di patrimonio · fuori: …» su tutte le schede (chiude D-RU3). | Tenere «Modifica target» in testata: due porte per la stessa cosa, e l'unico bottone della testata sarebbe una regolazione rara. Esposizione aperta a desktop: è una lettura rara che pesa 240 px e legge i profili Yahoo a ogni apertura della pagina. |
-| D-ST8 | Proposta | Accumulo resta l'esecuzione: Questo mese, Classi del piano, Piani conclusi; modello e criteri vanno in Strategia; `?obiettivi=1` apre Strategia. | Lasciare il modello anche in Accumulo come riassunto: la differenza piano/modello è già la riga di Questo mese e la cella 3 della striscia (P1: un riassunto senza controlli e col rimando, che già c'è). |
-| D-ST9 | Proposta | Lo Zainetto fiscale non va in Strategia; R8 non gli prenota un posto, la sua spec sceglie fra Bilanciamento (accanto agli Ordini) e Patrimonio. | Prenotargli la terza riga di Bilanciamento ora: decide la sua forma prima della sua spec. |
+| D-ST1 | **Presa** (2026-11-23) | Tre schede **Bilanciamento · Accumulo · Strategia**, default Bilanciamento, `?tab=strategia`. | Strategia prima (ordine della catena): si apre una o due volte l'anno, non deve essere la porta. Strategia come pagina o modale a sé: la catena si spezzerebbe di nuovo fra due posti. |
+| D-ST2 | **Presa** (2026-11-23) | La striscia di quattro celle sotto le schede, **sulle tre schede**, con stato e link per cella; da `desktop:` due righe per cella (~84 px), sotto `desktop:` una riga di 44 px con numero e cifra. | Solo su Accumulo e Strategia: su Bilanciamento si perderebbe il legame «questi target vengono da qui». Appiccicata in alto (sticky): ruba altezza a ogni scorrimento. Nascosta sotto `desktop:`: proprio sul telefono la mappa serve di più. |
+| D-ST3 | **Presa** (2026-11-23) | Strategia senza verdetto, due blocchi numerati come la striscia: 1 Target per classe (12), 2 Portafoglio modello (7) con i Criteri accanto (5). | Un verdetto: una pagina di regolazioni non misura nulla (Declaration-Tile Rule), la striscia già riassume. I tre blocchi della review (1 Target, 2 Criteri, 3 Modello): la numerazione non tornerebbe con la striscia (2 = Modello); i criteri sono l'ingresso del «Ricalcola» del modello e stanno accanto a lui come oggi. |
+| D-ST4 | **Presa** (2026-11-23) | La fonte dei target è **una pillola** nell'aside del tile: A mano · Formula per età · Dai traguardi; scrive i due campi di oggi (`autoCalculate`, `goalDrivenAllocationEnabled`); «Dai traguardi» solo con i Traguardi accesi; con la formula età e risk-free sono righe di sola lettura con il link a dove si cambiano. | Due interruttori come oggi, in due schede diverse: è il difetto che R8 cura. Un campo nuovo `targetSource`: cambierebbe il dato e i lettori (email, Panoramica) per lo stesso significato. Età e risk-free modificabili qui: secondo posto di scrittura per campi di FIRE e di Impostazioni. |
+| D-ST5 | **Presa** (2026-11-23) | Bozza dei target nella pagina (`useTargetsDraft`), pallino sulla scheda, barra con Annulla · **Salva i target** (unico bottone pieno), stessa validazione e fuoco; scrittura con `setSettings` sul ramo che rilegge il documento; Impostazioni smette di scrivere `targets` nella stessa PR; «Ripristina default» nel piede del tile. | Salvataggio automatico a ogni cifra: un 60 → 70 a metà (6 → 7 → 70) passerebbe da totali non validi e rifarebbe gli Ordini a ogni tasto. Bozza dentro la scheda: Radix smonta la scheda inattiva e la bozza si perde passando a Bilanciamento. Impostazioni che continua a scrivere i target: un suo «Salva» con la pagina aperta da prima riporterebbe indietro quelli di Strategia (M1). |
+| D-ST6 | **Presa** (2026-11-23) | M4 in R8 solo come posto: il modello è il passo 2 e l'unico blocco dei pesi per strumento; il livello `specificAssets` non si offre più in Strategia e resta visibile, com'è, solo dove è già usato (Giorgio non lo usa); il dato e gli Ordini li decide la card M4, dopo RU8. | Nasconderlo anche dove è usato: pesi salvati che continuano ad agire senza vedersi. Lasciarlo offerto a tutti: secondo posto dei pesi per strumento, contro M4. Fare M4 dentro R8 (Ordini divisi per i pesi del modello, migrazione di `specificAssets`): cambia un motore e un dato upstream in una PR di riordino, e D-AL4 aveva detto che Versa e Ribilancia non cambiano. |
+| D-ST7 | **Presa** (2026-11-23) | Bilanciamento: niente «Modifica target» in testata, matita su Per classe verso Strategia, Esposizione e Previdenza righe chiuse anche a desktop, testata «Portafoglio X su Y di patrimonio · fuori: …» su tutte le schede (chiude D-RU3). | Tenere «Modifica target» in testata: due porte per la stessa cosa, e l'unico bottone della testata sarebbe una regolazione rara. Esposizione aperta a desktop: è una lettura rara che pesa 240 px e legge i profili Yahoo a ogni apertura della pagina. |
+| D-ST8 | **Presa** (2026-11-23) | Accumulo resta l'esecuzione: Questo mese, Classi del piano, Piani conclusi; modello e criteri vanno in Strategia; `?obiettivi=1` apre Strategia. | Lasciare il modello anche in Accumulo come riassunto: la differenza piano/modello è già la riga di Questo mese e la cella 3 della striscia (P1: un riassunto senza controlli e col rimando, che già c'è). |
+| D-ST9 | **Presa** (2026-11-23) | Lo Zainetto fiscale non va in Strategia; R8 non gli prenota un posto, la sua spec sceglie fra Bilanciamento (accanto agli Ordini) e Patrimonio. | Prenotargli la terza riga di Bilanciamento ora: decide la sua forma prima della sua spec. |
 
 ## 9. Punti aperti
 
-- **Gli strumenti specifici sull'account vero**: se Giorgio non usa `specificAssets`, D-ST6 può diventare «il livello non si
-  offre più quando esiste un modello» senza nascondere dati (da verificare sul mirror nella PR, mai con i numeri veri nel
-  repo).
 - **Icona della scheda Strategia**: `Compass` o `SlidersHorizontal` (quest'ultima è oggi del bottone «Modifica target», che
   sparisce): si sceglie sul render.
 - **La cella 1 con la formula**: «62 · 38» (le cifre risultanti) o «formula» come cifra; la proposta è le cifre, con la fonte
@@ -309,15 +307,16 @@ Valori inventati e tondi (WORKFLOW.md regola 7).
 10. Fonte «Formula per età» con età 35 e risk-free 3,5 → Azioni = `calculateFormulaEquityPercentage(35, 3.5)` in sola lettura,
     Obbligazioni il residuo; salvare scrive `autoCalculate: true`. «Dai traguardi» non compare con i Traguardi spenti.
 11. Il caso M1 di `doc/riordino-ui/ondata-2.md` § 10 criterio 12 è verde.
-12. `?obiettivi=1` apre il modale dei Criteri in Strategia; «Parti dal portafoglio modello» di `AccumuloVuotoTile` porta al
+12. Una sottocategoria senza strumenti specifici salvati non mostra l'interruttore «strumenti specifici»; una con `specificAssets` salvati (fixture inventata: 2 strumenti al 50%) lo mostra, con l'etichetta «(solo per Bilanciamento)», e i valori restano modificabili.
+13. `?obiettivi=1` apre il modale dei Criteri in Strategia; «Parti dal portafoglio modello» di `AccumuloVuotoTile` porta al
     blocco 2 di Strategia.
 
 **Bilanciamento e Accumulo**
-13. Nessun «Modifica target» in testata né dopo la griglia; la matita di Per classe porta a `?tab=strategia#target`.
-14. A 1440 Esposizione e Previdenza sono righe chiuse di 52 px; aperte mostrano il tile di oggi; nessuna richiesta dei profili
+14. Nessun «Modifica target» in testata né dopo la griglia; la matita di Per classe porta a `?tab=strategia#target`.
+15. A 1440 Esposizione e Previdenza sono righe chiuse di 52 px; aperte mostrano il tile di oggi; nessuna richiesta dei profili
     prima dell'apertura (spec di rete).
-15. Accumulo non contiene Portafoglio modello né Criteri; `allocazione-accumulo` @768 ha `tilesAboveFold` ≥ 3 nel census.
+16. Accumulo non contiene Portafoglio modello né Criteri; `allocazione-accumulo` @768 ha `tilesAboveFold` ≥ 3 nel census.
 
 **Impostazioni e prestazioni**
-16. Impostazioni non ha la scheda Allocazione; `?tab=allocazione` porta a Strategia (`replace`).
-17. JS iniziale di `/dashboard/allocation` sotto 849 KB gz sul Mac, tetto abbassato; Accumulo e Strategia sono chunk a sé.
+17. Impostazioni non ha la scheda Allocazione; `?tab=allocazione` porta a Strategia (`replace`).
+18. JS iniziale di `/dashboard/allocation` sotto 849 KB gz sul Mac, tetto abbassato; Accumulo e Strategia sono chunk a sé.
