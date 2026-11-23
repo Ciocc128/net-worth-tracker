@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useScrollsVertically } from '@/lib/hooks/useScrollsVertically';
 import type { Asset } from '@/types/assets';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { MONTH_NAMES } from '@/lib/constants/months';
@@ -34,6 +36,11 @@ interface MovimentiTileProps {
   collapse?: TileCollapse;
   /** What the closed row says beside its eyebrow, in words (The Closed-Row Rule). */
   asideWhenClosed?: string;
+  /**
+   * At 1440 the cell is as tall as the hero beside it (R4, D-RU17): the rows take the height that is
+   * left and scroll inside, the footer stays. Off with the hero absent (the overview unread).
+   */
+  scrollBody?: boolean;
   className?: string;
 }
 
@@ -42,11 +49,14 @@ interface MovimentiTileProps {
  * first, and the net money that went into the portfolio. Adjustments and migration baselines
  * are not trades and never appear (see summarizeMonthTrades).
  */
-export function MovimentiTile({ summary, month, ledgerReady, loading = false, assetsById, previous = null, onOpenMovements, collapse, asideWhenClosed, className }: MovimentiTileProps) {
+export function MovimentiTile({ summary, month, ledgerReady, loading = false, assetsById, previous = null, onOpenMovements, collapse, asideWhenClosed, scrollBody = false, className }: MovimentiTileProps) {
   // The month's trades, the latest five by default — the footer expands to all of them in place.
   const [showAll, setShowAll] = useState(false);
   const actionColors = useActionColors();
   const rows = showAll ? summary.rows : summary.rows.slice(0, MAX_ROWS);
+  const [bodyRef, bodyScrolls] = useScrollsVertically<HTMLDivElement>(`${rows.length}:${summary.count}`);
+  const bodyClass = cn('flex flex-col divide-y divide-border', scrollBody && 'desktop:min-h-0 desktop:flex-1 desktop:overflow-y-auto desktop:overscroll-contain lime-quiet-scroll');
+  const bodyScrollProps = bodyScrolls ? { tabIndex: 0, role: 'region', 'aria-label': 'Operazioni del mese, elenco scorrevole' } : {};
   const monthName = MONTH_NAMES[month - 1].toLowerCase();
   const operations = summary.count === 1 ? 'operazione' : 'operazioni';
 
@@ -84,7 +94,7 @@ export function MovimentiTile({ summary, month, ledgerReady, loading = false, as
 
   return (
     <Tile
-      eyebrow="Movimenti del mese"
+      eyebrow="Operazioni del mese"
       collapse={collapse}
       asideWhenClosed={asideWhenClosed}
       aside={
@@ -107,13 +117,13 @@ export function MovimentiTile({ summary, month, ledgerReady, loading = false, as
       ) : loading ? (
         <p className="mt-3 text-[13px] text-muted-foreground">Lettura del registro…</p>
       ) : rows.length > 0 ? (
-        <div className="mt-2.5 flex flex-col divide-y divide-border">
+        <div ref={bodyRef} className={cn('mt-2.5', bodyClass)} {...bodyScrollProps}>
           {rows.map(renderRow)}
         </div>
       ) : referenceRows.length > 0 ? (
-        <div className="mt-3">
+        <div className={cn('mt-3', scrollBody && 'desktop:flex desktop:min-h-0 desktop:flex-1 desktop:flex-col')}>
           <p className="text-[11px] text-muted-foreground">Gli ultimi, di {previousName}</p>
-          <div className="mt-1 flex flex-col divide-y divide-border">{referenceRows.map(renderRow)}</div>
+          <div ref={bodyRef} className={cn('mt-1', bodyClass)} {...bodyScrollProps}>{referenceRows.map(renderRow)}</div>
         </div>
       ) : null}
       {ledgerReady && !loading && summary.count > 0 && (

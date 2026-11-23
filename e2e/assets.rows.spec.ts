@@ -108,7 +108,7 @@ test('AssetDialog leaves with its exit animation and gives the focus back to «M
   await expect(dialog).toHaveCount(0);
 });
 
-test('CashAccountDialog leaves with its exit animation and gives the focus back to the Liquidità row', async ({ page }) => {
+test('CashAccountDialog leaves with its exit animation and gives the focus back to the Conti row', async ({ page }) => {
   await openPatrimonio(page);
   const account = page.getByRole('button', { name: /^Conto Corrente, / });
   await account.click();
