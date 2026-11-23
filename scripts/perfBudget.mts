@@ -10,8 +10,8 @@
  * copies of each library `libraryCopies` guards (recharts once shipped four times, one per page).
  *
  * Usage (options ALWAYS after `--`, or npm keeps them as npm_config_* and this script never sees them):
- *   npm run build && npm run perf:budget
- *   npm run perf:build && npm run perf:budget -- --dist=.next-perf
+ *   npm run perf:build && npm run perf:budget       (default dist: .next-perf, what perf:build writes)
+ *   npm run build && npm run perf:budget -- --dist=.next
  *   npm run perf:budget -- --write      lower the ceilings to today's measure (+2%); never raises one
  *   npm run perf:budget -- --top=15     how many of the largest chunks to list (default 10)
  * Exit 1 on any violation.
@@ -41,7 +41,7 @@ const args = Object.fromEntries(
     return [key, value ?? 'true'];
   }),
 );
-const DIST = args.dist ?? process.env.NEXT_DIST_DIR ?? '.next';
+const DIST = args.dist ?? process.env.NEXT_DIST_DIR ?? '.next-perf';
 const TOP = Number(args.top ?? 10);
 
 interface Chunk {
@@ -122,7 +122,7 @@ function assertProductionBuild(): void {
   const buildId = join(DIST, 'BUILD_ID');
   if (!existsSync(buildId)) {
     console.error(`[perf:budget] ${DIST} has no BUILD_ID: not a production build (a dev dir prerenders nothing).`);
-    console.error('[perf:budget] Run `npm run build` (reads .next) or `npm run perf:build` and `-- --dist=.next-perf`.');
+    console.error('[perf:budget] Run `npm run perf:build` (default .next-perf), or `npm run build` and `-- --dist=.next`.');
     process.exit(1);
   }
   console.log(`[perf:budget] build ${DIST} (BUILD_ID of ${statSync(buildId).mtime.toLocaleString('it-IT')})`);
