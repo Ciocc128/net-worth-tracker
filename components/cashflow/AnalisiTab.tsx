@@ -136,7 +136,9 @@ import { describeCategoryShare, describePeriodCashflow } from '@/lib/utils/cashf
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/layout/PageHeader';
-import type { PageFreshness } from '@/lib/hooks/useFreshness';
+import { useFreshness, type FreshnessInput } from '@/lib/hooks/useFreshness';
+import { useAnalisiExpenses } from '@/lib/hooks/useAnalisiExpenses';
+import { resolveAnalisiReads, selectAnalisiPeriodRows } from '@/lib/utils/analisiExpenses';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { Tile, TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
@@ -223,18 +225,26 @@ const SKELETON_CELLS: TileSkeletonCell[] = [
 ];
 
 interface AnalisiTabProps {
-  allExpenses: Expense[];
+  /**
+   * The account whose movements the tab reads. The tab reads them itself (`useAnalisiExpenses`,
+   * since the totali mensili Fase B, 2026-11-23): WHAT it reads follows the period it owns.
+   */
+  ownerId: string | undefined;
   /** Full category taxonomy — resolves labels for a URL-restored focus and feeds the entity search. */
   categories: ExpenseCategory[];
+  /** The taxonomy and the settings are still being read (the movements are the tab's own). */
   loading: boolean;
-  /** The queries behind `allExpenses`/`categories` failed: say so, never render zeros. */
+  /** The taxonomy's read failed: say so, never render zeros. */
   loadFailed: boolean;
   historyStartYear?: number;
   /** settings.spendingRolesEnabled — adds the 50/30/20 view to Flusso, and makes it the default. */
   spendingRolesEnabled?: boolean;
-  /** The page's freshness reading for the header the tab owns (`useFreshness`). */
-  freshness?: PageFreshness;
+  /** The page's own queries (taxonomy, settings) for the header's freshness reading; the tab adds its reads. */
+  freshnessQueries?: readonly FreshnessInput[];
 }
+
+/** The list before the first read answers: one reference, so no memo below recomputes on it. */
+const NO_EXPENSES: Expense[] = [];
 
 // The focusable expense types, used to validate the focusType URL param without trusting
 // arbitrary query input. Transfers are deliberately absent: they are net-zero movements
@@ -350,10 +360,10 @@ function writeStoredCalendarFilter(filter: SpendingCalendarFilter): void {
   }
 }
 
-export function AnalisiTab({ allExpenses, categories, loading, loadFailed, historyStartYear = 2024, spendingRolesEnabled = false, freshness }: AnalisiTabProps) {
+export function AnalisiTab({ ownerId, categories, loading: taxonomyLoading, loadFailed: taxonomyFailed, historyStartYear = 2024, spendingRolesEnabled = false, freshnessQueries }: AnalisiTabProps) {
   // The Scheda's trend plot is lazy: fetched when the page is idle AFTER its data, so a
   // Scheda draws it at once and the preload never competes with the first figures.
-  usePreloadWhenIdle(ENTITY_DOSSIER_LAZY_CHARTS, !loading && !loadFailed);
+  usePreloadWhenIdle(ENTITY_DOSSIER_LAZY_CHARTS, !taxonomyLoading && !taxonomyFailed);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -372,9 +382,31 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
 
   // Three-state period selector — initial value read once from the URL so a shared/refreshed
   // link reopens on the same period. The entity focus is ALSO in the URL (see the sync effect).
-  const [periodMode, setPeriodMode] = useState<PeriodMode>(() => readPeriodFromSearchParams(searchParams, currentYear).periodMode);
-  const [selectedYear, setSelectedYear] = useState<number | null>(() => readPeriodFromSearchParams(searchParams, currentYear).selectedYear);
-  const [selectedMonth, setSelectedMonth] = useState<number | null>(() => readPeriodFromSearchParams(searchParams, currentYear).selectedMonth);
+  // This is the period ASKED FOR (the controls, the URL); the page shows `shown` below, the period
+  // whose movements have been read — the two differ only while a new year is being read.
+  const [requestedMode, setRequestedMode] = useState<PeriodMode>(() => readPeriodFromSearchParams(searchParams, currentYear).periodMode);
+  const [requestedYear, setRequestedYear] = useState<number | null>(() => readPeriodFromSearchParams(searchParams, currentYear).selectedYear);
+  const [requestedMonth, setRequestedMonth] = useState<number | null>(() => readPeriodFromSearchParams(searchParams, currentYear).selectedMonth);
+  const requestedPeriod = useMemo((): AnalisiPeriod => ({ mode: requestedMode, year: requestedYear, month: requestedMonth }), [requestedMode, requestedYear, requestedMonth]);
+
+  // ─── The movements (totali mensili, Fase B — lib/utils/analisiExpenses.ts) ─────
+  // A year reads its own rows and the monthly totals for every other month; «Storico» reads the
+  // whole collection (D-TM19). Until the new period's reads answer, the page keeps the period it
+  // shows — never the new period over a list that holds the year only as totals, whose aggregated
+  // rows would rank as single expenses and colour the calendar's 15th.
+  const reads = useMemo(() => resolveAnalisiReads(requestedPeriod, today, calendar.dayOfMonth), [requestedPeriod, today, calendar.dayOfMonth]);
+  const expensesRead = useAnalisiExpenses(ownerId, reads);
+  const [shown, setShown] = useState<{ period: AnalisiPeriod; rows: Expense[] } | null>(null);
+  if (expensesRead.rows !== null && (shown === null || shown.rows !== expensesRead.rows || shown.period !== requestedPeriod)) {
+    setShown({ period: requestedPeriod, rows: expensesRead.rows });
+  }
+  const allExpenses = shown?.rows ?? NO_EXPENSES;
+  const periodMode = shown ? shown.period.mode : requestedMode;
+  const selectedYear = shown ? shown.period.year : requestedYear;
+  const selectedMonth = shown ? shown.period.month : requestedMonth;
+  const loading = taxonomyLoading || shown === null;
+  const loadFailed = taxonomyFailed || expensesRead.failed;
+  const freshness = useFreshness([...(freshnessQueries ?? []), ...expensesRead.queries]);
   const [drillDown, setDrillDown] = useState<DrillDownState>(NO_FOCUS);
 
   const schedaRef = useRef<HTMLDivElement>(null);
@@ -422,16 +454,16 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
   });
   useEffect(() => {
     const params = new URLSearchParams();
-    if (periodMode !== 'current') params.set('period', periodMode);
-    if (periodMode === 'year' && selectedYear !== null) params.set('year', String(selectedYear));
-    if (selectedMonth !== null) params.set('month', String(selectedMonth));
+    if (requestedMode !== 'current') params.set('period', requestedMode);
+    if (requestedMode === 'year' && requestedYear !== null) params.set('year', String(requestedYear));
+    if (requestedMonth !== null) params.set('month', String(requestedMonth));
     if (drillDown.level !== 'category' && drillDown.selectedCategory) {
       params.set('focusType', drillDown.selectedCategory.expenseType);
       params.set('focusCat', drillDown.selectedCategory.key);
       if (drillDown.level === 'expenseList' && drillDown.selectedSubCategory) params.set('focusSub', drillDown.selectedSubCategory.key);
     }
     replaceUrl(params.toString());
-  }, [periodMode, selectedYear, selectedMonth, drillDown]);
+  }, [requestedMode, requestedYear, requestedMonth, drillDown]);
 
   // The Flusso's drawing: bar and rows where its cell is narrower than 608px — a 640px phone's cell,
   // the legibility threshold of the chart (owner, 2026-09-27) — so in the 360px index of a tablet in
@@ -443,7 +475,8 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
 
   // ─── Period ──────────────────────────────────────────────────────────────────
 
-  const period = useMemo((): AnalisiPeriod => ({ mode: periodMode, year: selectedYear, month: selectedMonth }), [periodMode, selectedYear, selectedMonth]);
+  // The period SHOWN: the one whose movements the page holds (`shown`), the asked one before the first read.
+  const period = shown?.period ?? requestedPeriod;
   const periodLabel = resolvePeriodLabel(period);
 
   // ─── Rows ────────────────────────────────────────────────────────────────────
@@ -465,10 +498,10 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
 
   // «Anno» offers PAST years only: with a single year of data there is none, so the mode is not
   // offered and a bookmarked `?period=year` falls back to the running year (UM5 follow-up).
-  if (!loading && periodMode === 'year' && pastYears.length === 0) {
-    setPeriodMode('current');
-    setSelectedYear(currentYear);
-    setSelectedMonth(null);
+  if (!loading && requestedMode === 'year' && pastYears.length === 0) {
+    setRequestedMode('current');
+    setRequestedYear(currentYear);
+    setRequestedMonth(null);
   }
 
   // A bookmarked `?year=` below the floor names a year the page cannot show (the KPIs are
@@ -477,49 +510,38 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
   const [settledFloor, setSettledFloor] = useState<number | null>(null);
   if (!loading && settledFloor !== historyStartYear) {
     setSettledFloor(historyStartYear);
-    if (periodMode === 'year' && selectedYear !== null && selectedYear < historyStartYear) {
-      setSelectedYear(pastYears[0] ?? currentYear - 1);
-      setSelectedMonth(null);
+    if (requestedMode === 'year' && requestedYear !== null && requestedYear < historyStartYear) {
+      setRequestedYear(pastYears[0] ?? currentYear - 1);
+      setRequestedMonth(null);
     }
   }
 
   // Period changes deliberately do NOT reset the focus: the focused entity is an object of
   // study (its Scheda spans every year regardless of the window), not a filter of the period.
   const handlePeriodModeChange = (mode: PeriodMode) => {
-    setPeriodMode(mode);
+    setRequestedMode(mode);
     if (mode === 'current' || mode === 'ytd') {
-      setSelectedYear(currentYear);
-      setSelectedMonth(null);
+      setRequestedYear(currentYear);
+      setRequestedMonth(null);
     } else if (mode === 'history') {
-      setSelectedYear(null);
-      setSelectedMonth(null);
+      setRequestedYear(null);
+      setRequestedMonth(null);
     } else {
       // The most recent PAST year — the current one belongs to «Anno corrente».
-      setSelectedYear(availableYears.find((y) => y < currentYear) ?? currentYear - 1);
-      setSelectedMonth(null);
+      setRequestedYear(availableYears.find((y) => y < currentYear) ?? currentYear - 1);
+      setRequestedMonth(null);
     }
   };
   const handleYearChange = (year: number) => {
-    setSelectedYear(year);
-    setSelectedMonth(null);
+    setRequestedYear(year);
+    setRequestedMonth(null);
   };
 
   // A year is January → December even while it is running (the Tracciamento rule): recurring
   // series and instalments are materialised as real future-dated rows, and the page shows
   // them rather than hiding them. What has not happened yet is never passed off as done —
   // `scheduled` below carries it, and the verdict closes by naming it.
-  const periodExpenses = useMemo(() => {
-    // The history closes on the current year, calendar included — not on the last row written.
-    if (selectedYear === null) return baseExpenses.filter((e) => getItalyYear(toDate(e.date)) <= today.year);
-    // «Da inizio anno» stops at the end of today's month; every other window takes its months whole.
-    const throughMonth = resolvePeriodThroughMonth({ mode: periodMode, year: selectedYear, month: selectedMonth }, today);
-    return baseExpenses.filter((e) => {
-      const date = toDate(e.date);
-      if (getItalyYear(date) !== selectedYear) return false;
-      if (throughMonth !== null && getItalyMonth(date) > throughMonth) return false;
-      return selectedMonth === null || getItalyMonth(date) === selectedMonth;
-    });
-  }, [baseExpenses, periodMode, selectedYear, selectedMonth, today]);
+  const periodExpenses = useMemo(() => selectAnalisiPeriodRows(baseExpenses, period, today), [baseExpenses, period, today]);
 
   // The part of the period still ahead. The figures above include it; this is what lets every
   // sentence say so instead of letting a forecast read as a fact.
@@ -861,13 +883,13 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
 
   const periodControls = (
     <AnalisiPeriodControls
-      periodMode={periodMode}
-      selectedYear={selectedYear}
-      selectedMonth={selectedMonth}
+      periodMode={requestedMode}
+      selectedYear={requestedYear}
+      selectedMonth={requestedMonth}
       pastYears={pastYears}
       onModeChange={handlePeriodModeChange}
       onYearChange={handleYearChange}
-      onMonthChange={setSelectedMonth}
+      onMonthChange={setRequestedMonth}
     />
   );
 
@@ -1074,6 +1096,7 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
         {/* ── Below the grid: the comparison and the reference material, behind disclosures ── */}
         <div className="flex flex-col">
           <ConfrontoDisclosure
+            ownerId={ownerId}
             allExpenses={allExpenses}
             period={period}
             today={today}
