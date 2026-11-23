@@ -17,8 +17,8 @@
 ## Il budget — «quanto JS spedisce ogni route?»
 
 ```bash
-npm run build && npm run perf:budget                          # legge .next
-npm run perf:build && npm run perf:budget -- --dist=.next-perf # la build del benchmark
+npm run perf:build && npm run perf:budget                          # legge .next-perf (predefinito dal 2026-11-23)
+npm run build && npm run perf:budget -- --dist=.next             # la build normale, esplicita
 npm run perf:budget -- --write   # abbassa i tetti alla misura di oggi (+2%); non ne alza mai uno
 ```
 
@@ -67,6 +67,7 @@ stati verificati nell'analizzatore: il dubbio sul tree-shaking di `radix-ui` res
 | Data | Route | Da → a (KB gz) | PR | Perché |
 |---|---|---|---|---|
 | 2026-11-23 | una route (fork) | /dashboard/analisi 686 → 690 (689.7; main 687.1 nella stessa sessione) | Totali mensili Fase B | Analisi legge i totali (`useExpenseFlows`, `loadExpenseFlows` e il client dei totali nel suo JS iniziale, +2,6 KB gz); misura `perf:build` nel cloud contro main nella stessa sessione, tetto = misura arrotondata su. Da riconfermare sul Mac e da allineare con #231. **Da confermare dal proprietario.** |
+| 2026-11-23 | otto route (fork) | /dashboard/allocation 847 → 849 (848.3) · /dashboard/assets 750 → 752 (751.8) · /dashboard/cashflow 797 → 799 (798.3) · /dashboard/fire-simulations 875 → 876 (875.6) · /dashboard/history 799 → 801 (800.5) · /dashboard/pension 691 → 693 (692.1) · /dashboard/performance 676 → 679 (678.3) · /dashboard/settings 809 → 812 (811.3) | thread «Alleggerire Storico dal motore PDF» | Deriva dei merge, nessun modulo solo suo: il motore del PDF non è nel JS iniziale di Storico (`import()` al clic, verificato). La misura rossa di 1196 KB era di una `.next` vecchia di ottobre letta per errore; ora `perf:budget` legge `.next-perf` di default. Misura `perf:build` pulita sul Mac, tetto = misura arrotondata su. **Da confermare dal proprietario.** |
 | 2026-11-22 | due route (fork) | /dashboard 643 → 644 (643.1) · /dashboard/cashflow 796 → 797 (796.2) | giro Mac su main 7fdd33c7 (dopo #218–#221) | Deriva dei merge del giorno, nessun modulo solo suo; misura `perf:build` sul Mac, tetto = misura arrotondata su. **Da confermare dal proprietario.** |
 | 2026-11-22 | (condivisi) e una route (fork) | /dashboard/analisi 685 → 686 (685.4) · condivisi 558 → 559 (558.1) | Giro UM5 (PR #228) e deriva dei merge di UM5a/UM5b | Nessun modulo solo suo (il feed a 720 px, il menu degli anni e il contorno in Accumulo sono classi e condizioni); misura `perf:build` sul Mac, tetto = misura arrotondata su. **Da confermare dal proprietario.** |
 | 2026-11-22 | cinque route (fork) | /dashboard/allocation 846 → 847 (846.1) · /dashboard/assistant 711 → 712 (711.2) · /dashboard/fire-simulations 874 → 875 (874.1) · /dashboard/history 798 → 799 (798.4) · /dashboard/pension 690 → 691 (690.7) | giro Mac dopo UM1 (#214), UM3 (#215), #216 | Deriva dei merge del giorno, nessun modulo solo suo (UM1 toglie lo stagger e riscrive le uscite, #212/#216 la forma delle schede); misura `perf:build` sul Mac su main 9d73b0bc, tetto = misura arrotondata su. **Da confermare dal proprietario.** |

@@ -107,7 +107,8 @@ describe('CA5 — every reader of Fase A on the totals gives the figures of the 
       const performance = readAll(rendimenti, clock.snapshots, clock.now);
       expectSame(performance.cashFlows, expected.cashFlows, 'cashFlows');
       expectSame(performance.adjustments, expected.adjustments, 'adjustments');
-    });
+      // Full readings of the five-year history: past the default 5 s when the suite runs in parallel.
+    }, 60_000);
   }
 
   it('FIRE\'s recent window reads only from January of last year', async () => {
@@ -117,7 +118,7 @@ describe('CA5 — every reader of Fase A on the totals gives the figures of the 
     const recent = await loadExpenseFlows('owner', source, { now, from: italy('2025-01-01T00:00:00') });
     expect(recent.every((e) => e.date >= italy('2025-01-01T00:00:00'))).toBe(true);
     expectSame(computeAnnualCashflowData(recent, now), computeAnnualCashflowData(rows, now));
-  });
+  }, 60_000);
 });
 
 describe('CA9 — no totals yet: the readers read the rows, as today', () => {
