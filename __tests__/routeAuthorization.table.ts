@@ -97,6 +97,7 @@ export const ROUTE_TABLE: RouteRow[] = [
 
   { route: 'dashboard/overview', method: 'GET', kind: 'owner', request: query() },
   { route: 'dashboard/overview/invalidate', method: 'POST', kind: 'owner', request: (account) => ({ body: { ownerId: account, reason: 'test' } }) },
+  { route: 'expense-totals/rebuild', method: 'POST', kind: 'owner', request: (account) => ({ body: { ownerId: account, months: ['2025-03'], reason: 'test' } }), note: 'doc/totali-mensili § 5.2' },
 
   { route: 'dividends', method: 'GET', kind: 'owner', request: query() },
   {

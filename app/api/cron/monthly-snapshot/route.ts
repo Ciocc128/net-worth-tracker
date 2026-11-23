@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase/admin';
 import { updateHallOfFame } from '@/lib/services/hallOfFameService.server';
+import { verifyExpenseTotals, type VerifyResult } from '@/lib/server/expenseTotals';
 import {
   isLastDayOfMonthItaly,
   isLastDayOfQuarterItaly,
@@ -48,7 +49,8 @@ export const maxDuration = 300;
  * Orchestration Pattern:
  *   - Fetches all users from database
  *   - For each user: Calls /api/portfolio/snapshot internally
- *   - After each snapshot: Updates Hall of Fame rankings
+ *   - After each snapshot: checks the monthly expense totals (`verifyExpenseTotals`,
+ *     doc/totali-mensili § 5.3), then updates the Hall of Fame on them
  *   - Collects results and errors for monitoring
  *
  * Why internal fetch instead of direct service calls?
@@ -119,10 +121,26 @@ export async function GET(request: NextRequest) {
 
         const snapshotResult = await snapshotResponse.json();
 
+        // The monthly totals' nightly check (doc/totali-mensili § 5.3), after the snapshot and before
+        // the Hall of Fame, which then reads the documents it left in memory. Never fatal: it logs
+        // its own failures, and a Hall of Fame without it reads from Firestore.
+        let verified: VerifyResult | undefined;
+        try {
+          verified = await verifyExpenseTotals(userId);
+          const { report } = verified;
+          console.log(`Expense totals checked for user ${userId}`, {
+            changed: report.changed.length,
+            mismatched: report.mismatched.length,
+            missingYears: report.missingYears,
+          });
+        } catch (totalsError) {
+          console.error(`Error checking expense totals for user ${userId}:`, totalsError);
+        }
+
         if (snapshotResult.success) {
           // Update Hall of Fame after successful snapshot creation
           try {
-            await updateHallOfFame(userId);
+            await updateHallOfFame(userId, { verified });
             console.log(`Hall of Fame updated for user ${userId}`);
           } catch (hallOfFameError) {
             console.error(`Error updating Hall of Fame for user ${userId}:`, hallOfFameError);

@@ -1,4 +1,5 @@
 import { collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { markExpenseMonthsChanged } from '@/lib/services/expenseTotalsClient';
 import { db } from '@/lib/firebase/config';
 
 export interface DummyDataCount {
@@ -194,6 +195,7 @@ export async function deleteAllDummyData(userId: string): Promise<{
     deleteDummyCategories(userId),
   ]);
 
+  if (expensesDeleted > 0) await markExpenseMonthsChanged(userId, 'all', 'dummy_data_deleted');
   return {
     snapshots: snapshotsDeleted,
     expenses: expensesDeleted,

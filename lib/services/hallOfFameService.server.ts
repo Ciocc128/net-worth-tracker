@@ -1,7 +1,8 @@
 import { adminDb } from '@/lib/firebase/admin';
 import { MonthlySnapshot } from '@/types/assets';
 import { Expense } from '@/types/expenses';
-import { toDate } from '@/lib/utils/dateHelpers';
+import { loadExpenseFlows, type ExpenseFlowSource } from '@/lib/utils/expenseTotals';
+import { expenseFlowSourceAdmin, type VerifyResult } from '@/lib/server/expenseTotals';
 import {
   buildHallOfFameRankings,
   calculateMonthlyRecords,
@@ -11,7 +12,6 @@ import { snapshotFromData } from '@/lib/utils/snapshotDocument';
 
 const COLLECTION_NAME = 'hall-of-fame';
 const SNAPSHOTS_COLLECTION = 'monthly-snapshots';
-const EXPENSES_COLLECTION = 'expenses';
 
 /**
  * Recupera tutti gli snapshot per un utente (versione server-side)
@@ -33,48 +33,37 @@ async function getUserSnapshotsServer(userId: string): Promise<MonthlySnapshot[]
 }
 
 /**
- * Recupera tutte le spese per un utente (versione server-side)
+ * The expenses as the Hall of Fame sums them: the monthly totals for every month they vouch for,
+ * the rows for the others (doc/totali-mensili § 6.1, D-TM7) — never the whole collection. After the
+ * nightly check (`verified`) the documents and the bounds are the ones it left in memory and the
+ * running month, just rebuilt, comes from the totals too: snapshots + nothing else (CA8).
  */
-async function getAllExpensesServer(userId: string): Promise<Expense[]> {
-  try {
-    const expensesSnapshot = await adminDb
-      .collection(EXPENSES_COLLECTION)
-      .where('userId', '==', userId)
-      .orderBy('date', 'desc')
-      .get();
-
-    return expensesSnapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        date: toDate(data.date),
-        createdAt: toDate(data.createdAt),
-        updatedAt: toDate(data.updatedAt),
-      };
-    }) as Expense[];
-  } catch (error) {
-    console.error('Error getting expenses (server):', error);
-    throw error;
-  }
+async function readExpenseFlowsServer(userId: string, now: Date, verified?: VerifyResult): Promise<Expense[]> {
+  const admin = expenseFlowSourceAdmin(userId);
+  if (!verified) return loadExpenseFlows(userId, admin, { now });
+  const source: ExpenseFlowSource = {
+    ...admin,
+    readBounds: async () => verified.bounds,
+    readYears: async (years) => verified.years.filter((doc) => years.includes(doc.year)),
+  };
+  return loadExpenseFlows(userId, source, { now, trustRunningMonth: true });
 }
 
 /**
  * Aggiorna la Hall of Fame per un utente (versione server-side con Admin SDK)
  */
-export async function updateHallOfFame(userId: string): Promise<void> {
+export async function updateHallOfFame(userId: string, options: { verified?: VerifyResult } = {}): Promise<void> {
   try {
-    // Recupera tutti gli snapshot e le spese dell'utente
+    const now = options.verified?.now ?? new Date();
     const [snapshots, expenses] = await Promise.all([
       getUserSnapshotsServer(userId),
-      getAllExpensesServer(userId),
+      readExpenseFlowsServer(userId, now, options.verified),
     ]);
 
     // One definition of a record and of a ranking, shared with the client writer and the
     // periodic email (lib/utils/hallOfFameRecords.ts). This file owns the Admin-SDK I/O only.
     const monthlyRecords = calculateMonthlyRecords(snapshots, expenses);
     const yearlyRecords = calculateYearlyRecords(snapshots, expenses);
-    const now = new Date();
     const hallOfFameData = {
       userId,
       ...buildHallOfFameRankings(monthlyRecords, yearlyRecords),

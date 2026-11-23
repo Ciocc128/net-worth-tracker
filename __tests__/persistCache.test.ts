@@ -110,6 +110,7 @@ describe('every key builder under a persisted prefix', () => {
     'expenses.all',
     'expenses.bounds',
     'expenses.categories',
+    'expenses.flows',
     'expenses.month',
     'expenses.range',
     'goals.all',

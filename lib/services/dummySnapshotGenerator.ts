@@ -1,4 +1,5 @@
 import { collection, doc, setDoc } from 'firebase/firestore';
+import { markExpenseMonthsChanged } from '@/lib/services/expenseTotalsClient';
 import { db } from '@/lib/firebase/config';
 import { getUserSnapshots } from '@/lib/services/snapshotService';
 import { buildSnapshotDocument, type SnapshotDocument } from '@/lib/utils/snapshotDocument';
@@ -251,6 +252,8 @@ export async function generateDummySnapshots(params: DummySnapshotParams): Promi
     await setDoc(docRef, snapshot);
   }
 
+  // Test data spans many months: every one is rebuilt (doc/totali-mensili § 5.2).
+  if (categoriesByType) await markExpenseMonthsChanged(userId, 'all', 'dummy_data_generated');
   return { written: snapshots.length, skipped };
 }
 

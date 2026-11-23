@@ -100,7 +100,18 @@ export const snapshotRestoreSchema = z
 const accountOnlySchema = z.object({ userId: z.string().min(1) }).strict();
 
 /** POST /api/hall-of-fame/recalculate. */
-export const hallOfFameRecalculateSchema = accountOnlySchema;
+export const hallOfFameRecalculateSchema = z.object({ userId: z.string().min(1), rebuildTotals: z.boolean().optional() }).strict();
+/**
+ * POST /api/expense-totals/rebuild (doc/totali-mensili § 5.2): the months of the owner a client write
+ * touched, `YYYY-MM` (at most 120: a mass rewrite sends `all`), or `all` for every month with rows.
+ */
+export const expenseTotalsRebuildSchema = z
+  .object({
+    ownerId: z.string().min(1),
+    months: z.union([z.literal('all'), z.array(z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)).min(1).max(120)]),
+    reason: z.string().max(100).optional(),
+  })
+  .strict();
 /** POST /api/prices/update. */
 export const pricesUpdateSchema = accountOnlySchema;
 /** DELETE /api/assets/[assetId]: the body; the path's id is `assetIdParamSchema`. */

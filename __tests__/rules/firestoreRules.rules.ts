@@ -233,3 +233,27 @@ describe('per-account documents keyed by uid', () => {
     await assertFails(setDoc(doc(db(B), 'userPreferences', A), { colorTheme: 'x' }))
   })
 })
+
+describe('CA10: the monthly expense totals are server-only (doc/totali-mensili/README.md § 8)', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const s = ctx.firestore()
+      await setDoc(doc(s, 'expense-totals', `${A}_2026`), { userId: A, year: 2026, schemaVersion: 1, months: {} })
+      await setDoc(doc(s, 'expense-totals-meta', A), { userId: A, lastVerifiedAt: now() })
+    })
+  })
+  it('owner and member read and query them; a stranger cannot', async () => {
+    await assertSucceeds(getDocs(query(collection(db(A), 'expense-totals'), where('userId', '==', A))))
+    await assertSucceeds(getDocs(query(collection(db(M), 'expense-totals'), where('userId', '==', A))))
+    await assertSucceeds(getDoc(doc(db(A), 'expense-totals-meta', A)))
+    await assertFails(getDocs(query(collection(db(B), 'expense-totals'), where('userId', '==', A))))
+    await assertFails(getDoc(doc(db(B), 'expense-totals', `${A}_2026`)))
+    await assertFails(getDoc(doc(db(B), 'expense-totals-meta', A)))
+  })
+  it('no client writes them, not even the owner', async () => {
+    await assertFails(setDoc(doc(db(A), 'expense-totals', `${A}_2026`), { userId: A, year: 2026, schemaVersion: 1, months: {} }))
+    await assertFails(setDoc(doc(db(A), 'expense-totals', `${A}_2027`), { userId: A, year: 2027, schemaVersion: 1, months: {} }))
+    await assertFails(deleteDoc(doc(db(A), 'expense-totals', `${A}_2026`)))
+    await assertFails(setDoc(doc(db(A), 'expense-totals-meta', A), { userId: A }))
+  })
+})

@@ -20,6 +20,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { allowUser } from './lib/allowUser';
+import { rebuildExpenseTotalsFor } from './lib/rebuildExpenseTotals';
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
   console.error(
@@ -306,6 +307,7 @@ async function main(): Promise<void> {
   await seedSettings();
   await seedCategoriesAndExpenses();
   await seedSnapshots();
+  await rebuildExpenseTotalsFor(db, [TEST_UID]);
   console.info('\n✅ Seed complete.');
   console.info('   Login:  ' + TEST_EMAIL + '  /  ' + TEST_PASSWORD);
   console.info('   Open the app with `npm run dev:emulator`, then log in with the above.');

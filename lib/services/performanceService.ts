@@ -20,7 +20,7 @@ import {
   FirestoreCashFlowData,
   FirestoreRollingPeriodPerformance,
 } from '@/types/performance';
-import { getExpensesByDateRange } from './expenseService';
+import { readExpenseFlows } from './expenseTotalsClient';
 import { getUserSnapshots } from './snapshotService';
 import { getSettings } from './assetAllocationService';
 import { getAllAssets } from './assetService';
@@ -53,7 +53,7 @@ import {
 import { getDividendReceipts } from './dividendReceiptsService';
 import type { DividendReceipt } from '@/lib/utils/performanceAttribution';
 import { removeUndefinedDeep } from '@/lib/utils/firestoreData';
-import { endOfMonthBound } from '@/lib/utils/dateHelpers';
+import { endOfMonthBound, getItalyMonthYear } from '@/lib/utils/dateHelpers';
 import { buildTwrIndex, computeDrawdownSeries, findMaxDrawdown } from '@/lib/utils/drawdownSeries';
 import { resolvePerformanceBase, type PerformanceBaseResolution } from '@/lib/utils/performanceBase';
 import type { PerformanceYieldPeriod } from '@/lib/utils/dividendYield';
@@ -766,8 +766,11 @@ export function getCashFlowsFromExpenses(
     // so a transfer-only month never creates a spurious empty cashflow entry.
     if (expense.type === 'transfer') return;
 
-    const date = expense.date;
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    // The ITALIAN month (D-TM6, doc/totali-mensili § 6.4): the month every other page buckets by,
+    // and the one an aggregated row of the monthly totals stands in. On a server in UTC the local
+    // month put a row saved at Italian midnight on the 1st into the month before.
+    const { year: italyYear, month: italyMonth } = getItalyMonthYear(expense.date);
+    const key = `${italyYear}-${String(italyMonth).padStart(2, '0')}`;
 
     if (!monthlyMap.has(key)) {
       monthlyMap.set(key, { income: 0, expenses: 0, dividendIncome: 0 });
@@ -868,6 +871,18 @@ export function resolveYieldPeriods(snapshots: MonthlySnapshot[], now: Date): Pe
     periods.push({ key, startDate, dividendEndDate, numberOfMonths });
   }
   return periods;
+}
+
+/**
+ * The movements of `[from, to]` as Rendimenti reads them (doc/totali-mensili/README.md § 6.4): the
+ * closed months as the aggregated rows of their totals, WITHOUT the dividend category's cells; that
+ * category from its real rows in every month (`buildReturnFlowAdjustments` matches them to the
+ * ledger by id and reads `linkedCashAssetId`); the running month from its rows, which the B3 cutoff
+ * cuts at the snapshot's day. Same figures as the rows (CA5), `CACHE_MATH_VERSION` unchanged.
+ */
+async function readPerformanceExpenses(userId: string, from: Date, to: Date, dividendCategoryId?: string): Promise<Expense[]> {
+  const rows = await readExpenseFlows(userId, { from, realRowsCategoryId: dividendCategoryId });
+  return rows.filter((row) => row.date >= from && row.date <= to);
 }
 
 /**
@@ -1007,7 +1022,7 @@ export async function calculatePerformanceForPeriod(
   // § 5.4): a salary in the calendar for the 27th is not in the balances of the 10th. A closed
   // month counts whole. The measured and the pension flows come from the snapshots: no cap.
   const flowEndDate = capAtCutoff(endDate, resolveFlowCutoff(allSnapshots, now));
-  const expenses = preFetchedExpenses ?? (await getExpensesByDateRange(userId, startDate, endDate));
+  const expenses = preFetchedExpenses ?? (await readPerformanceExpenses(userId, startDate, endDate, dividendCategoryId));
   const expenseCashFlows = getCashFlowsFromExpenses(expenses, startDate, flowEndDate, dividendCategoryId);
   // The measured boundary flows first (they replace the savings month by month), then each
   // branch's correction (gross of tax, net of fees, a distribution inside the base is return), then
@@ -1505,7 +1520,7 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
     const lastSnapshot = sortedSnapshots[sortedSnapshots.length - 1];
     const overallStartDate = new Date(firstSnapshot.year, firstSnapshot.month - 1, 1);
     const overallEndDate = endOfMonthBound(lastSnapshot.year, lastSnapshot.month);
-    allExpenses = await getExpensesByDateRange(userId, overallStartDate, overallEndDate);
+    allExpenses = await readPerformanceExpenses(userId, overallStartDate, overallEndDate, dividendCategoryId);
   }
 
   // ==== STEP 4: Calculate metrics for all time periods ====
@@ -1590,7 +1605,7 @@ export async function calculateRollingPeriods(
   const overallEndDate = endOfMonthBound(lastSnapshot.year, lastSnapshot.month);
 
   // Reuse caller-supplied expenses to avoid a redundant Firestore query
-  const allExpenses = prefetchedExpenses ?? await getExpensesByDateRange(userId, overallStartDate, overallEndDate);
+  const allExpenses = prefetchedExpenses ?? await readPerformanceExpenses(userId, overallStartDate, overallEndDate, dividendCategoryId);
 
   const rollingPeriods: RollingPeriodPerformance[] = [];
   // The running month's cap (doc/rendimenti-misura § 5.4), one for every window: only the last

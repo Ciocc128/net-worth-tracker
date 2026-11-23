@@ -15,6 +15,7 @@ import {
 } from '@/lib/server/tradeFxService';
 import { getUserAssetsAdmin } from '@/lib/server/assetAdminRepository';
 import { invalidateDashboardOverviewSummaryServer } from '@/lib/services/dashboardOverviewInvalidation.server';
+import { rebuildExpenseTotalsForDates } from '@/lib/server/expenseTotals';
 import { removeUndefinedDeep } from '@/lib/utils/firestoreData';
 import { toDate, getItalyDayBoundsUtc } from '@/lib/utils/dateHelpers';
 import { roundToCents } from '@/lib/utils/cents';
@@ -465,6 +466,7 @@ async function commitTradeMutation(
   derived: { quantity: number; averageCost: number | undefined; averageCostEur: number | undefined };
   realizedDelta?: number;
 }> {
+  const feeRowDates: Date[] = [];
   let outcome:
     | {
         derived: { quantity: number; averageCost: number | undefined; averageCostEur: number | undefined };
@@ -565,6 +567,9 @@ async function commitTradeMutation(
       const { plan: feePlan, ref: feeRef, category } = plan.feeWrite;
       const rowExists = !!feeSnap?.exists;
       const trade = plan.newTransaction;
+      // The fee row's dates before and after, for its monthly totals (doc/totali-mensili § 5.2).
+      if (rowExists && feeSnap?.data()?.date) feeRowDates.push(toDate(feeSnap.data()!.date));
+      if (trade && feePlan.kind !== 'delete') feeRowDates.push(trade.date);
       if (feePlan.kind === 'delete') {
         if (rowExists) tx.delete(feeRef);
       } else if (rowExists) {
@@ -610,6 +615,7 @@ async function commitTradeMutation(
 
   // After commit: the hero total and asset table both change when a settlement moves cash.
   await invalidateDashboardOverviewSummaryServer(plan.ownerId, plan.invalidationReason);
+  await rebuildExpenseTotalsForDates(plan.ownerId, feeRowDates, plan.invalidationReason);
   return outcome;
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateHallOfFame } from '@/lib/services/hallOfFameService.server';
+import { rebuildAllExpenseTotals } from '@/lib/server/expenseTotals';
 import {
   assertCanAccessAccount,
   getApiAuthErrorResponse,
@@ -15,6 +16,7 @@ import { hallOfFameRecalculateSchema, parseOr400 } from '@/lib/server/validation
  * Request Body:
  *   {
  *     userId: string  // Required
+ *     rebuildTotals?: boolean  // Rebuild the monthly expense totals from every row first
  *   }
  *
  * Response:
@@ -37,11 +39,14 @@ export async function POST(request: NextRequest) {
     const decodedToken = await requireFirebaseAuth(request);
     const parsed = parseOr400(hallOfFameRecalculateSchema, await request.json());
     if (!parsed.ok) return parsed.response;
-    const { userId } = parsed.data;
+    const { userId, rebuildTotals } = parsed.data;
 
     await assertCanAccessAccount(decodedToken, userId);
 
-    // Recalculate Hall of Fame
+    // «Aggiorna i record» first rebuilds the monthly totals from every row (doc/totali-mensili
+    // § 5.4: the manual way to put them back in order); after a snapshot from the Panoramica the
+    // totals are read as they are.
+    if (rebuildTotals) await rebuildAllExpenseTotals(userId);
     await updateHallOfFame(userId);
 
     return NextResponse.json({

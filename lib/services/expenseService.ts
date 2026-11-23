@@ -38,6 +38,7 @@ import {
 import { db } from '@/lib/firebase/config';
 import { removeUndefinedDeep as removeUndefinedFields } from '@/lib/utils/firestoreData';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
+import { markExpenseMonthsChanged } from '@/lib/services/expenseTotalsClient';
 import { needsSignFlip, crossesTransferBoundary } from '@/lib/utils/expenseTypeTransition';
 import { buildRecurrenceDates, resolveRecurrenceFrequency } from '@/lib/utils/recurrenceDates';
 import { appliedBalanceEffectsOf, editBalanceEffects, hasDatedEffects, repaysDebt, reverseBalanceEffects, selectLinkableOccurrences, settlesLater, type BalanceEffect, type SettlementRow } from '@/lib/utils/cashSettlement';
@@ -261,6 +262,7 @@ export async function saveExpenseFee(
       if (!existingFee) return { effects: [], feeExpenseId: null };
       await deleteDoc(doc(db, EXPENSES_COLLECTION, existingFee.id));
       await invalidateDashboardOverviewSummary(userId, 'expense_deleted');
+      await markExpenseMonthsChanged(userId, [existingFee.date], 'expense_fee_deleted');
       return { effects: reverseBalanceEffects(appliedBalanceEffectsOf(existingFee)), feeExpenseId: null };
     }
     case 'update': {
@@ -276,6 +278,7 @@ export async function saveExpenseFee(
         updatedAt: new Date(),
       });
       await invalidateDashboardOverviewSummary(userId, 'expense_updated');
+      await markExpenseMonthsChanged(userId, [existingFee.date, parent.date], 'expense_fee_updated');
       return { effects: settlement.effects, feeExpenseId: existingFee.id };
     }
     case 'create': {
@@ -289,6 +292,7 @@ export async function saveExpenseFee(
       const { data, row } = buildSingleExpenseDoc(userId, feeData, category.categoryName, category.subCategoryName, now, new Date());
       const feeRef = await addDoc(collection(db, EXPENSES_COLLECTION), data);
       await invalidateDashboardOverviewSummary(userId, 'expense_created');
+      await markExpenseMonthsChanged(userId, [parent.date], 'expense_fee_created');
       return { effects: appliedBalanceEffectsOf(row), feeExpenseId: feeRef.id };
     }
   }
@@ -466,6 +470,7 @@ async function writeExpenseRows(
 
     await commitInBatches([{ ref: docRef, data: cleanedData }, ...(feeDoc ? [{ ref: feeDoc.ref, data: feeDoc.data }] : [])]);
     await invalidateDashboardOverviewSummary(userId, 'expense_created');
+    await markExpenseMonthsChanged(userId, [expenseData.date], 'expense_created');
 
     return {
       ids: [docRef.id, ...(feeDoc ? [feeDoc.ref.id] : [])],
@@ -578,6 +583,8 @@ async function createRecurringExpenses(
 
     await commitInBatches([...docs, ...feeDocs.map(({ ref, data }) => ({ ref, data }))]);
     await invalidateDashboardOverviewSummary(userId, 'expense_created');
+    // A series reaches into the months ahead: those live in the totals too (doc/totali-mensili § 4.2).
+    await markExpenseMonthsChanged(userId, parents.map((parent) => parent.date), 'expense_series_created');
 
     return { ids: [...createdIds, ...feeDocs.map((feeDoc) => feeDoc.ref.id)], rows: [...rows, ...feeDocs.map((feeDoc) => feeDoc.row)], parents, isSeries: true };
   } catch (error) {
@@ -717,6 +724,8 @@ async function createInstallmentExpenses(
 
     await commitInBatches([...docs, ...feeDocs.map(({ ref, data }) => ({ ref, data }))]);
     await invalidateDashboardOverviewSummary(userId, 'expense_created');
+    // A series reaches into the months ahead: those live in the totals too (doc/totali-mensili § 4.2).
+    await markExpenseMonthsChanged(userId, parents.map((parent) => parent.date), 'expense_series_created');
 
     console.log(`Created ${installmentCount} installment expenses with parent ID: ${parentId}`);
     return { ids: [...createdIds, ...feeDocs.map((feeDoc) => feeDoc.ref.id)], rows: [...rows, ...feeDocs.map((feeDoc) => feeDoc.row)], parents, isSeries: true };
@@ -752,6 +761,7 @@ export async function deleteInstallmentExpenses(
     const querySnapshot = await getDocs(q);
     await deleteSeriesDocuments(querySnapshot.docs);
     await invalidateDashboardOverviewSummary(userId, 'expense_deleted');
+    await markExpenseMonthsChanged(userId, querySnapshot.docs.map((docSnapshot) => docSnapshot.data().date), 'expense_series_deleted');
     console.log(`Deleted ${querySnapshot.size} installment expenses with parent ID: ${installmentParentId}`);
   } catch (error) {
     console.error('Error deleting installment expenses:', error);
@@ -796,6 +806,8 @@ export async function updateExpense(
     const userId = existingExpense.data()?.userId as string | undefined;
     if (userId) {
       await invalidateDashboardOverviewSummary(userId, 'expense_updated');
+      // Both dates: a row moved from March to April changes two months.
+      await markExpenseMonthsChanged(userId, [existingExpense.data()?.date, updates.date], 'expense_updated');
     }
   } catch (error) {
     console.error('Error updating expense:', error);
@@ -814,6 +826,7 @@ export async function deleteExpense(expenseId: string): Promise<void> {
     const userId = existingExpense.data()?.userId as string | undefined;
     if (userId) {
       await invalidateDashboardOverviewSummary(userId, 'expense_deleted');
+      await markExpenseMonthsChanged(userId, [existingExpense.data()?.date], 'expense_deleted');
     }
   } catch (error) {
     console.error('Error deleting expense:', error);
@@ -883,6 +896,7 @@ export async function deleteExpenseRows(userId: string, rows: Expense[]): Promis
     }
     await batch.commit();
     await invalidateDashboardOverviewSummary(userId, 'expense_deleted');
+    await markExpenseMonthsChanged(userId, rows.map((row) => row.date), 'expense_rows_deleted');
   } catch (error) {
     console.error('Error deleting expense rows:', error);
     throw new Error('Failed to delete expense');
@@ -932,6 +946,7 @@ export async function deleteRecurringExpenses(
     const querySnapshot = await getDocs(q);
     await deleteSeriesDocuments(querySnapshot.docs);
     await invalidateDashboardOverviewSummary(userId, 'expense_deleted');
+    await markExpenseMonthsChanged(userId, querySnapshot.docs.map((docSnapshot) => docSnapshot.data().date), 'expense_series_deleted');
   } catch (error) {
     console.error('Error deleting recurring expenses:', error);
     throw new Error('Failed to delete recurring expenses');
@@ -1055,6 +1070,7 @@ export async function updateExpensesCategoryName(
     await batch.commit();
     // The Panoramica prints category names from the rows: a renamed category is a changed input.
     await invalidateDashboardOverviewSummary(userId, 'expense_category_renamed');
+    await markExpenseMonthsChanged(userId, querySnapshot.docs.map((docSnapshot) => docSnapshot.data().date), 'expense_category_renamed');
   } catch (error) {
     console.error('Error updating expenses category name:', error);
     throw new Error('Failed to update expenses category name');
@@ -1112,6 +1128,7 @@ export async function reassignExpensesCategory(
 
     await batch.commit();
     await invalidateDashboardOverviewSummary(userId, 'expense_category_reassigned');
+    await markExpenseMonthsChanged(userId, querySnapshot.docs.map((docSnapshot) => docSnapshot.data().date), 'expense_category_reassigned');
     return count;
   } catch (error) {
     console.error('Error reassigning expenses category:', error);
@@ -1158,6 +1175,7 @@ export async function clearExpensesCategoryAssignment(
 
     await batch.commit();
     await invalidateDashboardOverviewSummary(userId, 'expense_category_cleared');
+    await markExpenseMonthsChanged(userId, querySnapshot.docs.map((docSnapshot) => docSnapshot.data().date), 'expense_category_cleared');
     return count;
   } catch (error) {
     console.error('Error clearing expenses category assignment:', error);
@@ -1212,6 +1230,7 @@ export async function reassignExpensesSubCategory(
     });
 
     await batch.commit();
+    await markExpenseMonthsChanged(userId, querySnapshot.docs.map((docSnapshot) => docSnapshot.data().date), 'expense_subcategory_reassigned');
     return count;
   } catch (error) {
     console.error('Error reassigning expenses subcategory:', error);
@@ -1288,6 +1307,7 @@ export async function moveExpensesToCategory(
 
     await batch.commit();
     await invalidateDashboardOverviewSummary(userId, 'expense_category_moved');
+    await markExpenseMonthsChanged(userId, querySnapshot.docs.map((docSnapshot) => docSnapshot.data().date), 'expense_category_moved');
     return count;
   } catch (error) {
     if (error instanceof TransferBoundaryError) throw error;
@@ -1365,6 +1385,7 @@ export async function moveExpensesFromSubCategory(
 
     await batch.commit();
     await invalidateDashboardOverviewSummary(userId, 'expense_category_moved');
+    await markExpenseMonthsChanged(userId, querySnapshot.docs.map((docSnapshot) => docSnapshot.data().date), 'expense_category_moved');
     return count;
   } catch (error) {
     if (error instanceof TransferBoundaryError) throw error;
@@ -1431,6 +1452,7 @@ export async function updateExpensesType(
 
     await batch.commit();
     await invalidateDashboardOverviewSummary(userId, 'expense_category_type_changed');
+    await markExpenseMonthsChanged(userId, querySnapshot.docs.map((docSnapshot) => docSnapshot.data().date), 'expense_category_type_changed');
     return count;
   } catch (error) {
     if (error instanceof TransferBoundaryError) throw error;

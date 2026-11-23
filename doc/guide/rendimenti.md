@@ -290,6 +290,14 @@ Composed on 2026-10-14 (its spec, retired the same day, is in `git log -- doc/mo
   Signed euro figures colour on the PRINTED value; a printed zero has neither sign nor colour.
 - **The specs**: no Rendimenti tablet spec — the stage is held by `e2e/*.tablet.spec.ts` on the Panoramica, Patrimonio and Tracciamento. `e2e/mobile-composition.performance.degraded.mobile.spec.ts` (project `degraded-mobile`, seven tests at 390 on the `performance` fixture, the six series and the FX answered by the browser with a flat invented month, one test aborting them: the first screen, the AI icon never pressed, the calendar's focus, the gap cell, the memory, the failed row, the order and the overflow), `e2e/performance.degraded.spec.ts` (1440: the reload test compares the title and the paragraph, since the region now holds the hidden axis, strip and scope and the gap cell moves with the non-persisted series), `e2e/modal.origin.spec.ts` (unchanged); `__tests__/performanceSummary.test.ts` (the strip's identity) and `__tests__/performanceNarrative.test.ts` (`describePerformanceClosedAnswers`); `npm run mobile:budget` holds the surface `rendimenti` of `perf/mobile-budget.json`. **Not proven in a browser**: the meta in error (the Firestore client has one channel for every read) and the companion chip's lift exemption (the fixture measures three months, below the six a companion chip needs).
 
+## The expenses as monthly totals (2026-11-23, doc/totali-mensili/README.md § 6.4)
+- **`readPerformanceExpenses` replaces `getExpensesByDateRange`** in `performanceService.ts` (all three reads): the closed
+  months as the aggregated rows of the monthly totals WITHOUT the dividend category's cells, that category from its REAL
+  rows in every month (`buildReturnFlowAdjustments` matches them to the ledger by id and reads `linkedCashAssetId`), the
+  running month from its rows (the B3 cutoff still cuts it at the snapshot's day). `getCashFlowsFromExpenses` and the
+  adjustments group by the ITALIAN month (D-TM6): in a browser in Italy no figure moves, on a server in UTC a row saved at
+  midnight of the 1st stops falling in the month before. `CACHE_MATH_VERSION` unchanged: same figures (CA4, CA5).
+
 ## Per-page blind spots
 
 - **«Analizza con AI» is ABSENT without `ANTHROPIC_API_KEY`** (2026-09-28, owner's decision — doc/ai-open-models-wiki.md

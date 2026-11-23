@@ -48,7 +48,7 @@ import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { lazyComponent, usePreloadWhenIdle } from '@/components/ui/lazy-component';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useAssets } from '@/lib/hooks/useAssets';
-import { useExpensesInRange } from '@/lib/hooks/useExpenses';
+import { useExpenseFlows } from '@/lib/hooks/useExpenseFlows';
 import { fireWindows } from '@/lib/utils/expenseWindows';
 import { useFreshness } from '@/lib/hooks/useFreshness';
 import { useSettings } from '@/lib/hooks/useSettings';
@@ -105,7 +105,12 @@ function FireSimulationsContent() {
   // on); the older rows behind the Calcolatore's «Dettaglio» and the goals document stay out,
   // each read only by the surface that shows it.
   const recentExpensesWindow = useMemo(() => fireWindows(new Date(), null).recent, []);
-  const calculatorReads = [useSettings(ownerId), useAssets(ownerId), useExpensesInRange(ownerId, recentExpensesWindow), useSnapshots(ownerId)];
+  const calculatorReads = [
+    useSettings(ownerId),
+    useAssets(ownerId),
+    useExpenseFlows(ownerId, { from: recentExpensesWindow.from, to: recentExpensesWindow.to }),
+    useSnapshots(ownerId),
+  ];
   const freshness = useFreshness(calculatorReads);
   // The lazy tabs are fetched once the Calcolatore's reads are in and the page is idle: started
   // earlier, the «idle» browser is only waiting for Firestore and the download competes with the

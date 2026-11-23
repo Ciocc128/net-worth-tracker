@@ -31,6 +31,7 @@ import {
 import { db } from '@/lib/firebase/config';
 import { removeUndefinedDeep as removeUndefinedFields } from '@/lib/utils/firestoreData';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
+import { markExpenseMonthsChanged } from '@/lib/services/expenseTotalsClient';
 import { createCategory, updateCategory } from '@/lib/services/expenseCategoryService';
 import { categoryMatchKey } from '@/lib/utils/expenseImport';
 import { ImportPlan } from '@/types/expenseImport';
@@ -156,6 +157,8 @@ export async function commitImportPlan(
 
   await Promise.all(batches.map((b) => b.commit()));
   await invalidateDashboardOverviewSummary(userId, 'expense_created');
+  // A historical import touches many months: every one is rebuilt (doc/totali-mensili § 5.2).
+  await markExpenseMonthsChanged(userId, 'all', 'expense_import');
 
   return { importBatchId, created };
 }
@@ -190,6 +193,7 @@ export async function deleteExpensesByImportBatch(userId: string, importBatchId:
 
   await Promise.all(batches.map((b) => b.commit()));
   await invalidateDashboardOverviewSummary(userId, 'expense_deleted');
+  await markExpenseMonthsChanged(userId, 'all', 'expense_import_undone');
 
   return snapshot.size;
 }

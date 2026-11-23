@@ -25,6 +25,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { allowUser } from './lib/allowUser';
+import { rebuildExpenseTotalsFor } from './lib/rebuildExpenseTotals';
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
   console.error('Refusing to seed: FIRESTORE_EMULATOR_HOST is not set. Run this via `npm run e2e:seed:hof`.');
@@ -205,6 +206,7 @@ async function main(): Promise<void> {
   await seedAuthUser();
   await clearPreviousRun();
   await seedData();
+  await rebuildExpenseTotalsFor(db, [HOF_UID]);
   console.info('Done.\n');
 }
 
