@@ -143,8 +143,9 @@ export function buildMonthTotals(rows: Expense[]): Omit<ExpenseTotalsMonth, 'bui
   const sorted = [...cells.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([, cell]) => {
-      const { newest: _newest, ...rest } = cell;
-      return rest;
+      const rest: Partial<typeof cell> = { ...cell };
+      delete rest.newest;
+      return rest as Omit<typeof cell, 'newest'>;
     });
   return { rowCount: rows.length, amountSum, cells: sorted };
 }

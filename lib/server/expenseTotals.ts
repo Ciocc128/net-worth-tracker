@@ -71,11 +71,6 @@ async function readRows(userId: string, from: Date, to: Date): Promise<Expense[]
   return snap.docs.map((doc) => expenseFromDoc(doc.id, doc.data()));
 }
 
-async function readAllRows(userId: string): Promise<Expense[]> {
-  const snap = await adminDb.collection(EXPENSES).where('userId', '==', userId).get();
-  return snap.docs.map((doc) => expenseFromDoc(doc.id, doc.data()));
-}
-
 async function readBounds(userId: string): Promise<{ oldest: Date; newest: Date } | null> {
   const edge = (direction: 'asc' | 'desc') =>
     adminDb.collection(EXPENSES).where('userId', '==', userId).orderBy('date', direction).limit(1).get();

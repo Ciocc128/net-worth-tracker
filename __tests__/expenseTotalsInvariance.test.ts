@@ -256,9 +256,9 @@ describe('CA5 — every reader of Fase A on the totals gives the figures of the 
 
       const expected = readAll(rows, clock.snapshots, clock.now);
       const actual = readAll(flows, clock.snapshots, clock.now);
-      const { cashFlows: _c, adjustments: _a, ...rest } = actual;
-      const { cashFlows: _ce, adjustments: _ae, ...restExpected } = expected;
-      expectSame(rest, restExpected);
+      // Rendimenti's two readers are compared on the list read with the dividend category's real rows, below.
+      const withoutPerformance = (r: ReturnType<typeof readAll>) => ({ ...r, cashFlows: undefined, adjustments: undefined });
+      expectSame(withoutPerformance(actual), withoutPerformance(expected));
       const performance = readAll(rendimenti, clock.snapshots, clock.now);
       expectSame(performance.cashFlows, expected.cashFlows, 'cashFlows');
       expectSame(performance.adjustments, expected.adjustments, 'adjustments');
