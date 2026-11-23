@@ -46,6 +46,16 @@ export interface AccountMember {
 }
 
 /**
+ * A pending invitation to the owner's account (doc/sicurezza/S2-utenti-ammessi.md RU12, D-SI17):
+ * the email it is addressed to (lowercased) and when it was made. It never names a uid — the
+ * person enters `memberUids` only by accepting it with their own token (RU15).
+ */
+export interface AccountInvite {
+  email: string;
+  invitedAt: Date;
+}
+
+/**
  * The `account-access/{ownerUid}` document. `memberUids` is the flat array the
  * Firestore Rules and the `array-contains` membership query read; `members`
  * carries the display metadata for the same uids.
@@ -60,6 +70,10 @@ export interface AccountAccess {
   ownerDisplayName: string | null;
   memberUids: string[];
   members: AccountMember[];
+  /** RU12: the invited emails as a flat array, the one the `array-contains` query of RU14 reads. */
+  inviteEmails?: string[];
+  /** RU12: the same invitations with their date, for the owner's tile. */
+  invites?: AccountInvite[];
 }
 
 /**

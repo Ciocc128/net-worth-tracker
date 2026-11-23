@@ -1,75 +1,84 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue } from 'firebase-admin/firestore';
-import { adminAuth, adminDb } from '@/lib/firebase/admin';
+import { adminDb } from '@/lib/firebase/admin';
 import {
   getApiAuthErrorResponse,
   requireFirebaseAuth,
 } from '@/lib/server/apiAuth';
+import {
+  accountAccessRef,
+  isEmailShaped,
+  normalizeEmail,
+  toInviteResponse,
+  toIso,
+  toMemberResponse,
+  withoutInvite,
+  type ReceivedInviteResponse,
+} from '@/lib/server/accountSharing';
 import { removeUndefinedDeep } from '@/lib/utils/firestoreData';
 import {
   ACCOUNT_ACCESS_COLLECTION,
   AccountAccess,
-  AccountMember,
+  AccountInvite,
 } from '@/types/account';
 
 /**
- * Account sharing (delegated access) management.
+ * Account sharing (delegated access), the owner's side — doc/sicurezza/S2-utenti-ammessi.md
+ * RU12–RU16 (A2, F04 S2b).
  *
  * The account being managed is ALWAYS the authenticated caller's own account
  * (`decodedToken.uid`) — there is no client-supplied owner id, so a delegate can
  * never grant themselves or others access to an account they merely view. Grants
- * live in `account-access/{ownerUid}`; writes go only through this Admin route
- * because adding a member requires resolving an email to a Firebase uid.
+ * live in `account-access/{ownerUid}`, written only by the Admin SDK.
+ *
+ * Since S2b sharing is an INVITATION: the owner names an email, the invited person accepts it
+ * with their own token (`/api/account/invites`). This route never resolves an email to a uid
+ * and answers an invitation the same way whether the email is registered or not (review P2a,
+ * P2b): it no longer tells an admitted user which emails have an account.
  */
 
-/** Shape returned to the client (addedAt serialized to ISO for JSON). */
-interface MemberResponse {
-  uid: string;
-  email: string;
-  displayName: string | null;
-  addedAt: string;
-}
-
-/** Convert a stored member (Firestore Timestamp/Date) to the JSON response shape. */
-function toMemberResponse(member: AccountMember): MemberResponse {
-  const addedAt = member.addedAt as unknown;
-  // Firestore returns a Timestamp (has toDate); plain writes may return a Date.
-  const date =
-    addedAt && typeof (addedAt as { toDate?: unknown }).toDate === 'function'
-      ? (addedAt as { toDate: () => Date }).toDate()
-      : (addedAt as Date | undefined);
-  return {
-    uid: member.uid,
-    email: member.email,
-    displayName: member.displayName ?? null,
-    addedAt: date instanceof Date ? date.toISOString() : new Date().toISOString(),
-  };
-}
-
-/** Load the caller's account-access document, or null when no grants exist yet. */
-async function loadAccountAccess(
-  ownerUid: string
-): Promise<AccountAccess | null> {
-  const snap = await adminDb
-    .collection(ACCOUNT_ACCESS_COLLECTION)
-    .doc(ownerUid)
-    .get();
+/** The caller's own account-access document, or null when they never shared it. */
+async function loadAccountAccess(ownerUid: string): Promise<AccountAccess | null> {
+  const snap = await accountAccessRef(ownerUid).get();
   return snap.exists ? (snap.data() as AccountAccess) : null;
+}
+
+/** RU14 `received`: the invitations addressed to `email`, from any owner. */
+async function loadReceivedInvites(email: string): Promise<ReceivedInviteResponse[]> {
+  if (!email) return [];
+  const snapshot = await adminDb
+    .collection(ACCOUNT_ACCESS_COLLECTION)
+    .where('inviteEmails', 'array-contains', email)
+    .get();
+  return snapshot.docs.map((docSnap) => {
+    const data = docSnap.data() as AccountAccess;
+    const invite = (data.invites ?? []).find((candidate) => normalizeEmail(candidate.email) === email);
+    return {
+      ownerUid: data.ownerUid ?? docSnap.id,
+      ownerEmail: data.ownerEmail ?? null,
+      ownerDisplayName: data.ownerDisplayName ?? null,
+      invitedAt: toIso(invite?.invitedAt),
+    };
+  });
 }
 
 /**
  * GET /api/account/members
  *
- * List the members the caller has granted access to their own account.
- *
- * Response: { members: MemberResponse[] }
+ * Response: { members, invites, received } — the caller's members, the caller's pending
+ * invitations, and the invitations addressed to the caller's own email (RU14).
  */
 export async function GET(request: NextRequest) {
   try {
     const decodedToken = await requireFirebaseAuth(request);
-    const access = await loadAccountAccess(decodedToken.uid);
-    const members = (access?.members ?? []).map(toMemberResponse);
-    return NextResponse.json({ members });
+    const [access, received] = await Promise.all([
+      loadAccountAccess(decodedToken.uid),
+      loadReceivedInvites(normalizeEmail(decodedToken.email)),
+    ]);
+    return NextResponse.json({
+      members: (access?.members ?? []).map(toMemberResponse),
+      invites: (access?.invites ?? []).map(toInviteResponse),
+      received,
+    });
   } catch (error) {
     const authResponse = getApiAuthErrorResponse(error);
     if (authResponse) return authResponse;
@@ -81,17 +90,22 @@ export async function GET(request: NextRequest) {
   }
 }
 
+type InviteOutcome =
+  | { status: 'self' }
+  | { status: 'member' }
+  | { status: 'invited'; invite: AccountInvite };
+
 /**
  * POST /api/account/members
  *
- * Grant a registered user full access to the caller's account, by email.
+ * Invite a person to the caller's account, by email (RU13).
  *
  * Request body: { email: string }
  * Errors:
- *   400 - missing/invalid email, or granting to self
- *   404 - no registered user with that email (they must sign up first)
- *   409 - already a member
- * Response: { member: MemberResponse }
+ *   400 - missing/invalid email, or the caller's own email
+ *   409 - that email is already a member
+ * Response: { invite: { email, invitedAt } } — the same for a registered and an unregistered
+ * email; an email already invited answers its existing invitation, unchanged.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -99,86 +113,73 @@ export async function POST(request: NextRequest) {
     const ownerUid = decodedToken.uid;
 
     const body = await request.json().catch(() => ({}));
-    const rawEmail = typeof body?.email === 'string' ? body.email : '';
-    const email = rawEmail.trim().toLowerCase();
+    const email = normalizeEmail(body?.email);
 
-    if (!email) {
+    if (!email || !isEmailShaped(email)) {
       return NextResponse.json(
-        { error: "L'email è obbligatoria" },
+        { error: "Serve un'email valida" },
         { status: 400 }
       );
     }
 
-    // Resolve the email to an existing Firebase user. The person must register
-    // their own account first (their email must also pass the registration
-    // whitelist); we cannot grant access to a uid that does not exist.
-    let memberRecord;
-    try {
-      memberRecord = await adminAuth.getUserByEmail(email);
-    } catch {
-      return NextResponse.json(
-        {
-          error:
-            'Nessun utente registrato con questa email. La persona deve prima registrarsi.',
-        },
-        { status: 404 }
-      );
-    }
+    const ref = accountAccessRef(ownerUid);
+    const outcome = await adminDb.runTransaction<InviteOutcome>(async (tx) => {
+      const snap = await tx.get(ref);
+      const existing = snap.exists ? (snap.data() as AccountAccess) : null;
 
-    if (memberRecord.uid === ownerUid) {
+      if (email === normalizeEmail(decodedToken.email)) return { status: 'self' };
+      if ((existing?.members ?? []).some((member) => normalizeEmail(member.email) === email)) {
+        return { status: 'member' };
+      }
+      const pending = (existing?.invites ?? []).find((invite) => normalizeEmail(invite.email) === email);
+      if (pending) return { status: 'invited', invite: pending };
+
+      const invite: AccountInvite = { email, invitedAt: new Date() };
+      // The owner's name and email are stored so the invited person — who cannot read the
+      // owner's private `users/{ownerUid}` — can tell who is inviting them (RU14 `received`).
+      const updated: AccountAccess = {
+        ownerUid,
+        ownerEmail: decodedToken.email ?? existing?.ownerEmail ?? null,
+        ownerDisplayName:
+          (decodedToken.name as string | undefined) ?? existing?.ownerDisplayName ?? null,
+        memberUids: existing?.memberUids ?? [],
+        members: existing?.members ?? [],
+        inviteEmails: [...(existing?.inviteEmails ?? []), email],
+        invites: [...(existing?.invites ?? []), invite],
+      };
+      tx.set(ref, removeUndefinedDeep(updated));
+      return { status: 'invited', invite };
+    });
+
+    if (outcome.status === 'self') {
       return NextResponse.json(
-        { error: 'Non puoi aggiungere te stesso' },
+        { error: 'Non puoi invitare te stesso' },
         { status: 400 }
       );
     }
-
-    const existing = await loadAccountAccess(ownerUid);
-    if (existing?.memberUids?.includes(memberRecord.uid)) {
+    if (outcome.status === 'member') {
       return NextResponse.json(
         { error: 'Questa persona ha già accesso al tuo account' },
         { status: 409 }
       );
     }
-
-    const member: AccountMember = {
-      uid: memberRecord.uid,
-      email: memberRecord.email ?? email,
-      displayName: memberRecord.displayName ?? null,
-      addedAt: new Date(),
-    };
-
-    // Read-modify-write the single grant document. ownerUid + owner profile are
-    // stored so the doc is self-describing and members can label the shared
-    // account without reading the owner's private profile. Arrays grow by one.
-    const ref = adminDb.collection(ACCOUNT_ACCESS_COLLECTION).doc(ownerUid);
-    const updated: AccountAccess = {
-      ownerUid,
-      ownerEmail: decodedToken.email ?? existing?.ownerEmail ?? null,
-      ownerDisplayName:
-        (decodedToken.name as string | undefined) ??
-        existing?.ownerDisplayName ??
-        null,
-      memberUids: [...(existing?.memberUids ?? []), member.uid],
-      members: [...(existing?.members ?? []), member],
-    };
-    await ref.set(removeUndefinedDeep(updated));
-
-    return NextResponse.json({ member: toMemberResponse(member) });
+    return NextResponse.json({ invite: toInviteResponse(outcome.invite) });
   } catch (error) {
     const authResponse = getApiAuthErrorResponse(error);
     if (authResponse) return authResponse;
     console.error('[account/members] POST failed:', error);
     return NextResponse.json(
-      { error: "Impossibile aggiungere l'accesso" },
+      { error: "Impossibile creare l'invito" },
       { status: 500 }
     );
   }
 }
 
 /**
- * DELETE /api/account/members?memberUid=...
+ * DELETE /api/account/members?memberUid=... | ?inviteEmail=...
  *
- * Revoke a member's access to the caller's account.
+ * Revoke a member's access, or withdraw a pending invitation (RU16). Always on the caller's
+ * own document.
  *
  * Response: { success: true }
  */
@@ -187,23 +188,27 @@ export async function DELETE(request: NextRequest) {
     const decodedToken = await requireFirebaseAuth(request);
     const ownerUid = decodedToken.uid;
     const memberUid = request.nextUrl.searchParams.get('memberUid');
+    const inviteEmail = normalizeEmail(request.nextUrl.searchParams.get('inviteEmail'));
 
-    if (!memberUid) {
+    if (!memberUid && !inviteEmail) {
       return NextResponse.json(
-        { error: 'memberUid è obbligatorio' },
+        { error: 'memberUid o inviteEmail è obbligatorio' },
         { status: 400 }
       );
     }
 
-    const existing = await loadAccountAccess(ownerUid);
-    if (!existing) {
-      return NextResponse.json({ success: true });
-    }
-
-    const ref = adminDb.collection(ACCOUNT_ACCESS_COLLECTION).doc(ownerUid);
-    await ref.update({
-      memberUids: FieldValue.arrayRemove(memberUid),
-      members: (existing.members ?? []).filter((m) => m.uid !== memberUid),
+    const ref = accountAccessRef(ownerUid);
+    await adminDb.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) return;
+      const existing = snap.data() as AccountAccess;
+      const patch: Partial<AccountAccess> = memberUid
+        ? {
+            memberUids: (existing.memberUids ?? []).filter((uid) => uid !== memberUid),
+            members: (existing.members ?? []).filter((member) => member.uid !== memberUid),
+          }
+        : withoutInvite(existing, inviteEmail);
+      tx.update(ref, patch);
     });
 
     return NextResponse.json({ success: true });
