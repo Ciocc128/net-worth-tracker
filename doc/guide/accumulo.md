@@ -1,5 +1,9 @@
 # Allocazione › Accumulo (PAC)
 
+> **Da RU8 (2026-11-23)** la scheda è il piano e basta: Questo mese (7 colonne con la traiettoria, 12 senza), Classi del
+> piano (5), Piani conclusi. Il portafoglio modello e i criteri del modello sono in Allocazione › Strategia
+> (doc/guide/allocazione.md § Strategia); dove questa guida li descrive «nella scheda», leggi «in Strategia».
+
 > **Quando aprire questa guida** — chi tocca `components/allocation/AccumuloTab.tsx`, `components/allocation/tiles/{QuestoMese,ClassiDelPiano,AccumuloVuoto,Obiettivi}Tile.tsx`,
 > `components/allocation/Accumulation{PlanDialog,CalendarDialog,RecalibrateDialog}.tsx`,
 > `components/allocation/ClassDriftChart.tsx`, `lib/utils/accumulationPlan{Utils,Schema,Matching}.ts`,
@@ -267,10 +271,10 @@ creare un piano in produzione — nessuna pipeline di questo repo lo fa per cont
   «dal mese N» nelle bozze, il mese in lettere nel piano attivo.
 - **Stato vuoto (RV4).** L'anteprima parte dai pesi del **portafoglio modello** se c'è (A2), altrimenti da quelli di oggi
   (`buildAccumuloPreview`, `weightsFrom: 'model' | 'today'`; strumenti acquistabili, riserva 10.000 €, 12 rate, nessuna
-  entrata). «Apri il portafoglio modello» fa scorrere fino al tile (`COMPOSITION_ANCHOR_ID`, `portafoglio-modello`). Il
+  entrata). «Apri il portafoglio modello» porta ad Allocazione › Strategia (`STRATEGIA_MODEL_HREF`, `#portafoglio-modello`; prima di RU8 scorreva fino al tile nella scheda). Il
   verdetto «senza piano» dice «verso il portafoglio modello» solo se il modello esiste (`hasModel`).
-- **Obiettivi (RV6, D-A6).** Si modificano in `ObiettiviDialog` (aperto dal tile o da `?obiettivi=1`, che `AccumuloTab` legge e
-  toglie): la bozza è locale, «Prova» gira `runOptimizer` in modo Ideale e non scrive, «Salva gli obiettivi» scrive
+- **Obiettivi (RV6, D-A6).** Si modificano in `ObiettiviDialog` (aperto dal tile o da `?obiettivi=1`, che da RU8 legge e toglie `StrategiaTab`:
+  il tile Criteri del modello è in Strategia): la bozza è locale, «Prova» gira `runOptimizer` in modo Ideale e non scrive, «Salva gli obiettivi» scrive
   `{ idealAllocation }` con `setSettings` **senza `targets`**, cioè con la catena a merge: nient'altro del documento
   cambia (`settingsRoundTrip.test.ts`). Il modulo è `IdealAllocationTile` in modalità `bare`; i suoi dati di contorno (classi
   con sottocategorie, lacune del secondo livello, strumenti acquistabili) vengono dai target SALVATI
@@ -418,7 +422,7 @@ stessa console, ora con anche `match /modelPortfolios/{ownerId}`).
 
 - **Il verdetto si taglia alla prima frase** (`splitVerdict`, la Binding-Clause Rule): con un piano attivo e una banda da rientrare, la frase del rientro («il rientro nella banda») passa dietro «Il perché»; la lettura resta intera. `resolveAccumuloVerdictInput` / `describeAccumuloVerdict` (`accumuloSummary.ts`) separano l'input dal testo; `buildAccumuloVerdict` è il wrapper di prima.
 - **La striscia** (`selectAccumuloStrip`, solo con un piano attivo): «Rata di {mese}» (apre Questo mese), «Investito» (apre Classi del piano; manca senza traiettoria) e «{Classe} sopra|sotto» in punti (la classe più lontana dalla banda; «tutte in soglia» se nessuna). **Scarto dallo spec**: la terza cella apre «Il perché» e non Classi del piano, perché `validateStrip` vieta due celle sulla stessa sezione.
-- **LA tessera** è Questo mese (o lo stato vuoto, senza piano). Le righe chiuse, in ordine DOM (`resolveAccumuloSections`): Portafoglio modello (fallito se la lettura del modello è fallita), Classi del piano (solo se c'è la traiettoria), Criteri del modello, Piani conclusi (solo se ce ne sono). Id in `ACCUMULO_SECTION_IDS` (`accumulationNarrative.ts`, riesportato da `accumuloSummary.ts` per evitare un ciclo di import). Le risposte della riga chiusa (`describeAccumuloClosedAnswers`, in orizzontale nel tablet): «differisce su N strumenti» / «allineato al piano», «rientro a {mese}», «{n} criteri», «ultimo a {mese}»; l'`aside` è senza cifre. Memoria per dispositivo: `mobile-sections:allocation:accumulo`.
+- **LA tessera** è Questo mese (o lo stato vuoto, senza piano). Le righe chiuse, in ordine DOM (`resolveAccumuloSections({ hasClasses, hasClosedPlans })`): Classi del piano (solo se c'è la traiettoria), Piani conclusi (solo se ce ne sono). Portafoglio modello e Criteri del modello sono in Allocazione › Strategia da RU8 (2026-11-23, doc/guide/allocazione.md § Strategia); una chiave ricordata di quelle righe si ignora. Id in `ACCUMULO_SECTION_IDS` (`accumulationNarrative.ts`, riesportato da `accumuloSummary.ts` per evitare un ciclo di import). Le risposte della riga chiusa (`describeAccumuloClosedAnswers`, in orizzontale nel tablet): «differisce su N strumenti» / «allineato al piano», «rientro a {mese}», «{n} criteri», «ultimo a {mese}»; l'`aside` è senza cifre. Memoria per dispositivo: `mobile-sections:allocation:accumulo`.
 - **A 1440** le due colonne sono posizionate sulla griglia (`desktop:row-start-*`, `desktop:self-start`, `desktop:grid-rows-[auto_1fr]` con un piano) e la colonna destra è una scatola `contents desktop:row-span-2 desktop:flex-col`: stesso precedente di Storico. Tutte le righe sono fratelli di UN indice, quello che serve allo stage in orizzontale.
 - **Il grafico Classi del piano non cambia**: è un SVG a viewBox 600, a 390 è già ~125 px; lo spec prevedeva un `min-h`, qui superfluo.
 - **Il fixture del censimento** (`scripts/seedCensusE2E.mts`, `seedAccumulo`) ha un portafoglio modello (3 strumenti) e un piano attivo di 12 rate, la terza aperta (rata 606 €); cambia la clausola «pac» del verdetto di Bilanciamento e quindi le voci di Allocazione. Le voci `allocazione-accumulo` e `fire-proiezione` di `perf/mobile-budget.json` (D-CU19) si scrivono dopo la prima misura sul Mac, con `raisedBy` «prima misura»; `__tests__/mobileSurfaces.test.ts` le pretende ai tre viewport.

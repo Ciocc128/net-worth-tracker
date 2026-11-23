@@ -762,15 +762,16 @@ export default function AllocationPage() {
           />
         </div>
 
-        {/* A failed FIRST read of the profiles is a failed row below `desktop:` (silent: `PageRest`
-            carries the one live node); a failed «Aggiorna» over profiles already read keeps the
-            tile with its own notice. An unread slice is never a failed read: `failed` is the
-            query's `isError` alone. At 1440 the tile is the tile of today. */}
+        {/* A failed FIRST read of the profiles is a failed row: silent below `desktop:` (`PageRest`
+            carries the one live node), an alert at 1440, where the row is closed too (RU8, D-ST7)
+            but no `PageRest` speaks for it. A failed «Aggiorna» over profiles already read keeps
+            the tile with its own notice. An unread slice is never a failed read: `failed` is the
+            query's `isError` alone. */}
         <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(ALLOCAZIONE_SECTION_IDS.esposizione), 'desktop:col-span-12')}>
           {user && ownerId && exposureFailed && !profilesState.hasProfiles ? (
             <ErrorNotice
               collapse={exposureCollapse}
-              live={false}
+              live={!sections.compact}
               onRetry={() => void profilesState.refetch()}
               notice={describeReadFailure({
                 subject: 'Esposizione',

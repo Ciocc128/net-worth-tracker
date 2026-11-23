@@ -105,20 +105,21 @@ export function AllocationClassEditor({ assetClass, draft, isAutoCalculated, cas
           {isAutoCalculated && (
             <p className="mt-0.5 text-[11px] text-muted-foreground">Calcolata dalla formula</p>
           )}
+          {/* Under the name, not beside it: at 390 the switch beside the field squeezed «Liquidità» under itself. */}
+          {cash && !isAutoCalculated && (
+            <div className="mt-1 flex items-center gap-1.5">
+              <Switch
+                id="cashFixedToggle"
+                checked={cash.useFixedAmount}
+                onCheckedChange={cash.onUseFixedAmount}
+                className={INTERACTIVE_CONTROL_CLASS}
+              />
+              <Label htmlFor="cashFixedToggle" className="whitespace-nowrap text-[11px] text-muted-foreground">
+                fisso €
+              </Label>
+            </div>
+          )}
         </div>
-        {cash && !isAutoCalculated && (
-          <div className="flex shrink-0 items-center gap-1.5">
-            <Switch
-              id="cashFixedToggle"
-              checked={cash.useFixedAmount}
-              onCheckedChange={cash.onUseFixedAmount}
-              className={INTERACTIVE_CONTROL_CLASS}
-            />
-            <Label htmlFor="cashFixedToggle" className="whitespace-nowrap text-[11px] text-muted-foreground">
-              fisso €
-            </Label>
-          </div>
-        )}
         <div className="flex shrink-0 items-center gap-1.5">
           <Input
             id={targetFieldId.classPct(assetClass)}

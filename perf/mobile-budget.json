@@ -58,6 +58,11 @@
       "tab": "Accumulo",
       "target": true
     },
+    "allocazione-strategia": {
+      "path": "/dashboard/allocation?tab=strategia",
+      "tab": "Strategia",
+      "target": false
+    },
     "previdenza": {
       "path": "/dashboard/pension",
       "target": true
@@ -770,6 +775,38 @@
         "firstClosedRowAbovePill": true,
         "overflowX": false,
         "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.29 → 1.44) · Prima: 2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
+      }
+    },
+    "allocazione-strategia": {
+      "390": {
+        "screens": 2.53,
+        "tilesAboveFold": 1,
+        "tilesFullyAboveFold": 0,
+        "figuresAboveFold": 5,
+        "figuresOutsideVerdict": 5,
+        "firstClosedRowAbovePill": null,
+        "overflowX": false,
+        "raisedBy": "2026-11-23: prima misura (RU8, doc/allocazione-strategia/README.md § 6.3), nel cloud sul fixture del censimento; screens +0,05 sul misurato per la riga Liquidità rifatta dopo la misura (l'interruttore «fisso €» sotto il nome); da rimisurare sul Mac"
+      },
+      "768": {
+        "screens": 1.86,
+        "tilesAboveFold": 1,
+        "tilesFullyAboveFold": 0,
+        "figuresAboveFold": 5,
+        "figuresOutsideVerdict": 5,
+        "firstClosedRowAbovePill": null,
+        "overflowX": false,
+        "raisedBy": "2026-11-23: prima misura (RU8, doc/allocazione-strategia/README.md § 6.3), nel cloud sul fixture del censimento; screens +0,05 sul misurato per la riga Liquidità rifatta dopo la misura (l'interruttore «fisso €» sotto il nome); da rimisurare sul Mac"
+      },
+      "1024": {
+        "screens": 2.26,
+        "tilesAboveFold": 1,
+        "tilesFullyAboveFold": 0,
+        "figuresAboveFold": 3,
+        "figuresOutsideVerdict": 3,
+        "firstClosedRowAbovePill": null,
+        "overflowX": false,
+        "raisedBy": "2026-11-23: prima misura (RU8, doc/allocazione-strategia/README.md § 6.3), nel cloud sul fixture del censimento; screens +0,05 sul misurato per la riga Liquidità rifatta dopo la misura (l'interruttore «fisso €» sotto il nome); da rimisurare sul Mac"
       }
     }
   }

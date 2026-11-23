@@ -2,8 +2,8 @@
  * Allocazione › Accumulo composta per un tablet (2026-10-18; doc/guide/accumulo.md § Composizione mobile):
  * un file, due progetti — `tablet` (768×1024) e `tablet-landscape` (1024×768) — che si ramifica sulla
  * larghezza, sull'account base con il fixture di `e2e/accumuloFixture.ts` (un modello e UN piano attivo,
- * la terza rata aperta). Tre righe chiuse: il modello, Classi del piano, i criteri; in orizzontale tutte e
- * tre nell'indice accanto al verdetto e a Questo mese. Solo geometria: le parole sono dei file phone e di
+ * la terza rata aperta). Una riga chiusa, Classi del piano (RU8: il modello e i criteri sono in Strategia);
+ * in orizzontale nell'indice accanto al verdetto e a Questo mese. Solo geometria: le parole sono dei file phone e di
  * Vitest (`__tests__/tabletComposition.test.ts` tiene dove va ogni riga a 768 e l'aritmetica dello stage).
  *
  * LA tessera (Questo mese) è alta: non si asserisce che la prima riga chiusa stia sopra la piega (si
@@ -17,7 +17,6 @@ import {
   expectLandscapeStage,
   expectNoHalfCells,
   expectNoOverflow,
-  expectOpenedRow,
   foldOf,
   gridTracks,
   isLandscape,
@@ -26,8 +25,8 @@ import {
 } from './tabletLayout';
 
 const LEAD_ID = 'acc-mese';
-/** The three rows, in DOM order. */
-const ROW_IDS = ['acc-modello', 'acc-classi', 'acc-criteri'] as const;
+/** The one row since RU8. */
+const ROW_IDS = ['acc-classi'] as const;
 
 test.use({ contextOptions: { reducedMotion: 'reduce' } });
 test.beforeAll(seedAccumuloFixture);
@@ -54,16 +53,15 @@ test.describe('Allocazione › Accumulo, composta per un tablet', () => {
       expect((await gridTracks(grid)).columns).toBe(2);
       const [gridRect, theTile] = await Promise.all([rectOf(grid), rectOf(lead(page))]);
       expect(Math.abs(theTile.width - gridRect.width), 'THE tile across the grid').toBeLessThanOrEqual(1);
-      // Three closed rows: the model beside Classi del piano, the criteria alone on the whole row.
+      // The one closed row on the whole grid row.
       await expectNoHalfCells(page, grid, ROW_IDS);
     }
     expect((await rectOf(lead(page))).y, 'THE tile starts above the fold').toBeLessThan(fold);
   });
 
-  test('una riga aperta resta al suo posto nell\'indice a 1024 e occupa la griglia a 768, le righe dopo sotto di lei', async ({ page }) => {
+  test('la riga aperta resta al suo posto nell\'indice a 1024 e occupa la griglia a 768', async ({ page }) => {
     await open(page);
-    const where = await openRow(page, ROW_IDS[1]);
-    await expectOpenedRow(page, gridOfLead(page), ROW_IDS[1], where, ROW_IDS[0], ROW_IDS.slice(2));
+    await openRow(page, ROW_IDS[0]);
     if (isLandscape(page)) await expectLandscapeStage(page, page.locator('#page-main'), ROW_IDS);
     else await expectNoHalfCells(page, gridOfLead(page), ROW_IDS);
   });
@@ -75,17 +73,16 @@ test.describe('Allocazione › Accumulo, composta per un tablet', () => {
     await expectNoOverflow(page);
   });
 
-  test('a 1440 la griglia è quella di una pagina aperta lì: dodici tracce, nessuna riga, le due colonne di prima', async ({ page }) => {
+  test('a 1440 la griglia è quella di una pagina aperta lì: dodici tracce, nessuna riga, Questo mese e Classi del piano affiancate', async ({ page }) => {
     await open(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     const grid = gridOfLead(page);
     await expect.poll(async () => (await gridTracks(grid)).columns).toBe(12);
     await expect(page.locator('main [id$="-trigger"]')).toHaveCount(0);
     await expectGridAcrossMain(page, grid);
-    const [mese, modello, classi] = await Promise.all(
-      ['Questo mese', 'Portafoglio modello', 'Classi del piano'].map((name) => rectOf(page.locator(`section[aria-label="${name}"]`))),
+    const [mese, classi] = await Promise.all(
+      ['Questo mese', 'Classi del piano'].map((name) => rectOf(page.locator(`section[aria-label="${name}"]`))),
     );
-    expect(modello.y, 'il modello sotto Questo mese').toBeGreaterThanOrEqual(mese.bottom - 1);
     expect(classi.x, 'Classi del piano nella colonna destra').toBeGreaterThan(mese.right - 1);
     expect(Math.abs(classi.y - mese.y), 'Classi del piano alla quota di Questo mese').toBeLessThanOrEqual(1);
   });

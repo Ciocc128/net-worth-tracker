@@ -22,8 +22,8 @@ import { removeAccumuloFixture, seedAccumuloFixture } from './accumuloFixture';
 
 const TOUCH_FLOOR = 44;
 const STORAGE_KEY = 'mobile-sections:allocation:accumulo';
-/** Le righe con un piano attivo, nell'ordine del DOM: il modello PRIMA di Classi del piano (D-CU15). */
-const ROW_IDS = ['acc-modello', 'acc-classi', 'acc-criteri'] as const;
+/** Le righe con un piano attivo: Classi del piano sola (RU8: il modello e i criteri sono passati a Strategia, D-ST8). */
+const ROW_IDS = ['acc-classi'] as const;
 
 const trigger = (page: Page, id: string) => page.locator(`#${id}-trigger`);
 const panel = (page: Page, id: string) => page.locator(`#${id}-panel`);
@@ -53,7 +53,7 @@ async function measureOverflow(page: Page) {
 }
 
 test.describe('Accumulo, composto per un telefono', () => {
-  test('la prima schermata: tre celle da pollice, Questo mese aperta, tre righe chiuse e vuote nell\'ordine del DOM', async ({ page }) => {
+  test('la prima schermata: tre celle da pollice, Questo mese aperta, una riga chiusa e vuota', async ({ page }) => {
     await openAccumulo(page);
 
     // Le tre celle: la rata, l'investito e la classe più lontana dalla banda (o «tutte in soglia»).
@@ -81,7 +81,7 @@ test.describe('Accumulo, composto per un telefono', () => {
       expect(box.height, name).toBeGreaterThanOrEqual(TOUCH_FLOOR);
     }
 
-    // «Il resto della pagina», poi le tre righe chiuse: il modello PRIMA di Classi del piano (l'ordine del DOM).
+    // «Il resto della pagina», poi la riga chiusa: Classi del piano.
     await expect(page.getByRole('heading', { level: 2, name: 'Il resto della pagina' })).toBeVisible();
     const triggers = page.locator('main [id$="-trigger"]');
     await expect(triggers).toHaveCount(ROW_IDS.length);
@@ -115,20 +115,22 @@ test.describe('Accumulo, composto per un telefono', () => {
     await expect(month.locator('[id$="-trigger"]')).toHaveCount(0);
   });
 
-  test('il modello è una riga: apre con il suo contenuto e la memoria è quella della scheda, dopo un reload', async ({ page }) => {
+  test('la riga si ricorda dopo un reload, e le chiavi delle righe passate a Strategia si ignorano', async ({ page }) => {
     await openAccumulo(page);
-    await trigger(page, 'acc-modello').click();
-    await trigger(page, 'acc-criteri').click();
-    await expect(page.getByRole('region', { name: 'Portafoglio modello' })).toContainText(/strument/);
-    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBe('["acc-criteri","acc-modello"]');
-    // La memoria di Bilanciamento non si muove.
-    expect(await page.evaluate(() => localStorage.getItem('mobile-sections:allocation'))).toBeNull();
-
+    // Una memoria scritta prima di RU8, con il modello e i criteri aperti.
+    await page.evaluate((key) => localStorage.setItem(key, '["acc-criteri","acc-modello"]'), STORAGE_KEY);
     await page.reload({ waitUntil: 'load' });
     await expect(page.getByRole('region', { name: 'Questo mese' })).toBeVisible({ timeout: 60_000 });
-    await expect(trigger(page, 'acc-modello')).toHaveAttribute('aria-expanded', 'true');
-    await expect(trigger(page, 'acc-criteri')).toHaveAttribute('aria-expanded', 'true');
     await expect(trigger(page, 'acc-classi')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#acc-modello-trigger, #acc-criteri-trigger')).toHaveCount(0);
+
+    await trigger(page, 'acc-classi').click();
+    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toContain('acc-classi');
+    // La memoria di Bilanciamento non si muove.
+    expect(await page.evaluate(() => localStorage.getItem('mobile-sections:allocation'))).toBeNull();
+    await page.reload({ waitUntil: 'load' });
+    await expect(page.getByRole('region', { name: 'Questo mese' })).toBeVisible({ timeout: 60_000 });
+    await expect(trigger(page, 'acc-classi')).toHaveAttribute('aria-expanded', 'true');
   });
 
   test('nessun order-* resta, nulla sfora main, e a 1440 le righe spariscono', async ({ page }) => {
@@ -142,14 +144,14 @@ test.describe('Accumulo, composto per un telefono', () => {
       );
     expect(await orderClasses()).toEqual([]);
 
-    // L'ordine verticale è quello del DOM: Questo mese, poi il modello, Classi del piano e i criteri.
+    // L'ordine verticale è quello del DOM: Questo mese, poi Classi del piano.
     const names = await page.evaluate(() => {
       const main = document.querySelector('main')!;
       return [...main.querySelectorAll<HTMLElement>('section.rounded-2xl')]
         .filter((el) => el.checkVisibility())
         .map((el) => ({ name: el.getAttribute('aria-label'), top: Math.round(el.getBoundingClientRect().top) }));
     });
-    expect(names.map((s) => s.name)).toEqual(['Questo mese', 'Portafoglio modello', 'Classi del piano', 'Criteri del modello']);
+    expect(names.map((s) => s.name)).toEqual(['Questo mese', 'Classi del piano']);
     expect(names.every((s, i) => i === 0 || s.top >= names[i - 1].top - 1), JSON.stringify(names)).toBe(true);
 
     await page.getByRole('button', { name: 'Apri tutte' }).click();
@@ -161,14 +163,12 @@ test.describe('Accumulo, composto per un telefono', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await expect(page.locator('main [id$="-trigger"]')).toHaveCount(0);
     await expect(page.getByRole('list', { name: 'Le cifre del verdetto' })).toBeHidden();
-    // A 1440 le due colonne di prima: Questo mese e il modello a sinistra, Classi del piano a destra.
+    // A 1440 Questo mese (7) e Classi del piano (5) sulla stessa riga.
     const desktop = await page.evaluate(() => {
-      const left = (label: string) => document.querySelector(`section[aria-label="${label}"]`)!.getBoundingClientRect();
-      return { mese: left('Questo mese'), modello: left('Portafoglio modello'), classi: left('Classi del piano'), criteri: left('Criteri del modello') };
+      const rect = (label: string) => document.querySelector(`section[aria-label="${label}"]`)!.getBoundingClientRect();
+      return { mese: rect('Questo mese'), classi: rect('Classi del piano') };
     });
-    expect(desktop.modello.top, 'il modello sotto Questo mese').toBeGreaterThan(desktop.mese.bottom - 1);
     expect(desktop.classi.left, 'Classi del piano nella colonna destra').toBeGreaterThan(desktop.mese.right - 1);
     expect(Math.abs(desktop.classi.top - desktop.mese.top), 'Classi del piano alla quota di Questo mese').toBeLessThanOrEqual(1);
-    expect(desktop.criteri.top, 'i criteri sotto Classi del piano').toBeGreaterThan(desktop.classi.bottom - 1);
   });
 });

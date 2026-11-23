@@ -210,6 +210,50 @@ shared cache the client never reads holds nothing of the user's — stays there.
 - **`useActionColors` clamps into a measured band** (`ACTION_LIGHT_MAX_L` 0,46 · `ACTION_DARK_MIN_L` 0,80 · `ACTION_CHIP_FILL_PCT` 8, in `allocationUtils.ts`): COMPRA/VENDI/OK come from `--chart-3/5/2`, which are pitched at ~3:1 against a plot area, and this page prints them as a 10px chip label, an 18px plan amount and a 13px gap column — all text, none of it WCAG «large», so the floor is 4,5:1. `__tests__/actionColorContrast.test.ts` holds all twelve theme blocks to it on `--card` AND on the chip's own fill (the harder surface: a `color-mix` of the text's own hue always pulls the background towards the text — at 14% the same clamp gave 4,06:1, at 8% it gives 4,64:1).
 - **The old clamp was DEAD CODE, and that is the trap to remember** (2026-09-21): it matched `/oklch\(/` on `getComputedStyle().getPropertyValue('--chart-3')`, and **the browser answers in CSS `lab()`** — `oklch(0.700 0.160 72)` comes back as `lab(64.8793% 25.0679 78.4211)`. The regex never matched, the function returned its input, and the page shipped the raw slots as text at 2,39–4,02:1 while the hook's docstring claimed to «guarantee contrast in both modes». The parse now lives in `lib/utils/actionColor.ts` (`parseToOklch`, Lab D50 → XYZ → Bradford → OKLab), the TEST calls that function rather than a copy of the rule, and three real browser serialisations are pinned in it. **Fork**: the hook reads the role tokens `--trade-buy/sell/ok` (defaults = the same `--chart-3/5/2`, Lime Frost light names them) and `parseToOklch` also takes `#rrggbb` — Lightning CSS serves a colour inside sRGB as hex (`hexToOklch` from `colorLightness.ts`). The contrast test reads the chart slots, so a theme's literal `--trade-*` is NOT held by it.
 
+## Strategia e la catena dei pesi (RU8, 2026-11-23)
+
+Dossier `doc/allocazione-strategia/README.md` (D-ST1–D-ST9). The page has THREE tabs: Bilanciamento · Strategia ·
+Accumulo (`ALLOCATION_TAB_IDS` in `lib/utils/allocationChain.ts`; `?tab=strategia`, Compass icon). Strategia is where the
+weights are DECIDED; Bilanciamento reads them, Accumulo spends them.
+
+- **The chain of the weights** (`AllocazioneChain`, under the tabs on all three): Target per classe → Portafoglio
+  modello → Piano di accumulo → Rata del mese. `buildAllocationChain` writes every word and figure (the component only
+  draws), each cell a `<Link>` to where that step is changed (`STRATEGIA_TARGET_HREF`, `STRATEGIA_MODEL_HREF`,
+  `ACCUMULO_HREF`); its accessible name is the whole sentence («Passo 1, target per classe: 60, 30, 10, a mano. Apri
+  Strategia»). The tab's cells are tinted (`current`), `aria-current="page"` only on a link that lands on the open tab
+  (`linksHere`). An unread document is «non letto», never «da creare». Cell 1 reads the SAVED effective targets (goals,
+  formula or by hand), not the draft. Below `desktop:` four 44px cells (number + `compactFigure`), between the tab bar
+  and the verdict. It does not animate on a tab change.
+- **The targets' draft belongs to the PAGE** (`useTargetsDraft` over the pure `lib/utils/targetsDraft.ts`, the slice
+  and its validation moved from `settingsDraft`): a trip to Bilanciamento and back keeps it, the Strategia tab wears
+  the unsaved dot, `beforeunload` guards it. «Salva i target» writes through `setSettings`' `targets` branch with the
+  rest of the document read just before (`AssetAllocationSettingsWrite`); «Annulla» re-reads. A problem (total under
+  100, a sub-group that does not add up to 100) is said in the bar and focuses its field (`revealTargetProblem` →
+  `pendingFocus`, consumed by `StrategiaTab`), nothing is written.
+- **Target per classe** (`#target`): a source pill (A mano · Formula per età · Dai traguardi, `SegmentedPill`
+  radiogroup; the formula is `unavailable` without an age, «Dai traguardi» only with goal-based investing on). The formula
+  rows link where their inputs are edited — the age to FIRE › Il mio piano (D-T5), the risk-free rate to Impostazioni ›
+  Preferenze (D-ST4) with `describeRiskFreeOrigin` («impostato da te» · «stima BCE del …»). Under goals the class rows
+  are read-only (`GoalClassRow`, from `resolveEffectiveTargets` over the draft). The class editors are
+  `components/allocation/strategia/{AllocationClassEditor,SubTargetEditor}.tsx`; the «Strumenti specifici» switch shows
+  only where already on or filled (D-ST6, «solo per Bilanciamento»). The reading is `describeStrategiaTargets`.
+- **Portafoglio modello and Criteri del modello** (`#portafoglio-modello`) moved here from Accumulo, unchanged
+  (`PortafoglioModelloTile` 7 · `ObiettiviTile` 5); `?obiettivi=1` opens `ObiettiviDialog` here and is replaced by
+  `#portafoglio-modello`. «Apri il portafoglio modello» (Accumulo's empty state), the optimizer's links and a blocked
+  delete (`assetUsage`) all land here.
+- **Bilanciamento** lost «Modifica target» (a pencil in Per classe's aside, «Modifica i target per classe», goes to
+  `#target`); Esposizione and Previdenza are closed rows at 1440 too (D-ST7, `desktopRows` state, not remembered), so the
+  profiles are read only once Esposizione is opened; a failed first read is that row, an alert at 1440 (no `PageRest`
+  speaks there). The header is `describeAllocazioneHeader({ portfolioValue, netWorth, outside })`, the same on the
+  three tabs, with no actions.
+- **Lazy tabs (P6)**: Strategia and Accumulo are `lazyComponent`s with a `TileGridSkeleton` fallback, preloaded when idle
+  once the page has read (`usePreloadWhenIdle`).
+- **Impostazioni** has no Allocazione tab: `/dashboard/settings?tab=allocazione` replaces itself with
+  `STRATEGIA_TARGET_HREF` (doc/guide/impostazioni.md).
+- **Specs**: `e2e/allocation.spec.ts` › «Strategia e la catena dei pesi (RU8)» (the chain, the pencil, the dirty bar and
+  «Annulla», a total under 100, a sub-group under 100 with the focus, the old settings URL), `e2e/allocation.mobile.spec.ts`
+  (the 44px chain). Vitest: `allocationChain`, `targetsDraft`, `riskFreeRate`, `describeStrategiaTargets` in `settingsNarrative`.
+
 ## Composizione mobile
 
 Composed on 2026-10-15 (its spec, retired on 2026-10-16, is in `git log -- doc/mobile/`; the primitives and the sample page are Hall of Fame's, doc/guide/hall-of-fame.md § Composizione mobile): below `desktop:` the page is one sequence, the desktop DOM (the DOM order is the reading order — DESIGN.md → The First-Screen Rule, 2026-09-27); at 1440 it is the page above with one declared change — the verdict's punctuation, below. The rules are DESIGN.md's (§ 5 → Small-Screen Composition: The First-Screen, Lifted-Figure, Closed-Row and Binding-Clause Rules); here is what this page does with them.
@@ -242,7 +286,7 @@ The Esposizione's view switch transforms the list (DESIGN.md → The View-Transf
 ## AL1 (2026-10-16)
 
 - **Una sottocategoria guarda la sua classe** (R5): `findOrphanedTargets` salta una sottocategoria la cui classe ha target ≤ 0 (Liquidità 0% con «Conti Correnti» 100% e tutto il valore escluso non è «irraggiungibile»: alla classe non si chiede nulla). Una classe senza riga in `byAssetClass` conserva il comportamento di prima.
-- L'intestazione della pagina dipende dalla scheda: Bilanciamento «target dalle impostazioni / dai traguardi», Accumulo «pesi dal portafoglio modello» o «dai pesi del piano» (`describeAllocazioneHeader`).
+- ~~L'intestazione della pagina dipende dalla scheda~~ — da RU8 l'intestazione è una sola sulle tre schede (§ Strategia e la catena dei pesi).
 
 ## AL5 «Bilanciamento, criteri e nomi» (2026-10-16)
 

@@ -64,13 +64,21 @@ const MOCK_EXPOSURE: PortfolioExposureData = {
 
 const MOCK_RESPONSE: PortfolioExposureResponse = { exposure: MOCK_EXPOSURE, cached: false };
 
+/** Esposizione is a closed row at 1440 too since RU8 (D-ST7): open it, and only then is the request sent. */
+async function openEsposizione(page: Page) {
+  await page.goto('/dashboard/allocation');
+  const trigger = page.locator('#alloc-esposizione-trigger');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false', { timeout: 60_000 });
+  await trigger.click();
+}
+
 test.describe('Esposizione a cinque viste (solo fork)', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/portfolio/exposure**', (route) => route.fulfill({ json: MOCK_RESPONSE }));
   });
 
   test('switches all five views and opens a drill-down', async ({ page }) => {
-    await page.goto('/dashboard/allocation');
+    await openEsposizione(page);
     const tile = page.getByRole('region', { name: 'Esposizione del portafoglio' });
     await expect(tile).toBeVisible({ timeout: 30_000 });
 
@@ -101,10 +109,12 @@ test.describe('Esposizione a cinque viste (solo fork)', () => {
   test('surfaces the API error state instead of a blank tile', async ({ page }) => {
     await page.unroute('**/api/portfolio/exposure**');
     await page.route('**/api/portfolio/exposure**', (route) => route.fulfill({ status: 500, body: 'boom' }));
-    await page.goto('/dashboard/allocation');
-    const tile = page.getByRole('region', { name: 'Esposizione del portafoglio' });
-    await expect(tile.getByRole('alert')).toBeVisible({ timeout: 30_000 });
-    await expect(tile.getByText('Errore nel caricamento')).toBeVisible();
+    await openEsposizione(page);
+    // The failed first read is the row itself, red and open, an alert at 1440 (no `PageRest` speaks there).
+    const row = page.locator('#alloc-esposizione');
+    await expect(row).toHaveAttribute('role', 'alert', { timeout: 30_000 });
+    await expect(row).toContainText('non sono state lette');
+    await expect(row.getByRole('button', { name: 'Riprova' })).toBeVisible();
   });
 });
 

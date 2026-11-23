@@ -8,6 +8,7 @@
  *  2. le modifiche non salvate non dicevano QUALE dei sei tab le teneva, e non si potevano annullare;
  *  3. l'Auto-calcolo in Allocazione restava spento finché non si compilava un campo di un ALTRO tab;
  *  4. «Salva» con un gruppo di sottocategorie che non somma 100 rispondeva con un toast e lasciava lì;
+ *     (3 e 4 seguono i target in Allocazione › Strategia dal 2026-11-23, RU8: e2e/allocation.spec.ts)
  *  5. cinque `aria-controls` puntavano a pannelli mai montati.
  *
  * NESSUN test qui SCRIVE: si modifica il modulo e si annulla, o si preme «Salva» su un albero che la
@@ -35,7 +36,7 @@ async function settingsUpdateTime(): Promise<string> {
   return doc.updateTime;
 }
 
-async function openSettings(page: Page, tab = 'allocazione') {
+async function openSettings(page: Page, tab = 'generale') {
   await page.goto(`/dashboard/settings?tab=${tab}`, { waitUntil: 'load' });
   await expect(page.locator('h1:visible')).toContainText('Impostazioni', { timeout: 60_000 });
   // The opened tab's panel, with a tile in it, is the load's positive anchor (Radix unmounts the
@@ -59,81 +60,51 @@ test('ogni aria-controls dei tab nomina un pannello che esiste', async ({ page }
   expect(dangling).toEqual([]);
 });
 
-test('età e risk-free stanno nella tessera della formula, non in un altro tab', async ({ page }) => {
+test('il risk-free sta in Preferenze › Calcolo dei rendimenti; i target non sono più qui', async ({ page }) => {
   await openSettings(page);
 
-  const autoCalc = page.locator('section[aria-label="Auto-calcolo Azioni / Obbligazioni"]');
-  // D-T5: the age is DECLARED here (one editor, FIRE › Il mio piano), the risk-free rate is typed.
-  await expect(autoCalc.locator('#userAge')).toHaveCount(0);
-  await expect(autoCalc.getByRole('link', { name: 'FIRE › Il mio piano' })).toBeVisible();
-  await expect(autoCalc.locator('#riskFreeRate')).toBeVisible();
-  // The seed has an age and no typed rate: the field follows the ECB estimate and says so (no «manca»),
-  // with no way back to offer yet because nothing was typed.
-  await expect(autoCalc).toContainText('Stima: tasso AAA a 10 anni della BCE');
-  await expect(autoCalc).not.toContainText('manca il risk-free rate');
-  await expect(autoCalc.getByRole('button', { name: 'Torna alla stima' })).toHaveCount(0);
+  // RU8 (D-ST4): the rate is a preference, read by Strategia's formula, by Sharpe and Sortino.
+  const returns = page.locator('section[aria-label="Calcolo dei rendimenti"]');
+  await expect(returns.locator('#riskFreeRate')).toBeVisible();
+  // The seed has no typed rate: the field follows the ECB estimate and says so, with no way back to
+  // offer yet because nothing was typed.
+  await expect(returns).toContainText('Stima: tasso AAA a 10 anni della BCE');
+  await expect(returns.getByRole('button', { name: 'Torna alla stima' })).toHaveCount(0);
+  await returns.locator('#riskFreeRate').fill('3');
+  await expect(returns.getByRole('button', { name: 'Torna alla stima' })).toBeVisible();
+  await returns.getByRole('button', { name: 'Torna alla stima' }).click();
+  await expect(returns.locator('#riskFreeRate')).toHaveValue('');
+  await expect(unsavedBar(page)).toHaveCount(0);
 
-  await visibleTab(page, 'Preferenze').click();
-  await expect(page.locator('section[aria-label="Calcolo dei rendimenti"]')).toBeVisible();
-  await expect(page.locator('#userAge')).toHaveCount(0);
+  // The Allocazione tab is gone (D-ST1): the targets live in Allocazione › Strategia.
+  await expect(visibleTab(page, /^Allocazione/)).toHaveCount(0);
+  await expect(page.locator('section[aria-label="Target per classe"]')).toHaveCount(0);
 });
 
 test('le modifiche non salvate si vedono per tab e «Annulla modifiche» torna al salvato senza scrivere', async ({ page }) => {
   await openSettings(page);
   const before = await settingsUpdateTime();
-  const crypto = page.getByRole('spinbutton', { name: 'Target Criptovalute' });
-  const saved = await crypto.inputValue();
+  const costCenters = page.getByRole('switch', { name: 'Centri di Costo' });
+  const saved = await costCenters.getAttribute('aria-checked');
 
   await expect(unsavedBar(page)).toHaveCount(0);
-  await crypto.fill('15');
+  await costCenters.click();
 
-  await expect(visibleTab(page, 'Allocazione, modifiche non salvate')).toBeVisible();
-  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Allocazione');
-
-  await visibleTab(page, 'Preferenze').click();
-  await page.getByRole('switch', { name: 'Centri di Costo' }).click();
-  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Allocazione e Preferenze');
   await expect(visibleTab(page, 'Preferenze, modifiche non salvate')).toBeVisible();
+  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Preferenze');
+
+  await visibleTab(page, 'Spese').click();
+  await page.getByRole('switch', { name: 'Necessità, desideri, risparmi' }).click();
+  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Preferenze e Spese');
+  await expect(visibleTab(page, 'Spese, modifiche non salvate')).toBeVisible();
 
   await unsavedBar(page).getByRole('button', { name: 'Annulla modifiche' }).click();
 
   await expect(unsavedBar(page)).toHaveCount(0);
-  await expect(visibleTab(page, 'Preferenze')).toBeVisible();
-  await visibleTab(page, 'Allocazione').click();
-  await expect(crypto).toHaveValue(saved);
-  expect(await settingsUpdateTime()).toBe(before);
-});
-
-test('«Salva» con un gruppo che non somma 100 non scrive e porta il fuoco sul campo', async ({ page }) => {
-  await openSettings(page);
-  const before = await settingsUpdateTime();
-
-  // Switch Azioni's subcategories on (80 + 20, valid), break the sum inside the group, then CLOSE it.
-  await page.getByRole('button', { name: /^Apri sottocategorie di Azioni/ }).click();
-  await page.locator('#toggle-equity').click();
-  const firstSubPct = page.locator('input[id^="target-equity-sub-"][id$="-pct"]').first();
-  await firstSubPct.fill(String(Number(await firstSubPct.inputValue()) - 10));
-  await page.getByRole('button', { name: /^Chiudi sottocategorie di Azioni/ }).click();
-
-  // Closed, the class row still says it: the sum is ON the row and in its name.
-  await expect(page.getByRole('button', { name: /^Apri sottocategorie di Azioni \(sommano 90/ })).toBeVisible();
-  await expect(page.locator('section[aria-label="Target per classe"]')).toContainText(
-    /Le sottocategorie di Azioni sommano 90\s?% invece del 100\s?%/
-  );
-
-  // From ANOTHER tab: «Salva» brings the reader back to the field.
+  await expect(visibleTab(page, 'Spese')).toBeVisible();
   await visibleTab(page, 'Preferenze').click();
-  await page.locator('button:visible', { hasText: /^Salva$/ }).first().click();
-
-  await expect(visibleTab(page, /^Allocazione/)).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('button', { name: /^Chiudi sottocategorie di Azioni/ })).toBeVisible();
-  await expect
-    .poll(() => page.evaluate(() => document.activeElement?.id ?? ''))
-    .toMatch(/^target-equity-sub-\d+-pct$/);
+  await expect(page.getByRole('switch', { name: 'Centri di Costo' })).toHaveAttribute('aria-checked', saved!);
   expect(await settingsUpdateTime()).toBe(before);
-
-  await unsavedBar(page).getByRole('button', { name: 'Annulla modifiche' }).click();
-  await expect(unsavedBar(page)).toHaveCount(0);
 });
 
 test('una lettura fallita degli accessi non diventa «nessun accesso»', async ({ page }) => {

@@ -38,15 +38,21 @@ async function openAllocazione(page: Page) {
   await expect(page.locator('section[aria-label="Allocazione per classe"]')).toBeVisible({ timeout: 30_000 });
 }
 
-/** La scheda «Accumulo» (A1, doc/pac-ottimizzatore § RV1): Accumulo, Portafoglio modello e Obiettivi vivono qui. */
+/** La scheda «Accumulo» (A1, doc/pac-ottimizzatore § RV1): il piano e il suo mese (RU8: il modello e i criteri sono in Strategia). */
 async function openAccumulo(page: Page) {
   await page.goto('/dashboard/allocation?tab=accumulo', { waitUntil: 'load' });
   await expect(page.getByRole('region', { name: 'Verdetto sul piano di accumulo' })).toBeVisible({ timeout: 60_000 });
+}
+
+/** La scheda «Strategia» (RU8, doc/allocazione-strategia/README.md): Target per classe, Portafoglio modello, Criteri del modello. */
+async function openStrategia(page: Page, hash = '') {
+  await page.goto(`/dashboard/allocation?tab=strategia${hash}`, { waitUntil: 'load' });
+  await expect(page.locator('section[aria-label="Target per classe"]')).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('section[aria-label="Portafoglio modello"]')).toBeVisible({ timeout: 30_000 });
 }
 
 /** Ogni nodo interattivo raggiungibile con Tab, in ordine, fino a un tetto. */
-async function tabWalk(page: Page, limit = 60): Promise<string[]> {
+async function tabWalk(page: Page, limit = 80): Promise<string[]> {
   const walk: string[] = [];
   for (let i = 0; i < limit; i += 1) {
     await page.keyboard.press('Tab');
@@ -67,18 +73,27 @@ test('una lista di controlli dello stesso tipo è UNO stop di Tab, non N', async
   // Nessun click prima del giro: un click su `body` sposta l'inizio della sequenza oltre il salta-contenuto.
   const walk = await tabWalk(page);
 
-  // I quattro pulsanti della banda, i tre modi del Piano e le tre viste dell'Esposizione sono tre
-  // gruppi `AsideToggle`: dentro ciascuno si entra una volta sola e ci si muove con le frecce.
+  // I quattro pulsanti della banda e i tre modi del Piano sono due gruppi `AsideToggle`: dentro
+  // ciascuno si entra una volta sola e ci si muove con le frecce. Le quattro celle della catena sono
+  // quattro link, uno stop ciascuno.
   const bandStops = walk.filter((stop) => /±2%|±5%|5\/25|Personalizza/.test(stop));
   const planStops = walk.filter((stop) => /Ribilancia|Versa|Preleva/.test(stop));
-  const viewStops = walk.filter((stop) => /Titoli|Settori|Emittenti/.test(stop));
+  const chainStops = walk.filter((stop) => /^A:Passo \d/.test(stop));
   expect(bandStops, 'la banda deve essere uno stop solo').toHaveLength(1);
   expect(planStops, 'i modi del Piano devono essere uno stop solo').toHaveLength(1);
-  expect(viewStops, "le viste dell'Esposizione devono essere uno stop solo").toHaveLength(1);
+  expect(chainStops, 'le quattro celle della catena').toHaveLength(4);
 
   // …e il giro deve comunque ARRIVARE in fondo alla pagina: una lista che sparisce dall'ordine di
-  // focus supererebbe le asserzioni di sopra senza essere raggiungibile.
+  // focus supererebbe le asserzioni di sopra senza essere raggiungibile. L'Esposizione è una riga
+  // chiusa anche a 1440 (D-ST7): il suo bottone è nel giro, le sue viste no finché non si apre.
   expect(walk.some((stop) => /Dettaglio/i.test(stop)), '«Dettaglio» deve restare raggiungibile').toBe(true);
+  expect(walk.filter((stop) => /Titoli|Settori|Emittenti/.test(stop)), 'le viste di una riga chiusa').toHaveLength(0);
+
+  // Aperta, le tre viste dell'Esposizione sono UNO stop dopo il suo bottone.
+  await page.locator('#alloc-esposizione-trigger').click();
+  await expect(page.getByRole('group', { name: "Vista dell'esposizione" })).toBeVisible({ timeout: 30_000 });
+  const opened = await tabWalk(page, 12);
+  expect(opened.filter((stop) => /Titoli|Settori|Emittenti/.test(stop)), "le viste dell'Esposizione devono essere uno stop solo").toHaveLength(1);
 });
 
 test('le frecce muovono dentro un gruppo, e il Tab successivo lo lascia', async ({ page }) => {
@@ -190,10 +205,13 @@ test('la pagina non scorre di lato, misurato sugli elementi e non sul contenitor
   expect(overflow.offenders).toEqual([]);
 });
 
-test('a 1440 la pagina è quella di oggi: nessuna riga chiusa, nessuna striscia, il verdetto in due frasi', async ({ page }) => {
+test('a 1440 la pagina è quella di oggi: Esposizione e Previdenza chiuse, nessuna striscia del verdetto, il verdetto in due frasi', async ({ page }) => {
   await openAllocazione(page);
-  // Nessun `-trigger`: Parametri e Dettaglio hanno il loro `aria-expanded`, le tessere no.
-  await expect(page.locator('main [id$="-trigger"]')).toHaveCount(0);
+  // Solo Esposizione (e Previdenza, se c'è un fondo) sono righe chiuse anche a 1440 (D-ST7): Bilanciamento,
+  // Per classe e Ordini restano tessere aperte; nessuna riga si ricorda a desktop.
+  const triggers = await page.locator('main [id$="-trigger"]').evaluateAll((nodes) => nodes.map((node) => node.id));
+  expect(triggers.filter((id) => id !== 'alloc-esposizione-trigger' && id !== 'alloc-previdenza-trigger')).toEqual([]);
+  await expect(page.locator('#alloc-esposizione-trigger')).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByRole('list', { name: 'Le cifre del verdetto' })).toBeHidden();
   await expect(page.getByRole('heading', { level: 2, name: 'Il resto della pagina' })).toBeHidden();
   // Dal 2026-10-15 la deriva è una frase e i prossimi soldi la seguono con un punto, anche a 1440
@@ -206,19 +224,112 @@ test('a 1440 la pagina è quella di oggi: nessuna riga chiusa, nessuna striscia,
   await expect(bilanciamento.getByText('Fuori posizione', { exact: true }).locator('xpath=following-sibling::p[1]')).toBeVisible();
 });
 
-test('a 1440 Accumulo è quello di oggi: nessuna riga chiusa, nessuna striscia, due colonne, il verdetto intero', async ({ page }) => {
+test('a 1440 Accumulo è il piano e basta: nessuna riga chiusa, il verdetto intero, niente modello né criteri', async ({ page }) => {
   await openAccumulo(page);
   // Il fixture base non ha un piano: lo stato vuoto ha il suo verdetto, senza taglio («Il perché») né celle.
   await expect(page.locator('main [id$="-trigger"]')).toHaveCount(0);
   await expect(page.getByRole('list', { name: 'Le cifre del verdetto' })).toBeHidden();
   await expect(page.getByRole('heading', { level: 2, name: 'Il resto della pagina' })).toBeHidden();
   await expect(page.getByRole('button', { name: /^Il perché/ })).toHaveCount(0);
-  // Le due pile di prima: il modello a sinistra sotto lo stato vuoto, i criteri a destra, alla stessa quota.
-  const [modello, criteri] = await Promise.all(
-    ['Portafoglio modello', 'Criteri del modello'].map((name) => page.locator(`section[aria-label="${name}"]`).boundingBox()),
-  );
-  expect(criteri!.x, 'i criteri nella colonna destra').toBeGreaterThan(modello!.x + modello!.width - 1);
-  expect(Math.abs(criteri!.y - modello!.y), 'i due alla stessa quota').toBeLessThanOrEqual(1);
+  // Il modello e i criteri sono passati a Strategia (D-ST8).
+  await expect(page.locator('section[aria-label="Portafoglio modello"]')).toHaveCount(0);
+  await expect(page.locator('section[aria-label="Criteri del modello"]')).toHaveCount(0);
+  // «Apri il portafoglio modello» porta al blocco 2 di Strategia.
+  await page.getByRole('link', { name: 'Apri il portafoglio modello' }).click();
+  await expect(page).toHaveURL(/tab=strategia#portafoglio-modello$/);
+  await expect(page.locator('section[aria-label="Portafoglio modello"]')).toBeInViewport({ timeout: 30_000 });
+});
+
+test.describe('Strategia e la catena dei pesi (RU8)', () => {
+  test('la catena è sotto le schede su tutte e tre, tinge le celle della scheda, porta dove si cambia', async ({ page }) => {
+    await openAllocazione(page);
+    const chain = page.getByRole('navigation', { name: 'La catena dei pesi' });
+    await expect(chain.getByRole('link')).toHaveCount(4);
+    // Su Bilanciamento nessun link porta alla scheda aperta.
+    await expect(chain.locator('a[aria-current="page"]')).toHaveCount(0);
+    await expect(chain.getByRole('link', { name: /^Passo 1, target per classe: .*Apri Strategia$/ })).toBeVisible();
+
+    await chain.getByRole('link', { name: /^Passo 1/ }).click();
+    await expect(page).toHaveURL(/tab=strategia#target$/);
+    await expect(page.locator('section[aria-label="Target per classe"]')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('navigation', { name: 'La catena dei pesi' }).locator('a[aria-current="page"]')).toHaveCount(2);
+
+    await page.getByRole('navigation', { name: 'La catena dei pesi' }).getByRole('link', { name: /^Passo 3/ }).click();
+    await expect(page.getByRole('region', { name: 'Verdetto sul piano di accumulo' })).toBeVisible({ timeout: 30_000 });
+  });
+
+  test('Bilanciamento non ha più «Modifica target»: la matita di Per classe porta a Strategia', async ({ page }) => {
+    await openAllocazione(page);
+    await expect(page.getByRole('link', { name: 'Modifica target', exact: true })).toHaveCount(0);
+    await page.locator('section[aria-label="Allocazione per classe"]').getByRole('link', { name: 'Modifica i target per classe' }).click();
+    await expect(page).toHaveURL(/tab=strategia#target$/);
+    await expect(page.locator('section[aria-label="Target per classe"]')).toBeVisible({ timeout: 30_000 });
+  });
+
+  test('cambiare un target accende il pallino e la barra; «Annulla» rilegge e non scrive', async ({ page }) => {
+    await openStrategia(page);
+    const tile = page.locator('section[aria-label="Target per classe"]');
+    await expect(page.getByRole('region', { name: 'Target non salvati' })).toHaveCount(0);
+    const crypto = tile.getByRole('spinbutton', { name: 'Target Criptovalute' });
+    const before = await crypto.inputValue();
+    await crypto.fill(String(Number(before) + 5));
+    const bar = page.getByRole('region', { name: 'Target non salvati' });
+    await expect(bar).toBeVisible();
+    await expect(bar.getByRole('button', { name: 'Salva i target' })).toBeVisible();
+    // Passare a Bilanciamento e tornare non perde la bozza: la bozza è della pagina.
+    await page.getByRole('tab', { name: /Bilanciamento/ }).click();
+    await page.getByRole('tab', { name: /Strategia/ }).click();
+    await expect(page.locator('section[aria-label="Target per classe"]').getByRole('spinbutton', { name: 'Target Criptovalute' })).toHaveValue(String(Number(before) + 5));
+    await page.getByRole('region', { name: 'Target non salvati' }).getByRole('button', { name: 'Annulla' }).click();
+    await expect(page.locator('section[aria-label="Target per classe"]').getByRole('spinbutton', { name: 'Target Criptovalute' })).toHaveValue(before);
+    await expect(page.getByRole('region', { name: 'Target non salvati' })).toHaveCount(0);
+  });
+
+  test('«Salva i target» con un totale sotto 100 non scrive e dice dove', async ({ page }) => {
+    await openStrategia(page);
+    const tile = page.locator('section[aria-label="Target per classe"]');
+    // La fonte «A mano»: Azioni e Obbligazioni scrivibili.
+    await tile.getByRole('radio', { name: 'A mano' }).click();
+    await tile.getByRole('spinbutton', { name: 'Target Azioni' }).fill('0');
+    await tile.getByRole('spinbutton', { name: 'Target Obbligazioni' }).fill('0');
+    await expect(tile).toContainText('Le classi sommano');
+    await page.getByRole('region', { name: 'Target non salvati' }).getByRole('button', { name: 'Salva i target' }).click();
+    await expect(page.getByRole('region', { name: 'Target non salvati' })).toContainText('mancano');
+    await page.getByRole('region', { name: 'Target non salvati' }).getByRole('button', { name: 'Annulla' }).click();
+  });
+
+  test('«Salva i target» con un gruppo che non somma 100 non scrive e porta il fuoco sul campo', async ({ page }) => {
+    // Moved from e2e/settings.spec.ts with the targets (RU8): the same guard, now on Strategia's bar.
+    await openStrategia(page);
+    const tile = page.locator('section[aria-label="Target per classe"]');
+
+    // Switch Azioni's subcategories on (80 + 20, valid), break the sum inside the group, then CLOSE it.
+    await tile.getByRole('button', { name: /^Apri sottocategorie di Azioni/ }).click();
+    await page.locator('#toggle-equity').click();
+    const firstSubPct = page.locator('input[id^="target-equity-sub-"][id$="-pct"]').first();
+    await firstSubPct.fill(String(Number(await firstSubPct.inputValue()) - 10));
+    await tile.getByRole('button', { name: /^Chiudi sottocategorie di Azioni/ }).click();
+
+    // Closed, the class row still says it: the sum is ON the row and in its name.
+    await expect(tile.getByRole('button', { name: /^Apri sottocategorie di Azioni \(sommano 90/ })).toBeVisible();
+    await expect(tile).toContainText(/Le sottocategorie di Azioni sommano 90\s?% invece del 100\s?%/);
+
+    const bar = page.getByRole('region', { name: 'Target non salvati' });
+    await bar.getByRole('button', { name: 'Salva i target' }).click();
+    await expect(tile.getByRole('button', { name: /^Chiudi sottocategorie di Azioni/ })).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => document.activeElement?.id ?? ''))
+      .toMatch(/^target-equity-sub-\d+-pct$/);
+
+    await bar.getByRole('button', { name: 'Annulla' }).click();
+    await expect(bar).toHaveCount(0);
+  });
+
+  test('il vecchio indirizzo di Impostazioni porta a Strategia', async ({ page }) => {
+    await page.goto('/dashboard/settings?tab=allocazione', { waitUntil: 'load' });
+    await expect(page).toHaveURL(/\/dashboard\/allocation\?tab=strategia#target$/, { timeout: 60_000 });
+    await expect(page.locator('section[aria-label="Target per classe"]')).toBeVisible({ timeout: 60_000 });
+  });
 });
 
 /**
@@ -261,7 +372,7 @@ test.describe('Composizione ideale › Con vendite mirate', () => {
   });
 
   test('cap 0 sells nothing taxed; «Non vendere» takes a row out of sale', async ({ page }) => {
-    await openAccumulo(page);
+    await openStrategia(page);
     const tile = page.locator('section[aria-label="Portafoglio modello"]');
     await tile.getByRole('button', { name: 'Ricalcola' }).click();
     const dialog = page.getByRole('dialog', { name: 'Ricalcola il portafoglio modello' });

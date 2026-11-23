@@ -138,10 +138,9 @@ test.describe('Composizione ideale › Con vendite mirate a 390px', () => {
   });
 
   test('la tabella con la colonna «Tasse» sta nel dialog, senza scorrere di lato', async ({ page }) => {
-    await page.goto('/dashboard/allocation?tab=accumulo', { waitUntil: 'load' });
-    await expect(page.getByRole('region', { name: 'Verdetto sul piano di accumulo' })).toBeVisible({ timeout: 60_000 });
-    // Below `desktop:` the Portafoglio modello is a closed row (stage A, D-CU15): open it before reading inside.
-    await page.locator('#acc-modello-trigger').click();
+    // The model portfolio is in Strategia since RU8, an open tile at every width (no composition there).
+    await page.goto('/dashboard/allocation?tab=strategia', { waitUntil: 'load' });
+    await expect(page.locator('section[aria-label="Portafoglio modello"]')).toBeVisible({ timeout: 60_000 });
     await page.locator('section[aria-label="Portafoglio modello"]').getByRole('button', { name: 'Ricalcola' }).click();
     const dialog = page.getByRole('dialog', { name: 'Ricalcola il portafoglio modello' });
     await dialog.getByRole('radio', { name: 'Con vendite mirate' }).click();
@@ -207,15 +206,27 @@ test.describe('Allocazione, composta per un telefono', () => {
     }
     expect(await panel(page, 'alloc-piano').evaluate((el) => ({ inert: el.hasAttribute('inert'), children: el.children.length }))).toEqual({ inert: true, children: 0 });
 
-    // «Modifica target» resta dopo l'ultima riga e prima del Dettaglio, fuori da «Il resto».
+    // «Modifica target» non c'è più (RU8, D-ST7): la catena e la matita di Per classe portano a Strategia.
+    await expect(page.getByRole('link', { name: 'Modifica target', exact: true })).toHaveCount(0);
+  });
+
+  test('la catena dei pesi: quattro celle da 44 px fra le schede e il verdetto, ognuna col suo nome intero', async ({ page }) => {
+    await openAllocazione(page);
+    const chain = page.getByRole('navigation', { name: 'La catena dei pesi' });
+    const links = chain.getByRole('link');
+    await expect(links).toHaveCount(4);
+    for (let i = 0; i < 4; i++) {
+      const box = (await links.nth(i).boundingBox())!;
+      expect(box.height, `cella ${i + 1}`).toBeGreaterThanOrEqual(TOUCH_FLOOR);
+      await expect(links.nth(i)).toHaveAccessibleName(new RegExp(`^Passo ${i + 1}, .*\\. Apri (Strategia|Accumulo)$`));
+    }
     const order = await page.evaluate(() => {
+      const nav = document.querySelector('nav[aria-label="La catena dei pesi"]')!;
+      const verdict = document.querySelector('section[aria-label="Verdetto sull\'allocazione"]')!;
       const main = document.querySelector('main')!;
-      const last = document.getElementById('alloc-previdenza')!;
-      const action = [...main.querySelectorAll('a')].find((a) => a.textContent?.trim() === 'Modifica target' && a.checkVisibility())!;
-      const dettaglio = [...main.querySelectorAll('button')].find((b) => /^Dettaglio/.test(b.textContent ?? ''))!;
-      return { afterRows: !!(last.compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING), beforeDettaglio: !!(action.compareDocumentPosition(dettaglio) & Node.DOCUMENT_POSITION_FOLLOWING) };
+      return { beforeVerdict: !!(nav.compareDocumentPosition(verdict) & Node.DOCUMENT_POSITION_FOLLOWING), sideways: main.scrollWidth - main.clientWidth };
     });
-    expect(order).toEqual({ afterRows: true, beforeDettaglio: true });
+    expect(order).toEqual({ beforeVerdict: true, sideways: 0 });
   });
 
   test('«Fuori posizione» apre il Piano e gli dà il fuoco', async ({ page }) => {
@@ -337,7 +348,12 @@ test.describe('Allocazione, composta per un telefono', () => {
     expect(open.scrollWidth).toBe(open.clientWidth);
 
     await page.setViewportSize({ width: 1440, height: 900 });
-    await expect(page.locator('main [id$="-trigger"]')).toHaveCount(0);
+    // At 1440 only Esposizione and Previdenza stay closed rows (RU8, D-ST7); the phone's other rows are tiles.
+    await expect(page.locator('main [id$="-trigger"]')).toHaveCount(2);
+    expect((await page.locator('main [id$="-trigger"]').evaluateAll((nodes) => nodes.map((node) => node.id))).sort()).toEqual([
+      'alloc-esposizione-trigger',
+      'alloc-previdenza-trigger',
+    ]);
     const desktop = await readOrder();
     expect(desktop.map((s) => s.name).slice(0, 2)).toEqual(["Bilanciamento dell'allocazione", 'Allocazione per classe']);
   });
