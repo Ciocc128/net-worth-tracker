@@ -21,7 +21,7 @@ const { getDocMock, setDocMock, readers } = vi.hoisted(() => ({
     getPensionContributions: vi.fn(),
     getAssetTransactions: vi.fn(),
     getDividendReceipts: vi.fn(),
-    getExpensesByDateRange: vi.fn(),
+    readExpenseFlows: vi.fn(),
   },
 }));
 
@@ -40,7 +40,7 @@ vi.mock('@/lib/services/assetAllocationService', () => ({ getSettings: readers.g
 vi.mock('@/lib/services/assetService', () => ({ getAllAssets: readers.getAllAssets }));
 vi.mock('@/lib/services/pensionContributionService', () => ({ getPensionContributions: readers.getPensionContributions }));
 vi.mock('@/lib/services/assetTransactionService', () => ({ getAssetTransactions: readers.getAssetTransactions }));
-vi.mock('@/lib/services/expenseService', () => ({ getExpensesByDateRange: readers.getExpensesByDateRange }));
+vi.mock('@/lib/services/expenseTotalsClient', () => ({ readExpenseFlows: readers.readExpenseFlows }));
 vi.mock('@/lib/services/dividendReceiptsService', () => ({ getDividendReceipts: readers.getDividendReceipts }));
 
 import { getAllPerformanceData, resolvePerformanceSetup, resolveYieldPeriods, type PerformanceInputs } from '@/lib/services/performanceService';
@@ -105,7 +105,7 @@ beforeEach(() => {
   readers.getPensionContributions.mockResolvedValue([]);
   readers.getAssetTransactions.mockResolvedValue([]);
   readers.getDividendReceipts.mockResolvedValue([]);
-  readers.getExpensesByDateRange.mockResolvedValue(EXPENSES);
+  readers.readExpenseFlows.mockResolvedValue(EXPENSES);
 });
 
 afterEach(() => {
@@ -120,14 +120,14 @@ describe('getAllPerformanceData with the inputs already read', () => {
 
     vi.clearAllMocks();
     getDocMock.mockResolvedValue({ exists: () => false });
-    readers.getExpensesByDateRange.mockResolvedValue(EXPENSES);
+    readers.readExpenseFlows.mockResolvedValue(EXPENSES);
     const handedOver = await getAllPerformanceData(UID, false, INPUTS);
 
     expect(comparable(handedOver)).toEqual(comparable(readHere));
     for (const reader of inputReads) expect(reader).not.toHaveBeenCalled();
     // What is left to read: the cache document, and the expenses on a miss.
     expect(getDocMock).toHaveBeenCalledTimes(1);
-    expect(readers.getExpensesByDateRange).toHaveBeenCalledTimes(1);
+    expect(readers.readExpenseFlows).toHaveBeenCalledTimes(1);
   });
 
   it('should measure the base the inputs describe: the excluded house is out', async () => {

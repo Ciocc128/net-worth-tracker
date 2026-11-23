@@ -1,5 +1,12 @@
 /**
- * The browser's half of the monthly totals' writing (doc/totali-mensili/README.md § 5.2).
+ * The browser's half of the monthly totals (doc/totali-mensili/README.md § 5.2, § 6).
+ *
+ * READING: `readExpenseFlows` is `loadExpenseFlows` on the client SDK — the year documents of the
+ * owner (one query, Y reads), the bounds (two one-document reads), the rows of the months § 4.3
+ * reads live and, for Rendimenti, the real rows of one category. Storico, FIRE and Rendimenti read
+ * through it (`useExpenseFlows`), so their closed months cost one document a year, not their rows.
+ *
+ * WRITING:
  *
  * Only the server writes `expense-totals` (D-TM5): a client writer that touched rows of a month
  * that is NOT the running one asks for that month's rebuild here, after its commit, beside the
@@ -10,8 +17,68 @@
  * Never throws: a failure is logged and the write stands; the nightly check repairs it (CU5).
  */
 
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
+import { getExpenseDateBounds, getExpensesByDateRange } from '@/lib/services/expenseService';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
-import { italyMonthLabel, monthsToRebuild } from '@/lib/utils/expenseTotals';
+import {
+  expenseTotalsYearFromData,
+  italyMonthLabel,
+  loadExpenseFlows,
+  monthsToRebuild,
+  type ExpenseFlowSource,
+} from '@/lib/utils/expenseTotals';
+import { EXPENSE_TOTALS_COLLECTION } from '@/types/expenseTotals';
+import type { Expense } from '@/types/expenses';
+
+/** `loadExpenseFlows`' reads on the client SDK, for one owner. */
+export function expenseFlowSourceClient(ownerId: string): ExpenseFlowSource {
+  return {
+    readBounds: () => getExpenseDateBounds(ownerId),
+    readYears: async (years) => {
+      if (years.length === 0) return [];
+      // One query for the owner's documents (the rules need the `userId` filter on a list): Y reads,
+      // and a year with no document is simply absent — § 4.3 reads it from its rows.
+      const snap = await getDocs(query(collection(db, EXPENSE_TOTALS_COLLECTION), where('userId', '==', ownerId)));
+      const wanted = new Set(years);
+      return snap.docs.map((doc) => expenseTotalsYearFromData(doc.data())).filter((doc) => wanted.has(doc.year));
+    },
+    readRows: (from, to) => getExpensesByDateRange(ownerId, from, to),
+    readCategoryRows: async (categoryId) => {
+      const snap = await getDocs(
+        query(collection(db, 'expenses'), where('userId', '==', ownerId), where('categoryId', '==', categoryId)),
+      );
+      return snap.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          date: data.date?.toDate() || new Date(),
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
+        } as Expense;
+      });
+    },
+  };
+}
+
+/**
+ * Every movement of the owner as the readers of Fase A take it: aggregated rows for the months with
+ * a trusted total, real rows for the others (§ 4.3), newest first.
+ *
+ * @param from - The reader's first instant (FIRE: the first snapshot; Rendimenti: the period's start), or null for all
+ * @param realRowsCategoryId - A category read from its real rows in every month (Rendimenti's dividends, § 6.4)
+ */
+export async function readExpenseFlows(
+  ownerId: string,
+  options: { from?: Date | null; realRowsCategoryId?: string } = {},
+): Promise<Expense[]> {
+  return loadExpenseFlows(ownerId, expenseFlowSourceClient(ownerId), {
+    now: new Date(),
+    from: options.from ?? null,
+    realRowsCategoryId: options.realRowsCategoryId,
+  });
+}
 
 type DateLike = Date | { toDate(): Date } | null | undefined;
 

@@ -322,6 +322,23 @@ export function mergeExpenseFlows(
   return out.sort(byDateDesc);
 }
 
+/** A Firestore Timestamp of either SDK, a Date, or nothing (an entry written before `builtAt`). */
+const toInstant = (value: unknown): Date => {
+  if (value instanceof Date) return value;
+  if (value && typeof (value as { toDate?: unknown }).toDate === 'function') return (value as { toDate(): Date }).toDate();
+  return new Date(0);
+};
+
+/** A stored year document as the pure layer reads it (Timestamps → Dates), from either SDK. */
+export function expenseTotalsYearFromData(data: Record<string, unknown>): ExpenseTotalsYear {
+  const months: ExpenseTotalsYear['months'] = {};
+  for (const [key, entry] of Object.entries((data.months ?? {}) as Record<string, Record<string, unknown>>)) {
+    if (!entry) continue;
+    months[key] = { ...(entry as unknown as ExpenseTotalsMonth), builtAt: toInstant(entry.builtAt) };
+  }
+  return { userId: String(data.userId), year: Number(data.year), schemaVersion: Number(data.schemaVersion ?? 0), months };
+}
+
 /** What `loadExpenseFlows` reads, from whichever SDK. */
 export interface ExpenseFlowSource {
   /** The dates of the oldest and newest row (two one-document reads), or null with no rows. */

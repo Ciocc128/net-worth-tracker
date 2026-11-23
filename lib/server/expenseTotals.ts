@@ -38,6 +38,7 @@ import {
   monthsToRebuild,
   totalsDiffer,
   yearTotalsSummary,
+  expenseTotalsYearFromData,
   type ExpenseFlowSource,
 } from '@/lib/utils/expenseTotals';
 import { toDate } from '@/lib/utils/dateHelpers';
@@ -57,17 +58,8 @@ function expenseFromDoc(id: string, data: FirebaseFirestore.DocumentData): Expen
   } as Expense;
 }
 
-const toInstant = (value: unknown): Date => (value instanceof Timestamp ? value.toDate() : value instanceof Date ? value : new Date(0));
-
-/** A stored year document as the pure layer reads it (Timestamps → Dates). */
-export function expenseTotalsYearFromData(data: FirebaseFirestore.DocumentData): ExpenseTotalsYear {
-  const months: ExpenseTotalsYear['months'] = {};
-  for (const [key, entry] of Object.entries((data.months ?? {}) as Record<string, Record<string, unknown>>)) {
-    if (!entry) continue;
-    months[key] = { ...(entry as unknown as ExpenseTotalsMonth), builtAt: toInstant(entry.builtAt) };
-  }
-  return { userId: data.userId, year: Number(data.year), schemaVersion: Number(data.schemaVersion ?? 0), months };
-}
+/** A stored year document as the pure layer reads it: the shared parser, re-exported for the tests. */
+export { expenseTotalsYearFromData };
 
 async function readRows(userId: string, from: Date, to: Date): Promise<Expense[]> {
   const snap = await adminDb

@@ -69,6 +69,11 @@ export const queryKeys = {
     // The dates of the oldest and of the newest row: what a page that reads a window still has to
     // know about the rest of the collection (the years a picker offers, an account with no rows).
     bounds: (userId: string) => ['expenses', userId, 'bounds'] as const,
+    // The movements as Storico, FIRE and Rendimenti read them: aggregated rows from the monthly
+    // totals for the closed months, real rows for the others (doc/totali-mensili/README.md § 6).
+    // Under `all` like every expense key, so a write's invalidation reaches it after the rebuild.
+    flows: (userId: string, fromIso: string, realRowsCategoryId: string) =>
+      ['expenses', userId, 'flows', fromIso, realRowsCategoryId] as const,
     month: (userId: string, year: number, month: number) =>
       ['expenses', userId, year, month] as const,
     categories: (userId: string) => ['expense-categories', userId] as const,

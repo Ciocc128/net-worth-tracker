@@ -5,14 +5,15 @@
  * annualised) for the surfaces that read them beside the FIRE page: the Calcolatore, the
  * Proiezione, the What If baseline, the FIRE assumptions and the accumulation plan.
  *
- * Computed in memory from the FIRE page's RECENT expenses window (January of last year → this
- * December, `fireWindows`) — the key Coast FIRE and the Calcolatore read as well, so after any of
- * them the others read nothing. It replaces the `['annualCashflowData', ownerId]` query that
- * re-read the account's whole expense list (2026-09-30, the upstream realignment T2).
+ * Computed in memory from the FIRE page's RECENT movements (January of last year → this December,
+ * `fireWindows`), read as monthly totals plus the running month's rows (`useExpenseFlows`,
+ * doc/totali-mensili/README.md § 6.3) — the key Coast FIRE and the Calcolatore read as well, so
+ * after any of them the others read nothing. It replaces the `['annualCashflowData', ownerId]`
+ * query that re-read the account's whole expense list (2026-09-30, the upstream realignment T2).
  */
 
 import { useMemo } from 'react';
-import { useExpensesInRange } from '@/lib/hooks/useExpenses';
+import { useExpenseFlows } from '@/lib/hooks/useExpenseFlows';
 import { computeAnnualCashflowData, type AnnualCashflowData } from '@/lib/services/fireService';
 import { fireWindows } from '@/lib/utils/expenseWindows';
 
@@ -27,7 +28,11 @@ export interface UseAnnualCashflowResult {
 export function useAnnualCashflow(ownerId: string | undefined | null, options?: { enabled?: boolean }): UseAnnualCashflowResult {
   const readAt = useMemo(() => new Date(), []);
   const recentWindow = useMemo(() => fireWindows(readAt, null).recent, [readAt]);
-  const { data: recentExpenses, isLoading, isError, isSuccess } = useExpensesInRange(ownerId ?? undefined, recentWindow, options);
+  const { data: recentExpenses, isLoading, isError, isSuccess } = useExpenseFlows(ownerId ?? undefined, {
+    from: recentWindow.from,
+    to: recentWindow.to,
+    enabled: options?.enabled,
+  });
   const data = useMemo(
     () => (recentExpenses ? computeAnnualCashflowData(recentExpenses, readAt) : undefined),
     [recentExpenses, readAt],

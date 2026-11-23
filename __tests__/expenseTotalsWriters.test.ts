@@ -24,6 +24,7 @@ type Declaration = { kind: 'calls' } | { kind: 'no-call'; reason: string };
 const DECLARED: Record<string, Declaration> = {
   // ── writers that change a cell (date, amount, type, category, sub-category, fee, sign) ──
   'lib/services/expenseService.ts': { kind: 'calls' },
+  'lib/services/expenseTotalsClient.ts': { kind: 'calls' },
   'lib/services/expenseImportService.ts': { kind: 'calls' },
   'lib/services/dividendIncomeService.ts': { kind: 'calls' },
   'lib/services/dividendService.ts': { kind: 'calls' },

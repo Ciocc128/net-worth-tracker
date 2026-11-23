@@ -30,10 +30,11 @@
  *
  * DATA: snapshots, assets, settings, expenses, the ledger and the pension contributions come
  * from React Query keys (2026-09-29: one read per session, no `Promise.all`) — five of them the
- * ones every page shares, and the expenses WHOLE (`useExpenses`), by declared need: the Driver
- * splits the growth of every year recorded, so this page has no window to read. It shares that
- * list with Analisi and Centri di Costo; since 2026-09-30 Cashflow's other tabs and FIRE read a
- * window of their own instead (lib/utils/expenseWindows.ts); every
+ * ones every page shares, and the expenses as MOVEMENTS (`useExpenseFlows`, since the monthly totals,
+ * doc/totali-mensili/README.md § 6.2): the Driver splits the growth of every year recorded, so the
+ * page reads every month — a closed one as the aggregated rows of its total (one document a year),
+ * the running one from its rows. The builders sum by month and type, so the figures are the rows'
+ * (CA5); a row's text or day is never read here. Every
  * figure a tile shows is derived from them in a pure, tested util (storicoSummary.ts, the
  * chartService preparers, snapshotAssetBreakdown.ts, historyComposition.ts) — never in a
  * component. A snapshot is a frozen photograph: nothing here recomputes a stored value.
@@ -51,7 +52,7 @@ import { useSnapshots } from '@/lib/hooks/useSnapshots';
 import { useAssets } from '@/lib/hooks/useAssets';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { useFreshness } from '@/lib/hooks/useFreshness';
-import { useExpenses } from '@/lib/hooks/useExpenses';
+import { useExpenseFlows } from '@/lib/hooks/useExpenseFlows';
 import { useAssetTransactions } from '@/lib/hooks/useAssetTransactions';
 import { usePensionContributions } from '@/lib/hooks/usePensionContributions';
 import { calculateTotalEstimatedTaxes } from '@/lib/services/assetService';
@@ -194,13 +195,13 @@ export default function HistoryPage() {
   const isDemo = useDemoMode();
   const queryClient = useQueryClient();
 
-  // ─── The reads: six keys (2026-09-29), the expenses the whole collection (see the header) ─────
+  // ─── The reads: six keys (2026-09-29), the expenses as monthly movements (see the header) ─────
   // The page gates on EVERY query it reads (doc/guide/stati.md): `loading` while any is still
   // reading, `failed` when any read did not happen — a failed read is not an empty set.
   const snapshotsQuery = useSnapshots(ownerId);
   const assetsQuery = useAssets(ownerId);
   const settingsQuery = useSettings(ownerId);
-  const expensesQuery = useExpenses(ownerId);
+  const expensesQuery = useExpenseFlows(ownerId);
   // The ledger and the pension contributions: the Driver measures the market from them.
   const transactionsQuery = useAssetTransactions(ownerId);
   const contributionsQuery = usePensionContributions(ownerId);

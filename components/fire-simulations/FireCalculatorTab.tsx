@@ -60,7 +60,7 @@
  */
 
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
-import { useExpensesInRange } from '@/lib/hooks/useExpenses';
+import { useExpenseFlows } from '@/lib/hooks/useExpenseFlows';
 import { fireWindows } from '@/lib/utils/expenseWindows';
 import { useSnapshots } from '@/lib/hooks/useSnapshots';
 import { useAssets } from '@/lib/hooks/useAssets';
@@ -283,17 +283,27 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   const readAt = useMemo(() => new Date(), []);
   const { data: snapshots, isLoading: isLoadingSnapshots } = useSnapshots(ownerId);
   const expenseWindows = useMemo(() => fireWindows(readAt, snapshots?.[0] ?? null), [readAt, snapshots]);
-  const { data: recentExpenses, isLoading: isLoadingCashflow, isError: recentExpensesError } = useExpensesInRange(ownerId, expenseWindows.recent);
-  const { data: olderExpenses, isLoading: isLoadingOlderExpenses, isError: olderExpensesError } = useExpensesInRange(ownerId, expenseWindows.older);
+  // Both as MOVEMENTS since the monthly totals (doc/totali-mensili/README.md § 6.3): the closed
+  // months as the aggregated rows of their totals, the running one from its rows — the builders sum
+  // by month, type and category, so the figures are the rows' (CA5). The history is ONE list from
+  // its first month to this December; with no older window it is the recent list itself.
+  const { data: recentExpenses, isLoading: isLoadingCashflow, isError: recentExpensesError } = useExpenseFlows(ownerId, {
+    from: expenseWindows.recent.from,
+    to: expenseWindows.recent.to,
+  });
+  const { data: olderAndRecentExpenses, isLoading: isLoadingOlderExpenses, isError: olderExpensesError } = useExpenseFlows(ownerId, {
+    from: expenseWindows.older?.from ?? null,
+    to: expenseWindows.recent.to,
+    enabled: expenseWindows.older !== null,
+  });
   const cashflowError = recentExpensesError || olderExpensesError;
   const cashflowData = useMemo(() => (recentExpenses ? computeAnnualCashflowData(recentExpenses, readAt) : undefined), [recentExpenses, readAt]);
-  // The history's rows: the two windows joined — disjoint and contiguous by construction, so no
-  // row is there twice and none is missing. Undefined until every list it needs is in.
+  // The history's rows. Undefined until every list it needs is in.
   const historyExpenses = useMemo(() => {
     if (!snapshots || !recentExpenses) return undefined;
     if (expenseWindows.older === null) return recentExpenses;
-    return olderExpenses ? [...olderExpenses, ...recentExpenses] : undefined;
-  }, [snapshots, recentExpenses, olderExpenses, expenseWindows.older]);
+    return olderAndRecentExpenses;
+  }, [snapshots, recentExpenses, olderAndRecentExpenses, expenseWindows.older]);
   const annualSavings = cashflowData?.annualSavings ?? 0;
 
   const previewWithdrawalRate = settings?.withdrawalRate ?? 4.0;
