@@ -187,6 +187,10 @@ export interface Expense {
   // Set only on expenses written by the historical CSV importer (lib/services/expenseImportService.ts).
   // Groups every row of one import together so the whole batch can be undone in one call.
   importBatchId?: string;
+  // Only on an «aggregated row» (lib/utils/expenseTotals.ts, doc/totali-mensili § 4.2): a closed
+  // month's cell of the monthly totals, read in place of its rows; how many rows it stands for.
+  // Never stored on a document. A reader that COUNTS rows reads `rowCountOf`.
+  aggregateCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }

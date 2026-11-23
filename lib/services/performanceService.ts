@@ -53,7 +53,7 @@ import {
 import { getDividendReceipts } from './dividendReceiptsService';
 import type { DividendReceipt } from '@/lib/utils/performanceAttribution';
 import { removeUndefinedDeep } from '@/lib/utils/firestoreData';
-import { endOfMonthBound } from '@/lib/utils/dateHelpers';
+import { endOfMonthBound, getItalyMonthYear } from '@/lib/utils/dateHelpers';
 import { buildTwrIndex, computeDrawdownSeries, findMaxDrawdown } from '@/lib/utils/drawdownSeries';
 import { resolvePerformanceBase, type PerformanceBaseResolution } from '@/lib/utils/performanceBase';
 import type { PerformanceYieldPeriod } from '@/lib/utils/dividendYield';
@@ -766,8 +766,11 @@ export function getCashFlowsFromExpenses(
     // so a transfer-only month never creates a spurious empty cashflow entry.
     if (expense.type === 'transfer') return;
 
-    const date = expense.date;
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    // The ITALIAN month (D-TM6, doc/totali-mensili § 6.4): the month every other page buckets by,
+    // and the one an aggregated row of the monthly totals stands in. On a server in UTC the local
+    // month put a row saved at Italian midnight on the 1st into the month before.
+    const { year: italyYear, month: italyMonth } = getItalyMonthYear(expense.date);
+    const key = `${italyYear}-${String(italyMonth).padStart(2, '0')}`;
 
     if (!monthlyMap.has(key)) {
       monthlyMap.set(key, { income: 0, expenses: 0, dividendIncome: 0 });

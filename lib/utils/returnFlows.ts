@@ -51,7 +51,7 @@ import type { CashFlowData } from '@/types/performance';
 import type { Expense } from '@/types/expenses';
 import type { DividendReceipt } from '@/lib/utils/performanceAttribution';
 import { getItalyDayBoundsUtc, getItalyMonthYear } from '@/lib/utils/dateHelpers';
-import { monthKeyOf } from '@/lib/utils/cashFlowMap';
+import { monthKey, monthKeyOf } from '@/lib/utils/cashFlowMap';
 import { snapshotCapturedAt } from '@/lib/utils/snapshotDocument';
 
 /** What the corrections read besides the expenses: the dividend registry, the trade ledger, the base's exclusions. */
@@ -125,7 +125,10 @@ export function buildReturnFlowAdjustments(
   const out = new Map<string, MonthlyReturnAdjustment>();
   const add = (date: Date, cashflow: number, measured: number) => {
     if (cashflow === 0 && measured === 0) return;
-    const key = monthKeyOf(date);
+    // The ITALIAN month of the row (D-TM6, doc/totali-mensili § 6.4), as `getCashFlowsFromExpenses`
+    // buckets it: the series' own dates are built from that month, so `mergeReturnAdjustments` meets it.
+    const italy = getItalyMonthYear(date);
+    const key = monthKey(italy.year, italy.month);
     const current = out.get(key) ?? { cashflowAdjustment: 0, measuredAdjustment: 0 };
     current.cashflowAdjustment += cashflow;
     current.measuredAdjustment += measured;
