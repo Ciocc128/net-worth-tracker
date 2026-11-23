@@ -251,10 +251,11 @@ export default function HallOfFamePage() {
     if (!user || !ownerId) return;
     try {
       setRecalculating(true);
+      // «Aggiorna i record» also rebuilds the monthly totals from every row (doc/totali-mensili § 5.4).
       const response = await authenticatedFetch('/api/hall-of-fame/recalculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: ownerId }),
+        body: JSON.stringify({ userId: ownerId, rebuildTotals: true }),
       });
       assertRecalculated(response);
       toast.success('Record aggiornati.');

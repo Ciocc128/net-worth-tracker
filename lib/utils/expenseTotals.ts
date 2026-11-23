@@ -235,12 +235,15 @@ export interface ExpenseFlowPlan {
  * @param bounds - The dates of the oldest and newest row, or null: an account with no rows reads nothing
  * @param now - The reader's clock
  * @param from - The reader's first instant, when it needs less than the whole history
+ * @param trustRunningMonth - The running month too from the totals: only the cron, right after the
+ *   nightly check rebuilt it (§ 6.1)
  */
 export function planExpenseFlows(
   years: ExpenseTotalsYear[],
   bounds: { oldest: Date; newest: Date } | null,
   now: Date,
   from?: Date | null,
+  trustRunningMonth = false,
 ): ExpenseFlowPlan {
   const plan: ExpenseFlowPlan = { totalsMonths: [], liveMonths: [], liveRanges: [] };
   if (!bounds) return plan;
@@ -261,7 +264,8 @@ export function planExpenseFlows(
     const doc = byYear.get(m.year);
     const entry = doc && doc.schemaVersion === EXPENSE_TOTALS_SCHEMA_VERSION ? doc.months[monthKeyOf(m.month)] : undefined;
     const trustworthy =
-      index !== current && !!entry && (index > current || entry.builtAt.getTime() >= italyMonthEnd(m).getTime());
+      !!entry &&
+      (index > current || (index === current ? trustRunningMonth : entry.builtAt.getTime() >= italyMonthEnd(m).getTime()));
     if (trustworthy) {
       plan.totalsMonths.push(m);
       closeRun();
@@ -336,6 +340,8 @@ export interface LoadExpenseFlowsOptions {
   from?: Date | null;
   /** A category read from its real rows in every month (Rendimenti, § 6.4). */
   realRowsCategoryId?: string;
+  /** See `planExpenseFlows`: the cron's Hall of Fame, after the nightly check. */
+  trustRunningMonth?: boolean;
 }
 
 /**
@@ -354,7 +360,7 @@ export async function loadExpenseFlows(
   const wanted: number[] = [];
   for (let year = firstYear; year <= lastYear; year++) wanted.push(year);
   const years = await source.readYears(wanted);
-  const plan = planExpenseFlows(years, bounds, options.now, options.from);
+  const plan = planExpenseFlows(years, bounds, options.now, options.from, options.trustRunningMonth);
   const realCategory = options.realRowsCategoryId && source.readCategoryRows ? options.realRowsCategoryId : undefined;
   const [liveChunks, categoryRows] = await Promise.all([
     Promise.all(plan.liveRanges.map((range) => source.readRows(range.from, range.to))),

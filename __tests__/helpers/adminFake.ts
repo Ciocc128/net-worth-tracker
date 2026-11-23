@@ -5,7 +5,7 @@
  *
  * Documents live in one Map keyed `collection/id` (a sub-collection is `a/b/c/d`). Queries support
  * `where` with `==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `array-contains`, then `orderBy`/`limit`
- * (ordering is ignored: no test here depends on it). `runTransaction` and `batch()` apply to the
+ * (ordered since 2026-11-23: the expense totals read the oldest and newest row), and `count()` / `aggregate({ count, sum })`. `runTransaction` and `batch()` apply to the
  * same Map. Every path read is pushed to `reads`, every path written to `writes`.
  *
  * Tokens: `adminAuth.verifyIdToken('token:<uid>')` decodes to `{ uid }`; anything else throws, as
@@ -122,13 +122,22 @@ function matches(data: Data, { field, op, value }: Filter): boolean {
   }
 }
 
-function query(collectionPath: string, filters: Filter[], max?: number) {
+function query(collectionPath: string, filters: Filter[], max?: number, order: Array<{ field: string; direction: 'asc' | 'desc' }> = []) {
   const run = () => {
     const prefix = `${collectionPath}/`;
-    const found = [...docs.entries()]
+    let found = [...docs.entries()]
       .filter(([path]) => path.startsWith(prefix) && !path.slice(prefix.length).includes('/'))
-      .filter(([, data]) => filters.every((filter) => matches(data, filter)))
-      .slice(0, max);
+      .filter(([, data]) => filters.every((filter) => matches(data, filter)));
+    if (order.length > 0) {
+      found = found.sort(([, a], [, b]) => {
+        for (const { field, direction } of order) {
+          const [x, y] = [comparable(a[field]) as number, comparable(b[field]) as number];
+          if (x !== y) return (x < y ? -1 : 1) * (direction === 'desc' ? -1 : 1);
+        }
+        return 0;
+      });
+    }
+    found = found.slice(0, max);
     found.forEach(([path]) => reads.push(path));
     // A query on an empty collection still names the collection it read.
     if (found.length === 0) reads.push(collectionPath);
@@ -136,12 +145,33 @@ function query(collectionPath: string, filters: Filter[], max?: number) {
     return { docs: snaps, empty: snaps.length === 0, size: snaps.length, forEach: (fn: (s: (typeof snaps)[number]) => void) => snaps.forEach(fn) };
   };
   const chain = {
-    where: (field: string, op: string, value: unknown) => query(collectionPath, [...filters, { field, op, value }], max),
-    orderBy: () => chain,
-    limit: (n: number) => query(collectionPath, filters, n),
+    where: (field: string, op: string, value: unknown) => query(collectionPath, [...filters, { field, op, value }], max, order),
+    orderBy: (field: string, direction: 'asc' | 'desc' = 'asc') => query(collectionPath, filters, max, [...order, { field, direction }]),
+    limit: (n: number) => query(collectionPath, filters, n, order),
     select: () => chain,
     get: async () => run(),
     count: () => ({ get: async () => ({ data: () => ({ count: run().size }) }) }),
+    // `count()` and `sum(field)` (doc/totali-mensili § 5.3). Firestore bills one read per 1.000 index
+    // entries, so the log gets ONE `aggregate:<collection>` entry, not the documents.
+    aggregate: (spec: Record<string, { aggregateType: string; _field?: string }>) => ({
+      get: async () => {
+        const before = reads.length;
+        const found = run();
+        reads.length = before;
+        reads.push(`aggregate:${collectionPath}`);
+        const out: Record<string, number> = {};
+        for (const [alias, field] of Object.entries(spec)) {
+          if (field.aggregateType === 'count') out[alias] = found.size;
+          else if (field.aggregateType === 'sum') {
+            out[alias] = found.docs.reduce((total, doc) => {
+              const value = doc.data()?.[field._field as string];
+              return typeof value === 'number' ? total + value : total;
+            }, 0);
+          } else throw new Error(`adminFake: unsupported aggregate ${field.aggregateType}`);
+        }
+        return { data: () => out };
+      },
+    }),
   };
   return chain;
 }

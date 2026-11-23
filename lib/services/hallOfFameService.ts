@@ -1,7 +1,8 @@
 /**
  * Hall of Fame Service
  *
- * The client-side writer and reader of `hall-of-fame/{userId}`, plus the note CRUD.
+ * The client-side reader of `hall-of-fame/{userId}`, the note CRUD, and the request that has the
+ * server recalculate the rankings (since 2026-11-23 the browser no longer writes them).
  *
  * It owns the I/O and NOTHING else: what a record is, and what a ranking is, live in the pure
  * `lib/utils/hallOfFameRecords.ts` — the same module the server writer
@@ -15,14 +16,8 @@
 import { db } from '@/lib/firebase/config';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { HallOfFameData, HallOfFameNote, HallOfFameSectionKey } from '@/types/hall-of-fame';
-import { getUserSnapshots } from './snapshotService';
-import { getAllExpenses } from './expenseService';
 import { toDate } from '@/lib/utils/dateHelpers';
-import {
-  buildHallOfFameRankings,
-  calculateMonthlyRecords,
-  calculateYearlyRecords,
-} from '@/lib/utils/hallOfFameRecords';
+import { authenticatedFetch } from '@/lib/utils/authFetch';
 
 const COLLECTION_NAME = 'hall-of-fame';
 
@@ -58,55 +53,22 @@ export async function getHallOfFameData(userId: string): Promise<HallOfFameData 
 }
 
 /**
- * Recalculate and store every ranking for a user.
+ * Recalculate and store every ranking for a user — ON THE SERVER (D-TM7, doc/totali-mensili § 6.1).
  *
- * Called after a snapshot is created from the Panoramica; the daily cron and the recalculate
- * route use the Admin-SDK twin. Existing notes are read back and re-written untouched: a
- * ranking update must never cost the user a note.
+ * Called after a snapshot is created from the Panoramica. Until 2026-11-23 this rebuilt the
+ * rankings in the browser from the account's WHOLE expense collection; the server reads the monthly
+ * totals instead (`hallOfFameService.server.ts`), so the browser only asks. Notes stay untouched.
  *
- * @param userId - The user ID to update Hall of Fame for
+ * @param userId - The owner whose Hall of Fame is recalculated
+ * @param options.rebuildTotals - Rebuild the monthly totals from every row first («Aggiorna i record»)
  */
-export async function updateHallOfFame(userId: string): Promise<void> {
-  try {
-    // Fetch all snapshots and expenses to calculate comprehensive rankings
-    const [snapshots, expenses] = await Promise.all([
-      getUserSnapshots(userId),
-      getAllExpenses(userId),
-    ]);
-
-    // The record definition and every ranking live in ONE pure module, shared with the
-    // server writer and the periodic email: a second copy here drifted the moment either changed.
-    const monthlyRecords = calculateMonthlyRecords(snapshots, expenses);
-    const yearlyRecords = calculateYearlyRecords(snapshots, expenses);
-    const now = new Date();
-    const hallOfFameData = {
-      userId,
-      ...buildHallOfFameRankings(monthlyRecords, yearlyRecords),
-      // Both stamps here, and only here: a note's save moves `updatedAt` alone.
-      rankingsUpdatedAt: now,
-      updatedAt: now,
-    };
-
-    // GET existing document to preserve notes
-    // Critical: User notes must be preserved during ranking updates
-    // Pattern copied from server-side hallOfFameService.server.ts
-    const docRef = doc(db, COLLECTION_NAME, userId);
-    const existingDoc = await getDoc(docRef);
-    const existingNotes = existingDoc.exists()
-      ? (existingDoc.data()?.notes || [])
-      : [];
-
-    // SET with notes preservation
-    await setDoc(docRef, {
-      ...hallOfFameData,
-      notes: existingNotes,  // Preserve user notes during ranking update
-    });
-
-    console.log(`Hall of Fame updated for user ${userId}`);
-  } catch (error) {
-    console.error('Error updating Hall of Fame:', error);
-    throw error;
-  }
+export async function updateHallOfFame(userId: string, options: { rebuildTotals?: boolean } = {}): Promise<void> {
+  const response = await authenticatedFetch('/api/hall-of-fame/recalculate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, ...(options.rebuildTotals ? { rebuildTotals: true } : {}) }),
+  });
+  if (!response.ok) throw new Error(`Hall of Fame recalculation failed (${response.status})`);
 }
 
 /**
