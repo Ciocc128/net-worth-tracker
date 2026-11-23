@@ -5,18 +5,19 @@
  * verdict (lib/utils/patrimonioNarrative.ts) whose driver is an INSTRUMENT, then a 12-column
  * bento, each tile one question with a one-line reading above its figures:
  *
- *   Desktop (12 col): Patrimonio(5, 2 rows) | Liquidità(3) | Movimenti(4)
- *                                           | Classi(3)    | Rendimento(4)
- *                     [Mutuo(12) — one per loan with instalments linked to it]
+ *   Desktop (12 col): Patrimonio(5, low) | Conti(3) | Operazioni del mese(4)
  *                     Strumenti(12)
+ *                     Classi(4) | Rendimento(4) | Intestatari(4)   (6 | 6 without Intestatari)
+ *                     [Mutuo(12) — one per loan with instalments linked to it]
+ *                     (R4, RU7, 2026-11-23: the table is the second row)
  *   Below desktop:    ONE sequence, the DOM above (The First-Screen Rule; since 2026-10-14):
- *                     title → the verdict's first sentence → G/P and Liquidità as a strip → «Il
+ *                     title → the verdict's first sentence → G/P and Conti as a strip → «Il
  *                     perché» → Patrimonio, open, its chips lifted and its curve at 120px → «Il
- *                     resto della pagina» → Movimenti, Liquidità, Classi, Rendimento, [Mutuo],
- *                     Strumenti as closed rows (`useMobileSections`; doc/guide/patrimonio.md
+ *                     resto della pagina» → Operazioni, Conti, Strumenti, Classi, Rendimento,
+ *                     [Intestatari], [Mutuo] as closed rows (`useMobileSections`; doc/guide/patrimonio.md
  *                     § Composizione mobile).
  *
- * The DOM order IS the reading order (Movimenti before Liquidità); the desktop row is placed by
+ * The DOM order IS the reading order (Operazioni before Conti); the desktop row is placed by
  * `col-start`, never by a CSS `order` swap, so a screen reader and the eye meet the tiles in
  * the same sequence. The hero's count line links to the Strumenti tile (`#strumenti`) at 1440 and
  * opens its row below `desktop:`.
@@ -142,8 +143,8 @@ const DIGEST_INSTRUMENTS = 3;
 
 /** The rows' eyebrows, as the controller announces them (a failed read, a strip cell's «apre …»). */
 const ROW_EYEBROWS = {
-  movimenti: 'Movimenti del mese',
-  liquidita: 'Liquidità',
+  movimenti: 'Operazioni del mese',
+  liquidita: 'Conti',
   classi: 'Classi',
   rendimento: 'Guadagno sul costo',
   intestatari: 'Intestatari',
@@ -172,6 +173,8 @@ function resolvePatrimonioSections(input: {
   return [
     { id: PATRIMONIO_SECTION_IDS.movimenti, eyebrow: ROW_EYEBROWS.movimenti, failed: input.movimentiFailed },
     { id: PATRIMONIO_SECTION_IDS.liquidita, eyebrow: ROW_EYEBROWS.liquidita },
+    // Strumenti third (R4, D-RU16): the table is the page's second row at 1440, so the rows read as it does.
+    { id: PATRIMONIO_SECTION_IDS.strumenti, eyebrow: ROW_EYEBROWS.strumenti },
     ...(input.overviewAvailable
       ? [
           { id: PATRIMONIO_SECTION_IDS.classi, eyebrow: ROW_EYEBROWS.classi },
@@ -180,7 +183,6 @@ function resolvePatrimonioSections(input: {
       : []),
     ...(input.hasOwnership ? [{ id: PATRIMONIO_SECTION_IDS.intestatari, eyebrow: ROW_EYEBROWS.intestatari }] : []),
     ...input.mortgageSections,
-    { id: PATRIMONIO_SECTION_IDS.strumenti, eyebrow: ROW_EYEBROWS.strumenti },
   ];
 }
 
@@ -694,11 +696,12 @@ export default function AssetsPage() {
           className={overviewUnavailable ? PLAIN_GRID_CLASS : COMPACT_GRID_CLASS}
         >
           {!overviewUnavailable && (
-            <div data-stage="lead" className={cn(TILE_CELL_CLASS, leadCellClass(!overviewUnavailable), 'desktop:col-span-5 desktop:row-span-2')}>
+            <div data-stage="lead" className={cn(TILE_CELL_CLASS, leadCellClass(!overviewUnavailable), 'desktop:col-span-5')}>
               <PatrimonioTile
                 id={PATRIMONIO_PATRIMONIO_ID}
                 className="scroll-mt-24"
                 liftedFigures={heroLifted}
+                variant={sections.compact ? 'default' : 'compact'}
                 totalValue={totalValue}
                 heroValueClass={heroValueClass}
                 variations={overview.variations}
@@ -745,8 +748,9 @@ export default function AssetsPage() {
               the row still reads hero · Liquidità · Movimenti; a CSS `order` swap used to make a
               screen reader meet Liquidità first while the eye met Movimenti. */}
           <div
-            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.movimenti), 'desktop:col-span-4 desktop:col-start-9 desktop:row-start-1')}
+            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.movimenti), 'desktop:col-span-4 desktop:col-start-9 desktop:row-start-1', !overviewUnavailable && 'desktop:relative')}
           >
+            <div className={cn(TILE_CELL_CLASS, 'flex-1', !overviewUnavailable && 'desktop:absolute desktop:inset-0')}>
             {movimentiFailed ? (
               // A failed read of the ledger is not «nessuna operazione», at every width (2026-10-14).
               // Silent below `desktop:`, where `PageRest` carries the one live node.
@@ -771,13 +775,16 @@ export default function AssetsPage() {
                 onOpenMovements={setMovementsAsset}
                 collapse={sections.collapse(PATRIMONIO_SECTION_IDS.movimenti)}
                 asideWhenClosed={monthName}
+                scrollBody={!overviewUnavailable}
               />
             )}
+            </div>
           </div>
 
           <div
-            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.liquidita), 'desktop:col-span-3 desktop:col-start-6 desktop:row-start-1')}
+            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.liquidita), 'desktop:col-span-3 desktop:col-start-6 desktop:row-start-1', !overviewUnavailable && 'desktop:relative')}
           >
+            <div className={cn(TILE_CELL_CLASS, 'flex-1', !overviewUnavailable && 'desktop:absolute desktop:inset-0')}>
             <LiquiditaTile
               summary={cashSummary}
               accountsById={assetsById}
@@ -786,13 +793,40 @@ export default function AssetsPage() {
               isDemo={isDemo}
               collapse={sections.collapse(PATRIMONIO_SECTION_IDS.liquidita)}
               asideWhenClosed={liquiditaCount || 'nessun conto'}
+              scrollBody={!overviewUnavailable}
+            />
+            </div>
+          </div>
+
+          <div
+            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.strumenti), overviewUnavailable && 'tablet:col-span-2', 'desktop:col-span-12 desktop:col-start-1 desktop:row-start-2')}
+          >
+            <StrumentiTile
+              collapse={sections.collapse(PATRIMONIO_SECTION_IDS.strumenti)}
+              asideWhenClosed={strumentiCount || 'nessuno strumento'}
+              assets={instruments}
+              totalValue={totalValue}
+              performance={performance}
+              unitPriceSeries={unitPriceSeries}
+              chartColors={chartColors}
+              ledgerReady={ledgerReady}
+              tradedAssetIds={tradedAssetIds}
+              isDemo={isDemo}
+              ownerId={ownerId}
+              onAdd={openCreate}
+              onEdit={openEdit}
+              onRegisterTrade={setTradeAsset}
+              onMovements={setMovementsAsset}
+              onCalculateTaxes={setTaxAsset}
+              members={familyMembers}
+              allAssets={assets}
             />
           </div>
 
           {!overviewUnavailable && (
             <>
               <div
-                className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.classi), 'desktop:col-span-3')}
+                className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.classi), ownership ? 'desktop:col-span-4' : 'desktop:col-span-6')}
               >
                 <ComposizioneTile
                   eyebrow="Classi"
@@ -812,7 +846,7 @@ export default function AssetsPage() {
               </div>
 
               <div
-                className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.rendimento), 'desktop:col-span-4')}
+                className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.rendimento), ownership ? 'desktop:col-span-4' : 'desktop:col-span-6')}
               >
                 <RendimentoTile
                   gains={gains}
@@ -831,12 +865,13 @@ export default function AssetsPage() {
               the live assets here. */}
           {ownership && (
             <div
-              className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.intestatari), overviewUnavailable && 'tablet:col-span-2', 'desktop:col-span-12')}
+              className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.intestatari), overviewUnavailable && 'tablet:col-span-2', overviewUnavailable ? 'desktop:col-span-12' : 'desktop:col-span-4')}
             >
               <IntestatariTile
                 summary={ownership}
                 collapse={sections.collapse(PATRIMONIO_SECTION_IDS.intestatari)}
                 asideWhenClosed="quote per persona"
+                dense={!overviewUnavailable && !sections.compact}
               />
             </div>
           )}
@@ -872,30 +907,6 @@ export default function AssetsPage() {
             ))
           )}
 
-          <div
-            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PATRIMONIO_SECTION_IDS.strumenti), overviewUnavailable && 'tablet:col-span-2', 'desktop:col-span-12')}
-          >
-            <StrumentiTile
-              collapse={sections.collapse(PATRIMONIO_SECTION_IDS.strumenti)}
-              asideWhenClosed={strumentiCount || 'nessuno strumento'}
-              assets={instruments}
-              totalValue={totalValue}
-              performance={performance}
-              unitPriceSeries={unitPriceSeries}
-              chartColors={chartColors}
-              ledgerReady={ledgerReady}
-              tradedAssetIds={tradedAssetIds}
-              isDemo={isDemo}
-              ownerId={ownerId}
-              onAdd={openCreate}
-              onEdit={openEdit}
-              onRegisterTrade={setTradeAsset}
-              onMovements={setMovementsAsset}
-              onCalculateTaxes={setTaxAsset}
-              members={familyMembers}
-              allAssets={assets}
-            />
-          </div>
           </div>
         </div>
         </div>

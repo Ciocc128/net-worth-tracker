@@ -357,7 +357,7 @@ export function selectPatrimonioStrip({ gains, cash }: { gains: UnrealizedGainsS
       ...(gains.count > 0 ? {} : { reason: 'nessuna posizione con un prezzo di carico' }),
     },
     {
-      label: 'Liquidità',
+      label: 'Conti',
       value: cashReason === null ? cash.shareOfTotal : null,
       format: 'percent',
       decimals: 1,

@@ -61,8 +61,8 @@ test.describe('Patrimonio, composed for a phone', () => {
     await expect(cells).toHaveCount(2);
     await expect(cells.nth(0)).toContainText(/^G\/P non realizzato[+−]?\d/);
     await expect(cells.nth(0)).toHaveAccessibleName(/, apre Guadagno sul costo$/);
-    await expect(cells.nth(1)).toContainText(/^Liquidità\d+,\d%/);
-    await expect(cells.nth(1)).toHaveAccessibleName(/, apre Liquidità$/);
+    await expect(cells.nth(1)).toContainText(/^Conti\d+,\d%/);
+    await expect(cells.nth(1)).toHaveAccessibleName(/, apre Conti$/);
     for (let i = 0; i < 2; i++) expect((await cells.nth(i).boundingBox())!.height, `cell ${i}`).toBeGreaterThanOrEqual(TOUCH_FLOOR);
 
     // THE tile: the hero stays (The Lifted-Figure Rule); the chips, the digest and the curve's last label go.
@@ -137,7 +137,7 @@ test.describe('Patrimonio, composed for a phone', () => {
         .filter((el) => el.checkVisibility())
         .map((el) => ({ name: el.getAttribute('aria-label'), top: Math.round(el.getBoundingClientRect().top) })),
     );
-    expect(order.map((s) => s.name)).toEqual(['Patrimonio', 'Movimenti del mese', 'Liquidità', 'Classi', 'Guadagno sul costo', 'Strumenti']);
+    expect(order.map((s) => s.name)).toEqual(['Patrimonio', 'Operazioni del mese', 'Conti', 'Strumenti', 'Classi', 'Guadagno sul costo']);
     expect(order.every((s, i) => i === 0 || s.top >= order[i - 1].top - 1), JSON.stringify(order)).toBe(true);
     expect(
       await page.evaluate(() => [...document.querySelector('main')!.querySelectorAll('*')].flatMap((el) => [...el.classList]).filter((name) => /^(?:[a-z-]+:)*order-/.test(name))),

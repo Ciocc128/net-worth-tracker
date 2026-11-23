@@ -88,6 +88,14 @@ interface PatrimonioTileProps {
    * verdict names the market]` (the Panoramica, and Patrimonio with the year's chip too). Default none: the landing keeps every block.
    */
   liftedFigures?: readonly PatrimonioLiftedBlock[];
+  /**
+   * `compact` is the LOW hero of Patrimonio at 1440 (R4, D-RU17): the period pill sits in the
+   * eyebrow's row, the «Andamento» row and the «Mercato:» digest are gone (the verdict already names
+   * the instrument that weighed), the curve is a fixed 80px; the count line stays. The PAGE passes it
+   * only from `desktop:` (`!useMobileSections().compact`): below it the tile is the default one, THE
+   * tile of the composition. Panoramica and the landing never pass it.
+   */
+  variant?: 'default' | 'compact';
   className?: string;
 }
 
@@ -152,15 +160,23 @@ export function PatrimonioTile({
   hasCurrentMonthSnapshot = false,
   id,
   liftedFigures = [],
+  variant = 'default',
   className,
 }: PatrimonioTileProps) {
+  const compact = variant === 'compact';
   const hasSparkline = sparklineDisplay.length >= 2;
   const lifted = (block: PatrimonioLiftedBlock) => liftedFigures.includes(block);
   // The chips' row hides whole when every chip in it is lifted, or it would leave its gap behind.
   const chipsRowLifted = (!variations.monthly || lifted('monthly')) && (!variations.yearly || lifted('yearly')) && !isNewATH;
 
   return (
-    <OverviewTile eyebrow="Patrimonio totale lordo" className={className} ariaLabel="Patrimonio" id={id}>
+    <OverviewTile
+      eyebrow="Patrimonio totale lordo"
+      className={className}
+      ariaLabel="Patrimonio"
+      id={id}
+      aside={compact && hasSparkline ? <PeriodSelector value={sparklinePeriod} onChange={onSparklinePeriodChange} /> : undefined}
+    >
       <OverviewAnimatedCurrency
         value={totalValue}
         animateOnMount={true}
@@ -204,20 +220,30 @@ export function PatrimonioTile({
 
       {hasSparkline && (
         <>
-          <div
-            id={id ? `${id}${PATRIMONIO_CURVE_ID_SUFFIX}` : undefined}
-            className="mt-5 flex scroll-mt-24 flex-col gap-2 tablet:flex-row tablet:items-center tablet:justify-between tablet:gap-3"
-          >
-            <p className={TILE_SUB_EYEBROW_CLASS}>Andamento</p>
-            <PeriodSelector value={sparklinePeriod} onChange={onSparklinePeriodChange} />
-          </div>
+          {compact ? (
+            // The pill is in the head; the anchor a strip cell scrolls to stays, a row of no height.
+            <span id={id ? `${id}${PATRIMONIO_CURVE_ID_SUFFIX}` : undefined} className="block scroll-mt-24" />
+          ) : (
+            <div
+              id={id ? `${id}${PATRIMONIO_CURVE_ID_SUFFIX}` : undefined}
+              className="mt-5 flex scroll-mt-24 flex-col gap-2 tablet:flex-row tablet:items-center tablet:justify-between tablet:gap-3"
+            >
+              <p className={TILE_SUB_EYEBROW_CLASS}>Andamento</p>
+              <PeriodSelector value={sparklinePeriod} onChange={onSparklinePeriodChange} />
+            </div>
+          )}
           {/* Edge-to-edge (the -mx matches the tile padding). The SVG is absolutely positioned
               so its 100% height resolves against the flex-sized box instead of its own viewBox
               ratio — an in-flow SVG with height:100% in an auto-height parent grows to
               width × (viewBox height / width), hundreds of pixels. preserveAspectRatio="none"
               makes the stretch safe. Below `desktop:` the curve yields to 120px — the curve
               shortens, never the reading (The First-Screen Rule). */}
-          <div className="relative -mx-5 mt-3 flex-1 max-desktop:min-h-[120px] desktop:min-h-[180px] [&_svg]:absolute [&_svg]:inset-0 [&_svg]:h-full [&_svg]:w-full">
+          <div
+            className={cn(
+              'relative -mx-5 [&_svg]:absolute [&_svg]:inset-0 [&_svg]:h-full [&_svg]:w-full',
+              compact ? 'mt-4 h-20 shrink-0' : 'mt-3 flex-1 max-desktop:min-h-[120px] desktop:min-h-[180px]',
+            )}
+          >
             <NetWorthSparkline data={sparklineDisplay} filled={true} color="var(--hero-series)" height={180} interactive />
           </div>
           <div className="mt-1.5 flex justify-between font-mono text-[11px] tabular-nums text-muted-foreground">
@@ -239,7 +265,7 @@ export function PatrimonioTile({
         {/* The digest is lifted only when the verdict's sentence names the market in words
             («dal mercato», the class that pushed most) — `verdictNamesMarket` at the call site;
             otherwise it stays, the other classes with it. */}
-        {movers.length > 0 && (
+        {movers.length > 0 && !compact && (
           <p className={cn('flex flex-wrap gap-x-2 gap-y-0.5 text-[12px]', lifted('movers') && LIFTED_FIGURE_CLASS)}>
             <span>Mercato:</span>
             {movers.map((mover, i) => (

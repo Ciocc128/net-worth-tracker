@@ -466,7 +466,7 @@ describe('selectPatrimonioStrip', () => {
 
   it('should open the Rendimento and Liquidità rows, lift only the G/P KPI and pass the strip rules', () => {
     const strip = selectPatrimonioStrip({ gains: gains(1234.56), cash: cash(12.34) });
-    expect(strip.map((figure) => figure.label)).toEqual(['G/P non realizzato', 'Liquidità']);
+    expect(strip.map((figure) => figure.label)).toEqual(['G/P non realizzato', 'Conti']);
     expect(strip.map((figure) => figure.opens)).toEqual([PATRIMONIO_SECTION_IDS.rendimento, PATRIMONIO_SECTION_IDS.liquidita]);
     expect(validateStrip(strip, KNOWN)).toEqual([]);
     expect(liftedBlocks(strip, PATRIMONIO_SECTION_IDS.rendimento)).toEqual([PATRIMONIO_GAIN_BLOCK]);

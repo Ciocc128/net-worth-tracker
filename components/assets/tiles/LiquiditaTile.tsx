@@ -1,6 +1,7 @@
 'use client';
 
 import type { Asset } from '@/types/assets';
+import { useScrollsVertically } from '@/lib/hooks/useScrollsVertically';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { describeCashAccounts } from '@/lib/utils/patrimonioNarrative';
 import type { CashAccountsSummary } from '@/lib/utils/patrimonioSummary';
@@ -20,6 +21,11 @@ interface LiquiditaTileProps {
   collapse?: TileCollapse;
   /** What the closed row says beside its eyebrow, in words (The Closed-Row Rule). */
   asideWhenClosed?: string;
+  /**
+   * At 1440 the cell is as tall as the hero beside it (R4, D-RU17): the list takes the height that
+   * is left and scrolls inside, the footer stays. Off with the hero absent (the overview unread).
+   */
+  scrollBody?: boolean;
   className?: string;
 }
 
@@ -29,15 +35,16 @@ interface LiquiditaTileProps {
  * row's share is of the money HELD, and an account in the red — a credit card — reads «debito».
  * Each row is a button: the account's detail dialog (edit, delete) opens from here.
  */
-export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, collapse, asideWhenClosed, className }: LiquiditaTileProps) {
+export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, collapse, asideWhenClosed, scrollBody = false, className }: LiquiditaTileProps) {
   // Thirteen accounts stretched the tile (and the chart beside it) to twice its row: the list
   // holds five and a half rows, largest first, and scrolls inside the tile — the cut row is the
   // cue that there is more.
   const { accounts } = summary;
+  const [listRef, listScrolls] = useScrollsVertically<HTMLDivElement>(accounts.length);
 
   return (
     <Tile
-      eyebrow="Liquidità"
+      eyebrow="Conti"
       collapse={collapse}
       asideWhenClosed={asideWhenClosed}
       aside={accounts.length > 0 ? `${accounts.length} ${accounts.length === 1 ? 'conto' : 'conti'}` : undefined}
@@ -55,7 +62,14 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
             </p>
           </div>
           {/* The -mx-2/px-2 pair keeps the rows' hover wash inside the scroll box, which clips on both axes. */}
-          <div className="mb-3.5 mt-2.5 flex max-h-[214px] flex-col divide-y divide-border overflow-y-auto overscroll-contain lime-quiet-scroll">
+          <div
+            ref={listRef}
+            className={cn(
+              'mb-3.5 mt-2.5 flex max-h-[214px] flex-col divide-y divide-border overflow-y-auto overscroll-contain lime-quiet-scroll',
+              scrollBody && 'desktop:min-h-0 desktop:max-h-none desktop:flex-1',
+            )}
+            {...(listScrolls ? { tabIndex: 0, role: 'region', 'aria-label': 'Conti, elenco scorrevole' } : {})}
+          >
             {accounts.map((account) => {
               const asset = accountsById.get(account.id);
               return (
