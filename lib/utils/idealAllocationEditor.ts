@@ -84,7 +84,7 @@ export interface ClassTargetsView {
 }
 
 /**
- * The class targets of Impostazioni › Allocazione read as the objectives' «Classi» base (AL18, D-AL5):
+ * The class targets of Allocazione › Strategia read as the objectives' «Classi» base (AL18, D-AL5):
  * one row per class with a target above zero (or a fixed cash amount), in the order of
  * `ASSET_CLASS_SEQUENCE`'s consumers (the targets' own key order), and the leverage they imply — the
  * sum of the percentages, which the caller reads with `deriveTargetLeverageRatio` (not imported here: it drags Firebase in). Read-only: the write stays in

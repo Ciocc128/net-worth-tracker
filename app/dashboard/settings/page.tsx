@@ -1,7 +1,8 @@
 /**
  * SETTINGS PAGE — the orchestrator (2026-10-08).
  *
- * Seven tabs, seven views, ONE draft. Until 2026-10-08 this file was one 4100-line component with 70
+ * Six tabs, six views, ONE draft (the Allocazione tab moved to Allocazione › Strategia with RU8, 2026-11-23;
+ * `?tab=allocazione` lands there). Until 2026-10-08 this file was one 4100-line component with 70
  * `useState`s, and every keystroke re-ran the whole function (286 components per key on one
  * machine with the compiler on, 318 on another — the census, doc/guide/velocita.md). Now the page holds
  * the draft in a single `useReducer(settingsDraftReducer)`
@@ -17,11 +18,9 @@
  *   - the tab: which one is active, which ones were mounted (`aria-controls` only names a panel
  *     that exists), the `?tab=` canonicalised on mount only when absent or invalid;
  *   - the ONE «Salva»: `composeSettingsDocument` validates the tree as it will be written and
- *     names the first broken rule WITH its place — the page then opens that group, activates
- *     Allocazione and hands the view a field to focus through the draft (`pendingFocus`);
+ *     names the first market figure out of range — the page then opens Simulazioni;
  *   - the save state PER TAB: a dot on each tab holding edits (`isSliceDirty`), a bar at the
- *     bottom naming them, «Annulla modifiche» as a RE-READ of the saved document, never a copy;
- *   - «Ripristina default»: the FACTORY targets, a different act from «Annulla».
+ *     bottom naming them, «Annulla modifiche» as a RE-READ of the saved document, never a copy.
  *
  * The colour theme and the light/dark mode are the exception: they save themselves (Aspetto).
  */
@@ -32,31 +31,28 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useState }
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Save, RotateCcw, Receipt, Coins, Settings, PieChart, Palette, Users, Dices } from 'lucide-react';
+import { Save, Receipt, Coins, Settings, Palette, Users, Dices } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import { setSettings, getDefaultTargets } from '@/lib/services/assetAllocationService';
-import type { TargetProblem } from '@/lib/utils/allocationTargetValidation';
+import { setSettings } from '@/lib/services/assetAllocationService';
 import {
   composeSettingsDocument,
   createSettingsDraft,
   isSettingsTabId,
   isSliceDirty,
+  LEGACY_ALLOCAZIONE_TAB,
   resolveSimulazioniGold,
-  revealTargetProblem,
   settingsDraftReducer,
+  STRATEGIA_TARGETS_HREF,
   WRITABLE_TABS,
-  type AllocazioneSlice,
-  type AssetClassDraft,
   type DividendiSlice,
   type GeneraleSlice,
   type SettingsTabId,
   type SimulazioniSlice,
   type SpeseSlice,
 } from '@/lib/utils/settingsDraft';
-import { narrativeToText } from '@/lib/utils/narrative';
-import type { Asset, AssetClass } from '@/types/assets';
+import type { Asset } from '@/types/assets';
 import type { ExpenseCategory } from '@/types/expenses';
 import { queryKeys } from '@/lib/query/queryKeys';
 import { settingsQueryOptions, useSettings } from '@/lib/hooks/useSettings';
@@ -71,10 +67,9 @@ import type { TabDef } from '@/components/layout/PageTabBar';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
-import { describeTargetProblem, describeUnsavedChanges } from '@/lib/utils/settingsNarrative';
+import { describeUnsavedChanges } from '@/lib/utils/settingsNarrative';
 import { useMarketAnchors } from '@/lib/hooks/useMarketAnchors';
 import { resolveRiskFreeEstimate } from '@/lib/utils/riskFreeRate';
-import { AllocazioneTab } from '@/components/settings/tabs/AllocazioneTab';
 import { AspettoTab } from '@/components/settings/tabs/AspettoTab';
 import { CondivisioneTab } from '@/components/settings/tabs/CondivisioneTab';
 import { DividendiTab } from '@/components/settings/tabs/DividendiTab';
@@ -88,7 +83,6 @@ import { cn } from '@/lib/utils';
 
 // Module-level tab definitions drive both the mobile pill and the desktop underline tabs.
 const SETTINGS_TABS: TabDef[] = [
-  { value: 'allocazione', label: 'Allocazione', icon: PieChart },
   { value: 'generale',    label: 'Preferenze',  icon: Settings },
   { value: 'spese',       label: 'Spese',       icon: Receipt  },
   { value: 'dividendi',   label: 'Dividendi',   icon: Coins    },
@@ -100,7 +94,7 @@ const SETTINGS_TABS: TabDef[] = [
 const EMPTY_CATEGORIES: ExpenseCategory[] = [];
 const EMPTY_ASSETS: Asset[] = [];
 
-const PAGE_HEADER = { label: 'Configurazione', title: 'Impostazioni', description: 'Target, preferenze e flussi' } as const;
+const PAGE_HEADER = { label: 'Configurazione', title: 'Impostazioni', description: 'Preferenze, flussi e simulazioni' } as const;
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -112,15 +106,11 @@ export default function SettingsPage() {
 
   // THE draft: one reducer, one slice per tab (lib/utils/settingsDraft.ts).
   const [draft, dispatch] = useReducer(settingsDraftReducer, undefined, createSettingsDraft);
-  const { allocazione, generale, spese, dividendi, simulazioni, declarations } = draft.slices;
+  const { generale, spese, dividendi, simulazioni, declarations } = draft.slices;
   const setGenerale = (patch: Partial<GeneraleSlice>) => dispatch({ type: 'generale/set', patch });
   const setSpese = (patch: Partial<SpeseSlice>) => dispatch({ type: 'spese/set', patch });
   const setDividendi = (patch: Partial<DividendiSlice>) => dispatch({ type: 'dividendi/set', patch });
   const setSimulazioni = (patch: Partial<SimulazioniSlice>) => dispatch({ type: 'simulazioni/set', patch });
-  const setAllocazione = (patch: Partial<Omit<AllocazioneSlice, 'classes'>>) => dispatch({ type: 'allocazione/set', patch });
-  const setAllocationClass = (assetClass: AssetClass, patch: Partial<AssetClassDraft>) =>
-    dispatch({ type: 'allocazione/setClass', assetClass, patch });
-  const consumeFocus = () => dispatch({ type: 'focusConsumed' });
 
   // The expense categories from the key Cashflow, Analisi and the expense form read (2026-09-29).
   // `isLoading` is true before the first read, so an empty list is «not read yet», never «no
@@ -147,16 +137,19 @@ export default function SettingsPage() {
   const settingsDocument = settingsQuery.data; // undefined = not read yet; null = no document
   const freshness = useFreshness([settingsQuery, categoriesQuery, accountsQuery]);
 
-  // Tab navigation — lazy-loading pattern (same as Assets/Cashflow pages). Allocazione is always
-  // mounted (the default), the others once opened; `aria-controls` may only name a panel that exists.
+  // Tab navigation — lazy-loading pattern (same as Assets/Cashflow pages): Preferenze is the
+  // default, every panel mounts once opened; `aria-controls` may only name a panel that exists.
+  // `?tab=allocazione` is the old address of the targets (bookmarks, links in emails): it lands
+  // on Allocazione › Strategia (RU8, D-ST1).
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
   const requestedTab = searchParams.get('tab');
-  const initialTab: SettingsTabId = isSettingsTabId(requestedTab) ? requestedTab : 'allocazione';
+  const movedToStrategia = requestedTab === LEGACY_ALLOCAZIONE_TAB;
+  const initialTab: SettingsTabId = isSettingsTabId(requestedTab) ? requestedTab : 'generale';
   const [mountedTabs, setMountedTabs] = useState<Set<SettingsTabId>>(new Set([initialTab]));
   const [activeTab, setActiveTab] = useState<SettingsTabId>(initialTab);
-  const renderedPanels = new Set<string>([...mountedTabs, 'allocazione']);
+  const renderedPanels = new Set<string>(mountedTabs);
 
   const handleTabChange = (value: string) => {
     setActiveTab(value as SettingsTabId);
@@ -168,6 +161,10 @@ export default function SettingsPage() {
   // an unconditional replace re-rendered every `useSearchParams` consumer of the shell. An Effect
   // Event: the URL and the router are read, never triggers — it runs once, at mount.
   const canonicalizeTabParam = useEffectEvent(() => {
+    if (movedToStrategia) {
+      router.replace(STRATEGIA_TARGETS_HREF);
+      return;
+    }
     if (searchParams.get('tab') !== initialTab) {
       router.replace(`${pathname}?tab=${initialTab}`, { scroll: false });
     }
@@ -196,12 +193,7 @@ export default function SettingsPage() {
   const [seededFrom, setSeededFrom] = useState<string | null>(null);
   if (seedSubject !== null && seedSubject !== seededFrom && !(draft.loaded && hasUnsavedChanges)) {
     setSeededFrom(seedSubject);
-    dispatch({ type: 'reset', document: settingsDocument ?? null, fallbackTargets: getDefaultTargets() });
-  }
-  // The ECB estimate of the risk-free rate (Allocazione › Risk-free rate), handed to BOTH sides of the draft the same
-  // way, so its arrival is never an edit. Settled during render like the seed above.
-  if (draft.loaded && draft.slices.allocazione.riskFreeEstimate !== riskFreeEstimate.value) {
-    dispatch({ type: 'riskFreeEstimate', value: riskFreeEstimate.value });
+    dispatch({ type: 'reset', document: settingsDocument ?? null });
   }
   // The skeleton: this owner's document not read yet and not failed (a first visit, or a switch to
   // an account never read). A failed FIRST read is not a form full of defaults (below).
@@ -232,43 +224,24 @@ export default function SettingsPage() {
     }
   };
 
-  /**
-   * Takes the reader to the first broken rule: the Allocazione tab, the class's group opened
-   * (and the subcategory's assets, for an asset rule), the focus on the field to fix — through
-   * the draft (`revealTargetProblem` says where, the view consumes `pendingFocus` once mounted).
-   * The reading of Target per classe already states the problem; this puts the cursor where it is.
-   */
-  const revealProblem = (problem: TargetProblem, cleaned: AllocazioneSlice) => {
-    const { slice, fieldId } = revealTargetProblem(problem, cleaned);
-    dispatch({ type: 'allocazione/replace', slice });
-    dispatch({ type: 'focus', fieldId });
-    if (activeTab !== 'allocazione') handleTabChange('allocazione');
-  };
-
   const handleSave = async () => {
     if (!user || !ownerId) return;
 
-    // Validated as it will be written (unnamed rows dropped), BEFORE any read: a refused save
+    // Validated as it will be written, BEFORE any read: a refused save
     // costs no round trip. The fields the document carries through (the FIRE plan's and the
     // optimizer's) come from the CURRENT document, pre-read below. The Oro in force and the
     // baseline are what the Simulazioni write needs (it is written only when that tab holds edits).
     const context = {
       saved: draft.saved,
-      effectiveGoldSubCategory: resolveSimulazioniGold(simulazioni, allocazione, allAssets).effectiveGoldSubCategory,
+      effectiveGoldSubCategory: resolveSimulazioniGold(simulazioni, settingsDocument?.targets, allAssets).effectiveGoldSubCategory,
     };
     const checked = composeSettingsDocument(draft.slices, null, context);
     if (!checked.ok) {
-      if (checked.tab === 'simulazioni') {
-        const [first, ...others] = checked.marketProblems;
-        handleTabChange('simulazioni');
-        toast.error(`Ipotesi di mercato fuori intervallo — ${first.message}${others.length > 0 ? ` (+${others.length})` : ''}`);
-        return;
-      }
-      revealProblem(checked.problem, checked.cleaned);
-      toast.error(narrativeToText(describeTargetProblem(checked.problem)));
+      const [first, ...others] = checked.marketProblems;
+      handleTabChange('simulazioni');
+      toast.error(`Ipotesi di mercato fuori intervallo — ${first.message}${others.length > 0 ? ` (+${others.length})` : ''}`);
       return;
     }
-    if (checked.cleaned !== allocazione) dispatch({ type: 'allocazione/replace', slice: checked.cleaned });
 
     await runGuarded(async () => {
       setSaving(true);
@@ -291,21 +264,15 @@ export default function SettingsPage() {
       // clean draft reseeds from the newest read — so a «saved» dispatched first was reseeded from
       // that stale read, and a legacy market (still `migrated` there) put the bar back.
       await queryClient.invalidateQueries({ queryKey: queryKeys.settings.all(ownerId) });
-      // The baseline is what was WRITTEN (the cleaned tree, the corrected market), so a dropped
-      // empty row does not leave the tab marked as unsaved.
-      dispatch({ type: 'saved', cleaned: composed.cleaned, simulazioni: composed.simulazioni });
+      // The baseline is what was WRITTEN (the corrected market), so an adapted pair does not
+      // leave the tab marked as unsaved.
+      dispatch({ type: 'saved', simulazioni: composed.simulazioni });
     }, (error) => {
-      console.error('Error saving targets:', error);
-      toast.error('Errore nel salvataggio dei target');
+      console.error('Error saving settings:', error);
+      toast.error('Errore nel salvataggio delle impostazioni');
     }, () => {
       setSaving(false);
     });
-  };
-
-  // «Ripristina default»: the FACTORY targets, a different act from «Annulla modifiche».
-  const handleReset = () => {
-    dispatch({ type: 'allocazione/replaceTargets', targets: getDefaultTargets() });
-    toast.info('Target ripristinati ai valori predefiniti');
   };
 
   // «Annulla modifiche»: back to what is saved, by READING it again (the current document,
@@ -315,7 +282,7 @@ export default function SettingsPage() {
     if (!ownerId) return;
     await runGuarded(async () => {
       const document = await queryClient.fetchQuery({ ...settingsQueryOptions(ownerId), staleTime: 0 });
-      dispatch({ type: 'reset', document, fallbackTargets: getDefaultTargets() });
+      dispatch({ type: 'reset', document });
       toast.info('Modifiche annullate: il modulo mostra di nuovo le impostazioni salvate.');
     }, (error) => {
       console.error('Error re-reading the settings:', error);
@@ -372,6 +339,10 @@ export default function SettingsPage() {
   }
 
   const categoriesState = resolveSurfaceState({ loading: loadingCategories, failed: categoriesFailed });
+  // The cash sub-categories (the «Conto» of the default debit) as SAVED: their editor is
+  // Allocazione › Strategia now, and an unsaved edit there is not a place money can sit yet.
+  const cashConfig = settingsDocument?.targets?.cash?.subCategoryConfig;
+  const cashSubCategories = cashConfig?.enabled ? cashConfig.categories : [];
   const accountsState = resolveSurfaceState({ loading: loadingAccounts, failed: accountsFailed });
 
   return (
@@ -389,21 +360,6 @@ export default function SettingsPage() {
                 Modalità demo: salvataggio disattivato
               </span>
             )}
-            {/* Reset is only meaningful for allocation targets; it is the FACTORY targets, not
-                the last save — «Annulla modifiche» in the bar is that. */}
-            {activeTab === 'allocazione' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleReset}
-                disabled={isDemo}
-                aria-label="Ripristina default"
-                className="h-11 desktop:h-8"
-              >
-                <RotateCcw className="h-4 w-4" />
-                <span className="hidden desktop:inline tablet-landscape:inline">Ripristina default</span>
-              </Button>
-            )}
             <Button size="sm" data-band-label="" onClick={handleSave} disabled={isDemo || saving} className={cn('h-11 desktop:h-8', justSaved && SAVED_BUTTON_CLASS)}>
               <SaveButtonContent saving={saving} saved={justSaved} icon={<Save className="h-4 w-4" />} idle="Salva" />
             </Button>
@@ -420,7 +376,7 @@ export default function SettingsPage() {
         renderedPanels={renderedPanels}
       >
         {/* Each view is a controlled view of its slice; the two without one (Condivisione,
-            Aspetto) write where they act. Every panel but Allocazione mounts once opened. */}
+            Aspetto) write where they act. Every panel mounts once opened. */}
         {mountedTabs.has('generale') && (
           <GeneraleTab
             slice={generale}
@@ -430,20 +386,10 @@ export default function SettingsPage() {
             isDemo={isDemo}
             expenseCategories={expenseCategories}
             categoriesState={categoriesState}
-            cashSubCategories={allocazione.classes.cash?.subCategoryEnabled ? allocazione.classes.cash.categories : []}
-            onGoToAllocazione={() => handleTabChange('allocazione')}
+            cashSubCategories={cashSubCategories}
+            riskFreeEstimate={riskFreeEstimate}
           />
         )}
-
-        <AllocazioneTab
-          slice={allocazione}
-          onChange={setAllocazione}
-          onClassChange={setAllocationClass}
-          pendingFocus={draft.pendingFocus}
-          onFocusConsumed={consumeFocus}
-          idealAllocation={declarations.idealAllocation}
-          riskFreeEstimate={riskFreeEstimate}
-        />
 
         {mountedTabs.has('spese') && (
           <SpeseTab
@@ -481,7 +427,7 @@ export default function SettingsPage() {
             saved={draft.saved}
             onChange={setSimulazioni}
             assets={accountsQuery.data}
-            {...resolveSimulazioniGold(simulazioni, allocazione, accountsQuery.data)}
+            {...resolveSimulazioniGold(simulazioni, settingsDocument?.targets, accountsQuery.data)}
             isDemo={isDemo}
           />
         )}

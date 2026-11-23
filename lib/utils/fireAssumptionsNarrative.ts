@@ -56,7 +56,7 @@ export function describeOutsideCapital(outside: FireCapital['outside']): string 
 /** Two decimals, Italian comma: «0,36%» — the costs are a fraction of a point, one decimal would erase them. */
 const pct2 = (value: number): string => formatPercentage(Math.round(value * 100) / 100, 2);
 
-/** True when the costs ignore the stamp duty because Impostazioni › Allocazione has it off: the row links the tile (C12). */
+/** True when the costs ignore the stamp duty because Impostazioni › Preferenze has it off: the row links the tile (C12). */
 export function costsLackStampDuty(assumptions: FireAssumptions): boolean {
   return !!assumptions.costs && !assumptions.costs.stampDutyEnabled;
 }
@@ -136,10 +136,10 @@ export function describeReturnsChip(assumptions: FireAssumptions): FireChip {
 export function describeCostsChip(assumptions: FireAssumptions): FireChip | null {
   const { costs, cost } = assumptions;
   if (!costs || !cost) return null;
-  const stampOff = 'bollo non attivo in Impostazioni › Allocazione';
+  const stampOff = 'bollo non attivo in Impostazioni › Preferenze';
   const terMissing = 'TER non inseriti negli strumenti';
-  const href = '/dashboard/settings?tab=allocazione';
-  const link: FireChipLink = { text: costsLackStampDuty(assumptions) ? 'Attiva il bollo' : 'Impostazioni › Allocazione', href };
+  const href = '/dashboard/settings?tab=generale';
+  const link: FireChipLink = { text: costsLackStampDuty(assumptions) ? 'Attiva il bollo' : 'Impostazioni › Preferenze', href };
   if (!costs.anyTer && !costs.stampDutyEnabled) return { id: 'costs', label: 'Nessun costo', lines: [`${terMissing}; ${stampOff}`], links: [link] };
   if (!costs.anyTer) return { id: 'costs', label: `Costi ${pct2(cost.total)}`, lines: [`Solo bollo; ${terMissing}`], links: [link] };
   if (!costs.stampDutyEnabled) return { id: 'costs', label: `Costi ${pct2(cost.total)}`, lines: [`Solo TER; ${stampOff}`], links: [link] };

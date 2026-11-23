@@ -83,6 +83,8 @@ export interface AssetUsageInput {
 }
 
 const ALLOCATION_HREF = '/dashboard/allocation?tab=accumulo';
+/** The model portfolio's block in Allocazione › Strategia (RU8). */
+const MODEL_HREF = '/dashboard/allocation?tab=strategia#portafoglio-modello';
 
 function planReferences(plan: PlanLike, id: string): boolean {
   return (
@@ -115,7 +117,7 @@ export function buildAssetUsage(input: AssetUsageInput): AssetUsage {
   // R6 — a weight in the model stops it (D-CA5).
   const weight = input.model?.weights.find((w) => w.assetId === id || (w.memberAssetIds ?? []).includes(id));
   if (weight) {
-    blockers.push({ code: 'R6', area: 'Portafoglio modello', sentence: SENTENCES.R6(weight.targetPercentage), href: ALLOCATION_HREF });
+    blockers.push({ code: 'R6', area: 'Portafoglio modello', sentence: SENTENCES.R6(weight.targetPercentage), href: MODEL_HREF });
   }
 
   // R12 — a property financed by loans stops it; deleting the loan itself is free (D-CA6).

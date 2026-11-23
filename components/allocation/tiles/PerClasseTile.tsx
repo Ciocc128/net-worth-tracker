@@ -22,7 +22,7 @@
  */
 
 import Link from 'next/link';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Pencil } from 'lucide-react';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { OrphanedTarget } from '@/lib/utils/allocationUtils';
 import type { AllocationResult, AssetAllocationTarget } from '@/types/assets';
@@ -38,6 +38,8 @@ interface PerClasseTileProps {
   /** Banded, with `bySubCategory` ALREADY stripped of orphaned sub-targets. */
   allocation: AllocationResult;
   targets: AssetAllocationTarget | null;
+  /** Where the targets are edited (Allocazione › Strategia, RU8): the pencil in the aside and the orphans' link. */
+  editHref: string;
   /** The targets the exclusion stranded — the rows above no longer carry them. */
   orphans: OrphanedTarget[];
   /** Euro of each class sitting in EXCLUDED assets, so a dormant row can say where its money is. */
@@ -57,7 +59,7 @@ const ORPHAN_EXPLANATION = {
   plural: 'Questi target non sono raggiungibili e vengono esclusi dai piani: tutto il loro valore è in asset esclusi.',
 } as const;
 
-function OrphanWarning({ orphans }: { orphans: OrphanedTarget[] }) {
+function OrphanWarning({ orphans, editHref }: { orphans: OrphanedTarget[]; editHref: string }) {
   return (
     <div className="flex items-start gap-2">
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-foreground" aria-hidden="true" />
@@ -65,8 +67,8 @@ function OrphanWarning({ orphans }: { orphans: OrphanedTarget[] }) {
         <p className="text-[13px] font-medium text-foreground">Target senza asset ribilanciabili</p>
         <p className="mt-0.5">
           {orphans.length === 1 ? ORPHAN_EXPLANATION.singular : ORPHAN_EXPLANATION.plural} Azzera il target in{' '}
-          <Link href="/dashboard/settings" className="text-foreground underline-offset-2 hover:underline">
-            Impostazioni
+          <Link href={editHref} className="text-foreground underline-offset-2 hover:underline">
+            Strategia
           </Link>{' '}
           oppure togli l&apos;esclusione dall&apos;asset.
         </p>
@@ -83,14 +85,28 @@ function OrphanWarning({ orphans }: { orphans: OrphanedTarget[] }) {
   );
 }
 
-export function PerClasseTile({ reading, aside, allocation, targets, orphans, excludedByClass, collapse, asideWhenClosed, className }: PerClasseTileProps) {
+export function PerClasseTile({ reading, aside, allocation, targets, editHref, orphans, excludedByClass, collapse, asideWhenClosed, className }: PerClasseTileProps) {
+  // The way to the targets (D-ST7): a pencil beside the columns' legend, 32px (44 below `desktop:`).
+  const asideWithEdit = (
+    <span className="flex items-center gap-2">
+      <span>{aside}</span>
+      <Link
+        href={editHref}
+        aria-label="Modifica i target per classe"
+        title="Modifica i target per classe"
+        className="-my-2 flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring desktop:h-8 desktop:w-8"
+      >
+        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+      </Link>
+    </span>
+  );
   return (
-    <Tile eyebrow="Per classe" aside={aside} asideWhenClosed={asideWhenClosed} reading={reading} className={className} ariaLabel="Allocazione per classe" collapse={collapse}>
+    <Tile eyebrow="Per classe" aside={asideWithEdit} asideWhenClosed={asideWhenClosed} reading={reading} className={className} ariaLabel="Allocazione per classe" collapse={collapse}>
       <AllocationBreakdown allocation={allocation} targets={targets} excludedByClass={excludedByClass} className="mt-3" />
 
       <div className="mt-auto border-t border-border pt-3.5 text-[11px] leading-[1.5] text-muted-foreground">
         {orphans.length > 0 ? (
-          <OrphanWarning orphans={orphans} />
+          <OrphanWarning orphans={orphans} editHref={editHref} />
         ) : (
           <p>
             Il segno del gap è quello dell&apos;operazione: + c&apos;è troppo, − manca. Una classe con sottocategorie si apre

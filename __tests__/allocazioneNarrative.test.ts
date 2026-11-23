@@ -254,19 +254,27 @@ describe('buildAllocazioneVerdict', () => {
   });
 });
 
-describe('describeAllocazioneHeader', () => {
-  it('says the total, the class count and where the targets come from', () => {
-    expect(flat(describeAllocazioneHeader({ marketValue: 245000, classCount: 5, targetSource: 'settings' }))).toBe('245.000 € allocati · 5 classi · target dalle impostazioni');
-    expect(flat(describeAllocazioneHeader({ marketValue: 12000, classCount: 1, targetSource: 'goals' }))).toBe('12.000 € allocati · 1 classe · target dai traguardi');
+describe('describeAllocazioneHeader (RU8, D-ST7)', () => {
+  it('says the portfolio against the net worth and names what stays out', () => {
+    // Criterion 6: 16.000 € allocated; net worth 16.000 + 250.000 + 34.000 = 300.000 €.
+    expect(flat(describeAllocazioneHeader({ portfolioValue: 16000, netWorth: 300000, outside: ['Casa', 'Fondo pensione'] }))).toBe(
+      'Portafoglio 16.000 € su 300.000 € di patrimonio · fuori: Casa, Fondo pensione',
+    );
   });
 
-  it('says where the Accumulo tab weights come from (AL6 · R9)', () => {
-    expect(flat(describeAllocazioneHeader({ marketValue: 112574, classCount: 5, targetSource: 'model' }))).toBe('112.574 € allocati · 5 classi · pesi dal portafoglio modello');
-    expect(flat(describeAllocazioneHeader({ marketValue: 112574, classCount: 5, targetSource: 'plan' }))).toBe('112.574 € allocati · 5 classi · dai pesi del piano');
+  it('names the first two and counts the others', () => {
+    const four = ['Casa', 'Fondo pensione', 'Auto', 'Box'];
+    expect(flat(describeAllocazioneHeader({ portfolioValue: 16000, netWorth: 300000, outside: four }))).toBe(
+      'Portafoglio 16.000 € su 300.000 € di patrimonio · fuori: Casa, Fondo pensione e altri 2',
+    );
+    expect(flat(describeAllocazioneHeader({ portfolioValue: 16000, netWorth: 300000, outside: four.slice(0, 3) }))).toBe(
+      'Portafoglio 16.000 € su 300.000 € di patrimonio · fuori: Casa, Fondo pensione e un altro',
+    );
   });
 
-  it('is absent without assets', () => {
-    expect(describeAllocazioneHeader({ marketValue: 0, classCount: 0, targetSource: 'settings' })).toBeUndefined();
+  it('drops the «fuori» clause when nothing is left out, and is absent without wealth', () => {
+    expect(flat(describeAllocazioneHeader({ portfolioValue: 50000, netWorth: 50000, outside: [] }))).toBe('Portafoglio 50.000 € su 50.000 € di patrimonio');
+    expect(describeAllocazioneHeader({ portfolioValue: 0, netWorth: 0, outside: [] })).toBeUndefined();
   });
 });
 

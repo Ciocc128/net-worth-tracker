@@ -6,9 +6,11 @@
  * cash in the accounts; this tile adds the preview (a month's rata and where the classes would go
  * from the model portfolio — today's weights when there is none — the default reserve and no inflow) and the two lists a first-time reader
  * needs before pressing «Crea piano». «Crea piano» opens the editor on the plan dialog as before;
- * the second action, «Apri il portafoglio modello», jumps to the model portfolio's tile.
+ * the second action, «Apri il portafoglio modello», goes to the model portfolio's tile, in
+ * Allocazione › Strategia since RU8 (D-ST8).
  */
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useAnnualCashflow } from '@/lib/hooks/useAnnualCashflow';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { ModelPortfolio } from '@/types/modelPortfolio';
@@ -16,6 +18,7 @@ import type { RebalanceBand } from '@/lib/utils/allocationUtils';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import { compareAllocations } from '@/lib/services/assetAllocationService';
 import { buildAccumuloPreview } from '@/lib/utils/accumuloSummary';
+import { STRATEGIA_MODEL_HREF } from '@/lib/utils/allocationChain';
 import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { formatPercentageIt } from '@/lib/utils/formatters';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
@@ -39,9 +42,6 @@ import {
   suggestMonthlyInflow,
 } from '@/lib/utils/accumulationNarrative';
 
-/** The anchor `AccumuloTab` puts on the model portfolio's cell. */
-export const COMPOSITION_ANCHOR_ID = 'portafoglio-modello';
-
 interface AccumuloVuotoTileProps {
   ownerId: string;
   allAssets: Asset[];
@@ -53,11 +53,9 @@ interface AccumuloVuotoTileProps {
   model: ModelPortfolio | null;
   today: Date;
   onAssetsChanged: () => void;
-  /** Where «Apri il portafoglio modello» goes when the model is a closed row (below `desktop:`); absent = scroll to the anchor. */
-  onGoToComposition?: () => void;
 }
 
-export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLeverageRatio, idealAllocation, model, today, onAssetsChanged, onGoToComposition }: AccumuloVuotoTileProps) {
+export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLeverageRatio, idealAllocation, model, today, onAssetsChanged }: AccumuloVuotoTileProps) {
   const isDemo = useDemoMode();
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -72,12 +70,6 @@ export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLev
         : null,
     [allAssets, targets, band, today, model, suggestedInflow],
   );
-
-  const goToComposition = () => {
-    // Below `desktop:` the model portfolio is a row that may be closed: the tab opens it and scrolls itself.
-    if (onGoToComposition) return onGoToComposition();
-    document.getElementById(COMPOSITION_ANCHOR_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
 
   return (
     <>
@@ -132,8 +124,8 @@ export function AccumuloVuotoTile({ ownerId, allAssets, targets, band, targetLev
           <Button className={TILE_ACTION_CLASS} disabled={isDemo || !targets} onClick={() => setDialogOpen(true)}>
             {ACCUMULO_ACTION_CREATE_PLAN}
           </Button>
-          <Button variant="outline" className={TILE_ACTION_CLASS} onClick={goToComposition}>
-            {ACCUMULO_ACTION_OPEN_MODEL}
+          <Button asChild variant="outline" className={TILE_ACTION_CLASS}>
+            <Link href={STRATEGIA_MODEL_HREF}>{ACCUMULO_ACTION_OPEN_MODEL}</Link>
           </Button>
         </div>
       </Tile>

@@ -422,7 +422,7 @@ export function formatBundleForPrompt(
     lines.push(
       bundle.targetAllocationSource === 'goal_driven'
         ? "Origine dei target: derivati dagli obiettivi di investimento (allocazione goal-driven attiva). Non sono i target manuali delle impostazioni."
-        : 'Origine dei target: impostati manualmente dall\'utente in Impostazioni → Allocazione.'
+        : 'Origine dei target: impostati manualmente dall\'utente in Allocazione › Strategia.'
     );
     for (const [assetClass, target] of Object.entries(targetAlloc)) {
       const currentValue = byAssetClass[assetClass] ?? 0;

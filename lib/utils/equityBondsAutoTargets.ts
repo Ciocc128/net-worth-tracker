@@ -1,5 +1,5 @@
 /**
- * Automatic Azioni/Obbligazioni target split (Impostazioni → Allocazione).
+ * Automatic Azioni/Obbligazioni target split (Allocazione › Strategia, «Formula per età»).
  *
  * The Bull's rule of thumb answers ONE question — how much equity should a portfolio hold at
  * this age and this risk-free rate — and says nothing about the classes that live outside the

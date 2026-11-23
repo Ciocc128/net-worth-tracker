@@ -436,6 +436,13 @@ export interface FamilyMember {
   firstEmploymentYear?: number; // First calendar year of participation — anchors the plafond 5/20-year windows
 }
 
+/**
+ * What `setSettings` takes: the document with `targets` optional — present = the targets are
+ * REPLACED (the re-read-and-write branch), absent = a merge of the fields given (RU8: Impostazioni
+ * writes no targets, Allocazione › Strategia writes them).
+ */
+export type AssetAllocationSettingsWrite = Omit<AssetAllocationSettings, 'targets'> & { targets?: AssetAllocationTarget };
+
 export interface AssetAllocationSettings {
   // The owner's ideal-allocation objectives (Impostazioni → Allocazione → "Allocazione ideale"),
   // read by the weight optimizer (lib/utils/weightOptimizer.ts) to propose market weights for the

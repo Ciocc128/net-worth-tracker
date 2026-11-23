@@ -1,5 +1,6 @@
 /**
- * The risk-free rate in force (lib/utils/riskFreeRate.ts) and its draft behaviour in Impostazioni › Allocazione:
+ * The risk-free rate in force (lib/utils/riskFreeRate.ts) and its draft behaviour — typed in Impostazioni ›
+ * Preferenze since RU8, read by the formula of Allocazione › Strategia:
  * a typed value always wins (0 included), nothing typed follows the ECB estimate (the AAA 10-year yield the cron stores,
  * the frozen anchor before its first run), the estimate's arrival is never an edit, and clearing the field returns to it.
  * Figures are invented and round.
@@ -12,8 +13,9 @@ vi.mock('@/lib/utils/authFetch', () => ({ authenticatedFetch: vi.fn() }));
 import { MONTE_CARLO_FROZEN_ANCHORS } from '@/lib/constants/monteCarloMarketDefaults';
 import { toMonteCarloAnchors } from '@/lib/utils/marketAnchors';
 import { resolveRiskFreeEstimate, resolveRiskFreeRate } from '@/lib/utils/riskFreeRate';
-import { describeRiskFreeSource } from '@/lib/utils/settingsNarrative';
-import { composeSettingsDocument, createSettingsDraft, isSliceDirty, resolveFormulaSplit, settingsDraftReducer } from '@/lib/utils/settingsDraft';
+import { describeRiskFreeOrigin, describeRiskFreeSource } from '@/lib/utils/settingsNarrative';
+import { composeSettingsDocument, createSettingsDraft, isSliceDirty, settingsDraftReducer } from '@/lib/utils/settingsDraft';
+import { createTargetsDraft, resolveFormulaSplit, targetsDraftReducer } from '@/lib/utils/targetsDraft';
 import type { AssetAllocationSettings } from '@/types/assets';
 
 const liveAnchors = toMonteCarloAnchors({ aaa10y: { value: 3, date: '2026-10-20' }, estr: { value: 2, date: '2026-10-20' } });
@@ -35,36 +37,26 @@ describe('resolveRiskFreeRate', () => {
   });
 });
 
-describe('the draft', () => {
+describe('the drafts', () => {
   const doc = (riskFreeRate?: number): AssetAllocationSettings => ({ userAge: 40, riskFreeRate, autoCalculateEquityBonds: true, targets: {} }) as AssetAllocationSettings;
-  const load = (riskFreeRate?: number) => settingsDraftReducer(createSettingsDraft(), { type: 'reset', document: doc(riskFreeRate), fallbackTargets: {} });
+  const loadTargets = (riskFreeRate?: number) => targetsDraftReducer(createTargetsDraft(), { type: 'reset', document: doc(riskFreeRate), fallbackTargets: {} });
+  const loadSettings = (riskFreeRate?: number) => settingsDraftReducer(createSettingsDraft(), { type: 'reset', document: doc(riskFreeRate) });
 
-  it('the estimate arriving is not an edit and feeds the formula', () => {
-    const next = settingsDraftReducer(load(undefined), { type: 'riskFreeEstimate', value: 3 });
-    expect(isSliceDirty('allocazione', next.slices, next.saved)).toBe(false);
-    // 125 − 40 − 3 × 5 = 70
-    expect(resolveFormulaSplit(next.slices.allocazione)?.equityPercentage).toBe(70);
+  it('the estimate feeds the formula while nothing is typed; a typed rate overrides it', () => {
+    // 125 − 40 − 3 × 5 = 70; with 1 typed: 125 − 40 − 1 × 5 = 80.
+    expect(resolveFormulaSplit(targetsDraftReducer(loadTargets(undefined), { type: 'riskFreeEstimate', value: 3 }).slice)?.equityPercentage).toBe(70);
+    expect(resolveFormulaSplit(targetsDraftReducer(loadTargets(1), { type: 'riskFreeEstimate', value: 3 }).slice)?.equityPercentage).toBe(80);
   });
 
-  it('a typed rate overrides the estimate; clearing it returns to the estimate and is an edit to save', () => {
-    let state = settingsDraftReducer(load(undefined), { type: 'riskFreeEstimate', value: 3 });
-    state = settingsDraftReducer(state, { type: 'allocazione/set', patch: { riskFreeRate: 1 } });
-    expect(resolveFormulaSplit(state.slices.allocazione)?.equityPercentage).toBe(80);
-    expect(isSliceDirty('allocazione', state.slices, state.saved)).toBe(true);
-    state = settingsDraftReducer(state, { type: 'allocazione/set', patch: { riskFreeRate: undefined } });
-    expect(isSliceDirty('allocazione', state.slices, state.saved)).toBe(false);
-    expect(resolveFormulaSplit(state.slices.allocazione)?.equityPercentage).toBe(70);
+  it('a typed rate is a Preferenze edit; clearing it back is not', () => {
+    let state = settingsDraftReducer(loadSettings(undefined), { type: 'generale/set', patch: { riskFreeRate: 1 } });
+    expect(isSliceDirty('generale', state.slices, state.saved)).toBe(true);
+    state = settingsDraftReducer(state, { type: 'generale/set', patch: { riskFreeRate: undefined } });
+    expect(isSliceDirty('generale', state.slices, state.saved)).toBe(false);
   });
 
-  it('a saved rate stays typed after the estimate moves, and a re-read keeps the estimate', () => {
-    let state = settingsDraftReducer(load(2), { type: 'riskFreeEstimate', value: 3 });
-    expect(state.slices.allocazione.riskFreeRate).toBe(2);
-    state = settingsDraftReducer(state, { type: 'reset', document: doc(undefined), fallbackTargets: {} });
-    expect(state.slices.allocazione.riskFreeEstimate).toBe(3);
-  });
-
-  it('«Salva» writes no key while the rate follows the estimate, and never the estimate itself', () => {
-    const state = settingsDraftReducer(load(undefined), { type: 'riskFreeEstimate', value: 3 });
+  it('«Salva» writes no value while the rate follows the estimate, and never the estimate itself', () => {
+    const state = loadSettings(undefined);
     const composed = composeSettingsDocument(state.slices, doc(2));
     expect(composed.ok).toBe(true);
     if (composed.ok) {
@@ -81,5 +73,14 @@ describe('describeRiskFreeSource', () => {
     expect(describeRiskFreeSource({ typed: undefined, estimate })).toContain('20/10/2026');
     expect(describeRiskFreeSource({ typed: 4, estimate })).toContain('Impostato da te');
     expect(describeRiskFreeSource({ typed: undefined, estimate: resolveRiskFreeEstimate() })).toContain('in attesa del primo aggiornamento');
+  });
+});
+
+describe('describeRiskFreeOrigin', () => {
+  it('says whose figure the formula reads, in a few words', () => {
+    const estimate = resolveRiskFreeEstimate(liveAnchors);
+    expect(describeRiskFreeOrigin({ typed: 4, estimate })).toBe('impostato da te');
+    expect(describeRiskFreeOrigin({ typed: undefined, estimate })).toBe('stima BCE del 20/10/2026');
+    expect(describeRiskFreeOrigin({ typed: undefined, estimate: resolveRiskFreeEstimate() })).toBe('stima BCE, in attesa del primo aggiornamento');
   });
 });

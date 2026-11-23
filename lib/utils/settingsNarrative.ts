@@ -156,23 +156,19 @@ export function describeCosts({ stampDutyEnabled, stampDutyRate, checkingAccount
 export interface FireTogglesInput {
   includePrimaryResidenceInFIRE: boolean;
   goalBasedInvestingEnabled: boolean;
-  goalDrivenAllocationEnabled: boolean;
 }
 
-/** FIRE e traguardi — the three toggles this page owns. */
-export function describeFireToggles({
-  includePrimaryResidenceInFIRE,
-  goalBasedInvestingEnabled,
-  goalDrivenAllocationEnabled,
-}: FireTogglesInput): Narrative {
+/**
+ * FIRE e traguardi — the two toggles this page owns. Whether the class targets come from the goals
+ * is a SOURCE of the targets since RU8 (D-ST4), chosen in Allocazione › Strategia, not a switch here.
+ */
+export function describeFireToggles({ includePrimaryResidenceInFIRE, goalBasedInvestingEnabled }: FireTogglesInput): Narrative {
   const house = includePrimaryResidenceInFIRE
     ? 'La casa è dentro il patrimonio FIRE'
     : 'La casa resta fuori dal patrimonio FIRE';
-  const goals = !goalBasedInvestingEnabled
-    ? '; traguardi di investimento spenti.'
-    : goalDrivenAllocationEnabled
-      ? '; traguardi attivi e target di allocazione derivati dai traguardi.'
-      : '; traguardi attivi, con target di allocazione manuali.';
+  const goals = goalBasedInvestingEnabled
+    ? '; traguardi attivi: possono dare i target di classe in Allocazione › Strategia.'
+    : '; traguardi di investimento spenti.';
   return [prose(house), prose(goals)];
 }
 
@@ -397,54 +393,6 @@ export function describeEmails(input: EmailsInput): Narrative {
 
 // ─── Allocazione ──────────────────────────────────────────────────────────────
 
-export interface AllocationTotalInput {
-  total: number;
-  isValid: boolean;
-  leverageRatio: number;
-  hasLeverage: boolean;
-  cashUseFixedAmount: boolean;
-  cashFixedAmount: number;
-}
-
-/** Allocazione target — what the plan commits, whether it is leverage or a blocking gap. */
-export function describeAllocationTotal(input: AllocationTotalInput): Narrative {
-  const segments: Narrative = [prose('Il piano impegna il '), figure(pctTrim(input.total)), prose(' del capitale investito')];
-  if (!input.isValid) {
-    segments.push(
-      prose(': mancano '),
-      figure(numTrim(100 - input.total)),
-      prose(' punti al '),
-      figure('100%'),
-      prose(' e il salvataggio è bloccato')
-    );
-  } else if (input.hasLeverage) {
-    segments.push(prose(': leva target '), figure(`${formatNumber(input.leverageRatio, 2)}×`));
-  } else {
-    segments.push(prose(', senza leva'));
-  }
-  if (input.cashUseFixedAmount) {
-    segments.push(
-      prose('; la liquidità fissa ('),
-      figure(euro(input.cashFixedAmount)),
-      prose(') resta fuori dal budget percentuale.')
-    );
-  } else {
-    segments.push(prose('.'));
-  }
-  return segments;
-}
-
-export interface AutoCalcInput {
-  enabled: boolean;
-  userAge?: number;
-  riskFreeRate?: number;
-  /** The RESOLVED equity target (formula minus the other classes), not the raw formula output. */
-  equityPct?: number;
-  bondsPct?: number;
-  /** Sum of every class target outside the auto-calculated pair. */
-  otherTotal?: number;
-}
-
 /** The words under «Risk-free rate»: where the figure in force comes from, and what the reader can do about it. */
 export function describeRiskFreeSource(input: { typed: number | undefined; estimate: RiskFreeResolution }): string {
   const { estimate } = input;
@@ -458,56 +406,16 @@ export function describeRiskFreeSource(input: { typed: number | undefined; estim
   return `Impostato da te. Stima della BCE: ${estimateWords()}. Vale anche per Sharpe e Sortino.`;
 }
 
-/** Auto-calcolo — what the formula does, or would do, with the profile's inputs. */
-export function describeAutoCalc(input: AutoCalcInput): Narrative {
-  const hasInputs =
-    input.userAge !== undefined &&
-    input.riskFreeRate !== undefined &&
-    input.equityPct !== undefined &&
-    input.bondsPct !== undefined;
-  if (input.enabled && hasInputs) {
-    const segments: Narrative = [
-      prose('Formula su '),
-      figure(String(input.userAge)),
-      prose(' anni e '),
-      figure(pctTrim(input.riskFreeRate!)),
-      prose(': '),
-      figure(pctTrim(input.equityPct!)),
-      prose(' alle Azioni e '),
-      figure(pctTrim(input.bondsPct!)),
-      prose(' alle Obbligazioni'),
-    ];
-    if (input.otherTotal !== undefined && input.otherTotal > 0) {
-      segments.push(prose('; le altre classi ('), figure(pctTrim(input.otherTotal)), prose(') scalano dalle Azioni.'));
-    } else {
-      segments.push(prose('.'));
-    }
-    return segments;
-  }
-  if (!input.enabled && hasInputs) {
-    return [
-      prose('Spento: i target sono manuali; con la formula su '),
-      figure(String(input.userAge)),
-      prose(' anni e '),
-      figure(pctTrim(input.riskFreeRate!)),
-      prose(' le Azioni andrebbero al '),
-      figure(pctTrim(input.equityPct!)),
-      prose('.'),
-    ];
-  }
-  // The age and the rate are typed in THIS tile (2026-09-22: they used to live in Preferenze ›
-  // Profilo, and the switch was disabled by a field on another tab), so the reading names the
-  // missing one instead of sending the reader elsewhere.
-  const missing =
-    input.userAge === undefined && input.riskFreeRate === undefined
-      ? "l'età e il risk-free rate"
-      : input.userAge === undefined
-        ? "l'età"
-        : 'il risk-free rate';
-  if (input.enabled) {
-    return [prose(`Attivo, ma manca ${missing}, qui sotto: finché non c'è, i target restano quelli scritti a mano.`)];
-  }
-  return [prose(`Spento: i target sono manuali; per usare la formula manca ${missing}, qui sotto.`)];
+/**
+ * The origin of the risk-free rate in force, in a few words, for the formula's row of Strategia ›
+ * Target per classe (RU8): the field lives in Impostazioni › Preferenze, the row only says whose figure it is.
+ */
+export function describeRiskFreeOrigin(input: { typed: number | undefined; estimate: RiskFreeResolution }): string {
+  if (input.typed !== undefined) return 'impostato da te';
+  const { estimate } = input;
+  return estimate.source === 'ecb' && estimate.date
+    ? `stima BCE del ${formatAnchorDate(estimate.date)}`
+    : 'stima BCE, in attesa del primo aggiornamento';
 }
 
 const classLabel = (assetClass: AssetClass): string => ASSET_CLASS_LABELS[assetClass] ?? assetClass;
@@ -568,25 +476,76 @@ export function describeTargetProblem(problem: TargetProblem): Narrative {
   }
 }
 
-export interface ClassTargetsInput {
+export interface StrategiaTargetsInput {
+  /** The source chosen in the tile's pill (`resolveTargetSource`). */
+  source: 'manual' | 'formula' | 'goals';
+  /** Classes with a target above 0, of `classCount`. */
+  classesWithTarget: number;
   classCount: number;
-  withSubcategories: number;
-  /** The first broken rule of the tree, or null — it replaces the inventory line while it lasts. */
+  /** Σ class targets in % (the fixed-euro cash out). */
+  total: number;
+  /** The fixed euro of the cash, when the cash is a fixed amount; else null. */
+  cashFixedAmount: number | null;
+  /** The formula's inputs and its RESOLVED equity share (after the other classes); absent figures = missing. */
+  formula: { userAge?: number; riskFreeRate?: number; equityPct?: number };
+  /** Goals that decide the classes (the derivation yields something), 0 when none does. */
+  goalCount: number;
+  /** The first broken rule of the tree, or null — it replaces the reading while it lasts. */
   problem: TargetProblem | null;
 }
 
-/** Target per classe — the inventory line over the editable list, or the one thing blocking «Salva». */
-export function describeClassTargets({ classCount, withSubcategories, problem }: ClassTargetsInput): Narrative {
-  if (problem) {
-    return [...describeTargetProblem(problem), prose(' «Salva» ti porta lì e non scrive nulla finché non è corretto.')];
+/**
+ * Strategia › Target per classe (RU8, D-ST4) — ONE sentence: the source and the state of the
+ * targets it gives. Replaces the three readings of Impostazioni › Allocazione (the total, the
+ * formula, the list); a broken rule wins, with where «Salva i target» takes the reader.
+ */
+export function describeStrategiaTargets(input: StrategiaTargetsInput): Narrative {
+  if (input.problem) {
+    return [...describeTargetProblem(input.problem), prose(' «Salva i target» ti porta lì e non scrive nulla finché non è corretto.')];
   }
-  const segments: Narrative = [figure(String(classCount)), prose(' classi, ')];
-  if (withSubcategories === 0) {
-    segments.push(prose('nessuna con sottocategorie'));
+  if (input.source === 'goals') {
+    if (input.goalCount === 0) {
+      return [prose('Dai traguardi: nessun traguardo pesa ancora sulle classi, quindi valgono i target a mano.')];
+    }
+    return [
+      prose('Dai traguardi: '),
+      figure(String(input.goalCount)),
+      prose(input.goalCount === 1 ? ' traguardo attivo decide le classi.' : ' traguardi attivi decidono le classi.'),
+    ];
+  }
+  if (input.source === 'formula') {
+    const { userAge, riskFreeRate, equityPct } = input.formula;
+    if (userAge === undefined || riskFreeRate === undefined || equityPct === undefined) {
+      return [prose("Formula per età: manca l'età, che si scrive in FIRE › Il mio piano; finché non c'è valgono i target a mano.")];
+    }
+    return [
+      prose('Formula per età: con '),
+      figure(String(userAge)),
+      prose(' anni e '),
+      figure(pctTrim(riskFreeRate)),
+      prose(' le Azioni sono al '),
+      figure(pctTrim(equityPct)),
+      prose(', le Obbligazioni prendono il resto.'),
+    ];
+  }
+  const segments: Narrative = [
+    prose('A mano: '),
+    figure(String(input.classesWithTarget)),
+    prose(' classi su '),
+    figure(String(input.classCount)),
+    prose(', totale '),
+    figure(pctTrim(input.total)),
+  ];
+  if (input.total > 100.005) {
+    segments.push(prose(', leva '), figure(`${formatNumber(input.total / 100, 2)}×`));
   } else {
-    segments.push(figure(String(withSubcategories)), prose(' con sottocategorie'));
+    segments.push(prose(', senza leva'));
   }
-  segments.push(prose('; un totale sopra il '), figure('100%'), prose(' è la leva target.'));
+  if (input.cashFixedAmount !== null) {
+    segments.push(prose('; la liquidità fissa ('), figure(euro(input.cashFixedAmount)), prose(') resta fuori dalle percentuali.'));
+  } else {
+    segments.push(prose('.'));
+  }
   return segments;
 }
 

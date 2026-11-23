@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * One asset class of Impostazioni › Allocazione › Target per classe: the class row (its target,
+ * One asset class of Allocazione › Strategia › Target per classe (moved from Impostazioni with RU8): the class row (its target,
  * the «fisso €» switch for Liquidità, the Sottocategorie toggle) and, behind a Collapsible that is
  * NOT force-mounted (since 2026-10-08), the subcategory group — enable switch, the rows sorted by name,
  * «Aggiungi sottocategoria». A collapsed group is not in the DOM.
@@ -22,7 +22,7 @@ import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { sumSubTargets, sumsToHundred } from '@/lib/utils/allocationTargetValidation';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
-import { targetFieldId, type AssetClassDraft, type SubTargetDraft } from '@/lib/utils/settingsDraft';
+import { targetFieldId, type AssetClassDraft, type SubTargetDraft } from '@/lib/utils/targetsDraft';
 import type { AssetClass } from '@/types/assets';
 import { INTERACTIVE_CONTROL_CLASS, pctLabel } from '@/components/settings/tabs/shared';
 import { COLLAPSIBLE_CONTENT_CLASS, SubTargetEditor } from './SubTargetEditor';

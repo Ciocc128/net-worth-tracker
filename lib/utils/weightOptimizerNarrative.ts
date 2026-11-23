@@ -228,7 +228,7 @@ export const OPTIMIZER_DISABLED_READING = 'Nessuna allocazione ideale impostata:
 export const OPTIMIZER_STEP2_MANUAL = 'Manuale';
 export const OPTIMIZER_STEP2_OPTIMIZED = 'Ottimizzato';
 /** The objectives live in Allocazione › Accumulo since A1 (doc/pac-ottimizzatore § RV6); the query opens their modal. */
-export const OPTIMIZER_OBJECTIVES_HREF = '/dashboard/allocation?tab=accumulo&obiettivi=1';
+export const OPTIMIZER_OBJECTIVES_HREF = '/dashboard/allocation?tab=strategia&obiettivi=1';
 export const OPTIMIZER_ACTION_MODIFY_IN_SETTINGS = 'Modifica i criteri';
 export const OPTIMIZER_ACTION_CALCULATE = 'Calcola';
 export const OPTIMIZER_ACTION_APPLY = 'Usa questi pesi';
@@ -357,11 +357,10 @@ export const OBJECTIVES_OFF_READING = 'I criteri sono spenti: la composizione id
 export const OBJECTIVES_SAVED_TOAST = 'Criteri salvati';
 export const OBJECTIVES_TRY_EMPTY = 'Nessuno strumento acquistabile su cui provare i criteri.';
 export const OBJECTIVES_CLASS_TARGETS_EYEBROW = 'Target di classe';
-export const OBJECTIVES_CLASS_TARGETS_READING = 'Il criterio «Classi» porta i pesi verso questi target. Si scrivono in un posto solo: Impostazioni › Allocazione.';
+export const OBJECTIVES_CLASS_TARGETS_READING = 'Il criterio «Classi» porta i pesi verso questi target. Si scrivono in un posto solo: Allocazione › Strategia, Target per classe.';
 export const OBJECTIVES_CLASS_TARGETS_EMPTY = 'Nessun target di classe: il criterio «Classi» non ha nulla da inseguire finché non ne scrivi uno.';
-export const OBJECTIVES_CLASS_TARGETS_LINK = 'Modifica in Impostazioni';
-export const OBJECTIVES_CLASS_TARGETS_HREF = '/dashboard/settings?tab=allocazione';
-export const OBJECTIVES_LINK_FROM_SETTINGS = 'Modifica in Allocazione › Accumulo';
+export const OBJECTIVES_CLASS_TARGETS_LINK = 'Modifica i target per classe';
+export const OBJECTIVES_CLASS_TARGETS_HREF = '/dashboard/allocation?tab=strategia#target';
 export const OBJECTIVES_SETTINGS_EYEBROW = 'Criteri del modello';
 
 // ---------------------------------------------------------------------------

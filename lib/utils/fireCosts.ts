@@ -4,7 +4,7 @@
  *
  * Every engine runs on the per-class returns of Impostazioni › Simulazioni, gross of what the
  * instruments cost. This module derives a yearly cost PER CLASS from the instruments of `K` (their
- * TER, the stamp duty of Impostazioni › Allocazione) and a cost of the portfolio from a weight vector;
+ * TER, the stamp duty of Impostazioni › Preferenze) and a cost of the portfolio from a weight vector;
  * the engines then take `(1 − c/100)` off the capital once a year, after the return (RC4).
  *
  *   RC1  c_i = TER_i + bollo_i, weighted on the market value of the legs of the class

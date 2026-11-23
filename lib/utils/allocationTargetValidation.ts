@@ -1,5 +1,5 @@
 /**
- * The rules Impostazioni › Allocazione's «Salva» enforces on the target tree, as data.
+ * The rules Allocazione › Strategia's «Salva i target» enforces on the target tree, as data.
  *
  * These checks used to live inside the page's save handler, each ending in a toast — so the
  * reader learnt that a group of subcategories did not reach 100% from a message that vanished

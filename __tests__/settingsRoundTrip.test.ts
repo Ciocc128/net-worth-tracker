@@ -517,23 +517,75 @@ describe('setSettings — il riepilogo della Panoramica', () => {
 });
 
 describe('Impostazioni «Salva» ∘ setSettings — the fork’s fields survive a save from the page', () => {
-  // S1 (doc/allineamento-upstream/README.md § 5): the page composes a whole document and
-  // `setSettings` replaces `targets`; a field the compose forgot would vanish on a clean «Salva».
-  it('writes the Monte Carlo market, the dated flows and the Allocazione ideale back untouched', async () => {
-    const result = composeSettingsDocument(sliceSettings(STORED_SETTINGS, TARGETS), STORED_SETTINGS);
+  // S1 (doc/allineamento-upstream/README.md § 5): the page composes its document from the slices; a
+  // field the compose forgot must not vanish. Since RU8 the document carries no `targets`, so the
+  // write MERGES: every field the page does not name stays as the server has it.
+  it('merges, never replacing the targets, and writes nothing of the market or the plan it does not own', async () => {
+    const result = composeSettingsDocument(sliceSettings(STORED_SETTINGS), STORED_SETTINGS);
     if (!result.ok) throw new Error(`compose refused: ${result.tab}`);
 
-    // The stored document is what `setSettings` spreads under the page's own fields.
-    vi.mocked(getDoc).mockResolvedValue({ exists: () => true, data: () => STORED_SETTINGS } as never);
     await setSettings('user-1', result.document);
     const written = writtenPayload();
 
-    expect(written.monteCarloMarket).toEqual(STORED_MONTE_CARLO_MARKET);
+    expect(vi.mocked(setDoc).mock.calls.at(-1)?.[2]).toEqual({ merge: true });
+    expect('targets' in written).toBe(false);
+    expect('monteCarloMarket' in written).toBe(false);
+    expect('coastFireTaxBrackets' in written).toBe(false);
+    // What the page carries through is the document read just before, unchanged.
     expect(written.fireDatedFlows).toEqual(STORED_DATED_FLOWS);
-    expect(written.idealAllocation).toEqual(STORED_IDEAL_ALLOCATION);
     expect(written.fireEmergencyFund).toBe(STORED_SETTINGS.fireEmergencyFund);
-    expect(written.fireCashToInvestPct).toBe(STORED_SETTINGS.fireCashToInvestPct);
     expect(written.plannedAnnualExpenses).toBe(STORED_SETTINGS.plannedAnnualExpenses);
-    expect(written.coastFireTaxBrackets).toEqual(STORED_SETTINGS.coastFireTaxBrackets);
+    expect(STORED_IDEAL_ALLOCATION).toBeDefined();
+  });
+});
+
+/**
+ * M1 of the data-model review, closed by RU8 (doc/riordino-ui/ondata-2.md § 10, criterion 12): a
+ * «Salva» of Impostazioni from a page opened BEFORE Strategia saved the targets must not bring the
+ * old targets back. Run on the real `setSettings` over a one-document store that behaves as Firestore
+ * does: `setDoc` without merge replaces the document, with merge recurses into maps.
+ */
+describe('M1 — a stale Impostazioni «Salva» keeps the targets saved in Strategia', () => {
+  type Doc = Record<string, unknown>;
+  const isMap = (value: unknown): value is Doc => !!value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date);
+  const mergeInto = (base: Doc, patch: Doc): Doc => {
+    const out: Doc = { ...base };
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === DELETE_SENTINEL) delete out[key];
+      else if (isMap(value) && isMap(out[key])) out[key] = mergeInto(out[key] as Doc, value);
+      else out[key] = value;
+    }
+    return out;
+  };
+
+  it('Strategia saves Azioni 70 over 60; the stale page saves an email; the document still says 70', async () => {
+    let stored: Doc = {
+      ...STORED_SETTINGS,
+      targets: { equity: { targetPercentage: 60 }, bonds: { targetPercentage: 40 } },
+      monthlyEmailEnabled: false,
+    };
+    vi.mocked(getDoc).mockImplementation(async () => ({ exists: () => true, data: () => stored }) as never);
+    vi.mocked(setDoc).mockImplementation(async (_ref, data, options) => {
+      stored = (options as { merge?: boolean } | undefined)?.merge ? mergeInto(stored, data as Doc) : (data as Doc);
+    });
+
+    // The Impostazioni page is opened: its draft is the document with Azioni at 60.
+    const staleSlices = sliceSettings(stored as unknown as AssetAllocationSettings);
+
+    // Strategia saves Azioni 70 (the write of «Salva i target»: targets + the two source fields).
+    await setSettings('user-1', {
+      targets: { equity: { targetPercentage: 70 }, bonds: { targetPercentage: 30 } } as unknown as AssetAllocationTarget,
+      autoCalculateEquityBonds: false,
+      goalDrivenAllocationEnabled: false,
+    } as AssetAllocationSettings);
+
+    // The stale page turns the monthly email on and saves, pre-reading the current document.
+    const edited = { ...staleSlices, generale: { ...staleSlices.generale, monthlyEmailEnabled: true } };
+    const result = composeSettingsDocument(edited, stored as unknown as AssetAllocationSettings, { saved: staleSlices, effectiveGoldSubCategory: null });
+    if (!result.ok) throw new Error('compose refused');
+    await setSettings('user-1', result.document);
+
+    expect((stored.targets as Record<string, { targetPercentage: number }>).equity.targetPercentage).toBe(70);
+    expect(stored.monthlyEmailEnabled).toBe(true);
   });
 });

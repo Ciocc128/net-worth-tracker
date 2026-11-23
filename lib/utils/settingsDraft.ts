@@ -21,29 +21,26 @@
  * owns (`__tests__/settingsDraft.test.ts`): the bug this structure can reintroduce is a field
  * that does not come back, and the identity test is where it would show.
  *
- * Which slice a field belongs to is the TAB THAT EDITS IT (the dot must land on that tab):
- * Età and risk-free rate are Allocazione's (the Auto-calcolo tile), the default accounts and the
- * transfer fee are Spese's. Condivisione and Aspetto write nothing through «Salva» (the colour
+ * Which slice a field belongs to is the TAB THAT EDITS IT (the dot must land on that tab): the
+ * risk-free rate is Preferenze's (Calcolo dei rendimenti, since RU8), the default accounts and the
+ * transfer fee are Spese's.
+ *
+ * RU8 (2026-11-23, doc/allocazione-strategia/README.md § 5.4, D-ST5): the class targets left this
+ * draft for Allocazione › Strategia (lib/utils/targetsDraft.ts). «Salva» writes NO `targets` key —
+ * so `setSettings` takes its merge branch, and a «Salva» from a page opened before cannot bring
+ * back targets saved in Strategia since (the M1 defect of the data-model review) — nor
+ * `autoCalculateEquityBonds`; `goalDrivenAllocationEnabled` only to switch it off with the goals. Condivisione and Aspetto write nothing through «Salva» (the colour
  * theme saves itself, the grants are their own documents), so they have no slice.
  *
  * FORK (tenth realignment, T3): a seventh slice, `simulazioni` — the Monte Carlo market
  * assumptions and the IRPEF brackets of Impostazioni › Simulazioni — and the fields the page
  * only CARRIES THROUGH from the document read just before «Salva» (the FIRE plan's emergency
- * fund and dated flows, the optimizer's objectives). `userAge` is read here for the Auto-calcolo
- * formula and NEVER written: its one editor is FIRE › Il mio piano (D-T5). The Simulazioni
+ * fund and dated flows, the optimizer's objectives). The Simulazioni
  * fields are written only when the tab holds an edit (or a legacy document waits to be
  * converted), so a «Salva» from another tab can never turn defaults into a saved market.
  */
 
-import type {
-  Asset,
-  AssetAllocationSettings,
-  AssetAllocationTarget,
-  AssetClass,
-  FamilyMember,
-  IdealAllocationSettings,
-  SubCategoryTarget,
-} from '@/types/assets';
+import type { Asset, AssetAllocationSettings, AssetAllocationSettingsWrite, AssetAllocationTarget, FamilyMember, IdealAllocationSettings } from '@/types/assets';
 import { MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
 import {
   buildTaxBracketSnapshotKey,
@@ -62,92 +59,28 @@ import {
 } from '@/lib/utils/monteCarloMarket';
 import { findMonteCarloMarketProblems, type MonteCarloMarketProblem } from '@/lib/utils/monteCarloMarketValidation';
 import { DEFAULT_IDEAL_ALLOCATION } from '@/lib/utils/weightOptimizer';
-import {
-  dropUnnamedSubTargets,
-  findTargetProblem,
-  type ClassTargetDraft,
-  type TargetProblem,
-} from '@/lib/utils/allocationTargetValidation';
-import { calculateFormulaEquityPercentage, resolveAutoEquityBondsSplit } from '@/lib/utils/equityBondsAutoTargets';
 
 // ─── Identifiers ──────────────────────────────────────────────────────────────────────────
 
-export type SettingsTabId = 'generale' | 'allocazione' | 'spese' | 'dividendi' | 'simulazioni' | 'condivisione' | 'aspetto';
+export type SettingsTabId = 'generale' | 'spese' | 'dividendi' | 'simulazioni' | 'condivisione' | 'aspetto';
 
-export const SETTINGS_TAB_IDS: readonly SettingsTabId[] = [
-  'generale', 'allocazione', 'spese', 'dividendi', 'simulazioni', 'condivisione', 'aspetto',
-];
+export const SETTINGS_TAB_IDS: readonly SettingsTabId[] = ['generale', 'spese', 'dividendi', 'simulazioni', 'condivisione', 'aspetto'];
 
 export function isSettingsTabId(value: string | null | undefined): value is SettingsTabId {
   return (SETTINGS_TAB_IDS as readonly string[]).includes(value ?? '');
 }
 
 /**
- * The class rows in the order the Target per classe tile prints them — Azioni → Obbligazioni →
- * Commodities → Immobili → Liquidità → Crypto → Trend Following → Carry. Not `ASSET_CLASS_SEQUENCE`
- * (Allocazione's order): the two have differed since the page was written, and the 2026-10-08
- * split of the page changed no visible order.
+ * The old `?tab=allocazione` (D-RU21): the targets live in Allocazione › Strategia since RU8, so a
+ * bookmark is replaced by that page, never sent to the default tab.
  */
-export const SETTINGS_CLASS_ORDER: readonly AssetClass[] = [
-  'equity', 'bonds', 'commodity', 'realestate', 'cash', 'crypto', 'trendFollowing', 'carry',
-];
+export const LEGACY_ALLOCAZIONE_TAB = 'allocazione';
+export const STRATEGIA_TARGETS_HREF = '/dashboard/allocation?tab=strategia#target';
 
 /** The «none» option of the account and subcategory selects (a Radix Select cannot hold ''). */
 export const NO_SELECTION = '__none__';
 
-/**
- * Ids of the target fields «Salva» can send the focus to (see `revealTargetProblem`). A class's
- * own input keeps the bare class id, which its `aria-label` already names.
- */
-export const targetFieldId = {
-  classPct: (assetClass: AssetClass) => assetClass,
-  subToggle: (assetClass: AssetClass) => `toggle-${assetClass}`,
-  subName: (assetClass: AssetClass, subIndex: number) => `target-${assetClass}-sub-${subIndex}-name`,
-  subPct: (assetClass: AssetClass, subIndex: number) => `target-${assetClass}-sub-${subIndex}-pct`,
-  assetName: (assetClass: AssetClass, subIndex: number, assetIndex: number) =>
-    `target-${assetClass}-sub-${subIndex}-asset-${assetIndex}-name`,
-  assetPct: (assetClass: AssetClass, subIndex: number, assetIndex: number) =>
-    `target-${assetClass}-sub-${subIndex}-asset-${assetIndex}-pct`,
-  assetAdd: (assetClass: AssetClass, subIndex: number) => `target-${assetClass}-sub-${subIndex}-asset-add`,
-};
-
 // ─── Slices ───────────────────────────────────────────────────────────────────────────────
-
-export interface SpecificAssetDraft {
-  name: string;
-  targetPercentage: number;
-}
-
-export interface SubTargetDraft {
-  name: string;
-  percentage: number;
-  specificAssetsEnabled: boolean;
-  specificAssets: SpecificAssetDraft[];
-  /** UI only — the asset list open under this row. Never written, never part of the dirty check. */
-  expanded: boolean;
-}
-
-export interface AssetClassDraft {
-  targetPercentage: number;
-  subCategoryEnabled: boolean;
-  /** The subcategory names, kept equal to the named `subTargets` (the datalist and the Costi select read it). */
-  categories: string[];
-  subTargets: SubTargetDraft[];
-  /** UI only — the class's group open in the tile. */
-  expanded: boolean;
-}
-
-export interface AllocazioneSlice {
-  userAge: number | undefined;
-  /** The rate TYPED by the reader; `undefined` = follow the ECB estimate (the key is then deleted on «Salva»). */
-  riskFreeRate: number | undefined;
-  /** The ECB estimate in force (`resolveRiskFreeEstimate`), set by the page; read only, never written, never dirty. */
-  riskFreeEstimate?: number;
-  autoCalculate: boolean;
-  cashUseFixedAmount: boolean;
-  cashFixedAmount: number;
-  classes: Record<AssetClass, AssetClassDraft>;
-}
 
 /**
  * Famiglia — string-typed while editing (never fights the reader while typing); a row with no
@@ -164,7 +97,11 @@ export interface FamilyMemberDraft {
 export interface GeneraleSlice {
   includePrimaryResidenceInFIRE: boolean;
   goalBasedInvestingEnabled: boolean;
-  goalDrivenAllocationEnabled: boolean;
+  /**
+   * The rate TYPED by the reader (Calcolo dei rendimenti, since RU8; Investimenti with RU9);
+   * `undefined` = follow the ECB estimate (the key is then deleted on «Salva»).
+   */
+  riskFreeRate: number | undefined;
   stampDutyEnabled: boolean;
   stampDutyRate: number;
   checkingAccountSubCategory: string;
@@ -223,13 +160,13 @@ export interface SimulazioniSlice {
 
 /**
  * Read-only declarations: fields OWNED by other pages (FIRE › Il mio piano, the Assistant's
- * popover, Allocazione › Accumulo). The page reads them for a tile's reading line and never
+ * popover, Allocazione › Strategia). The page reads them for a tile's reading line and never
  * writes them from a control — no dirty check. The ones the FIRE plan and the optimizer own are
  * CARRIED THROUGH `composeSettingsDocument` from the document read just before «Salva» (the
  * write goes through `setSettings`, which replaces the targets and must not lose them).
  */
 export interface SettingsDeclarations {
-  /** The optimizer's objectives, edited in Allocazione › Accumulo; summarised on the Allocazione tab. */
+  /** The optimizer's objectives, edited in Allocazione › Strategia; carried through, never shown here. */
   idealAllocation: IdealAllocationSettings;
   planParams: {
     withdrawalRate?: number;
@@ -249,7 +186,6 @@ export interface SettingsDeclarations {
 }
 
 export interface SettingsSlices {
-  allocazione: AllocazioneSlice;
   generale: GeneraleSlice;
   spese: SpeseSlice;
   dividendi: DividendiSlice;
@@ -258,8 +194,8 @@ export interface SettingsSlices {
 }
 
 /** The tabs that have a slice «Salva» writes — the ones that can carry the dot. */
-export type WritableTabId = 'allocazione' | 'generale' | 'spese' | 'dividendi' | 'simulazioni';
-export const WRITABLE_TABS: readonly WritableTabId[] = ['allocazione', 'generale', 'spese', 'dividendi', 'simulazioni'];
+export type WritableTabId = 'generale' | 'spese' | 'dividendi' | 'simulazioni';
+export const WRITABLE_TABS: readonly WritableTabId[] = ['generale', 'spese', 'dividendi', 'simulazioni'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────────────────
 
@@ -267,41 +203,6 @@ const roundToTwoDecimals = (value: number): number => Math.round(value * 100) / 
 
 const DEFAULT_STAMP_DUTY_RATE = 0.2;
 const DEFAULT_HISTORY_START_YEAR = 2025;
-
-/** A class's rows from its saved target entry, in both saved shapes (number, SubCategoryTarget). */
-function toSubTargetDrafts(subTargets: AssetAllocationTarget[string]['subTargets']): SubTargetDraft[] {
-  if (!subTargets) return [];
-  return Object.entries(subTargets).map(([name, value]) =>
-    typeof value === 'number'
-      ? { name, percentage: value, specificAssetsEnabled: false, specificAssets: [], expanded: false }
-      : {
-          name,
-          percentage: value.targetPercentage,
-          specificAssetsEnabled: value.specificAssetsEnabled || false,
-          specificAssets: (value.specificAssets || []).map((asset) => ({
-            name: asset.name,
-            targetPercentage: asset.targetPercentage,
-          })),
-          expanded: false,
-        }
-  );
-}
-
-/** Every class row from a targets map; a class the map does not name is a 0% row with no rows. */
-export function targetsToClassDrafts(targets: AssetAllocationTarget): Record<AssetClass, AssetClassDraft> {
-  const classes = {} as Record<AssetClass, AssetClassDraft>;
-  for (const assetClass of SETTINGS_CLASS_ORDER) {
-    const entry = targets[assetClass];
-    classes[assetClass] = {
-      targetPercentage: entry?.targetPercentage || 0,
-      subCategoryEnabled: entry?.subCategoryConfig?.enabled || false,
-      categories: entry?.subCategoryConfig?.categories || [],
-      subTargets: toSubTargetDrafts(entry?.subTargets),
-      expanded: false,
-    };
-  }
-  return classes;
-}
 
 export function toFamilyMemberDrafts(members: FamilyMember[] | undefined): FamilyMemberDraft[] {
   return (members ?? []).map((member) => ({
@@ -330,103 +231,20 @@ export function parseFamilyMemberDrafts(drafts: FamilyMemberDraft[]): FamilyMemb
     });
 }
 
-/**
- * Sum of every class target OUTSIDE the auto-calculated Azioni/Obbligazioni pair. Cash drops out
- * when it is a fixed euro amount: it then lives outside the percentage budget entirely.
- */
-export function sumOtherClassTargets(slice: AllocazioneSlice): number {
-  return SETTINGS_CLASS_ORDER
-    .filter((assetClass) => assetClass !== 'equity' && assetClass !== 'bonds')
-    .filter((assetClass) => !(assetClass === 'cash' && slice.cashUseFixedAmount))
-    .reduce((sum, assetClass) => sum + (slice.classes[assetClass]?.targetPercentage || 0), 0);
-}
-
-/** Σ of the class targets, cash excluded when it is a fixed amount — the Allocazione target tile's number. */
-export function sumClassTargets(slice: AllocazioneSlice): number {
-  return SETTINGS_CLASS_ORDER.reduce((sum, assetClass) => {
-    if (assetClass === 'cash' && slice.cashUseFixedAmount) return sum;
-    return sum + (slice.classes[assetClass]?.targetPercentage || 0);
-  }, 0);
-}
-
-/** The formula's pair for the slice, or `null` while an input is missing. */
-export function resolveFormulaSplit(slice: AllocazioneSlice): { equityPercentage: number; bondsPercentage: number } | null {
-  const riskFreeRate = slice.riskFreeRate ?? slice.riskFreeEstimate;
-  if (slice.userAge === undefined || riskFreeRate === undefined) return null;
-  return resolveAutoEquityBondsSplit(
-    calculateFormulaEquityPercentage(slice.userAge, riskFreeRate),
-    sumOtherClassTargets(slice)
-  );
-}
-
-/**
- * With the formula on, Azioni and Obbligazioni are a function of age, risk-free rate and the
- * other classes: every change to the slice settles the pair here, in the reducer, so the view
- * never holds a frame where the inputs moved and the pair did not. Returns the same object when
- * nothing moved (a reducer must not churn identity on a no-op).
- */
-function settleAutoCalculatedPair(slice: AllocazioneSlice): AllocazioneSlice {
-  if (!slice.autoCalculate) return slice;
-  const split = resolveFormulaSplit(slice);
-  if (!split) return slice;
-  const { equity, bonds } = slice.classes;
-  if (equity.targetPercentage === split.equityPercentage && bonds.targetPercentage === split.bondsPercentage) return slice;
-  return {
-    ...slice,
-    classes: {
-      ...slice.classes,
-      equity: { ...equity, targetPercentage: split.equityPercentage },
-      bonds: { ...bonds, targetPercentage: split.bondsPercentage },
-    },
-  };
-}
-
-/** The target tree as the validation module sees it. */
-export function toClassTargetDrafts(slice: AllocazioneSlice): ClassTargetDraft[] {
-  return SETTINGS_CLASS_ORDER.map((assetClass) => ({
-    assetClass,
-    subCategoryEnabled: slice.classes[assetClass]?.subCategoryEnabled ?? false,
-    subTargets: slice.classes[assetClass]?.subTargets ?? [],
-  }));
-}
-
-/** The first rule «Salva» would refuse on the slice as it would be written. */
-export function findSliceTargetProblem(slice: AllocazioneSlice): TargetProblem | null {
-  return findTargetProblem(sumClassTargets(slice), dropUnnamedSubTargets(toClassTargetDrafts(slice)));
-}
-
 // ─── sliceSettings ────────────────────────────────────────────────────────────────────────
 
 /**
- * The six slices from the saved document — the seed of the form at open and at «Annulla».
+ * The slices from the saved document — the seed of the form at open and at «Annulla».
  *
  * @param document - `getSettings`' answer; `null` when the account has no document yet.
- * @param fallbackTargets - The targets a document without them starts from (`getDefaultTargets()`,
- *   handed in so this module stays SDK-free).
  */
-export function sliceSettings(
-  document: AssetAllocationSettings | null,
-  fallbackTargets: AssetAllocationTarget
-): SettingsSlices {
+export function sliceSettings(document: AssetAllocationSettings | null): SettingsSlices {
   const data = document ?? ({} as Partial<AssetAllocationSettings>);
-  const targets = data.targets || fallbackTargets;
-  const cashTarget = targets['cash'];
-
-  const allocazione = settleAutoCalculatedPair({
-    userAge: data.userAge,
-    riskFreeRate: data.riskFreeRate,
-    // The explicit flag when saved; otherwise the presence of both inputs, for accounts that
-    // never toggled the switch (the old form's backward-compat rule).
-    autoCalculate: data.autoCalculateEquityBonds ?? (data.userAge !== undefined && data.riskFreeRate !== undefined),
-    cashUseFixedAmount: cashTarget?.useFixedAmount || false,
-    cashFixedAmount: cashTarget?.fixedAmount || 0,
-    classes: targetsToClassDrafts(targets),
-  });
 
   const generale: GeneraleSlice = {
     includePrimaryResidenceInFIRE: data.includePrimaryResidenceInFIRE ?? false,
     goalBasedInvestingEnabled: data.goalBasedInvestingEnabled ?? false,
-    goalDrivenAllocationEnabled: data.goalDrivenAllocationEnabled ?? false,
+    riskFreeRate: data.riskFreeRate,
     stampDutyEnabled: data.stampDutyEnabled ?? false,
     stampDutyRate: data.stampDutyRate ?? DEFAULT_STAMP_DUTY_RATE,
     checkingAccountSubCategory: data.checkingAccountSubCategory || NO_SELECTION,
@@ -501,70 +319,16 @@ export function sliceSettings(
     },
   };
 
-  return { allocazione, generale, spese, dividendi, simulazioni, declarations };
+  return { generale, spese, dividendi, simulazioni, declarations };
 }
 
 // ─── composeSettingsDocument ──────────────────────────────────────────────────────────────
 
-/**
- * The allocation slice as «Salva» writes it: a subcategory row with no name is one the reader
- * started and left, so it is dropped (and the class's `categories` follow). Returns the same
- * object when nothing had to go.
- */
-export function cleanAllocazioneSlice(slice: AllocazioneSlice): AllocazioneSlice {
-  let changed = false;
-  const classes = { ...slice.classes };
-  for (const assetClass of SETTINGS_CLASS_ORDER) {
-    const draft = slice.classes[assetClass];
-    if (!draft?.subCategoryEnabled) continue;
-    const kept = draft.subTargets.filter((target) => target.name.trim() !== '');
-    if (kept.length === draft.subTargets.length) continue;
-    changed = true;
-    classes[assetClass] = { ...draft, subTargets: kept, categories: kept.map((target) => target.name) };
-  }
-  return changed ? { ...slice, classes } : slice;
-}
-
-/** The targets map from the (cleaned) allocation slice — both saved shapes, as before. */
-function composeTargets(slice: AllocazioneSlice): AssetAllocationTarget {
-  const targets: AssetAllocationTarget = {};
-  for (const assetClass of SETTINGS_CLASS_ORDER) {
-    const draft = slice.classes[assetClass];
-    targets[assetClass] = {
-      targetPercentage: draft.targetPercentage,
-      ...(assetClass === 'cash' && {
-        useFixedAmount: slice.cashUseFixedAmount,
-        fixedAmount: slice.cashFixedAmount,
-      }),
-      subCategoryConfig: {
-        enabled: draft.subCategoryEnabled,
-        // Always derived from the rows: a renamed or deleted row never survives in `categories`.
-        categories: draft.subCategoryEnabled ? draft.subTargets.map((target) => target.name).filter((name) => name !== '') : [],
-      },
-    };
-    if (draft.subCategoryEnabled && draft.subTargets.length > 0) {
-      // Rebuilt from scratch so a deleted or renamed row is gone from the document too.
-      targets[assetClass].subTargets = draft.subTargets.reduce<Record<string, number | SubCategoryTarget>>((acc, target) => {
-        acc[target.name] =
-          target.specificAssetsEnabled && target.specificAssets.length > 0
-            ? {
-                targetPercentage: target.percentage,
-                specificAssetsEnabled: true,
-                specificAssets: target.specificAssets.map((asset) => ({ name: asset.name, targetPercentage: asset.targetPercentage })),
-              }
-            : target.percentage;
-        return acc;
-      }, {});
-    }
-  }
-  return targets;
-}
-
 export type ComposeResult =
   | {
       ok: true;
-      document: AssetAllocationSettings;
-      cleaned: AllocazioneSlice;
+      /** No `targets`: `setSettings` takes its merge branch (RU8, criterion 12). */
+      document: AssetAllocationSettingsWrite;
       /**
        * The Simulazioni slice as it was written (the correlations corrected, the Oro choice explicit,
        * the legacy format converted) — the new baseline — or `null` when «Salva» wrote none of it.
@@ -573,8 +337,7 @@ export type ComposeResult =
       /** The correlation pairs the write adapted to keep the matrix valid (R5); empty when none. */
       adaptedPairs: { index: number; written: number; used: number }[];
     }
-  | { ok: false; problem: TargetProblem; tab: 'allocazione'; cleaned: AllocazioneSlice }
-  | { ok: false; marketProblems: MonteCarloMarketProblem[]; tab: 'simulazioni'; cleaned: AllocazioneSlice };
+  | { ok: false; marketProblems: MonteCarloMarketProblem[]; tab: 'simulazioni' };
 
 /** What the page knows that the slices do not: the baseline (Simulazioni is written only when it differs) and the Oro in force. */
 export interface ComposeContext {
@@ -585,7 +348,7 @@ export interface ComposeContext {
 }
 
 /**
- * The document «Salva» writes, from the slices — or the first broken target rule and its tab.
+ * The document «Salva» writes, from the slices — or the first market figure out of range.
  *
  * @param slices - The draft as edited.
  * @param current - The document as it is NOW (the pre-read of «Salva»), for the fields the write
@@ -598,10 +361,6 @@ export function composeSettingsDocument(
   current: AssetAllocationSettings | null,
   context?: ComposeContext
 ): ComposeResult {
-  const cleaned = cleanAllocazioneSlice(slices.allocazione);
-  const problem = findTargetProblem(sumClassTargets(cleaned), toClassTargetDrafts(cleaned));
-  if (problem) return { ok: false, problem, tab: 'allocazione', cleaned };
-
   // Simulazioni: the market only when it holds an edit (or a legacy document to convert), the
   // brackets only when they were edited — a «Salva» from another tab never writes either.
   const saved = context?.saved ?? slices;
@@ -621,7 +380,7 @@ export function composeSettingsDocument(
       correlations: market.correlations,
       leverageSpread: market.leverageSpread,
     });
-    if (marketProblems.length > 0) return { ok: false, marketProblems, tab: 'simulazioni', cleaned };
+    if (marketProblems.length > 0) return { ok: false, marketProblems, tab: 'simulazioni' };
     // R5: a matrix that is not valid is replaced by the nearest valid one, at full precision.
     correctedCorrelations = correctUpperTriangle(market.correlations, MONTE_CARLO_CLASSES.length);
     marketPayload = toMonteCarloMarketSettings(
@@ -634,21 +393,22 @@ export function composeSettingsDocument(
   const taxBracketsPayload = taxBracketsDirty ? parseTaxBracketDrafts(taxBrackets) : undefined;
 
   const { generale, spese, dividendi } = slices;
-  const document: AssetAllocationSettings = {
-    // `userAge` is NOT written from here (D-T5): the age is typed in FIRE › Il mio piano, and the
-    // copy this page loaded would overwrite a newer one. The slice reads it for the formula only.
-    riskFreeRate: cleaned.riskFreeRate,
-    // Stored explicitly so disabling it survives a reload (derived from age+rate it could not be turned off).
-    autoCalculateEquityBonds: cleaned.autoCalculate,
+  // Switching the goals off switches the goal-driven targets off with them (what the Preferenze
+  // tile did until RU8). The flag is Strategia's now, so it is written ONLY on that transition:
+  // a «Salva» that leaves the goals as they were never touches the source chosen in Strategia.
+  const goalsSwitchedOff = saved.generale.goalBasedInvestingEnabled && !generale.goalBasedInvestingEnabled;
+  const document: AssetAllocationSettingsWrite = {
+    // `userAge` is NOT written from here (D-T5): the age is typed in FIRE › Il mio piano.
+    // Present-but-undefined when it follows the ECB estimate: the service's `'x' in settings` guard deletes it.
+    riskFreeRate: generale.riskFreeRate,
     includePrimaryResidenceInFIRE: generale.includePrimaryResidenceInFIRE,
     goalBasedInvestingEnabled: generale.goalBasedInvestingEnabled,
-    goalDrivenAllocationEnabled: generale.goalDrivenAllocationEnabled,
+    ...(goalsSwitchedOff ? { goalDrivenAllocationEnabled: false } : {}),
     withdrawalRate: current?.withdrawalRate,
     plannedAnnualExpenses: current?.plannedAnnualExpenses,
     fireEmergencyFund: current?.fireEmergencyFund,
     fireCashToInvestPct: current?.fireCashToInvestPct,
     fireDatedFlows: current?.fireDatedFlows,
-    targets: composeTargets(cleaned),
     dividendIncomeCategoryId: dividendi.dividendIncomeCategoryId || undefined,
     dividendIncomeSubCategoryId: dividendi.dividendIncomeSubCategoryId || undefined,
     dividendCashAssetId: dividendi.dividendCashAssetId !== NO_SELECTION ? dividendi.dividendCashAssetId : undefined,
@@ -676,7 +436,7 @@ export function composeSettingsDocument(
     weeklyBudgetEmailEnabled: generale.weeklyBudgetEmailEnabled,
     monthlyEmailRecipients: generale.monthlyEmailRecipients,
     familyMembers: parseFamilyMemberDrafts(generale.familyMembers),
-    // The optimizer's objectives are read-only here (edited in Allocazione › Accumulo): what the
+    // The optimizer's objectives are not this page's (edited in Allocazione › Strategia): what the
     // document holds NOW goes back, never the copy this page loaded.
     idealAllocation: current?.idealAllocation,
     ...(marketPayload ? { monteCarloMarket: marketPayload } : {}),
@@ -702,7 +462,7 @@ export function composeSettingsDocument(
       correlationCorrections: Object.fromEntries(adaptedPairs.map((pair) => [pair.index, pair])),
     };
   }
-  return { ok: true, document, cleaned, simulazioni, adaptedPairs };
+  return { ok: true, document, simulazioni, adaptedPairs };
 }
 
 // ─── Simulazioni helpers ──────────────────────────────────────────────────────────────────
@@ -739,15 +499,15 @@ export function isMarketPending(draft: SimulazioniSlice, saved: SimulazioniSlice
 }
 
 /**
- * The sub-categories that can be named «Oro» (the targets as configured NOW, then the portfolio)
+ * The sub-categories that can be named «Oro» (the targets as saved — Strategia owns them — then the portfolio)
  * and the one in force — the draft's choice, else the default rule (doc/montecarlo/README.md, RG).
  */
 export function resolveSimulazioniGold(
   slice: SimulazioniSlice,
-  allocazione: AllocazioneSlice,
+  targets: AssetAllocationTarget | undefined,
   assets: readonly Asset[] | undefined
 ): { commoditySubCategories: string[]; effectiveGoldSubCategory: string | null } {
-  const fromTargets = (allocazione.classes.commodity?.subTargets ?? []).map((target) => target.name.trim()).filter(Boolean);
+  const fromTargets = Object.keys(targets?.commodity?.subTargets ?? {}).map((name) => name.trim()).filter(Boolean);
   const commoditySubCategories = Array.from(new Set([...fromTargets, ...collectCommoditySubCategories(assets, null)]));
   const effectiveGoldSubCategory =
     slice.market.goldSubCategory === undefined ? findDefaultGoldSubCategory(commoditySubCategories) : slice.market.goldSubCategory;
@@ -778,34 +538,6 @@ function familyMembersSnapshot(members: FamilyMember[]) {
  */
 function snapshotSlice(tab: WritableTabId, slices: SettingsSlices): string {
   switch (tab) {
-    case 'allocazione': {
-      const slice = slices.allocazione;
-      return JSON.stringify({
-        // No `userAge`: it is read here and never written (D-T5), so it cannot be an edit.
-        riskFreeRate: slice.riskFreeRate ?? null,
-        autoCalculate: slice.autoCalculate,
-        cashUseFixedAmount: slice.cashUseFixedAmount,
-        cashFixedAmount: roundToTwoDecimals(slice.cashFixedAmount),
-        classes: SETTINGS_CLASS_ORDER.map((assetClass) => {
-          const draft = slice.classes[assetClass];
-          return {
-            assetClass,
-            targetPercentage: roundToTwoDecimals(draft?.targetPercentage || 0),
-            subCategoryEnabled: draft?.subCategoryEnabled || false,
-            categories: draft?.categories || [],
-            subTargets: (draft?.subTargets || []).map((target) => ({
-              name: target.name,
-              percentage: roundToTwoDecimals(target.percentage),
-              specificAssetsEnabled: target.specificAssetsEnabled,
-              specificAssets: target.specificAssets.map((asset) => ({
-                name: asset.name,
-                targetPercentage: roundToTwoDecimals(asset.targetPercentage),
-              })),
-            })),
-          };
-        }),
-      });
-    }
     case 'generale': {
       const { familyMembers, laborIncomeCategoryIds, monthlyEmailRecipients, stampDutyRate, ...rest } = slices.generale;
       return JSON.stringify({
@@ -835,55 +567,6 @@ export function isSliceDirty(tab: WritableTabId, draft: SettingsSlices, saved: S
   return snapshotSlice(tab, draft) !== snapshotSlice(tab, saved);
 }
 
-// ─── revealTargetProblem ──────────────────────────────────────────────────────────────────
-
-/**
- * Where «Salva» takes the reader for a broken target rule: the class's group opened (and the
- * subcategory's asset list, for an asset rule) in the returned slice, and the id of the field
- * to focus. The page dispatches the slice, activates Allocazione and sets the pending focus; the
- * view consumes it once mounted.
- */
-export function revealTargetProblem(
-  problem: TargetProblem,
-  slice: AllocazioneSlice
-): { slice: AllocazioneSlice; fieldId: string } {
-  if (problem.kind === 'total-below-100') {
-    // The first class the reader can type into (the formula owns Azioni/Obbligazioni when on).
-    const editable = SETTINGS_CLASS_ORDER.find(
-      (assetClass) => !(slice.autoCalculate && (assetClass === 'equity' || assetClass === 'bonds'))
-    );
-    return { slice, fieldId: targetFieldId.classPct(editable ?? SETTINGS_CLASS_ORDER[0]) };
-  }
-
-  const { assetClass } = problem;
-  const draft = slice.classes[assetClass];
-  const subTargets = [...draft.subTargets];
-  let fieldId: string;
-  if (problem.kind === 'sub-total') {
-    // The first row as the list shows it (sorted by name), so the focus lands at the top.
-    const firstShown = subTargets
-      .map((target, index) => ({ name: target.name, index }))
-      .sort((a, b) => a.name.localeCompare(b.name))[0];
-    fieldId = firstShown ? targetFieldId.subPct(assetClass, firstShown.index) : targetFieldId.subToggle(assetClass);
-  } else if (problem.kind === 'sub-name-duplicate') {
-    fieldId = targetFieldId.subName(assetClass, problem.subIndex);
-  } else {
-    subTargets[problem.subIndex] = { ...subTargets[problem.subIndex], expanded: true };
-    fieldId =
-      problem.kind === 'specific-empty'
-        ? targetFieldId.assetAdd(assetClass, problem.subIndex)
-        : problem.kind === 'specific-total'
-          ? targetFieldId.assetPct(assetClass, problem.subIndex, 0)
-          : problem.kind === 'specific-out-of-range'
-            ? targetFieldId.assetPct(assetClass, problem.subIndex, problem.assetIndex)
-            : targetFieldId.assetName(assetClass, problem.subIndex, problem.assetIndex);
-  }
-  return {
-    slice: { ...slice, classes: { ...slice.classes, [assetClass]: { ...draft, expanded: true, subTargets } } },
-    fieldId,
-  };
-}
-
 // ─── The reducer ──────────────────────────────────────────────────────────────────────────
 
 export interface SettingsDraft {
@@ -893,53 +576,32 @@ export interface SettingsDraft {
   saved: SettingsSlices;
   /** `true` once a document has been read: before that nothing can be dirty and nothing is saved. */
   loaded: boolean;
-  /** A field id «Salva» wants focused; the view of its tab consumes it at mount. */
-  pendingFocus: string | null;
 }
 
 export type SettingsDraftAction =
-  | { type: 'reset'; document: AssetAllocationSettings | null; fallbackTargets: AssetAllocationTarget }
-  | { type: 'saved'; cleaned: AllocazioneSlice; simulazioni?: SimulazioniSlice | null }
+  | { type: 'reset'; document: AssetAllocationSettings | null }
+  | { type: 'saved'; simulazioni?: SimulazioniSlice | null }
   | { type: 'generale/set'; patch: Partial<GeneraleSlice> }
   | { type: 'spese/set'; patch: Partial<SpeseSlice> }
   | { type: 'dividendi/set'; patch: Partial<DividendiSlice> }
-  | { type: 'simulazioni/set'; patch: Partial<SimulazioniSlice> }
-  | { type: 'allocazione/set'; patch: Partial<Omit<AllocazioneSlice, 'classes'>> }
-  /** The ECB estimate arrived or moved: both sides take it, so it is never an edit. */
-  | { type: 'riskFreeEstimate'; value: number }
-  | { type: 'allocazione/setClass'; assetClass: AssetClass; patch: Partial<AssetClassDraft> }
-  | { type: 'allocazione/replace'; slice: AllocazioneSlice }
-  | { type: 'allocazione/replaceTargets'; targets: AssetAllocationTarget }
-  | { type: 'focus'; fieldId: string }
-  | { type: 'focusConsumed' };
+  | { type: 'simulazioni/set'; patch: Partial<SimulazioniSlice> };
 
-/** The draft before the first read: every slice at its defaults, nothing dirty, nothing to focus. */
+/** The draft before the first read: every slice at its defaults, nothing dirty. */
 export function createSettingsDraft(): SettingsDraft {
-  const slices = sliceSettings(null, {});
-  return { slices, saved: slices, loaded: false, pendingFocus: null };
-}
-
-function withAllocazione(state: SettingsDraft, slice: AllocazioneSlice): SettingsDraft {
-  const settled = settleAutoCalculatedPair(slice);
-  return settled === state.slices.allocazione ? state : { ...state, slices: { ...state.slices, allocazione: settled } };
+  const slices = sliceSettings(null);
+  return { slices, saved: slices, loaded: false };
 }
 
 export function settingsDraftReducer(state: SettingsDraft, action: SettingsDraftAction): SettingsDraft {
   switch (action.type) {
     case 'reset': {
       // A re-read replaces BOTH sides: the form shows the saved document and nothing is dirty.
-      const fresh = sliceSettings(action.document, action.fallbackTargets);
-      // The estimate is not in the document: a re-read keeps the one the page already handed in.
-      const estimate = state.slices.allocazione.riskFreeEstimate;
-      const slices =
-        estimate === undefined ? fresh : { ...fresh, allocazione: settleAutoCalculatedPair({ ...fresh.allocazione, riskFreeEstimate: estimate }) };
-      return { slices, saved: slices, loaded: true, pendingFocus: null };
+      const slices = sliceSettings(action.document);
+      return { slices, saved: slices, loaded: true };
     }
     case 'saved': {
-      // The baseline is what was WRITTEN (the cleaned tree), so a dropped empty row does not
-      // leave Allocazione marked as unsaved.
-      // Simulazioni likewise: the baseline is the market as it was written (corrected, converted).
-      const slices = { ...state.slices, allocazione: action.cleaned, ...(action.simulazioni ? { simulazioni: action.simulazioni } : {}) };
+      // The baseline is what was WRITTEN: Simulazioni's market as it was written (corrected, converted).
+      const slices = { ...state.slices, ...(action.simulazioni ? { simulazioni: action.simulazioni } : {}) };
       return { ...state, slices, saved: slices };
     }
     case 'generale/set':
@@ -950,38 +612,5 @@ export function settingsDraftReducer(state: SettingsDraft, action: SettingsDraft
       return { ...state, slices: { ...state.slices, dividendi: { ...state.slices.dividendi, ...action.patch } } };
     case 'simulazioni/set':
       return { ...state, slices: { ...state.slices, simulazioni: { ...state.slices.simulazioni, ...action.patch } } };
-    case 'allocazione/set':
-      return withAllocazione(state, { ...state.slices.allocazione, ...action.patch });
-    case 'riskFreeEstimate': {
-      if (state.slices.allocazione.riskFreeEstimate === action.value && state.saved.allocazione.riskFreeEstimate === action.value) return state;
-      const withEstimate = (slices: SettingsSlices): SettingsSlices => ({
-        ...slices,
-        allocazione: settleAutoCalculatedPair({ ...slices.allocazione, riskFreeEstimate: action.value }),
-      });
-      return { ...state, slices: withEstimate(state.slices), saved: withEstimate(state.saved) };
-    }
-    case 'allocazione/setClass': {
-      const { classes } = state.slices.allocazione;
-      return withAllocazione(state, {
-        ...state.slices.allocazione,
-        classes: { ...classes, [action.assetClass]: { ...classes[action.assetClass], ...action.patch } },
-      });
-    }
-    case 'allocazione/replace':
-      return withAllocazione(state, action.slice);
-    case 'allocazione/replaceTargets': {
-      // «Ripristina default»: the FACTORY targets — the cash fixed-amount pair follows them.
-      const cash = action.targets['cash'];
-      return withAllocazione(state, {
-        ...state.slices.allocazione,
-        cashUseFixedAmount: cash?.useFixedAmount || false,
-        cashFixedAmount: cash?.fixedAmount || 0,
-        classes: targetsToClassDrafts(action.targets),
-      });
-    }
-    case 'focus':
-      return { ...state, pendingFocus: action.fieldId };
-    case 'focusConsumed':
-      return state.pendingFocus === null ? state : { ...state, pendingFocus: null };
   }
 }
