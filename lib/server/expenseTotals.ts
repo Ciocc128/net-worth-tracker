@@ -1,5 +1,3 @@
-import 'server-only';
-
 /**
  * Who WRITES the monthly totals (doc/totali-mensili/README.md § 5): the server alone, rebuilding a
  * month from its rows (D-TM5). Three entries:
@@ -43,6 +41,7 @@ import {
   type ExpenseFlowSource,
 } from '@/lib/utils/expenseTotals';
 import { toDate } from '@/lib/utils/dateHelpers';
+import { rebuildAllExpenseTotalsIn, type RebuildAllResult } from '@/lib/server/expenseTotalsRebuildAll';
 
 const EXPENSES = 'expenses';
 
@@ -225,32 +224,15 @@ export async function rebuildExpenseTotalsForDates(
   }
 }
 
-export interface RebuildAllResult {
-  rowsRead: number;
-  years: number[];
-  deletedYears: number[];
-}
+export type { RebuildAllResult } from '@/lib/server/expenseTotalsRebuildAll';
 
 /**
- * The whole history from one read of every row (§ 5.4): every year from the oldest row's to the
- * newest's (the running year included), each written whole; a document for a year with no row left
- * is deleted. E reads and Y writes.
+ * The whole history from one read of every row (§ 5.4), on the app's Admin SDK. The body lives in
+ * `expenseTotalsRebuildAll.ts`, which takes the Firestore it writes to, so the seeds and the
+ * migration script run the same code on their own instance.
  */
 export async function rebuildAllExpenseTotals(userId: string, now: Date = new Date()): Promise<RebuildAllResult> {
-  const [rows, existing] = await Promise.all([readAllRows(userId), readYearDocs(userId)]);
-  const years = new Set<number>();
-  if (rows.length > 0) {
-    const yearsOfRows = rows.map((row) => italyMonthOf(row.date).year);
-    const first = Math.min(...yearsOfRows);
-    const last = Math.max(...yearsOfRows, italyMonthOf(now).year);
-    for (let year = first; year <= last; year++) years.add(year);
-  }
-  const batch = adminDb.batch();
-  for (const year of years) batch.set(yearRef(userId, year), buildYearTotals(userId, year, rows, now));
-  const deletedYears = existing.map((doc) => doc.year).filter((year) => !years.has(year));
-  for (const year of deletedYears) batch.delete(yearRef(userId, year));
-  await batch.commit();
-  return { rowsRead: rows.length, years: [...years].sort((a, b) => a - b), deletedYears };
+  return rebuildAllExpenseTotalsIn(adminDb, userId, now);
 }
 
 // ─── The nightly check ──────────────────────────────────────────────────────

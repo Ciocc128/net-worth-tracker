@@ -49,6 +49,7 @@ import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { allowUser } from './lib/allowUser';
+import { rebuildExpenseTotalsFor } from './lib/rebuildExpenseTotals';
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
   console.error(
@@ -183,5 +184,6 @@ console.info(`Seeding Divisione E2E fixture for ${UID} on ${PROJECT_ID}…`);
 await seedAccount();
 await removeLeftovers();
 await seedData();
+await rebuildExpenseTotalsFor(db, [UID]);
 await seedSettings();
 console.info('Done.');

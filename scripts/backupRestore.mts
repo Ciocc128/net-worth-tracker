@@ -22,6 +22,7 @@ import { adminFirestoreKinds } from './lib/backup/firestoreKinds';
 import { countByCollection } from './lib/backup/registry';
 import { decodeDocument, encodeDocument } from './lib/backup/serializer';
 import { confirmProductionWrite } from './lib/confirmProduction';
+import { rebuildExpenseTotalsFor } from './lib/rebuildExpenseTotals';
 
 const USAGE = 'usage: npm run backup:restore -- <file> [--doc <path>]   |   npm run backup:restore:prod -- <file> --doc <path>';
 const EMULATOR_PASSWORD = 'test1234';
@@ -122,6 +123,18 @@ async function main() {
     process.exit(1);
   }
   console.info(`\n✓ ${documents.length} documenti scritti in ${target.source === 'production' ? 'PRODUZIONE' : 'emulatore'} e riletti uguali al backup`);
+
+  // The monthly totals are a cache (left out without --with-caches): the emulator rebuilds them
+  // from the restored rows, so the restored accounts read as production does (doc/totali-mensili § 7.3).
+  if (target.source === 'emulator' && !doc) {
+    const owners = new Set(
+      documents
+        .filter((d) => d.path.startsWith('expenses/'))
+        .map((d) => (d.data as Record<string, unknown>).userId)
+        .filter((u): u is string => typeof u === 'string'),
+    );
+    if (owners.size > 0) await rebuildExpenseTotalsFor(db, [...owners]);
+  }
 }
 
 main()

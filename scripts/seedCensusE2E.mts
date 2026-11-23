@@ -58,6 +58,7 @@ import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { allowUser } from './lib/allowUser';
+import { rebuildExpenseTotalsFor } from './lib/rebuildExpenseTotals';
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
   console.error(
@@ -595,6 +596,7 @@ await seedAssets();
 await seedSnapshots();
 await seedCategoriesAndCenters();
 await seedExpenses();
+await rebuildExpenseTotalsFor(db, [UID]);
 await seedBudget();
 await seedCoupon();
 await seedPensionContributions();

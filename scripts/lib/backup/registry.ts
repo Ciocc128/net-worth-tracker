@@ -44,6 +44,7 @@ export const BACKUP_COLLECTIONS: readonly BackupCollection[] = [
   { name: 'costCenters', ownership: 'userField', cache: false, note: 'centri di costo' },
   { name: 'accumulationPlans', ownership: 'userField', cache: false, note: 'piani di accumulo (PAC)' },
   { name: 'assistantThreads', ownership: 'userField', cache: false, subcollections: ['messages'], note: "conversazioni dell'assistente" },
+  { name: 'expense-totals', ownership: 'userField', cache: true, note: 'totali mensili delle spese per anno (id {uid}_{anno}; ricostruiti da expense-totals:build)' },
   // ── one document per account, id = uid ─────────────────────────────────────────────────────
   { name: 'users', ownership: 'docId', cache: false, note: 'profilo' },
   { name: 'assetAllocationTargets', ownership: 'docId', cache: false, note: 'impostazioni e target di allocazione' },
@@ -60,6 +61,7 @@ export const BACKUP_COLLECTIONS: readonly BackupCollection[] = [
   { name: 'performance-cache', ownership: 'docId', cache: true, note: 'cache dei rendimenti' },
   { name: 'exposure-cache', ownership: 'docId', cache: true, note: "cache dell'esposizione" },
   { name: 'dashboardOverviewSummaries', ownership: 'docId', cache: true, note: 'riepilogo della Panoramica' },
+  { name: 'expense-totals-meta', ownership: 'docId', cache: true, note: 'ultima verifica notturna dei totali mensili' },
   // ── shared by every account ─────────────────────────────────────────────────────────────────
   { name: 'benchmark-cache', ownership: 'global', cache: true, note: 'storico dei benchmark' },
   { name: 'fx-rate-cache', ownership: 'global', cache: true, note: 'cambi' },

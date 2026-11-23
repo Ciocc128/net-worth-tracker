@@ -5,6 +5,8 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { Dividend, DividendFormData } from '@/types/dividend';
 import { convertMultipleToEur, getExchangeRateToEur } from './currencyConversionService';
 import { removeUndefinedDeep as removeUndefinedFields } from '@/lib/utils/firestoreData';
+import { toDate } from '@/lib/utils/dateHelpers';
+import { rebuildExpenseTotalsForDates } from '@/lib/server/expenseTotals';
 
 const DIVIDENDS_COLLECTION = 'dividends';
 
@@ -464,14 +466,18 @@ export async function deleteUpcomingCouponsForAsset(
   if (querySnapshot.empty) return;
 
   const batch = adminDb.batch();
+  const removedRowDates: Date[] = [];
   querySnapshot.docs.forEach(doc => {
     const expenseId = doc.data().expenseId as string | undefined;
     if (expenseId) {
       batch.delete(adminDb.collection('expenses').doc(expenseId));
+      removedRowDates.push(toDate(doc.data().paymentDate));
     }
     batch.delete(doc.ref);
   });
   await batch.commit();
+  // The rows were in the months ahead, which the monthly totals hold too (doc/totali-mensili § 4.2).
+  await rebuildExpenseTotalsForDates(userId, removedRowDates, 'upcoming_payouts_deleted');
 }
 
 /**
@@ -497,12 +503,16 @@ export async function deleteUpcomingFinalPremiumForAsset(
   if (querySnapshot.empty) return;
 
   const batch = adminDb.batch();
+  const removedRowDates: Date[] = [];
   querySnapshot.docs.forEach(doc => {
     const expenseId = doc.data().expenseId as string | undefined;
     if (expenseId) {
       batch.delete(adminDb.collection('expenses').doc(expenseId));
+      removedRowDates.push(toDate(doc.data().paymentDate));
     }
     batch.delete(doc.ref);
   });
   await batch.commit();
+  // The rows were in the months ahead, which the monthly totals hold too (doc/totali-mensili § 4.2).
+  await rebuildExpenseTotalsForDates(userId, removedRowDates, 'upcoming_payouts_deleted');
 }

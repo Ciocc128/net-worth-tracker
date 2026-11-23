@@ -99,7 +99,14 @@ describe('rebuildAllExpenseTotals', () => {
     storeRow('old', { amount: -10, date: italy('2023-06-10T12:00:00') });
     fake.set(`expense-totals/${UID}_2021`, { userId: UID, year: 2021, schemaVersion: 1, months: {} });
     const result = await rebuildAllExpenseTotals(UID, NOW);
-    expect(result).toEqual({ rowsRead: 8, years: [2023, 2024, 2025], deletedYears: [2021] });
+    expect(result).toMatchObject({ rowsRead: 8, years: [2023, 2024, 2025], deletedYears: [2021] });
+    // 2023 holds only the 'old' row (−10 €, June); 2024 none; no year had a document before.
+    expect(result.perYear.map((y) => [y.year, y.after.rowCount, y.monthsWithRows, y.before])).toEqual([
+      [2023, 1, 1, null],
+      [2024, 0, 0, null],
+      [2025, 7, expect.any(Number), null],
+    ]);
+    expect(result.perYear[0].after.amountSum).toBe(-10);
     expect(yearDoc(2024)!.months['06']).toMatchObject({ rowCount: 0 });
     expect(yearDoc(2021)).toBeNull();
   });
@@ -195,8 +202,8 @@ describe('CA8 — the cron\'s reads for one account', () => {
     const expenses = rows.map((r) => ({ ...r, userId: UID, categoryId: r.type === 'income' ? 'stipendio' : 'spesa', categoryName: 'x', currency: 'EUR', createdAt: r.date, updatedAt: r.date }) as unknown as Expense);
     const expected = buildHallOfFameRankings(calculateMonthlyRecords(snapshots, expenses), calculateYearlyRecords(snapshots, expenses));
     const stored = fake.get(`hall-of-fame/${UID}`)!;
-    expect(stored.bestMonthsBySavings).toEqual(expected.bestMonthsBySavings.map((r) => expect.objectContaining({ year: r.year, month: r.month })));
-    for (const [a, b] of (stored.worstYearsByExpenses as Array<{ totalExpenses: number }>).map((r, i) => [r.totalExpenses, expected.worstYearsByExpenses[i].totalExpenses])) {
+    expect(stored.bestMonthsBySavings).toEqual(expected.bestMonthsBySavings!.map((r) => expect.objectContaining({ year: r.year, month: r.month })));
+    for (const [a, b] of (stored.worstYearsByExpenses as Array<{ totalExpenses: number }>).map((r, i) => [r.totalExpenses, expected.worstYearsByExpenses![i].totalExpenses])) {
       expect(Math.abs(a - b)).toBeLessThanOrEqual(0.005);
     }
   });

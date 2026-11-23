@@ -6,6 +6,7 @@ import { Dividend } from '@/types/dividend';
 import { getAllDividends, updateDividend } from '@/lib/services/dividendService';
 import type { ExpenseCategory } from '@/types/expenses';
 import { invalidateDashboardOverviewSummaryServer } from '@/lib/services/dashboardOverviewInvalidation.server';
+import { rebuildExpenseTotalsForDates } from '@/lib/server/expenseTotals';
 import { toDate } from '@/lib/utils/dateHelpers';
 import { appliedBalanceEffectsOf, type SettlementRow } from '@/lib/utils/cashSettlement';
 import { roundToCents } from '@/lib/utils/cents';
@@ -138,7 +139,11 @@ export async function createExpenseFromDividend(
 
     // The ROW is an input of the Panoramica (the month's income) whether or not an account was
     // credited: invalidating only on a credit left an uncredited payment out of it for hours.
-    if (result.written) await invalidateDashboardOverviewSummaryServer(dividend.userId, 'dividend_income_created');
+    if (result.written) {
+      await invalidateDashboardOverviewSummaryServer(dividend.userId, 'dividend_income_created');
+      // A payment in a month that is not the running one: its monthly totals (doc/totali-mensili § 5.2).
+      await rebuildExpenseTotalsForDates(dividend.userId, [paymentDate], 'dividend_income_created', now);
+    }
     console.log(`[dividendIncomeService] Income row in ${currency} (amount: ${amount.toFixed(2)}, credited: ${result.credited})`);
     return result.expenseId;
   } catch (error) {
@@ -170,8 +175,10 @@ export async function updateExpenseFromDividend(
     const expenseRef = adminDb.collection(EXPENSES_COLLECTION).doc(expenseId);
     const now = new Date();
 
+    let previousDate: Date | null = null;
     await adminDb.runTransaction(async (tx) => {
       const expenseSnap = await tx.get(expenseRef);
+      previousDate = expenseSnap.exists ? toDate(expenseSnap.data()?.date) : null;
       // A4 (doc/sicurezza/README.md RS5): a linked row of another account is never rewritten.
       if (expenseSnap.exists && expenseSnap.data()?.userId !== dividend.userId) {
         throw new Error(`Expense ${expenseId} is not in the account of dividend ${dividend.id}`);
@@ -197,6 +204,7 @@ export async function updateExpenseFromDividend(
 
     // The row's amount and date changed even when no account moved.
     await invalidateDashboardOverviewSummaryServer(dividend.userId, 'dividend_income_updated');
+    await rebuildExpenseTotalsForDates(dividend.userId, [previousDate, paymentDate], 'dividend_income_updated', now);
     console.log(`[dividendIncomeService] Updated income row in ${currency} (amount: ${amount.toFixed(2)})`);
   } catch (error) {
     console.error('Error updating expense from dividend:', error);
@@ -222,9 +230,11 @@ export async function deleteExpenseForDividend(
     const now = new Date();
 
     // The owner of the deleted row, whose overview loses an income row whether or not it was credited.
+    let deletedDate: Date | null = null;
     const rowOwnerId = await adminDb.runTransaction(async (tx) => {
       const expenseSnap = await tx.get(expenseRef);
       const row = expenseSnap.exists ? expenseSnap.data() : undefined;
+      deletedDate = row?.date ? toDate(row.date) : null;
       if (row && row.userId !== ownerId) {
         console.warn('[dividendIncomeService] Linked expense of another account left untouched', { dividendId, expenseId });
         return undefined;
@@ -247,7 +257,10 @@ export async function deleteExpenseForDividend(
     await updateDividend(dividendId, {
       expenseId: undefined,
     });
-    if (rowOwnerId) await invalidateDashboardOverviewSummaryServer(rowOwnerId, 'dividend_income_deleted');
+    if (rowOwnerId) {
+      await invalidateDashboardOverviewSummaryServer(rowOwnerId, 'dividend_income_deleted');
+      await rebuildExpenseTotalsForDates(rowOwnerId, [deletedDate], 'dividend_income_deleted', now);
+    }
   } catch (error) {
     console.error('Error deleting expense for dividend:', error);
     throw new Error('Failed to delete expense for dividend');

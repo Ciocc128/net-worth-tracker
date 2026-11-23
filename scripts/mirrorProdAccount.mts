@@ -20,6 +20,7 @@ import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { allowUser, disallowUser } from './lib/allowUser';
+import { rebuildExpenseTotalsFor } from './lib/rebuildExpenseTotals';
 
 /** Overridable (`MIRROR_UID=… npm run mirror:remove`) to clear a mirror seeded under another id. */
 export const MIRROR_UID = process.env.MIRROR_UID || 'prod-mirror';
@@ -33,7 +34,9 @@ const EMULATOR_ENV = {
   GCLOUD_PROJECT: 'demo-net-worth',
 };
 const USER_COLLECTIONS = ['assets', 'expenses', 'expenseCategories', 'monthly-snapshots', 'assetTransactions', 'pensionContributions', 'dividends', 'costCenters', 'goals', 'assistantThreads', 'accumulationPlans'];
-const PER_USER_DOCS = ['users', 'modelPortfolios', 'assetAllocationTargets', 'assetTransactionsMeta', 'budgets', 'hall-of-fame', 'userPreferences', 'performance-cache', 'exposure-cache', 'dashboardOverviewSummaries'];
+const PER_USER_DOCS = ['users', 'modelPortfolios', 'assetAllocationTargets', 'assetTransactionsMeta', 'budgets', 'hall-of-fame', 'userPreferences', 'performance-cache', 'exposure-cache', 'dashboardOverviewSummaries', 'expense-totals-meta'];
+/** Rebuilt in the emulator from the copied rows, never copied (doc/totali-mensili/README.md § 7.3): only removed. */
+const DERIVED_USER_COLLECTIONS = ['expense-totals'];
 
 type AnyRecord = Record<string, unknown>;
 const [command, argument] = process.argv.slice(2);
@@ -138,6 +141,8 @@ async function childSeed() {
     await db.collection(c).doc(MIRROR_UID).set(payload);
     console.info(`seeded ${c}/${MIRROR_UID}`);
   }
+  // The monthly totals are rebuilt from the copied rows with the app's own code, as on production.
+  await rebuildExpenseTotalsFor(db, [MIRROR_UID]);
   console.info(`mirror ready — login ${MIRROR_EMAIL} / ${MIRROR_PASSWORD} on the emulator app`);
 }
 
@@ -163,7 +168,7 @@ async function emulatorAdmin() {
 }
 
 async function removeRows(db: FirebaseFirestore.Firestore) {
-  for (const c of USER_COLLECTIONS) {
+  for (const c of [...USER_COLLECTIONS, ...DERIVED_USER_COLLECTIONS]) {
     const snap = await db.collection(c).where('userId', '==', MIRROR_UID).get();
     let batch = db.batch();
     let n = 0;

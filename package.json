@@ -20,6 +20,8 @@
     "dividends:check": "tsx scripts/checkDividendQuantities.mts",
     "dividends:check:emulator": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-net-worth tsx scripts/checkDividendQuantities.mts",
     "users:allow": "tsx scripts/usersAllow.mts",
+    "expense-totals:build": "tsx scripts/buildExpenseTotals.mts",
+    "expense-totals:build:emulator": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-net-worth tsx scripts/buildExpenseTotals.mts",
     "backup:export": "tsx scripts/backupExport.mts",
     "backup:export:emulator": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-net-worth tsx scripts/backupExport.mts",
     "backup:restore": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-net-worth tsx scripts/backupRestore.mts",
