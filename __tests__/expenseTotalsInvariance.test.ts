@@ -240,6 +240,9 @@ const CLOCKS = [
   },
 ];
 
+// Each of these reads the whole fixture through every reader: ~3.5 s alone, past vitest's 5 s default on a loaded CI runner.
+const HEAVY_TEST_MS = 30_000;
+
 describe('CA5 — every reader of Fase A on the totals gives the figures of the rows', () => {
   for (const clock of CLOCKS) {
     it(clock.name, async () => {
@@ -262,7 +265,7 @@ describe('CA5 — every reader of Fase A on the totals gives the figures of the 
       const performance = readAll(rendimenti, clock.snapshots, clock.now);
       expectSame(performance.cashFlows, expected.cashFlows, 'cashFlows');
       expectSame(performance.adjustments, expected.adjustments, 'adjustments');
-    });
+    }, HEAVY_TEST_MS);
   }
 
   it('FIRE\'s recent window reads only from January of last year', async () => {
@@ -282,5 +285,5 @@ describe('CA9 — no totals yet: the readers read the rows, as today', () => {
     const flows = await loadExpenseFlows('owner', sourceOf(rows, []), { now });
     expect(flows).toHaveLength(rows.length);
     expectSame(readAll(flows, CLOCKS[0].snapshots, now), readAll(rows, CLOCKS[0].snapshots, now));
-  });
+  }, HEAVY_TEST_MS);
 });
