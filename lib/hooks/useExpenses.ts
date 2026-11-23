@@ -33,11 +33,12 @@ import type { ExpenseWindow } from '@/lib/utils/expenseWindows';
  * @param userId - User ID (undefined before auth completes)
  * @returns React Query result with expenses data, loading state, and error
  */
-export function useExpenses(userId: string | undefined) {
+export function useExpenses(userId: string | undefined, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.expenses.all(userId || ''),
     queryFn: () => getAllExpenses(userId!),
-    enabled: !!userId, // Only run if userId exists (prevents query before auth)
+    // Only run if userId exists (prevents query before auth); Analisi reads the whole collection only in «Storico».
+    enabled: !!userId && (options?.enabled ?? true),
   });
 }
 

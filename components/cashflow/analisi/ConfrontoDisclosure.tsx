@@ -14,8 +14,17 @@ import { TILE_EYEBROW_CLASS } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
 import { CONFRONTO_LAZY_CHARTS, ConfrontoAnnualeSection } from '@/components/cashflow/ConfrontoAnnualeSection';
 import { usePreloadWhenIdle } from '@/components/ui/lazy-component';
+import { useExpensesInRange } from '@/lib/hooks/useExpenses';
+import { analisiMonthWindow } from '@/lib/utils/expenseWindows';
+import { composeAnalisiExpenses } from '@/lib/utils/analisiExpenses';
 
 interface ConfrontoDisclosureProps {
+  /** The account: a comparison month cut at today's day, of a year the page has not read, is read here. */
+  ownerId: string | undefined;
+  /**
+   * The page's list (lib/utils/analisiExpenses.ts): the period's year and, compared on the same days,
+   * the same month of the year before as real rows; every other month from the monthly totals.
+   */
   allExpenses: Expense[];
   period: AnalisiPeriod;
   today: MonthRef;
@@ -40,7 +49,7 @@ const dayOf = (expense: Expense): MonthRef & { day: number } => {
  * this component owns that choice and computes the pacing and the delta rows ONCE — the row,
  * the reading and the list cannot disagree.
  */
-export function ConfrontoDisclosure({ allExpenses, period, today, todayDay, historyStartYear, availableDataYears, onCategoryFocus }: ConfrontoDisclosureProps) {
+export function ConfrontoDisclosure({ ownerId, allExpenses: pageExpenses, period, today, todayDay, historyStartYear, availableDataYears, onCategoryFocus }: ConfrontoDisclosureProps) {
   const [open, setOpen] = useState(false);
   // The section's plots are lazy: fetched while the page is idle, so opening draws them at once.
   usePreloadWhenIdle(CONFRONTO_LAZY_CHARTS);
@@ -61,18 +70,42 @@ export function ConfrontoDisclosure({ allExpenses, period, today, todayDay, hist
 
   const scope = useMemo((): ComparisonMonthScope | null => resolveComparisonScope(period.mode, period.month, today.month, todayDay), [period.mode, period.month, today.month, todayDay]);
 
+  // The running month compared «agli stessi giorni» cuts BOTH sides at today's day, so the comparison
+  // month must be real rows: the page reads the year before's (the default choice); another year
+  // picked here reads its month now (totali mensili, Fase B). Until it answers, the comparison shown
+  // stays the one before — never the new year over its month's totals, which the cut cannot read.
+  const ownMonthYear =
+    scope?.kind === 'singleMonth' && scope.throughDay !== undefined && comparisonYear !== null && currentYear !== null && comparisonYear !== currentYear - 1
+      ? comparisonYear
+      : null;
+  const ownMonthNumber = scope?.kind === 'singleMonth' ? scope.month : null;
+  const ownMonthRows = useExpensesInRange(ownerId, ownMonthYear !== null && ownMonthNumber !== null ? analisiMonthWindow(ownMonthYear, ownMonthNumber) : null);
+  const ownMonthData = ownMonthRows.data;
+  const composed = useMemo((): Expense[] | null => {
+    if (ownMonthYear === null || ownMonthNumber === null) return pageExpenses;
+    if (!ownMonthData) return null;
+    return composeAnalisiExpenses(pageExpenses, [{ year: ownMonthYear, month: ownMonthNumber, rows: ownMonthData }]);
+  }, [pageExpenses, ownMonthYear, ownMonthNumber, ownMonthData]);
+  const [shownComparison, setShownComparison] = useState<{ year: number | null; rows: Expense[] } | null>(null);
+  if (composed !== null && (shownComparison === null || shownComparison.rows !== composed || shownComparison.year !== comparisonYear)) {
+    setShownComparison({ year: comparisonYear, rows: composed });
+  }
+  const allExpenses = shownComparison?.rows ?? pageExpenses;
+  // Null before the first comparison is read: the section says it has nothing to compare yet.
+  const shownComparisonYear = shownComparison ? shownComparison.year : null;
+
   const pacing = useMemo(() => {
-    if (currentYear === null || comparisonYear === null || scope === null) return null;
-    return computeTotalsPacing(allExpenses, currentYear, comparisonYear, scope, dayOf);
-  }, [allExpenses, currentYear, comparisonYear, scope]);
+    if (currentYear === null || shownComparisonYear === null || scope === null) return null;
+    return computeTotalsPacing(allExpenses, currentYear, shownComparisonYear, scope, dayOf);
+  }, [allExpenses, currentYear, shownComparisonYear, scope]);
 
   const deltaRows = useMemo(() => {
-    if (currentYear === null || comparisonYear === null || scope === null) return [];
-    return buildCategoryComparison(allExpenses, currentYear, comparisonYear, scope, dayOf);
-  }, [allExpenses, currentYear, comparisonYear, scope]);
+    if (currentYear === null || shownComparisonYear === null || scope === null) return [];
+    return buildCategoryComparison(allExpenses, currentYear, shownComparisonYear, scope, dayOf);
+  }, [allExpenses, currentYear, shownComparisonYear, scope]);
 
   const subject = describeAnalisiSubject(period, today, historyStartYear);
-  const reading: Narrative | null = pacing && scope && comparisonYear !== null ? describeComparison({ subject, scope, comparisonYear, expenses: pacing.expenses, rows: deltaRows }) : null;
+  const reading: Narrative | null = pacing && scope && shownComparisonYear !== null ? describeComparison({ subject, scope, comparisonYear: shownComparisonYear, expenses: pacing.expenses, rows: deltaRows }) : null;
 
   const yearsTracked = availableDataYears.length;
   const summary: Narrative =
@@ -99,7 +132,7 @@ export function ConfrontoDisclosure({ allExpenses, period, today, todayDay, hist
           periodMode={period.mode}
           ceilingYear={today.year}
           currentYear={currentYear}
-          comparisonYear={comparisonYear}
+          comparisonYear={shownComparisonYear}
           comparisonOptions={comparisonOptions}
           onComparisonYearChange={setComparisonYearChoice}
           scope={scope}

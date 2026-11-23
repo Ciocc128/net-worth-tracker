@@ -15,12 +15,25 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **Suites to run after a change here — Analisi** (moved from `AGENTS.md` § Commands on 2026-09-30): `analisiSummary`, `analisiNarrative` (with `describeAnalisiClosedAnswers`, the landscape index), `spendingCalendar` + `spendingCalendarNarrative` (the Calendario), `tabletComposition` (+ `cashflowNarrative` for the shared readings, `patrimonioNarrative` for the articles), `expenseGrouping`, `cashflowSankey`, `cashflowComposition`, `comparisonDeltas`, `expenseEntityStats`, `entitySearch`
 
 ## Analisi — a verdict over tiles (`components/cashflow/AnalisiTab.tsx`, `components/cashflow/analisi/*`, `lib/utils/{analisiSummary,analisiNarrative}.ts`)
-- **The page reads the WHOLE expense collection, by the owner's decision** (2026-09-30, when Tracciamento, Divisione,
-  Budget and FIRE moved to a window of their own — doc/guide/cashflow.md § Expenses by window). Its Scheda, Confronto,
-  Dettaglio and search span the history from the floor on, and the Andamento's category ranking counts the rows
-  after this year too (below), so a window would have started at the floor with no upper bound and left out 48 rows
-  of 1547 on the real account — for one more list in memory and in the persisted record, and a first opening after
-  Cashflow no longer on the cache. It shares the `useExpenses` list with Storico and Centri di Costo instead.
+- **What the page reads follows its period** (totali mensili, Fase B, 2026-11-23 — doc/totali-mensili/README.md § 6.5,
+  D-TM19; until then the WHOLE collection, by the owner's decision of 2026-09-30). The TAB reads, because the period is
+  its own (`useAnalisiExpenses(ownerId, resolveAnalisiReads(period, today, day))`):
+  - on a year («Da inizio anno», «Anno corrente», «Anno», with or without a month): the year's REAL rows
+    (`analisiYearWindow`), the same month a year before when the running month is compared «agli stessi giorni»
+    (`analisiMonthWindow`: the cut reads the day on both sides), and every other month from the monthly totals —
+    Storico's list (`useExpenseFlows`), aggregated rows for the closed months. `composeAnalisiExpenses` lays the real
+    months over the totals' list; a month is never both;
+  - in «Storico»: the whole collection (`useExpenses`), because Spese maggiori ranks a SERIES as one entry worth all
+    its rows over the history, which no total can sum (D-TM19). The Andamento storico, whose ranking counts the rows
+    after this year (below), lives only in this mode.
+  The builders did not change: the tiles of the period receive only real rows, the readers of other months (Fuori
+  scala's six months, the Scheda's years, pace and series, the Confronto, the Dettaglio, the search's names) sum by
+  month, type and category. `__tests__/analisiExpensesInvariance.test.ts` runs every one on both lists. The
+  Confronto's year picker reads the month of another year when it compares the running month on its first days.
+- **A period switch keeps the page on the period it holds until the new one is read** (`shown` in `AnalisiTab`): the
+  controls and the URL move at once, the tiles when the year's reads answer — never the new period over a list that
+  holds its year only as totals (an aggregated row would rank as one expense and colour the calendar's 15th). A year
+  read before opens at once from the cache.
 - **ONE axis, three modes** (Anno corrente | Anno | Storico, plus a month): `PeriodMode`/`AnalisiPeriod` live in
   `analisiSummary.ts` — never import them from the component (`ConfrontoAnnualeSection` used to). The axis sits beside
   the verdict from `desktop:` and under it below; the entity search is the compact header's action. Declare
@@ -272,7 +285,7 @@ Composed for a small screen on 2026-10-14 (its spec, retired on 2026-10-15, is i
 
 ## Calendario delle spese (CS1, 2026-11-03)
 
-Dossier `doc/calendario-spese/README.md` (D-CS1–D-CS8). «In quali giorni spendo, e c'è uno schema?» — a 12-column tile after Spese/Entrate per categoria and before the Scheda (`components/cashflow/analisi/tiles/CalendarioTile.tsx`), mounted for `ytd`, `current`, `year` and a picked month, never in `history`, and only when the period holds a spending row (the pill never makes it vanish). No new read: `buildSpendingCalendar(allExpenses, period, now, filter)` in `lib/utils/spendingCalendar.ts` works on the whole collection Analisi already holds; the sentences (`describeSpendingCalendar`, `describeCalendarAnswer`, `describeCalendarCell`) are in `analisiNarrative.ts`.
+Dossier `doc/calendario-spese/README.md` (D-CS1–D-CS8). «In quali giorni spendo, e c'è uno schema?» — a 12-column tile after Spese/Entrate per categoria and before the Scheda (`components/cashflow/analisi/tiles/CalendarioTile.tsx`), mounted for `ytd`, `current`, `year` and a picked month, never in `history`, and only when the period holds a spending row (the pill never makes it vanish). No new read: `buildSpendingCalendar(allExpenses, period, now, filter)` in `lib/utils/spendingCalendar.ts` works on the list Analisi already holds, whose period's year is real rows (§ Analisi); the sentences (`describeSpendingCalendar`, `describeCalendarAnswer`, `describeCalendarCell`) are in `analisiNarrative.ts`.
 
 - **What counts**: `isSpendingRow` in absolute value, fees and «Fuori dal budget» included; «Solo variabili» (`type === 'variable'`; a fee row carries its category's type) is the pill, remembered in `localStorage` `analisi.calendario.filtro` (read and written by module-level helpers in `AnalisiTab.tsx`: a try/catch inside the component is a React Compiler skip). With «Tutte» the cells add up to the trio's spending (test).
 - **The scale** (`SPENDING_CALENDAR_STEPS`, one source for cell and legend): four steps by the 25°/50°/75° percentile (index `floor(f·n)`) of the PAST days with spending of the period shown, filter applied; `--flow-out` at 35/55/75/100% over `--card`, a quiet day `--muted`, never red. A step nobody wears has no legend entry; the legend's limits are whole euros (borders, not spendings).
@@ -285,7 +298,7 @@ Dossier `doc/calendario-spese/README.md` (D-CS1–D-CS8). «In quali giorni spen
 
 ## Movimento (AN2, 2026-10-23)
 
-Analisi reads the history whole, so a period switch keeps every tile mounted: the trio and the strip glide (`SettledFigure`), the ranked rows re-rank and count (`RankedRows`). The Scheda's body is a `DrillSlide`: a subcategory enters from the right, the way back up from the left; the breadcrumb changes at once and the focus stays where the page puts it (D-AN14). The Sankey keeps its own fade. Measured with `perf:census` › `analisi-period` and `drill` (`doc/animazioni/README.md` § 5.5–5.6).
+A period switch keeps every tile mounted (the page holds the period it shows until the new one is read, § Analisi): the trio and the strip glide (`SettledFigure`), the ranked rows re-rank and count (`RankedRows`). The Scheda's body is a `DrillSlide`: a subcategory enters from the right, the way back up from the left; the breadcrumb changes at once and the focus stays where the page puts it (D-AN14). The Sankey keeps its own fade. Measured with `perf:census` › `analisi-period` and `drill` (`doc/animazioni/README.md` § 5.5–5.6).
 
 ## Per-page blind spots
 
