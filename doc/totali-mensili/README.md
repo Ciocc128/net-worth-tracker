@@ -2,8 +2,8 @@
 
 > Dossier delle card Todoist «Utenti · Totali mensili delle spese salvati (spec)» e «Utenti · Hall of Fame
 > incrementale nel cron serale» (epic-utenti, p3). Fonte: Library `capacita/README.md` §§ 2, 6 e 9 e
-> `capacita/modello-tre-persone.py` (studio del 22/11/2026). Stato: **specifica, decisioni da confermare**
-> (§ 9). Scritta il 23/11/2026 sul main `bf22453`, leggendo il codice.
+> `capacita/modello-tre-persone.py` (studio del 22/11/2026). Stato: **specifica pronta**, decisioni
+> confermate da Giorgio il 23/11/2026 (§ 9). Scritta il 23/11/2026 sul main `bf22453`, leggendo il codice.
 >
 > Un solo dossier per le due card: la Hall of Fame, con i totali, non ha più bisogno di una logica
 > incrementale sua (D-TM8). Le due cose si implementano in due fasi (§ 10).
@@ -357,7 +357,7 @@ Costo una volta: E letture per utente (sull'account di Giorgio circa 2.000 a fin
 
 ## 9. Decisioni
 
-Proposte, da confermare con Giorgio.
+Confermate da Giorgio il 23/11/2026, tutte e dodici.
 
 | ID | Decisione proposta | Alternative scartate | Motivo |
 |---|---|---|---|
