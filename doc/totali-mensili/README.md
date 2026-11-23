@@ -2,8 +2,9 @@
 
 > Dossier delle card Todoist «Utenti · Totali mensili delle spese salvati (spec)» e «Utenti · Hall of Fame
 > incrementale nel cron serale» (epic-utenti, p3). Fonte: Library `capacita/README.md` §§ 2, 6 e 9 e
-> `capacita/modello-tre-persone.py` (studio del 22/11/2026). Stato: **specifica pronta**, decisioni
-> confermate da Giorgio il 23/11/2026 (§ 9). Scritta il 23/11/2026 sul main `bf22453`, leggendo il codice.
+> `capacita/modello-tre-persone.py` (studio del 22/11/2026). Stato: **Fase A implementata** il
+> 23/11/2026 (PR in bozza; D-TM13–D-TM18 in § 9), Fase B da fare; decisioni D-TM1–D-TM12 confermate da Giorgio
+> il 23/11/2026. Scritta il 23/11/2026 sul main `bf22453`, leggendo il codice.
 >
 > Un solo dossier per le due card: la Hall of Fame, con i totali, non ha più bisogno di una logica
 > incrementale sua (D-TM8). Le due cose si implementano in due fasi (§ 10).
@@ -73,7 +74,7 @@ interface ExpenseTotalsYear {
   userId: string;
   year: number;
   schemaVersion: 1;               // un campo nuovo nelle celle → versione nuova → ricostruzione completa
-  months: Partial<Record<MonthKey, ExpenseTotalsMonth>>;  // '01'…'12'; un mese senza righe non c'è
+  months: Partial<Record<MonthKey, ExpenseTotalsMonth>>;  // '01'…'12', tutti e dodici (D-TM15)
 }
 
 interface ExpenseTotalsMonth {
@@ -90,6 +91,7 @@ interface ExpenseTotalsCell {
   subCategoryId: string | null;
   subCategoryName: string | null;
   tradeFee: boolean;                    // la riga ha `feeOfTradeId` (Rendimenti, C_rows)
+  negative: boolean;                    // amount < 0 (D-TM13: le spese si sommano con Math.abs riga per riga)
   sum: number;                          // somma con segno di `amount`, in euro, come le righe
   count: number;                        // quante righe
 }
@@ -100,7 +102,7 @@ FIRE.
 
 **Le dimensioni** sono quelle che servono ai lettori delle due fasi: tipo, categoria, sottocategoria
 (Composizione, Flusso, ruoli 50/30/20 che si risolvono dalla categoria, Lavoro e investimenti, entrate per
-fonte), il flag commissione di un'operazione (Rendimenti). Non ci sono `excludeFromBudget`,
+fonte), il flag commissione di un'operazione (Rendimenti) e il **segno** dell'importo (D-TM13). Non ci sono `excludeFromBudget`,
 `costCenterId`, `personalMemberId`, `linkedCashAssetId`: i loro lettori leggono una finestra di righe o le
 righe stesse. Un lettore nuovo che filtra per un campo nuovo aggiunge una dimensione e alza
 `schemaVersion` (§ 5.4).
@@ -120,7 +122,7 @@ I lettori **non cambiano formula**. Un modulo puro, `lib/utils/expenseTotals.ts`
   del browser, UTC), che è tutto ciò che le funzioni di Fase A guardano;
 - `aggregateCount = cell.count` (campo nuovo, facoltativo, solo su queste righe).
 
-Poi `mergeTotalsWithRows(totals, liveRows, liveMonths)` restituisce, per ogni mese, **o** le righe aggregate
+Poi `planExpenseFlows` sceglie i mesi e `mergeExpenseFlows` (dentro `loadExpenseFlows`) restituisce, per ogni mese, **o** le righe aggregate
 **o** le righe vere, mai entrambe (D-TM3). Le funzioni pure di Hall of Fame, Storico, FIRE e Rendimenti
 ricevono questa lista al posto di quella di oggi.
 
@@ -134,7 +136,8 @@ Fase B leggono le righe vere del loro periodo (§ 6.5). Dove una funzione conta 
 
 Un mese `m` si legge **dalle righe** se vale almeno una di queste:
 
-1. `m` è il mese in corso (italiano) o un mese futuro con righe in calendario che il lettore conta;
+1. `m` è il mese in corso (italiano). I mesi **futuri** si leggono dai totali come i chiusi (D-TM14): le
+   scritture ne chiedono la ricostruzione come per un mese chiuso;
 2. `m` non è nei totali ma le righe esistono (anno senza documento, CU10, o `schemaVersion` vecchia);
 3. il `builtAt` di `m` è **precedente alla fine di `m`** (ora italiana). Succede il primo del mese, prima del
    cron: il mese appena chiuso è stato ricostruito l'ultima volta la sera prima, e le righe salvate dopo le
@@ -156,26 +159,29 @@ Una funzione pura, `buildMonthTotals(rows): ExpenseTotalsMonth` (senza `builtAt`
 
 1. legge le righe del mese (`userId ==`, `date` tra inizio e fine del mese italiano: l'indice
    `userId, date` esiste già);
-2. scrive `months.{MM}` del documento dell'anno con `set(…, { merge: true })` e `builtAt = now`;
-   un mese senza righe viene **cancellato** dalla mappa (`FieldValue.delete()`).
+2. scrive `months.{MM}` del documento dell'anno con `update` e `builtAt = now`; un mese senza righe resta
+   con `rowCount: 0` e nessuna cella (D-TM15: «costruito e vuoto» è diverso da «mai costruito»). Un anno
+   senza documento, o con `schemaVersion` vecchia, si scrive **intero** (dodici mesi) dalle righe dell'anno.
 
-Mesi dello stesso anno vanno nella stessa scrittura. Costo: Em letture e una scrittura per mese ricostruito.
+Mesi contigui dello stesso anno vanno in una sola lettura e una sola scrittura. Costo: Em letture e una
+scrittura per mese ricostruito.
 
 ### 5.2 Dopo una scrittura
 
-**Il mese in corso e i futuri non chiedono niente** (D-TM4): il mese in corso si legge dalle righe, ed è il
-cron a ricostruirlo ogni sera. Ogni scrittore che tocca righe di un mese **chiuso** chiama, dopo il commit,
+**Il mese in corso non chiede niente** (D-TM4): si legge dalle righe, ed è il cron a ricostruirlo ogni sera.
+Ogni scrittore che tocca righe di un **altro** mese, chiuso o futuro (D-TM14), chiama, dopo il commit,
 
 ```ts
 markExpenseMonthsChanged(ownerId, dates: Date[] | 'all', reason)
 ```
 
-che filtra i mesi chiusi e li manda a `POST /api/expense-totals/rebuild` (stessa autorizzazione di
+che toglie il mese in corso, deduplica e manda i mesi a `POST /api/expense-totals/rebuild` (stessa autorizzazione di
 `/api/dashboard/overview/invalidate`: `ownerId` deve essere un account su cui il chiamante può agire, riga
 nuova in `__tests__/routeAuthorization.table.ts`). Gli scrittori server chiamano direttamente
 `rebuildExpenseTotals`. La chiamata **non è critica**: un errore si registra e non annulla la scrittura,
-come l'invalidazione della Panoramica; la verifica notturna ripara (CU5). Al ritorno il client invalida
-`queryKeys.expenseTotals.all(ownerId)`.
+come l'invalidazione della Panoramica; la verifica notturna ripara (CU5). Lo scrittore client **attende** la
+chiamata, così l'invalidazione di `queryKeys.expenses.all(ownerId)` nel suo `onSuccess` (sotto cui sta la
+chiave dei lettori, D-TM16) rilegge il documento già ricostruito. Oltre 120 mesi la chiamata manda `'all'`.
 
 Per una modifica servono **entrambe** le date: quella vecchia e quella nuova della riga (una spesa spostata da
 marzo ad aprile cambia due mesi). `'all'` ricostruisce ogni mese con righe: lo usano le riscritture di massa
@@ -193,17 +199,19 @@ chiamata nuova va accanto a quella):
 | `lib/services/costCenterService.ts` | `assignExpensesToCostCenter`, `renameCostCenterInExpenses`, `deleteCostCenter` | non cambiano le celle (nessuna dimensione di centro): **nessuna chiamata**. Se un giorno il centro entra nelle celle, `'all'` |
 | `lib/services/expenseImportService.ts` | `commitImportPlan`, `deleteExpensesByImportBatch` | `'all'` (un import storico tocca molti mesi) |
 | `lib/services/dividendIncomeService.ts` (server) | `createExpenseFromDividend`, `updateExpenseFromDividend`, `deleteExpenseForDividend` | la data di pagamento |
-| `lib/services/dividendService.ts` (server) | cancellazione delle cedole e dei premi futuri | mesi futuri: nessuna chiamata |
+| `lib/services/dividendService.ts` (server) | cancellazione delle cedole e dei premi futuri | le date di pagamento delle righe cancellate (mesi futuri, D-TM14) |
 | `lib/server/assetTransactionUseCase.ts` | la riga commissione di un'operazione (crea, modifica, cancella) | la data dell'operazione, vecchia e nuova |
-| `lib/server/assetDeletion.ts` | cancellazione di uno strumento con il registro (F14) | `'all'` se cancella righe |
-| `lib/services/pensionContributionService.ts` | il trasferimento di un versamento volontario | la data del versamento |
+| `lib/server/assetDeletion.ts` | cancellazione di uno strumento con il registro (F14) | **nessuna**: cancella operazioni, contributi e dividendi futuri, mai righe di spesa (verificato 23/11) |
+| `lib/services/pensionContributionService.ts` | il trasferimento di un versamento volontario | passa da `createExpense` / `deleteExpense`, che chiamano |
 | `lib/services/debtRepaymentService.ts`, `lib/server/cashSettlement.ts`, `lib/services/loanMigration.ts` | aggiornano `balancePending`, `debtPrincipalRepaid`, `debtInterestPaid`, `debtAssetId` | **nessuna**: non sono dimensioni delle celle |
 | `lib/services/dummyDataService.ts`, `dummySnapshotGenerator.ts` | dati di prova | `'all'` alla fine |
 | `scripts/*` che scrivono spese (seed degli e2e, `mirror:seed`, `backup:restore`) | | ricostruzione completa alla fine (§ 7.3) |
 
-Un test (`__tests__/expenseTotalsWriters.test.ts`) cerca nel codice ogni `collection('expenses')` /
-`collection(db, EXPENSES_COLLECTION)` usato per scrivere e fallisce se il file non è in un elenco dichiarato
-accanto alla tabella: uno scrittore nuovo deve decidere se chiama o no.
+Un test (`__tests__/expenseTotalsWriters.test.ts`) cerca in `app`, `lib`, `scripts`, `components` ogni file
+che nomina la collezione (`collection(…'expenses')`, `= 'expenses';`, una lista costante di collezioni come
+quella di `mirror:seed`) e fallisce se il file non è dichiarato «calls» (e allora deve contenere la chiamata)
+o «no-call» con il motivo: uno scrittore nuovo deve decidere se chiama o no. Ogni aggiornamento di righe
+esistente scrive anche `updatedAt` (verificato 23/11), quindi il passo 2 della verifica li vede tutti.
 
 ### 5.3 La verifica notturna
 
@@ -240,23 +248,26 @@ totali.
 ### 6.1 Hall of Fame
 
 `updateHallOfFame` (server) legge **gli snapshot e i documenti di totali**, mai le righe: costruisce la lista
-con `mergeTotalsWithRows` (i mesi da righe secondo § 4.3, ma nel cron il mese in corso è appena stato
-ricostruito, quindi in pratica tutto da totali) e la passa a `calculateMonthlyRecords` /
+con `loadExpenseFlows` (i mesi da righe secondo § 4.3). Nel cron riceve dalla verifica i documenti e i limiti
+già letti e si fida del mese in corso appena ricostruito (`trustRunningMonth`, D-TM17), quindi legge solo gli
+snapshot e la passa a `calculateMonthlyRecords` /
 `calculateYearlyRecords` **invariate**. Oggi entrambe filtrano per mese italiano e sommano con
 `calculateTotalIncome` / `calculateTotalExpenses`: sulle righe aggregate danno gli stessi numeri.
 
 Lo scrittore client (`lib/services/hallOfFameService.ts`, chiamato dalla Panoramica dopo uno snapshot,
 `app/dashboard/page.tsx:362`) **chiama la route** `POST /api/hall-of-fame/recalculate` invece di rileggere
-tutto dal browser (D-TM7). `updateHallOfFame` client resta solo come lettore e per le note.
+tutto dal browser (D-TM7). «Aggiorna i record» della pagina manda anche `rebuildTotals: true`: la route
+ricostruisce tutti i totali prima dei record (§ 5.4).
 
 Costo notturno per utente: S snapshot + Y documenti, più il resto della verifica (§ 5.3). Al quinto anno
 circa 155 letture, contro 4.860 di oggi (§ 11).
 
 ### 6.2 Storico
 
-`app/dashboard/history/page.tsx`: `useExpenses` → `useExpenseFlows(ownerId)`, un hook nuovo che legge i
-documenti di totali (`queryKeys.expenseTotals.all`), i limiti (`useExpenseBounds`, già esistente) e le righe dei
-mesi di § 4.3 (`useExpensesInRange`), e restituisce la lista unita. `buildYearlyGrowthDrivers`,
+`app/dashboard/history/page.tsx`: `useExpenses` → `useExpenseFlows(ownerId)`, un hook nuovo con **una**
+query (`queryKeys.expenses.flows`, D-TM16) che chiama `loadExpenseFlows` sul client: i limiti (due letture),
+i documenti di totali del proprietario (una query `userId ==`) e le righe dei mesi di § 4.3, e restituisce la
+lista unita. `buildYearlyGrowthDrivers`,
 `buildMonthlyGrowthDrivers`, `summarizeLaborMetrics`, `prepareMonthlyLaborMetricsData` restano come sono.
 
 Da controllare nell'impl: `summarizeLaborMetrics` somma le righe con `type !== 'income'`, transfer compresi.
@@ -266,7 +277,10 @@ questa card.
 ### 6.3 FIRE
 
 `components/fire-simulations/FireCalculatorTab.tsx` e `lib/hooks/useAnnualCashflow.ts`: le due finestre
-`fireWindows(now, firstSnapshot)` (`recent`, `older`) diventano **una** lista da `useExpenseFlows`.
+`fireWindows(now, firstSnapshot)` (`recent`, `older`) diventano liste di `useExpenseFlows`: la finestra
+`recent` (gennaio dell'anno scorso → dicembre, la chiave che condividono Calcolatore, `useAnnualCashflow` e
+la pagina) per le cifre dell'anno, e **una** lista dal primo mese della storia a dicembre per il Dettaglio
+(con `to` filtrato in memoria: la chiave non cambia).
 `computeAnnualCashflowData` (anno scorso e anno in corso per tipo, entrate per categoria) e `buildFIREData`
 (secchi mensili per tipo dal primo snapshot) sommano per mese, tipo e categoria: invariati. Il mese in
 corso arriva dalle righe, quindi «da inizio anno a oggi» (`selectExpensesBetween(…, currentYearStart, now)`)
@@ -277,8 +291,9 @@ test di invarianza delle finestre ed entrano in quello dei totali (§ 13).
 
 ### 6.4 Rendimenti
 
-`lib/services/performanceService.ts`: le due letture `getExpensesByDateRange(userId, start, end)` (righe 1010 e
-1508) diventano `readExpenseFlows(userId, start, end, dividendCategoryId)`:
+`lib/services/performanceService.ts`: le tre letture `getExpensesByDateRange(userId, start, end)` diventano
+`readPerformanceExpenses(userId, start, end, dividendCategoryId)` (`readExpenseFlows` con la categoria
+dividendi dalle righe vere, filtrata su `[start, end]`):
 
 - totali per i mesi chiusi dell'intervallo, **senza** le celle della categoria dividendi;
 - le **righe vere** della categoria dividendi (`userId ==`, `categoryId == dividendCategoryId`, poche: una per
@@ -343,16 +358,17 @@ Costo una volta: E letture per utente (sull'account di Giorgio circa 2.000 a fin
 
 ## 8. Regole, indici, chiavi
 
-- `firestore.rules`: `match /expense-totals/{docId}` e `match /expense-totals-meta/{userId}`:
-  `allow read: if canAccess(resource.data.userId)`, `allow write: if false`. Test nella suite delle regole
+- `firestore.rules`: `match /expense-totals/{docId}` con `allow read: if canAccess(resource.data.userId)` (il
+  client legge con una query `userId ==`, che le regole accettano) e `match /expense-totals-meta/{userId}`
+  con `allow read: if canAccess(userId)`; `allow write: if false` su entrambe. Test nella suite delle regole
   (`npm run test:rules`): lettura propria sì, di un altro account no, scrittura dal client mai. **Da
   pubblicare a mano.**
 - `firestore.indexes.json`: `expenses (userId ASC, updatedAt ASC)` per la verifica; in Fase B
   `expenses (userId ASC, amount ASC)` per le Spese maggiori del modo Storico. **Da pubblicare a mano**
   (`firebase deploy --only firestore:indexes`).
-- `lib/query/queryKeys.ts`: `expenseTotals.all(ownerId)`; ogni scrittura di spese invalida già
-  `expenses.all`, e ora anche questa chiave quando la ricostruzione torna. La cache persistita (24 ore) la
-  include come le altre chiavi del proprietario.
+- `lib/query/queryKeys.ts`: `expenses.flows(ownerId, fromIso, realRowsCategoryId)`, **sotto** `expenses.all`
+  (D-TM16): ogni scrittura di spese la invalida già, dopo la ricostruzione che ha atteso. La cache
+  persistita (24 ore) la include come le altre chiavi del proprietario.
 - Account condiviso: i totali sono del **proprietario** (`ownerId`), come la Hall of Fame.
 
 ## 9. Decisioni
@@ -374,10 +390,21 @@ Confermate da Giorgio il 23/11/2026, tutte e dodici.
 | D-TM11 | **Migrazione pigra** (anno mancante = righe) più lo script dal Mac | Migrazione obbligatoria prima del deploy | Nessun ordine da rispettare e nessuna cifra diversa in mezzo |
 | D-TM12 | Centri di Costo, PDF (per la parte non di Rendimenti) e Budget **fuori** | Tutto in questa card | Leggono a richiesta o una finestra; si portano dopo, se il grafico della console lo chiede |
 
+Prese nell'impl (23/11/2026), le prime quattro confermate da Giorgio nel thread prima del codice:
+
+| ID | Decisione | Alternative scartate | Motivo |
+|---|---|---|---|
+| D-TM13 | Le celle si dividono anche per **segno** (`negative`) | Una cella per tipo, categoria, sottocategoria e commissione | `calculateTotalExpenses` somma `Math.abs` riga per riga: un rimborso (+) e una spesa (−) della stessa categoria danno 2 righe e una cella sola darebbe un'altra cifra. Provato: senza il segno il test di invarianza sbaglia di 757 € |
+| D-TM14 | Anche i **mesi futuri** vivono nei totali; le scritture chiedono la ricostruzione di ogni mese tranne quello in corso | Leggere dalle righe ogni mese dopo l'attuale (D-TM4 come scritto) | Le rate in calendario fino al 2030 sono righe che ogni lettore oggi riceve; leggerle tutte a ogni visita annulla il guadagno sugli anni futuri. Corregge D-TM4 |
+| D-TM15 | Il documento di un anno ha **tutti i dodici mesi**, i vuoti con `rowCount: 0` | Un mese senza righe assente dalla mappa | «Costruito e vuoto» si distingue da «mai costruito» (regola 2 di § 4.3): un mese vuoto non va riletto dalle righe |
+| D-TM16 | **Un** caricatore, `loadExpenseFlows`, con due sorgenti (client e Admin); la chiave sotto `['expenses', ownerId, 'flows', …]` | Un prefisso nuovo `expenseTotals` | Ogni scrittura invalida già `expenses.all`: niente invalidazioni nuove da ricordare, e la stessa funzione serve pagina e cron |
+| D-TM17 | Nel cron la Hall of Fame riceve dalla verifica anni, limiti e orologio, e si fida del mese in corso (`trustRunningMonth`) | Rileggere tutto dopo la verifica | Tiene il giro di un utente sotto le 160 letture (CA8: 113 documenti + 6 aggregazioni) |
+| D-TM18 | La route `POST /api/expense-totals/rebuild` accetta `months: 'all'` con un limite di 10 all'ora per account | Solo mesi espliciti | Le riscritture di massa (import, dati di prova) e «Aggiorna i record» ricostruiscono tutto con E letture, una volta |
+
 ## 10. Fasi
 
 **Fase A** (una impl, stima 3–4 giorni di thread):
-1. `lib/utils/expenseTotals.ts` (costruttore, righe aggregate, `mergeTotalsWithRows`, `monthsFromRows`) e i
+1. `lib/utils/expenseTotals.ts` (costruttore, righe aggregate, `planExpenseFlows`, `mergeExpenseFlows`, `loadExpenseFlows`) e i
    suoi test (CA1–CA3).
 2. `lib/server/expenseTotals.ts` (ricostruzione, verifica), la route `rebuild`, `markExpenseMonthsChanged`
    in tutti gli scrittori di § 5.2, il test degli scrittori.
@@ -399,7 +426,7 @@ Utente tipico dello studio: 80 righe al mese, 25 strumenti; S = snapshot (12 l'a
 
 | Lettura | Oggi, 1 · 5 · 10 anni | Con i totali, 1 · 5 · 10 anni |
 |---|---|---|
-| Cron, Hall of Fame (ogni notte) | S + E: 972 · 4.860 · 9.720 | S + Y + Em + Y aggregazioni + righe modificate: circa 100 · 155 · 225 |
+| Cron, Hall of Fame (ogni notte) | S + E: 972 · 4.860 · 9.720 | S + Y + 2 limiti + meta + Em + righe modificate, più Y aggregazioni (1 lettura ciascuna sotto le 1.000 voci): circa 100 · 155 · 225. Sulla storia di CA8 (5 anni + 1, 60 snapshot, 3 righe modificate): 113 documenti + 6 aggregazioni |
 | Storico (per visita) | E: 960 · 4.800 · 9.600 | Y + Em: circa 81 · 85 · 90 |
 | FIRE › Calcolatore (per visita) | due finestre, di fatto E: 960 · 4.800 · 9.600 | Y + Em: circa 81 · 85 · 90 |
 | Rendimenti, cache scaduta | E dal primo snapshot | Y + righe dividendi (circa 12 l'anno) + Em: circa 93 · 145 · 210 |
@@ -419,11 +446,10 @@ Con le tre persone dello studio (§ 9), Fase A più Fase B è la riga «Solo Tot
 
 ## 12. Punti aperti
 
-- **Emulatore e `sum()`**: la verifica usa l'aggregazione `sum` dell'Admin SDK. L'impl controlla per prima
-  cosa che l'emulatore di `firebase-tools` 15 la supporti; se no, i test di § 5.3 girano con il fake Admin e
-  la verifica si prova sugli emulatori solo con `count`.
-- **Uno scrittore che non aggiorna `updatedAt`**: il passo 2 della verifica non lo vede se la modifica non
-  cambia conteggio né somma. L'impl controlla ogni scrittore della tabella di § 5.2; dove manca, lo aggiunge.
+- ~~**Emulatore e `sum()`**~~: chiuso il 23/11. L'emulatore di `firebase-tools` supporta `count()` + `sum()`
+  (provato: tre righe, `{count: 3, sum: 1850}`); i test di § 5.3 girano comunque sul fake Admin, che ora
+  conta anche le aggregazioni.
+- ~~**Uno scrittore che non aggiorna `updatedAt`**~~: chiuso il 23/11, ogni aggiornamento di righe lo scrive.
 - **La route che fallisce** (offline, scrittura messa in coda dalla cache di Firestore): il mese chiuso resta
   vecchio sulle pagine fino alla notte. Rarissimo; dichiarato nei punti ciechi delle guide.
 - **Centri di Costo** su una query per `costCenterId` invece di tutte le righe: card a parte se serve.
@@ -463,7 +489,7 @@ Cifre inventate e tonde (WORKFLOW.md regola 7), valori di riferimento calcolati 
   in calendario fino al 2030, righe senza `type`, transfer, commissioni), ogni lettore di Fase A
   (`calculateMonthlyRecords`, `calculateYearlyRecords`, `buildYearlyGrowthDrivers`, `buildMonthlyGrowthDrivers`,
   `summarizeLaborMetrics`, `computeAnnualCashflowData`, `buildFIREData`, `getCashFlowsFromExpenses` +
-  `buildReturnFlowAdjustments`) dà lo stesso risultato sulle righe vere e sulla lista di `mergeTotalsWithRows`,
+  `buildReturnFlowAdjustments`) dà lo stesso risultato sulle righe vere e sulla lista di `loadExpenseFlows`,
   con «oggi» a metà marzo e il primo di aprile prima del cron (regola 3). Sotto `TZ=Europe/Rome` e `TZ=UTC`.
   In Fase B lo stesso per ogni riga della tabella di § 6.5.
 - **CA6 — scrittura su un mese chiuso.** r3 spostata dal 15 marzo al 15 aprile 2025: dopo la ricostruzione
@@ -484,8 +510,10 @@ Cifre inventate e tonde (WORKFLOW.md regola 7), valori di riferimento calcolati 
 
 ## 14. File
 
-Nuovi: `lib/utils/expenseTotals.ts`, `lib/server/expenseTotals.ts`, `app/api/expense-totals/rebuild/route.ts`,
-`lib/hooks/useExpenseFlows.ts`, `scripts/buildExpenseTotals.mts`, `types/expenseTotals.ts`; test
+Nuovi: `lib/utils/expenseTotals.ts`, `lib/server/expenseTotals.ts`, `lib/server/expenseTotalsRebuildAll.ts`,
+`lib/services/expenseTotalsClient.ts`, `app/api/expense-totals/rebuild/route.ts`,
+`lib/hooks/useExpenseFlows.ts`, `scripts/buildExpenseTotals.mts`, `scripts/lib/rebuildExpenseTotals.ts`,
+`types/expenseTotals.ts`; test
 `__tests__/{expenseTotals,expenseTotalsServer,expenseTotalsWriters,expenseTotalsInvariance}.test.ts`.
 Toccati: gli scrittori di § 5.2, `lib/services/hallOfFameService{,.server}.ts`, `app/dashboard/page.tsx`,
 `app/api/cron/monthly-snapshot/route.ts`, `app/dashboard/history/page.tsx`,

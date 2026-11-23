@@ -70,11 +70,12 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 ## Storico — a verdict over tiles (`app/dashboard/history/page.tsx`, `components/history/tiles/*`, `lib/utils/{storicoSummary,storicoNarrative}.ts`)
 
 - **The page reads SIX keys and composes ONE read state** (2026-09-29): `useSnapshots`, `useAssets`, `useSettings`
-  (its `targets` are what `getTargets` used to re-read — the same document twice), `useExpenses`, `useAssetTransactions`
-  and `usePensionContributions`, shared with the other pages, so after Patrimonio or Analisi the page opens on the
-  cache — the expenses WHOLE, by declared need: the Driver splits every year recorded, so this page has no window to
-  read, unlike Cashflow's tabs and FIRE since 2026-09-30 (doc/guide/cashflow.md § Expenses by window; it shares that
-  list with Analisi and Centri di Costo, not with Tracciamento); `composeReadState` (`lib/utils/readState.ts`) turns the six into `loading` / `loadFailed` — one failed read is
+  (its `targets` are what `getTargets` used to re-read — the same document twice), `useExpenseFlows`, `useAssetTransactions`
+  and `usePensionContributions`, shared with the other pages, so after Patrimonio the page opens on the
+  cache — the expenses as MOVEMENTS since 2026-11-23 (doc/guide/cashflow.md § Monthly totals): the Driver splits every
+  year recorded, so every month is read, a closed one as the aggregated rows of its total (one document a year), the
+  running one from its rows; the Driver and Lavoro e investimenti sum by month and type, so the figures are the rows'
+  (CA5). Until then the page read the whole collection, shared with Analisi; `composeReadState` (`lib/utils/readState.ts`) turns the six into `loading` / `loadFailed` — one failed read is
   the page's alert (pinned, seen red). Until then a `Promise.all` of seven direct reads ran on every visit. «Riprova»
   and a new manual snapshot invalidate the keys; a saved note is patched into the snapshots cache (`setQueryData`).
 - **The page has NO axis, and its growth is WEALTH growth.** `summarizeGrowth` measures first → latest snapshot with contributions included, and every sentence that prints its CAGR says «versamenti inclusi»; never feed it to a surface that means an investment return (that is Rendimenti's `(endNW/(startNW+netCashFlow))^(1/years)`, § History and Snapshot Baselines).

@@ -284,9 +284,10 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   moves `currentNetWorth` and it recomputes in the same render (the `keepPreviousData` the query needed is gone with
   it). A failed read is the expenses key's `isError`: the three tabs' notice. `__tests__/fireCashflowInMemory.test.ts`
   pins the twins.
-- **The expenses are TWO WINDOWS, not the collection** (2026-09-30, `fireWindows` in `lib/utils/expenseWindows.ts`;
-  the rule in doc/guide/cashflow.md § Expenses by window). `recent` — January of last year to December of this one —
-  is what `computeAnnualCashflowData` and `computeLastYearExpenses` read, on all three tabs (`useExpensesInRange`
+- **The expenses are TWO WINDOWS of MOVEMENTS, not the collection** (2026-09-30, `fireWindows` in `lib/utils/expenseWindows.ts`;
+  the rule in doc/guide/cashflow.md § Expenses by window; since 2026-11-23 each window is read through `useExpenseFlows`,
+  closed months as the aggregated rows of the monthly totals, doc/guide/cashflow.md § Monthly totals). `recent` — January of last year to December of this one —
+  is what `computeAnnualCashflowData` and `computeLastYearExpenses` read, on all three tabs (`useExpenseFlows`
   with the same key, so Coast and What If read nothing after the Calcolatore); it closes on December and not on this
   month because the history reads up to the month of the LAST snapshot, which the server stamps, and a device whose
   clock is behind would otherwise lose it. `older` — from eleven months before the first snapshot
@@ -294,7 +295,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   exists only when the history reaches further back, is asked for once the snapshots say where it starts, and feeds
   the «Dettaglio» alone: `historyExpenses` is the two lists joined (disjoint and contiguous, no row twice), the grid
   no longer waits for the snapshots, and `FireDettaglio` takes `loading` and shows its own skeleton until the history
-  is in — a wait is not the «no history» readings. A failed read of either window is the tab's notice. Until then the
+  is in — a wait is not the «no history» readings. Since the totals the history is ONE list from the first month to
+  December (`olderAndRecentExpenses`), not two joined. A failed read of either window is the tab's notice. Until then the
   page read the whole collection (1547 rows on the owner's account against 1299 + 48). Pinned by
   `__tests__/expenseWindows.test.ts` (the number and the history on the windows against the whole list, a last
   snapshot ahead of the device's clock included).

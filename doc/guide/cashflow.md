@@ -21,6 +21,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `writeExpenseRows` / the series and instalment writers (every occurrence), the gate `countsTowardBudget` in
   `lib/utils/budgetUtils.ts`, the words `EXPENSE_BUDGET_EXCLUSION_*` in `dialogNarrative.ts`, the chip in
   `CompactExpenseRow` and `ExpenseTable`; the rule in doc/guide/cashflow-budget.md
+- **Monthly totals** (2026-11-23, doc/totali-mensili/README.md): types `types/expenseTotals.ts`, pure `lib/utils/expenseTotals.ts` (builder, aggregated rows, `planExpenseFlows`, `loadExpenseFlows`, `monthsToRebuild`), server `lib/server/expenseTotals.ts` (rebuild, nightly check, Admin source) + `lib/server/expenseTotalsRebuildAll.ts`, client `lib/services/expenseTotalsClient.ts` (`markExpenseMonthsChanged`, `readExpenseFlows`), hook `lib/hooks/useExpenseFlows.ts`, route `app/api/expense-totals/rebuild/route.ts`, script `scripts/buildExpenseTotals.mts` (`npm run expense-totals:build`); tests `__tests__/expenseTotals{,Server,Invariance,Writers}.test.ts`, CA10 in `__tests__/rules/firestoreRules.rules.ts`
 - **Expenses by window** (2026-09-30): pure `lib/utils/expenseWindows.ts` (`trackingWindow`, `budgetWindow`, `budgetSuggestionWindow`, `fireWindows`, `listExpenseYears`), hooks `useExpensesInRange` / `useExpenseBounds` / `expensesInRangeQueryOptions` in `lib/hooks/useExpenses.ts`, readers `getExpensesByDateRange` / `getExpenseDateBounds` in `lib/services/expenseService.ts`, keys `queryKeys.expenses.{range,bounds}`; tests `__tests__/expenseWindows.test.ts` (bounds and invariance), `__tests__/persistCache.test.ts` (the two builders), `e2e/cashflow.tracciamento.spec.ts` (the second window)
 - **Tabs on demand** (2026-10-05): the four `lazyComponent`s at the top of `app/dashboard/cashflow/page.tsx`, their
   skeleton cells `lib/constants/cashflowTabSkeletons.ts`, the fallbacks of Dividendi and Divisione
@@ -58,8 +59,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   oldest and of the newest row (two one-document reads, `['expenses', uid, 'bounds']`). The period pickers take their
   years from it (`listExpenseYears`), CONTIGUOUS from the oldest to the newest — a year with no row in between is
   offered too, and opens on an empty period.
-- **Who has NO window, by declared need**: Storico (the Driver spans every year), Centri di Costo and «Collega
-  spese…» (a centre is lifetime), Hall of Fame's recalculation — and Analisi, by the owner's decision of 2026-09-30:
+- **Who has NO window, by declared need**: Centri di Costo and «Collega spese…» (a centre is lifetime) — and Analisi, by the owner's decision of 2026-09-30:
   its Scheda, Confronto, Dettaglio and search span the history from the floor on and the Andamento ranks its categories
   on the rows after this year too, so a window left out 48 rows of 1547 on the real account, for one more list in
   memory and in the persisted record. They share the one `useExpenses` list. **Measure before giving a page a
@@ -76,6 +76,24 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   so the whole-collection list is one `git revert` away and no emergency switch has to be kept alive and tested. A
   flag is for a change that alters what sits on DISK across a release (the persisted cache, AGENTS.md § Caching),
   never for a refactor of the readers.
+
+## Monthly totals: the closed months as one document a year (`lib/utils/expenseTotals.ts`, doc/totali-mensili/README.md)
+- **Storico, FIRE, Rendimenti and the Hall of Fame read MOVEMENTS, not rows** (Fase A, 2026-11-23): `useExpenseFlows` /
+  `loadExpenseFlows` hand them, for every month with a trusted total, one AGGREGATED row per cell (type, category,
+  sub-category, trade fee, sign; `aggregateCount` = the rows inside, dated the 15th at noon Italian), and for the running
+  month, a year without its document (or of an old `schemaVersion`) and a closed month rebuilt before its end, the REAL
+  rows (§ 4.3). Their builders sum by month, type and category, so the figures are the rows' (CA5,
+  `__tests__/expenseTotalsInvariance.test.ts`). **A reader that looks at a row's day, text or count must not take this
+  list**: Analisi (Fase B) and everything with a window keep the rows; a count over several months uses `rowCountOf`.
+- **Only the server writes `expense-totals/{uid}_{year}`** (`allow write: if false`): a writer that changed rows of any
+  month but the running one awaits `markExpenseMonthsChanged(ownerId, dates | 'all', reason)` after its commit — BOTH
+  the old and the new date of a moved row; the server writers call `rebuildExpenseTotalsForDates`. The future months live
+  in the totals too (instalments in the calendar, D-TM14). `__tests__/expenseTotalsWriters.test.ts` fails on a new file
+  that names the collection without declaring whether it calls.
+- **The nightly check repairs what a writer forgot** (cron, after the snapshot): the running month rebuilt, the rows with
+  `updatedAt` after the last check, `count()` + `sum('amount')` per year then per month, missing years built whole. A
+  failed rebuild call (offline) leaves a closed month old on the pages until that evening.
+- **The key is `queryKeys.expenses.flows`, under `expenses.all`** (D-TM16): no new invalidation to remember.
 
 ## Category icons: one chunk per icon, by name (`components/expenses/categoryIconLoaders.ts`)
 - **A category stores its icon by lucide's PascalCase name; the screen loads that one icon, never the library**
