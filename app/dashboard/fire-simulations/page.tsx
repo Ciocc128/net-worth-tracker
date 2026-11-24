@@ -74,10 +74,11 @@ const LAZY_TABS = [CoastFireTab, WhatIfAnalysisTab, MonteCarloTab, GoalBasedInve
 type TabValue = FireTabValue;
 
 const TABS: TabDef[] = [
-  { value: 'fire',       label: 'Calcolatore FIRE', icon: Flame     },
+  // `shortLabel`: the pill below the band prints the open tab's words; with «Calcolatore FIRE» six tabs took 382px of 358 (UM4 P13). The others fit whole (Dopo il FIRE 352).
+  { value: 'fire',       label: 'Calcolatore FIRE', shortLabel: 'Calcolatore', icon: Flame },
   { value: 'coast',      label: 'Coast FIRE',       icon: Mountain  },
   { value: 'whatif',     label: 'What If',          icon: Lightbulb },
-  { value: 'montecarlo', label: 'Dopo il FIRE',      icon: Dices     },
+  { value: 'montecarlo', label: 'Dopo il FIRE',     icon: Dices     },
   { value: 'proiezione', label: 'Proiezione',       icon: TrendingUp },
   { value: 'goals',      label: 'Traguardi',        icon: Target    },
 ];

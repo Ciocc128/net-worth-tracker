@@ -14,6 +14,12 @@ export type TabDef = {
    * reader cannot tell which of six tabs is holding the change.
    */
   unsaved?: boolean;
+  /**
+   * The open tab's words in the pill below the band, where only the open tab prints a label and a long one pushed
+   * the last icon off a 390 phone (FIRE's «Calcolatore FIRE»: 382px in 358, measured 2026-11-22, UM4 P13). The
+   * accessible name and the band's bar keep `label`.
+   */
+  shortLabel?: string;
 };
 
 /** The dot of an `unsaved` tab — decoration, the name carries the words. */
@@ -75,10 +81,11 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, re
         aria-label={ariaLabel}
         className="band:hidden flex w-fit max-w-full mx-auto overflow-x-auto scrollbar-none bg-muted rounded-lg p-1 my-2"
       >
-        {tabs.map(({ value: tv, label, icon: Icon, unsaved }) => {
+        {tabs.map(({ value: tv, label, shortLabel, icon: Icon, unsaved }) => {
           const isActive = value === tv;
           // Show label when active, or always when the tab has no icon
           const showLabel = isActive || !Icon;
+          const pillLabel = Icon && shortLabel ? shortLabel : label;
           return (
             <motion.button
               layout="size"
@@ -98,7 +105,7 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, re
               )}
             >
               {Icon && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
-              {showLabel && <span>{label}</span>}
+              {showLabel && <span>{pillLabel}</span>}
               {unsaved && <UnsavedDot />}
               {isActive && (
                 <motion.div
