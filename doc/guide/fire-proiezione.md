@@ -22,6 +22,10 @@
   Scenari and the Ventaglio's figures; the Ventaglio draws bands and median at `max(0, p)` (`MonteCarloFanChart` prop `floorAtZero`, set
   by the Proiezione only). The probabilities above the threshold are untouched.
 
+## F12 — the run in a worker (2026-11-24)
+- Same mechanism as «Dopo il FIRE» (doc/guide/fire-monte-carlo.md § F12): `useSimulationRun('projection', ownerId)`, the per-year snapshots
+  handed over from the worker as transferable buffers; the threshold and the horizon stay READINGS of the run, so changing them does not run again.
+
 ## Composizione mobile
 
 Composed on 2026-10-18 (mobile-light C, `doc/contributi-upstream/composizione-mobile.md` § 4, D-CU12, D-CU17): the page-wide rules — one controller per tab, the cut at the first full stop, the curve at 120px — are in `doc/guide/fire.md` § Composizione mobile; the head of the page («Il mio piano», «Ipotesi usate» as the scope line) is M3's there. The rules are DESIGN.md's (§ 5 → Small-Screen Composition). The tab is the fork's own: it follows the system, adds nothing and reorders nothing — a phone shows less, never something else; **1440 does not change** (the grid below, Tappe 12 · Ventaglio 8 | Scenari 4 · Parametri 12).

@@ -14,6 +14,11 @@
 | `last-run.json` | Tutte le run e le mediane dell'ultimo `perf:bench` | no |
 | `last-census.json` | Tutte le run e le mediane dell'ultimo `perf:census` | no |
 
+**Le simulazioni FIRE fuori dal thread principale (F12, 2026-11-24, `doc/simulazioni-worker/README.md`)**: «Dopo il FIRE» e Proiezione calcolano in
+un Web Worker (un chunk a sé, `fireSimulation.worker`) e tengono in memoria le ultime tre corse per tipo. Sonda nel cloud, `next dev` a CPU 4×,
+seed di base: il long task più lungo all'apertura di Dopo il FIRE passa da 7361 ms (simulazione sul thread principale) a 1248 ms (il resto è il
+disegno della scheda in sviluppo); al ritorno sulla scheda 695 ms, nessuna corsa. La misura sulla build di produzione è del giro sul Mac.
+
 ## Il budget — «quanto JS spedisce ogni route?»
 
 ```bash

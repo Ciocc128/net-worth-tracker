@@ -143,7 +143,24 @@ Proposte il 2026-11-24, **da confermare da Giorgio**.
   stesso dominio è ammesso. Quando la CSP diventerà bloccante servirà `worker-src 'self'` (lo è già per
   ricaduta su `script-src`).
 
-## 9. File
+## 9. Misure
+
+**Sonda nel cloud, 2026-11-24** (Playwright, `next dev` su :3100, emulatori con il seed di base, 1440, CPU 4×; long task del thread
+principale dal clic sulla scheda a tre secondi dopo il verdetto). Non è la misura di accettazione (CA3, CA4: build di produzione sul Mac),
+ma separa il calcolo dal disegno: la stessa sonda con `window.Worker` tolto fa girare la riserva sul thread principale.
+
+| Apertura | Senza worker (riserva) | Con il worker |
+| --- | --- | --- |
+| Dopo il FIRE, prima volta | 7361 ms (+ 1300) | 1248 ms (+ 426) |
+| Proiezione, prima volta | 5358 ms (+ 1151) | 1049 ms (+ 275) |
+| Dopo il FIRE, ritorno | 747 ms (dal deposito) | 695 ms (dal deposito) |
+| Proiezione, ritorno | 874 ms (dal deposito) | 769 ms (dal deposito) |
+
+Il worker è uno solo (`turbopack-worker-…`), e il verdetto della Proiezione ha le stesse cifre nei due casi (192.528 € in mediana a 30 anni).
+Ciò che resta (circa 0,7–1,2 s in sviluppo) è il montaggio delle schede con React in modalità di sviluppo: sulla build di produzione va
+rimisurato; se resta sopra i 200 ms è materia di P5/P6, non di questa task.
+
+## 10. File
 
 - `lib/utils/fireSimulationRuns.ts` — `computeMonteCarloRun`, `computeProjectionRun` (spostate dai componenti), il
   taglio di `simulations`.
