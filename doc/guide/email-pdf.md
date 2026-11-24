@@ -349,7 +349,6 @@ PDF half seen from inside the section, this is the recipe for both surfaces.
   `sent`/`failed`. A failed send keeps the paid comment: the next run sends it, no second payment.
 - **No sender fallback**: `isEmailTransportConfigured()` needs `RESEND_API_KEY` AND `RESEND_FROM_EMAIL`; without them
   every due email is recorded `failed: email-not-configured`, the run is red (500), `dati/` is still written, and
-  «Invia … ora» answers 503 before its rate limit. If a red run every 1st is unwanted before Resend exists, turn the
-  email toggles off (the run then records nothing and is green).
+  «Invia … ora» answers 503 before its rate limit. Resend is configured on production since November 2026.
 - **«Invia … ora»** of a closed period (quarter, half, year) marks its record `sent` as a manual send, so the cron
   does not send it again; the running month and the weekly email are format tests and write no record.

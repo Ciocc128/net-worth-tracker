@@ -50,8 +50,8 @@ wiki, because the month closed at 19:00. After this work:
 - C1, C3, C4 (who wrote a snapshot, closed months, failed prices): done in F07, `doc/snapshot-integri`.
 - C8 (the PAC test user processed every evening): its data is to be removed with `account:remove` (exit-plan card);
   since S2 the cron reads `allowed-users`, so a removed user is no longer processed.
-- Configuring Resend (`RESEND_API_KEY`, `RESEND_FROM_EMAIL` on Vercel): the owner's step, § 9 P1. This spec makes its
-  absence visible, it does not supply it.
+- Configuring Resend (`RESEND_API_KEY`, `RESEND_FROM_EMAIL` on Vercel): done by the owner after 31/10 (§ 9 P1). This spec makes a
+  missing variable visible, it does not supply it.
 - What «Invia mensile ora» sends (the running month, as a format test): unchanged, § 9 P2.
 - The email and the PDF saying a month was built on stale prices (F07 § 9 P3).
 
@@ -307,10 +307,11 @@ Proposed on 2026-11-24 and confirmed by the owner the same day, all as recommend
 
 ## 9. Punti aperti
 
-**P1 — Resend.** Until the owner sets `RESEND_API_KEY` and `RESEND_FROM_EMAIL` on Vercel production (and a verified
-sender domain), every recap is `failed: email-not-configured`, every recap run is red (D-CS2), and `dati/` is still
-written. If a red run every 1st is unwanted before Resend exists, the owner turns the email toggles off; the run then
-records `skipped` and is green.
+**P1 — Resend.** Closed on 2026-11-24: the owner configured `RESEND_API_KEY` and `RESEND_FROM_EMAIL` on Vercel
+production after 31/10 (the October failure was the missing configuration). The recap is therefore not red for
+that reason; a missing variable would still be recorded `failed: email-not-configured` and make the run red (D-CS2).
+Without a verified domain Resend delivers only to the owner's own address: see the proposed D-CS9 (recipient
+allowlist), not yet decided.
 
 **P2 — «Invia mensile ora» sends the running month.** The button is a format test (its line says so). After D-SN12
 the cron sends the closed month; the button could do the same, but that is Impostazioni copy and belongs to RU9.
