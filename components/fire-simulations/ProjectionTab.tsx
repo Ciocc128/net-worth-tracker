@@ -29,19 +29,17 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
+import { useSimulationRun } from '@/lib/hooks/useSimulationRun';
 import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { useAssets } from '@/lib/hooks/useAssets';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { useAnnualCashflow } from '@/lib/hooks/useAnnualCashflow';
-import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { portfolioCost } from '@/lib/utils/fireCosts';
-import { runAccumulationSimulation } from '@/lib/services/monteCarloService';
 import { resolveProjectionFireSeries } from '@/lib/services/whatIfService';
 import { useWhatIfBaseline } from '@/lib/hooks/useWhatIfBaseline';
 import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
-import { DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_PARAMETER_SEED, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
+import { DEFAULT_MONTE_CARLO_SIMULATIONS } from '@/lib/utils/monteCarloParams';
 import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
 import { marketUncertainty, resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
 import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_NOUNS, monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
@@ -60,7 +58,6 @@ import {
   resolveRunYears,
   selectProjectionStrip,
   summarizeProjection,
-  type ProjectionRunData,
   type ProjectionRunInputs,
   type ProjectionThreshold,
 } from '@/lib/utils/projectionSummary';
@@ -97,7 +94,7 @@ import { FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsR
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { useMarketAnchors } from '@/lib/hooks/useMarketAnchors';
 import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
-import { buildFlowSchedule, type DatedFlowsInput } from '@/lib/utils/datedFlows';
+import { type DatedFlowsInput } from '@/lib/utils/datedFlows';
 import { describeSimulationFlowsRow } from '@/lib/utils/datedFlowsNarrative';
 import { TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
 import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
@@ -145,12 +142,6 @@ const PROJECTION_SECTIONS: readonly SectionSpec[] = [
 const NO_SECTIONS: readonly SectionSpec[] = [];
 const PROJECTION_ORDER = PROJECTION_SECTIONS.map((section) => section.id);
 
-/** A run keeps the inputs it was made with, and the data its figures read. */
-interface ProjectionRunState {
-  data: ProjectionRunData;
-  inputs: ProjectionRunInputs;
-}
-
 function parseIntField(value: string, fallback: number): number {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -159,53 +150,6 @@ function parseIntField(value: string, fallback: number): number {
 function parseFloatField(value: string): number {
   const parsed = Number.parseFloat(value.replace(',', '.'));
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-/** The three scenarios' accumulation runs, at module level: the React Compiler cannot lower a conditional inside a component's own try block. */
-function computeProjectionRun(inputs: ProjectionRunInputs): ProjectionRunState {
-    const years = inputs.years;
-    const snapshotYears = Array.from({ length: years }, (_, index) => index + 1);
-    // The lumps of the running year are part of the starting capital (RF6), whatever the scenario's inflation.
-    const startingLump = inputs.datedFlows ? buildFlowSchedule(inputs.datedFlows.resolved, { inflationRate: 0, planExpensesFromCashflow: inputs.datedFlows.planExpensesFromCashflow }).lump(0) : 0;
-    const startValue = inputs.initialPortfolio + inputs.inflows.filter((inflow) => inflow.year <= 0).reduce((sum, inflow) => sum + inflow.amount, 0) + startingLump;
-    const data: ProjectionRunData = {
-      scenarios: {} as ProjectionRunData['scenarios'],
-      inflation: { bear: 0, base: 0, bull: 0 },
-      startValue,
-      simulations: inputs.simulations,
-      years,
-    };
-    for (const key of SCENARIO_KEYS) {
-      const scenario = inputs.scenarios[key];
-      // RV7: a fresh generator on the SAME seed per scenario, so Bear, Base and Bull meet the same shocks.
-      const result = runAccumulationSimulation({
-        initialPortfolio: inputs.initialPortfolio,
-        annualSavings: inputs.annualSavings,
-        savingsInflationRate: scenario.inflationRate,
-        savingsYears: inputs.savingsYears,
-        annualExpenses: 0,
-        withdrawalRate: 0,
-        expenseInflationRate: scenario.inflationRate,
-        years,
-        weights: inputs.weights,
-        market: scenario,
-        correlations: inputs.correlations,
-        leverageSpread: inputs.leverageSpread,
-        annualCostRate: inputs.costRate,
-        numberOfSimulations: inputs.simulations,
-        capitalInflows: inputs.inflows.length > 0 ? inputs.inflows : undefined,
-        flows: inputs.datedFlows,
-        collectPaths: false,
-        snapshotYears,
-        random: createSeededRandom(MONTE_CARLO_SEED),
-        ...(key === 'base' && inputs.uncertainty
-          ? { uncertainty: inputs.uncertainty, parameterRandom: createSeededRandom(MONTE_CARLO_PARAMETER_SEED) }
-          : {}),
-      });
-      data.scenarios[key] = { snapshots: result.snapshots ?? {}, leverageZeroedCount: result.leverageZeroedCount ?? 0 };
-      data.inflation[key] = scenario.inflationRate;
-    }
-  return { data, inputs };
 }
 
 export function ProjectionTab() {
@@ -359,24 +303,10 @@ export function ProjectionTab() {
   );
 
   // ─── The run: the three scenarios in one go ──────────────────────────────────
-  const [lastRun, setLastRun] = useState<ProjectionRunState | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
+  // F12 (doc/simulazioni-worker/README.md): the run goes to the worker, and a run with the same inputs is read back
+  // from the store — reopening the tab no longer blocks the page.
+  const { lastRun, isRunning, run: runProjection } = useSimulationRun('projection', ownerId ?? null);
   const [tappeScenario, setTappeScenario] = useState<ScenarioKey>('base');
-
-  const runProjection = useCallback((inputs: ProjectionRunInputs) => {
-    setIsRunning(true);
-    // The run is CPU-bound and blocks the main thread: the delay lets the browser paint the running state first.
-    window.setTimeout(() => {
-      try {
-        setLastRun(computeProjectionRun(inputs));
-      } catch (error) {
-        console.error('Error running the projection:', error);
-        toast.error('Errore durante la simulazione');
-      }
-      // After the try/catch, not in a `finally`: the React Compiler cannot lower try/finally.
-      setIsRunning(false);
-    }, 60);
-  }, []);
 
   // Auto-run once, when the seeded plan can run — the page opens answered.
   const didAutoRunRef = useRef(false);

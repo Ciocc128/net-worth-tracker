@@ -44,8 +44,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSimulationRun } from '@/lib/hooks/useSimulationRun';
 import { useAssets } from '@/lib/hooks/useAssets';
-import { toast } from 'sonner';
 import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { calculateAssetValue } from '@/lib/services/assetService';
@@ -54,13 +54,12 @@ import { runBaselineProjection } from '@/lib/services/whatIfService';
 import { defaultWithdrawalYears, resolveFireStart } from '@/lib/utils/fireStart';
 import { targetYearsOf } from '@/lib/utils/fireDepletion';
 import { DEFAULT_FIRE_TARGET_AGE } from '@/lib/utils/firePlan';
-import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { portfolioCost } from '@/lib/utils/fireCosts';
-import { buildScenarioParams, runMonteCarloSimulation, type AnnualInflow } from '@/lib/services/monteCarloService';
+import { type AnnualInflow } from '@/lib/services/monteCarloService';
 import { calculateCoastFireNetRealAnnualPension, normalizeCoastFirePensions, normalizeCoastFireTaxBrackets } from '@/lib/services/fireService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
-import { DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_PARAMETER_SEED, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
-import { summarizeSustainableSpending, SUSTAINABLE_VERDICT_PROBABILITY, type SustainableSpendingSummary } from '@/lib/utils/sustainableWithdrawal';
+import { DEFAULT_MONTE_CARLO_SIMULATIONS } from '@/lib/utils/monteCarloParams';
+import { SUSTAINABLE_VERDICT_PROBABILITY } from '@/lib/utils/sustainableWithdrawal';
 import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
 import { marketUncertainty, resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
 import { MONTE_CARLO_CLASSES, monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
@@ -94,7 +93,6 @@ import {
   summarizeMonteCarloRun,
   summarizeScenarios,
   type MonteCarloRunInputs,
-  type ScenarioResults,
 } from '@/lib/utils/monteCarloSummary';
 import {
   buildMonteCarloVerdict,
@@ -124,7 +122,7 @@ import {
   SCENARI_FOOTER,
   scenarioLabel,
 } from '@/lib/utils/monteCarloNarrative';
-import type { MonteCarloCapitalInflow, MonteCarloParams, MonteCarloResults } from '@/types/assets';
+import type { MonteCarloCapitalInflow, MonteCarloParams } from '@/types/assets';
 import { MONTE_CARLO_TAB_SKELETON_CELLS } from './tabSkeletons';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
@@ -166,14 +164,6 @@ const MONTE_CARLO_SECTIONS: readonly SectionSpec[] = [
 /** Without a run Parametri is the one tile and not a row: the controller sees no row at all. */
 const NO_SECTIONS: readonly SectionSpec[] = [];
 
-/** A run keeps the inputs it was made with, so the page can tell a stale form from a fresh one. */
-interface MonteCarloRunState {
-  results: ScenarioResults;
-  inputs: MonteCarloRunInputs;
-  /** S1: the withdrawal replayed on the run's own factors, inside the run (the running state covers it). */
-  sustainable: SustainableSpendingSummary;
-}
-
 function parseIntField(value: string, fallback: number): number {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -182,47 +172,6 @@ function parseIntField(value: string, fallback: number): number {
 function parseFloatField(value: string): number {
   const parsed = Number.parseFloat(value.replace(',', '.'));
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-/**
- * The three scenarios plus the unleveraged Base and the sustainable-spending replay, at module level: the React
- * Compiler cannot lower a conditional inside a component's own try block.
- */
-function computeMonteCarloRun(inputs: MonteCarloRunInputs): MonteCarloRunState {
-    // Seeded (T3): each run draws from a fresh generator on the SAME seed, so the three scenarios and the
-    // unleveraged Base meet the same shocks and a re-run with the same inputs gives the same figures.
-    // RQ6 (Q2): the Base alone draws each path's means, from a fresh generator on its own seed — the leveraged
-    // and the unleveraged Base meet the same means too (A13).
-    const run = (scenario: keyof typeof inputs.scenarios, params: MonteCarloParams, keepFactors = true): MonteCarloResults =>
-      runMonteCarloSimulation(
-        {
-          ...buildScenarioParams(params, inputs.scenarios[scenario]),
-          random: createSeededRandom(MONTE_CARLO_SEED),
-          ...(scenario === 'base' && inputs.uncertainty
-            ? { uncertainty: inputs.uncertainty, parameterRandom: createSeededRandom(MONTE_CARLO_PARAMETER_SEED) }
-            : {}),
-        },
-        { keepFactors },
-      );
-    const results: ScenarioResults = {
-      bear: run('bear', inputs.params),
-      base: run('base', inputs.params),
-      bull: run('bull', inputs.params),
-    };
-    // D11: with leverage the Base runs again without it (weights scaled to 100) on the same shocks.
-    const runLeverage = weightsLeverage(MONTE_CARLO_CLASSES.map((cls) => inputs.params.weights[cls]));
-    if (runLeverage > 1) {
-      results.unleveragedBase = run('base', { ...inputs.params, weights: monteCarloClassRecord((cls) => inputs.params.weights[cls] / runLeverage), leverageSpread: 0 }, false);
-    }
-    // S1: the nine sustainable figures replay the withdrawal on the three runs' factors; the factors
-    // (n × N × 8 bytes a scenario) are dropped afterwards, the results keep what the tiles read.
-    const sustainable = summarizeSustainableSpending({
-      bear: { factors: results.bear.factors!, params: buildScenarioParams(inputs.params, inputs.scenarios.bear) },
-      base: { factors: results.base.factors!, params: buildScenarioParams(inputs.params, inputs.scenarios.base) },
-      bull: { factors: results.bull.factors!, params: buildScenarioParams(inputs.params, inputs.scenarios.bull) },
-    });
-    for (const key of ['bear', 'base', 'bull'] as const) results[key] = { ...results[key], factors: undefined };
-    return { results, inputs, sustainable };
 }
 
 export function MonteCarloTab() {
@@ -462,24 +411,9 @@ export function MonteCarloTab() {
   );
 
   // ─── The run: the three scenarios in one go ──────────────────────────────────
-  const [lastRun, setLastRun] = useState<MonteCarloRunState | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
-
-  const runScenarios = useCallback((inputs: MonteCarloRunInputs) => {
-    setIsRunning(true);
-    // Monte Carlo is CPU-bound and blocks the main thread: the delay lets the browser paint the
-    // running state before the computation starts.
-    window.setTimeout(() => {
-      try {
-        setLastRun(computeMonteCarloRun(inputs));
-      } catch (error) {
-        console.error('Error running the Monte Carlo scenarios:', error);
-        toast.error('Errore durante la simulazione');
-      }
-      // After the try/catch, not in a `finally`: the React Compiler cannot lower try/finally.
-      setIsRunning(false);
-    }, 60);
-  }, []);
+  // F12 (doc/simulazioni-worker/README.md): the run goes to the worker, and a run with the same inputs is read back
+  // from the store — reopening the tab no longer blocks the page for seconds.
+  const { lastRun, isRunning, run: runScenarios } = useSimulationRun('montecarlo', ownerId ?? null);
 
   // Auto-run once, when the seeded plan can run — the page opens answered, like the Ventaglio.
   const didAutoRunRef = useRef(false);
