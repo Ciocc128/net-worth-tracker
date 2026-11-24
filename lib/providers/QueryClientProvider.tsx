@@ -44,6 +44,7 @@ import {
 import { applyPersistedQueryDefaults } from '@/lib/query/persistedQueryDefaults';
 import { clearPersistedQueries, createQueryPersister } from '@/lib/query/queryPersister';
 import { QUERY_GC_TIME_MS, QUERY_STALE_TIME_MS } from '@/lib/query/queryDefaults';
+import { forgetSimulationsOnSignOut } from '@/lib/simulation/simulationSignOut';
 
 /** A build-time constant: the server and the client agree on which provider is mounted. */
 const PERSISTENCE_ENABLED = isQueryPersistenceEnabled();
@@ -72,6 +73,8 @@ function SignOutCacheGuard({ queryClient, persister }: { queryClient: QueryClien
     const uid = user?.uid ?? null;
     if (previousUid.current !== null && uid === null) {
       void clearPersistedQueries(queryClient, persister);
+      // F12 (CU6): the FIRE simulations' runs live outside React Query, in memory — forgotten on the same transition.
+      forgetSimulationsOnSignOut();
     }
     previousUid.current = uid;
   }, [user, queryClient, persister]);

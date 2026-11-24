@@ -215,6 +215,16 @@
   returns `kind: 'depleted'`: the row says «All'età obiettivo il capitale è esaurito (nel {anno}): non c'è nulla da prelevare.» and
   «Prova» is disabled (`canRun`). The engine is untouched.
 
+## F12 — the run in a worker, the last runs kept (2026-11-24, doc/simulazioni-worker/README.md)
+- The tab computes nothing itself: `useSimulationRun('montecarlo', ownerId)` (`lib/hooks/useSimulationRun.ts`) sends the run to ONE module
+  worker (`lib/workers/fireSimulation.worker.ts` over `lib/simulation/simulationProtocol.ts`) and keeps the last three runs per kind in
+  memory (`lib/simulation/simulationStore.ts`, keyed on the WHOLE input + owner, never persisted, emptied on sign-out): reopening the tab
+  with the same inputs shows the figures without a run; a newer run terminates the one in flight; leaving the tab does not stop it.
+  Without `Worker` the same function runs on the main thread after 60 ms (RW5). The engine bodies are `computeMonteCarloRun` /
+  `computeProjectionRun` in `lib/utils/fireSimulationRuns.ts`; the result has no `simulations` (D-SW6).
+- **The worker's import graph must stay free of Firebase**: `monteCarloService` labels its histogram with `lib/utils/currencyCompact.ts`, not
+  `chartService`. `__tests__/fireSimulationRuns.test.ts` mocks nothing, so a new import that reaches `lib/firebase/config` turns it red.
+
 ## Composizione mobile
 
 > **Fork (tenth realignment, T5, 2026-10-17):** the Distribuzione tile stays deleted, so the rows are Scenari a confronto and Parametri (the passages below that name Distribuzione, `mc-distribuzione`, `DistribuzioneTile` or its closed answer do not apply), Probabilità spans 8 columns; **Spesa sostenibile** is the LAST closed row since 2026-10-18 (mobile-light C, D-CU17: `mc-spesa`, after Scenari a confronto and Parametri; at 1440 the same full-width tile, now a `desktop:col-span-12` cell of the composed grid) and the strip's third cell; «Ipotesi usate» sits above the verdict.

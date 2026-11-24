@@ -9,7 +9,7 @@ import {
 import type { MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
 import { buildDrawPlan, drawPathMeans, drawYear, portfolioReturn, type DrawPlan } from '@/lib/utils/monteCarloDraw';
-import { formatCurrencyCompact } from './chartService';
+import { formatCurrencyCompact } from '@/lib/utils/currencyCompact';
 import { withdrawGross } from '@/lib/utils/withdrawalTax';
 import { binSortedValues } from '@/lib/utils/valueHistogram';
 import { buildFlowSchedule, buildFlowYearTables, type DatedFlowsInput, type FlowYearTables } from '@/lib/utils/datedFlows';
