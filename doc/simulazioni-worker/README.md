@@ -3,7 +3,7 @@
 > Dossier della card Todoist «F12 FEAT prestazioni: simulazioni FIRE senza ricalcolo e in un Web Worker (P2, P4),
 > prima di R9», gruppo 12 del piano della review Fable (14/11). Fonte: Library `prestazioni-reali.html`
 > (proposte 2, 4, 5) e `parte-3-interazioni-simulazioni.md`. Sblocca R9 (FIRE in tre schede, ondata 3 del
-> riordino). Stato: specifica scritta il 2026-11-24, decisioni da confermare (§ 7).
+> riordino). Stato: specifica e implementazione del 2026-11-24, decisioni prese da Giorgio lo stesso giorno (§ 7); in attesa del giro sul Mac.
 
 ## 1. Obiettivo
 
@@ -124,7 +124,7 @@ automatica all'apertura passa dal deposito: con input già calcolati la scheda m
 
 ## 7. Decisioni
 
-Proposte il 2026-11-24, **da confermare da Giorgio**.
+Proposte e **prese da Giorgio il 2026-11-24** («Ok a tutto»).
 
 | ID | Decisione proposta | Alternative scartate | Motivo |
 | --- | --- | --- | --- |
