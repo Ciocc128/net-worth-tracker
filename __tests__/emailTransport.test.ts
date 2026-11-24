@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const { sendMock } = vi.hoisted(() => ({ sendMock: vi.fn() }));
 vi.mock('resend', () => ({ Resend: class { emails = { send: sendMock }; } }));
 
-import { isEmailTransportConfigured, sendEmail, EmailTransportNotConfiguredError } from '@/lib/server/emailTransport';
+import { filterAllowedRecipients, isEmailTransportConfigured, sendEmail, EmailTransportNotConfiguredError } from '@/lib/server/emailTransport';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -54,5 +54,26 @@ describe('sendEmail', () => {
     vi.stubEnv('RESEND_FROM_EMAIL', 'noreply@fenicottero.example');
     sendMock.mockResolvedValue({ data: null, error: { message: 'rate limited' } });
     await expect(sendEmail({ to: ['a@b.com'], subject: 's', html: '<p/>' })).rejects.toThrow('Resend error: rate limited');
+  });
+});
+
+// CS12 (D-CS9): the recipient allowlist.
+describe('filterAllowedRecipients', () => {
+  it('without the variable (or empty) nothing is filtered', () => {
+    vi.stubEnv('EMAIL_RECIPIENT_ALLOWLIST', '');
+    expect(filterAllowedRecipients(['a@b.com', 'x@y.com'])).toEqual(['a@b.com', 'x@y.com']);
+  });
+
+  it('keeps only the listed addresses, ignoring case and spaces', () => {
+    vi.stubEnv('EMAIL_RECIPIENT_ALLOWLIST', ' Fenicottero@Example.com , altro@example.com');
+    expect(filterAllowedRecipients(['fenicottero@example.com', 'ornitorinco@example.com', 'ALTRO@example.com'])).toEqual([
+      'fenicottero@example.com',
+      'ALTRO@example.com',
+    ]);
+  });
+
+  it('nobody left: an empty list', () => {
+    vi.stubEnv('EMAIL_RECIPIENT_ALLOWLIST', 'fenicottero@example.com');
+    expect(filterAllowedRecipients(['ornitorinco@example.com'])).toEqual([]);
   });
 });

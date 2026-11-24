@@ -11,6 +11,20 @@ export function isEmailTransportConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY?.trim()) && Boolean(process.env.RESEND_FROM_EMAIL?.trim());
 }
 
+/**
+ * D-CS9 (doc/cron-serale § 8): `EMAIL_RECIPIENT_ALLOWLIST`, comma-separated addresses, case-insensitive.
+ * Set, only those addresses receive email (Resend without a verified domain delivers to the owner
+ * alone, and refuses the whole send if one address is foreign); empty or absent, nothing is filtered.
+ */
+export function filterAllowedRecipients(recipients: string[]): string[] {
+  const allowlist = (process.env.EMAIL_RECIPIENT_ALLOWLIST ?? '')
+    .split(',')
+    .map((address) => address.trim().toLowerCase())
+    .filter(Boolean);
+  if (allowlist.length === 0) return recipients;
+  return recipients.filter((address) => allowlist.includes(address.trim().toLowerCase()));
+}
+
 export const EMAIL_NOT_CONFIGURED_MESSAGE = "L'invio delle email non è configurato sul server.";
 
 export class EmailTransportNotConfiguredError extends Error {

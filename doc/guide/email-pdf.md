@@ -352,3 +352,4 @@ PDF half seen from inside the section, this is the recipe for both surfaces.
   «Invia … ora» answers 503 before its rate limit. Resend is configured on production since November 2026.
 - **«Invia … ora»** of a closed period (quarter, half, year) marks its record `sent` as a manual send, so the cron
   does not send it again; the running month and the weekly email are format tests and write no record.
+- **Recipient allowlist** (D-CS9): `EMAIL_RECIPIENT_ALLOWLIST` (comma-separated). Set, only those addresses receive any email; a user left with none is treated as «off» (no record, no AI call, green run). Needed while Resend has no verified domain (`onboarding@resend.dev` reaches the owner alone); unset it when the domain is verified.

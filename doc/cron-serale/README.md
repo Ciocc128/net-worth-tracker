@@ -289,6 +289,7 @@ Reference values worked out by hand; `T` is the Italian date of the run, all tog
   and in `dati/2026-10.md`; the October snapshot unchanged (no button pressed).
 - **CA9** a run where the ECB fetch throws: goals and budget history still written, `outcome: partial`, status 500.
 - **CA10** no outbound HTTP call to `/api/portfolio/snapshot` from any cron (asserted by CS6 with `fetch` spied).
+- **CA11** (D-CS9) `EMAIL_RECIPIENT_ALLOWLIST=altro@example.com`, a user with `fenicottero@example.com` only, 1 Nov: no builder call, no AI call, no `deliveries` document, HTTP 200. With two recipients and the list naming one, the builder receives that one; emptying the list on 2 Nov sends October to both (nothing was recorded). Held by `periodRecapCron.test.ts`, `emailTransport.test.ts`, `monthlyEmailSendRoute.test.ts` (CS12).
 
 ## 8. Decisioni
 
@@ -304,14 +305,15 @@ Proposed on 2026-11-24 and confirmed by the owner the same day, all as recommend
 | **D-CS6** | **Catch-up for 7 days**: a closed period whose record is not `sent` is sent by any recap run up to its 7th day after the end (§ 5.3). | *Only on the 1st* (D-SN12 literally): a missed run (Vercel does not retry) loses the email for good. *No limit*: configuring Resend in March would send October to February in one evening. *3 days*: a long weekend with Resend down would lose it. | **taken** (owner, 2026-11-24) |
 | **D-CS7** | The snapshot becomes a function called by the cron; `cronSecret` leaves the route's body (§ 5.2). | *Keep the HTTP call with the secret in a header*: still a configurable host and an invocation per user. *Keep `cronSecret` accepted by the route for manual use*: the cron's own «Run» covers that; one fewer door. | applies the card (confirmed 2026-11-24) |
 | **D-CS8** | The recap runs on the **evening** of the 1st (19 UTC), so the whole 1st is there to finish the month's cashflow. | *The morning of the 1st* (e.g. 05 UTC): the email at breakfast, but edits of the 1st morning for the 31st miss it — the 31/10 case moved by one night. | **taken** (owner, 2026-11-24) |
+| **D-CS9** | **Recipient allowlist** `EMAIL_RECIPIENT_ALLOWLIST` (comma-separated, case-insensitive): when set, every send (recap, weekly budget, «Invia … ora») keeps only those addresses; none left = like a toggle off — no record, no AI call, green run, manual send 400. Empty or absent = no filter. Asked by the owner on 2026-11-24: Resend without a verified domain sends from `onboarding@resend.dev` to the owner's address only and refuses the whole send if one address is foreign. | *A `skipped` record*: the cron never retries `skipped`, so lifting the filter within 7 days would not send the month. *Filtering users, not addresses*: one foreign address among the owner's would still sink the send. | **taken** (owner, 2026-11-24) |
 
 ## 9. Punti aperti
 
 **P1 — Resend.** Closed on 2026-11-24: the owner configured `RESEND_API_KEY` and `RESEND_FROM_EMAIL` on Vercel
 production after 31/10 (the October failure was the missing configuration). The recap is therefore not red for
 that reason; a missing variable would still be recorded `failed: email-not-configured` and make the run red (D-CS2).
-Without a verified domain Resend delivers only to the owner's own address: see the proposed D-CS9 (recipient
-allowlist), not yet decided.
+Without a verified domain Resend delivers only to the owner's own address: see D-CS9 (recipient
+allowlist, § 8).
 
 **P2 — «Invia mensile ora» sends the running month.** The button is a format test (its line says so). After D-SN12
 the cron sends the closed month; the button could do the same, but that is Impostazioni copy and belongs to RU9.

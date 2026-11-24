@@ -4,6 +4,7 @@ import { getSettingsAdmin } from '@/lib/server/monthlyEmailService';
 import { deliverPeriodEmail } from '@/lib/server/periodEmailDelivery';
 import { claimDelivery, readDeliveryStates, settleDelivery } from '@/lib/server/deliveryRecord';
 import { CronRunRecorder, shortError } from '@/lib/server/cronRun';
+import { filterAllowedRecipients } from '@/lib/server/emailTransport';
 import { verifyCronSecret } from '@/lib/server/apiAuth';
 import { createVaultClient, readVaultConfig } from '@/lib/server/wiki/githubVault';
 import { retryPendingTheBull } from '@/lib/server/wiki/thebullCompiler';
@@ -81,7 +82,8 @@ export async function GET(request: NextRequest) {
         const settings = settingsByUser.get(userId);
         for (const period of due.filter((p) => kinds.includes(p.kind))) {
           const toggle = EMAIL_TOGGLES[period.kind as keyof typeof EMAIL_TOGGLES];
-          const recipients = settings?.monthlyEmailRecipients ?? [];
+          // D-CS9: only the allowed addresses; none left counts as «off»: no record, no AI comment, a green run.
+          const recipients = filterAllowedRecipients(settings?.monthlyEmailRecipients ?? []);
           if (!settings?.[toggle] || recipients.length === 0) {
             counts.off++;
             continue;

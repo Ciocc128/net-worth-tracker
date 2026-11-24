@@ -248,3 +248,33 @@ describe('the vault export through its delivery record (D-SN12)', () => {
     expect(mocks.exportToVault).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('CA11 — the recipient allowlist (D-CS9)', () => {
+  it('a user with no allowed address gets nothing: no record, no AI call, the run is green', async () => {
+    vi.stubEnv('EMAIL_RECIPIENT_ALLOWLIST', 'altro@example.com');
+    const { response, body } = await runAt('2026-11-01');
+    expect(response.status).toBe(200);
+    expect(body.outcome).toBe('ok');
+    expect(mocks.buildAndSendForPeriod).not.toHaveBeenCalled();
+    expect(mocks.buildAndSendWeeklyBudget).not.toHaveBeenCalled();
+    expect(mocks.aiCalls.count).toBe(0);
+    expect(fake.get('deliveries/owner-1_monthly-2026-10')).toBeUndefined();
+  });
+
+  it('with two recipients only the allowed one is passed to the builder; removing the list later sends the month', async () => {
+    mocks.getSettingsAdmin.mockResolvedValue({ ...SETTINGS, monthlyEmailRecipients: ['fenicottero@example.com', 'ornitorinco@example.com'] });
+    vi.stubEnv('EMAIL_RECIPIENT_ALLOWLIST', 'fenicottero@example.com');
+    await runAt('2026-11-01');
+    expect(mocks.buildAndSendForPeriod.mock.calls[0][1]).toEqual(['fenicottero@example.com']);
+
+    fake.reset();
+    fake.allow('owner-1');
+    mocks.buildAndSendForPeriod.mockClear();
+    vi.stubEnv('EMAIL_RECIPIENT_ALLOWLIST', 'altro@example.com');
+    await runAt('2026-11-01');
+    expect(mocks.buildAndSendForPeriod).not.toHaveBeenCalled();
+    vi.stubEnv('EMAIL_RECIPIENT_ALLOWLIST', '');
+    await runAt('2026-11-02');
+    expect(mocks.buildAndSendForPeriod.mock.calls[0][1]).toEqual(['fenicottero@example.com', 'ornitorinco@example.com']);
+  });
+});

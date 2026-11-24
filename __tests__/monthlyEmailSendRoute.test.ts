@@ -87,4 +87,12 @@ describe('POST /api/user/monthly-email/send', () => {
     const response = await send('owner-1');
     expect((await response.json()).error).toBe("L'invio delle email non è configurato sul server.");
   });
+
+  // CS12 (D-CS9): the manual send honours the allowlist too.
+  it('CS12 — an allowlist without the user’s address: 400, builder not called', async () => {
+    vi.stubEnv('EMAIL_RECIPIENT_ALLOWLIST', 'altro@example.com');
+    const response = await send('owner-1');
+    expect(response.status).toBe(400);
+    expect(mocks.buildAndSendForPeriod).not.toHaveBeenCalled();
+  });
 });

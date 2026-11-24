@@ -32,7 +32,7 @@ import {
   type EmailPeriodType,
 } from '@/lib/server/monthlyEmailService';
 import { buildAndSendWeeklyBudget } from '@/lib/server/weeklyBudgetEmailService';
-import { EMAIL_NOT_CONFIGURED_MESSAGE, isEmailTransportConfigured } from '@/lib/server/emailTransport';
+import { EMAIL_NOT_CONFIGURED_MESSAGE, filterAllowedRecipients, isEmailTransportConfigured } from '@/lib/server/emailTransport';
 import { deliverPeriodEmail } from '@/lib/server/periodEmailDelivery';
 import { quarterlyPeriod, semiannualPeriod, yearlyPeriod } from '@/lib/utils/periodRecapDue';
 import { getItalyMonthYear } from '@/lib/utils/dateHelpers';
@@ -67,10 +67,11 @@ export async function POST(request: NextRequest) {
       if (!settings?.weeklyBudgetEmailEnabled) {
         return NextResponse.json({ error: 'weekly budget email is not enabled for this account' }, { status: 400 });
       }
-      if (!settings.monthlyEmailRecipients?.length) {
+      const recipients = filterAllowedRecipients(settings.monthlyEmailRecipients ?? []);
+      if (!recipients.length) {
         return NextResponse.json({ error: 'No recipients configured' }, { status: 400 });
       }
-      const sent = await buildAndSendWeeklyBudget(userId, settings.monthlyEmailRecipients, new Date());
+      const sent = await buildAndSendWeeklyBudget(userId, recipients, new Date());
       if (!sent) {
         return NextResponse.json({ error: 'No budgets configured — create a budget first' }, { status: 404 });
       }
@@ -115,14 +116,15 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    if (!settings.monthlyEmailRecipients?.length) {
+    const recipients = filterAllowedRecipients(settings.monthlyEmailRecipients ?? []);
+    if (!recipients.length) {
       return NextResponse.json({ error: 'No recipients configured' }, { status: 400 });
     }
 
     let sent: boolean;
     if (periodType === 'monthly') {
       // The running month: a format test, never due to the cron, so no delivery record.
-      sent = await buildAndSendForPeriod(userId, settings.monthlyEmailRecipients, periodType, year, month);
+      sent = await buildAndSendForPeriod(userId, recipients, periodType, year, month);
     } else {
       const period =
         periodType === 'quarterly'
@@ -132,7 +134,7 @@ export async function POST(request: NextRequest) {
           : yearlyPeriod(year);
       const result = await deliverPeriodEmail({
         userId,
-        recipients: settings.monthlyEmailRecipients,
+        recipients,
         period,
         source: 'manual',
       });
