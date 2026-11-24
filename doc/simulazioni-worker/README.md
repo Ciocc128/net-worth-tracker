@@ -172,8 +172,8 @@ massimo in ms dal clic a tre secondi dopo che il verdetto ha cifre; «senza» = 
 
 - **CA4 soddisfatto**: al ritorno resta solo il montaggio, sotto i 100 ms.
 - **CA3 in parte**: il blocco del calcolo è sparito (da 3 s a 0,3–0,6 s), ma a 1440 restano 628 ms su Dopo il FIRE e 449 ms su
-  Proiezione, e 313 ms a 390 su Dopo il FIRE: è il disegno della scheda con le sue cifre (ventaglio, scenari, tabelle), non la simulazione.
-  Va guardato con P6 e con R9, che ridisegna queste schede.
+  Proiezione, e 313 ms a 390 su Dopo il FIRE. Non è stato separato fra il montaggio della scheda con le sue cifre (ventaglio, scenari,
+  tabelle) e l'elaborazione dei risultati sul thread principale: da profilare con P6 e con R9, che ridisegna queste schede.
 - **CA7**: `/dashboard/fire-simulations` 878,4 KB gz contro un tetto di 876 (+2,4 KB: il client del worker, il deposito, l'hook); tetto
   alzato a 879 nel registro di `doc/guide/velocita.md`, con `/dashboard/pension` (693,3) e `/login` (486,1) per deriva.
 - **P5, Calcolatore al ritorno** (build `--profile --no-mangling`, profilo CPU di Chrome a 4×): nessuna delle tre parti pesa. In 5 s
