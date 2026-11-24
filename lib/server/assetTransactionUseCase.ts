@@ -30,7 +30,7 @@ import {
   type AssetTransactionFormData,
   type AssetTransactionType,
 } from '@/types/assetTransactions';
-import type { AssetType } from '@/types/assets';
+import type { Asset, AssetType } from '@/types/assets';
 
 /**
  * Server-side orchestration for the asset trade ledger (Registro operazioni asset).
@@ -284,6 +284,12 @@ interface PreparedMutation {
   cashDeltaByDocId: Map<string, number>;
   /** The fee row to create, move or remove with the trade. Absent when the trade has none. */
   feeWrite?: FeeWrite;
+  /**
+   * The opening position the owner asked to register together with the FIRST trade of an asset
+   * that carries a tracked quantity but no operation. Its price is resolved before the
+   * transaction (network); its quantity is read inside it, from the asset doc the guard reads.
+   */
+  opening?: { ref: DocumentReference; pricePerUnit: number; priceEur: number };
   /** Trade type whose result drives the response (new type for create/edit, old type for delete). */
   affectedType: AssetTransactionType;
   invalidationReason: string;
@@ -297,9 +303,32 @@ function addCashDelta(map: Map<string, number>, t: AssetTransaction, sign: 1 | -
   map.set(t.linkedCashAssetId, (map.get(t.linkedCashAssetId) ?? 0) + delta);
 }
 
+/**
+ * Resolve the price of the opening position `withOpening` registers: the asset's own PMC (else its
+ * price), converted like the migration baseline. Same id as the migration's, `baseline-${assetId}`,
+ * so a retry overwrites and never duplicates.
+ */
+async function prepareOpening(
+  ownerId: string,
+  assetId: string
+): Promise<NonNullable<PreparedMutation['opening']>> {
+  const snap = await adminDb.collection(ASSETS_COLLECTION).doc(assetId).get();
+  const data = snap.data() as Asset | undefined;
+  if (!snap.exists || !data || data.userId !== ownerId) {
+    throw new TradeUseCaseError(404, 'Asset non trovato.');
+  }
+  const asset = { ...data, id: assetId } as Asset;
+  return {
+    ref: adminDb.collection(ASSET_TRANSACTIONS_COLLECTION).doc(`baseline-${assetId}`),
+    pricePerUnit: asset.averageCost ?? asset.currentPrice,
+    priceEur: await resolveBaselinePriceEur(asset),
+  };
+}
+
 async function prepareCreate(
   ownerId: string,
-  data: AssetTransactionFormData
+  data: AssetTransactionFormData,
+  options: CreateTradeOptions = {}
 ): Promise<PreparedMutation> {
   await assertLedgerInitialized(ownerId);
   const currency = await getLedgerAssetCurrencyOrThrow(ownerId, data.assetId);
@@ -335,10 +364,13 @@ async function prepareCreate(
   const cashDeltaByDocId = new Map<string, number>();
   addCashDelta(cashDeltaByDocId, newTransaction, 1);
 
+  const opening = options.withOpening ? await prepareOpening(ownerId, data.assetId) : undefined;
+
   return {
     ownerId,
     assetId: data.assetId,
     feeWrite,
+    opening,
     op: 'set',
     tradeRef,
     newTransaction,
@@ -506,17 +538,40 @@ async function commitTradeMutation(
     // otherwise replay from empty and overwrite that quantity with just the new trade's — exactly
     // the bug that hit XEON on 2026-09-04. Only the very first trade (existing.length === 0) is at
     // risk; every later mutation replays against real history and is unaffected.
+    //
+    // The remedy is the opening position (`isBaseline`, a BUY that moves no money): the owner asks
+    // for it with `withOpening`, and it is written in THIS transaction, dated the day of the first
+    // trade (a baseline outranks the trades of its own day in the replay), so either both exist or
+    // neither does. An adjustment cannot be the remedy: it is a `set` with no history too.
+    let openingTrade: AssetTransaction | undefined;
     if (plan.op === 'set' && existing.length === 0 && assetSnap.exists) {
       const priorQuantity = (assetSnap.data()?.quantity as number) ?? 0;
       if (Math.abs(priorQuantity) > EPSILON) {
-        throw new TradeUseCaseError(
-          409,
-          `Questo asset ha già una quantità tracciata (${Number(priorQuantity.toFixed(6))}) ma nessuna operazione nel registro: la prima operazione la sovrascriverebbe invece di sommarsi. Aggiungi prima un'operazione datata prima di questa che rappresenti la posizione di partenza (es. un adeguamento con quella quantità), poi registra questa operazione.`
-        );
+        if (!plan.opening || !plan.newTransaction) {
+          throw new TradeUseCaseError(
+            409,
+            `Questo asset ha già una quantità tracciata (${Number(priorQuantity.toFixed(6))}) ma nessuna operazione nel registro: la prima operazione la sovrascriverebbe invece di sommarsi. Conferma di registrare anche la posizione iniziale con quella quantità, poi salva questa operazione.`
+          );
+        }
+        const now = new Date();
+        openingTrade = {
+          id: plan.opening.ref.id,
+          userId: plan.ownerId,
+          assetId: plan.assetId,
+          type: 'buy',
+          isBaseline: true,
+          date: plan.newTransaction.date,
+          quantity: priorQuantity,
+          pricePerUnit: plan.opening.pricePerUnit,
+          priceEur: plan.opening.priceEur,
+          note: 'Posizione iniziale (quantità già tracciata)',
+          createdAt: now,
+          updatedAt: now,
+        };
       }
     }
 
-    const newSequence = buildNewSequence(existing, plan);
+    const newSequence = buildNewSequence(openingTrade ? [openingTrade] : existing, plan);
 
     // replayTransactions throws LedgerValidationError (→ 422) on any invalid history.
     const newState = replayTransactions(newSequence);
@@ -537,6 +592,10 @@ async function commitTradeMutation(
     }
 
     // ── WRITES ───────────────────────────────────────────────────────────────
+    // w0: the opening position, when one was asked for and needed.
+    if (openingTrade && plan.opening) {
+      tx.set(plan.opening.ref, buildTradeSetDocData(openingTrade));
+    }
     // w1: the trade doc.
     if (plan.op === 'set') {
       tx.set(plan.tradeRef, plan.tradeDocData!);
@@ -656,11 +715,17 @@ function buildResult(plan: PreparedMutation, commit: Awaited<ReturnType<typeof c
 // Public use-case API
 // ---------------------------------------------------------------------------
 
+export interface CreateTradeOptions {
+  /** Also register the asset's already-tracked quantity as its opening position (first trade only). */
+  withOpening?: boolean;
+}
+
 export async function createAssetTransaction(
   ownerId: string,
-  data: AssetTransactionFormData
+  data: AssetTransactionFormData,
+  options: CreateTradeOptions = {}
 ): Promise<TradeMutationResult> {
-  const plan = await prepareCreate(ownerId, data);
+  const plan = await prepareCreate(ownerId, data, options);
   const commit = await commitTradeMutation(plan);
   await syncDividendsAfterTrade(plan.ownerId, plan.assetId);
   return buildResult(plan, commit);

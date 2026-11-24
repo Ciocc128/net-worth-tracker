@@ -69,7 +69,8 @@ function invalidateTradeCaches(queryClient: QueryClient, ownerId: string): void 
 export function useCreateAssetTransaction(ownerId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: AssetTransactionFormData) => createAssetTransaction(ownerId, data),
+    mutationFn: ({ withOpening, ...data }: AssetTransactionFormData & { withOpening?: boolean }) =>
+      createAssetTransaction(ownerId, data, { withOpening }),
     onSuccess: () => invalidateTradeCaches(queryClient, ownerId),
   });
 }

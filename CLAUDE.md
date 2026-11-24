@@ -125,10 +125,6 @@ Only what crosses areas; an area's blind spots — behaviours that look like bug
 - **The AI surfaces do not share a model** (`lib/constants/aiModels.ts`): Rendimenti on `claude-sonnet-4-6`, the assistant on `claude-sonnet-5`, the periodic emails on GPT-6.1 Sol at effort high (2026-10-08, spec § 7.7; a closed model, declared exception), the weekly budget email on GLM 5.3 Flash (fp8/bf16/fp16 hosts only) and TheBull's compilation on DeepSeek V4.1 Flash with the reasoning off (spec § 7.3) — all definitive. A product decision each; the routes stay distinct.
 - **Per-page blind spots** — the behaviours that look like bugs and are not — live at the end of each `doc/guide/<page>.md` (one *Per-page blind spots* section per page). Moved there verbatim from this file's Known Issues; CLAUDE.md keeps only the cross-cutting ones.
 - **Every controlled `ResponsiveModal` opened without `returnFocusTo` drops focus on `body` when it closes** (Radix cancels its own restore when there is no `Trigger`; doc/guide/dialog.md). Rendimenti's two and Hall of Fame's two are fixed; the others take the opener when they are next touched.
-- **Solo fork — la guardia sulla prima operazione ha un rimedio irraggiungibile** (`lib/server/assetTransactionUseCase.ts`):
-  il 409 consiglia un'operazione di apertura, ma anche un adjustment è `op: 'set'` con `existing.length === 0` e la
-  stessa guardia lo blocca. Sull'account reale: **Berkshire Hathaway** (0,05 quote, zero operazioni). Rimedio
-  difendibile anche per upstream: creare l'apertura `isBaseline`, che non muove denaro nei `portfolioFlows`.
 - **Solo fork — `npm run lint` legge cartelle che git ignora** (`.claude/worktrees/`, `scratchpad/`): il lint vero è
   `npx eslint app components lib types e2e scripts __tests__`.
 - **Solo fork — `CACHE_MATH_VERSION` è `'v{n}-fork'`** (`lib/services/performanceService.ts`): distinta da upstream qualunque

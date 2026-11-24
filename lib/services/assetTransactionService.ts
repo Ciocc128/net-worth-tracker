@@ -136,12 +136,17 @@ async function parseWriteResponse<T>(response: Response, fallbackMessage: string
 
 export async function createAssetTransaction(
   ownerId: string,
-  data: AssetTransactionFormData
+  data: AssetTransactionFormData,
+  options: { withOpening?: boolean } = {}
 ): Promise<AssetTransactionMutationResult> {
   const response = await authenticatedFetch('/api/asset-transactions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId: ownerId, transaction: data }),
+    body: JSON.stringify({
+      userId: ownerId,
+      transaction: data,
+      ...(options.withOpening ? { withOpening: true } : {}),
+    }),
   });
   return parseWriteResponse(response, "Errore durante la registrazione dell'operazione.");
 }

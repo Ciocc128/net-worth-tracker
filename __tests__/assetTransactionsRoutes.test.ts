@@ -396,6 +396,29 @@ describe('Asset trade-ledger routes', () => {
     });
   });
 
+  it('forwards withOpening: the first trade of a tracked, operation-less asset is refused without it and succeeds with it', async () => {
+    seedMeta('user-1');
+    seedLedgerAsset('asset-1', 'user-1');
+    store.set(docKey('assets', 'asset-1'), { ...store.get(docKey('assets', 'asset-1'))!, quantity: 2, averageCost: 100 });
+    const post = (extra: Record<string, unknown>) =>
+      createRoute(
+        createJsonRequest('http://localhost/api/asset-transactions', {
+          method: 'POST',
+          body: { userId: 'user-1', transaction: validTransaction({ quantity: 1, pricePerUnit: 130 }), ...extra },
+          headers: AUTH,
+        })
+      );
+
+    expect((await post({})).status).toBe(409);
+    // A string is not the literal true: it does not open anything.
+    expect((await post({ withOpening: 'true' })).status).toBe(409);
+
+    const ok = await post({ withOpening: true });
+    expect(ok.status).toBe(200);
+    // 2 @ 100 opening + 1 @ 130 = 3 shares at 110 (hand-worked: (200 + 130) / 3).
+    await expect(ok.json()).resolves.toMatchObject({ derived: { quantity: 3, averageCost: 110 } });
+  });
+
   it('returns 409 when the ledger is not yet initialized', async () => {
     seedLedgerAsset('asset-1', 'user-1'); // asset exists, but no meta doc
 
