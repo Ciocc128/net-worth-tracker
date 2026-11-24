@@ -3,7 +3,7 @@
 /**
  * OptimizerPanel — the PAC editor's "Ottimizzato" view of step 2 (doc/weight-optimizer-ate.md §9.2).
  * Replaces the manual weight table when the reader picks "Ottimizzato": summarises the active
- * objectives from Impostazioni → Allocazione, lets them pick Raggiungibile/Ideale, resolves
+ * objectives from Allocazione › Strategia, lets them pick Raggiungibile/Ideale, resolves
  * instrument profiles for every position's members on "Calcola", runs the pure `optimizeWeights`
  * engine and renders its report. "Usa questi pesi" hands the caller the proposed weights AND the
  * `OptimizerSnapshot` to persist with the draft (§9.4) — this component never writes to Firestore

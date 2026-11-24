@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * One asset class of Impostazioni › Allocazione › Target per classe: the class row (its target,
+ * One asset class of Allocazione › Strategia › Target per classe (moved from Impostazioni with RU8): the class row (its target,
  * the «fisso €» switch for Liquidità, the Sottocategorie toggle) and, behind a Collapsible that is
  * NOT force-mounted (since 2026-10-08), the subcategory group — enable switch, the rows sorted by name,
  * «Aggiungi sottocategoria». A collapsed group is not in the DOM.
@@ -22,7 +22,7 @@ import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { sumSubTargets, sumsToHundred } from '@/lib/utils/allocationTargetValidation';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
-import { targetFieldId, type AssetClassDraft, type SubTargetDraft } from '@/lib/utils/settingsDraft';
+import { targetFieldId, type AssetClassDraft, type SubTargetDraft } from '@/lib/utils/targetsDraft';
 import type { AssetClass } from '@/types/assets';
 import { INTERACTIVE_CONTROL_CLASS, pctLabel } from '@/components/settings/tabs/shared';
 import { COLLAPSIBLE_CONTENT_CLASS, SubTargetEditor } from './SubTargetEditor';
@@ -105,20 +105,21 @@ export function AllocationClassEditor({ assetClass, draft, isAutoCalculated, cas
           {isAutoCalculated && (
             <p className="mt-0.5 text-[11px] text-muted-foreground">Calcolata dalla formula</p>
           )}
+          {/* Under the name, not beside it: at 390 the switch beside the field squeezed «Liquidità» under itself. */}
+          {cash && !isAutoCalculated && (
+            <div className="mt-1 flex items-center gap-1.5">
+              <Switch
+                id="cashFixedToggle"
+                checked={cash.useFixedAmount}
+                onCheckedChange={cash.onUseFixedAmount}
+                className={INTERACTIVE_CONTROL_CLASS}
+              />
+              <Label htmlFor="cashFixedToggle" className="whitespace-nowrap text-[11px] text-muted-foreground">
+                fisso €
+              </Label>
+            </div>
+          )}
         </div>
-        {cash && !isAutoCalculated && (
-          <div className="flex shrink-0 items-center gap-1.5">
-            <Switch
-              id="cashFixedToggle"
-              checked={cash.useFixedAmount}
-              onCheckedChange={cash.onUseFixedAmount}
-              className={INTERACTIVE_CONTROL_CLASS}
-            />
-            <Label htmlFor="cashFixedToggle" className="whitespace-nowrap text-[11px] text-muted-foreground">
-              fisso €
-            </Label>
-          </div>
-        )}
         <div className="flex shrink-0 items-center gap-1.5">
           <Input
             id={targetFieldId.classPct(assetClass)}

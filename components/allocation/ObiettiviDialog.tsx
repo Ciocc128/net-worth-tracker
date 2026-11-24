@@ -191,7 +191,8 @@ export function ObiettiviDialog({ open, onClose, ownerId, allAssets, targets, ta
           )}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[12px]">
             {classTargets.leverageText && <span className="text-muted-foreground">{classTargets.leverageText}</span>}
-            <Link href={OBJECTIVES_CLASS_TARGETS_HREF} className={TILE_FOOTER_ACTION_CLASS}>
+            {/* The targets sit on the same tab since RU8: the link closes the dialog and lands on block 1. */}
+            <Link href={OBJECTIVES_CLASS_TARGETS_HREF} onClick={onClose} className={TILE_FOOTER_ACTION_CLASS}>
               {OBJECTIVES_CLASS_TARGETS_LINK}
             </Link>
           </div>

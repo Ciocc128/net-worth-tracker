@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
-import { Asset, AssetAllocationTarget, AssetAllocationSettings, IdealAllocationSettings } from '@/types/assets';
+import { Asset, AssetAllocationTarget, AssetAllocationSettings, AssetAllocationSettingsWrite, IdealAllocationSettings } from '@/types/assets';
 import { calculateAssetValue, calculateTotalValue } from './assetService';
 import { monteCarloMarketForMergeWrite } from '@/lib/utils/monteCarloMarket';
 import { calculateFormulaEquityPercentage } from '@/lib/utils/equityBondsAutoTargets';
@@ -12,7 +12,7 @@ const ALLOCATION_TARGETS_COLLECTION = 'assetAllocationTargets';
 // buildLiveOverviewPayload) belongs here — a summary stays fresh for the whole Italian day, so a
 // field missing from this list leaves the Panoramica on the old value for hours.
 // `pensionReturnStartMonth` is cleared by sending the key with no value, so it counts by presence.
-function settingsAffectDashboardOverview(settings: AssetAllocationSettings): boolean {
+function settingsAffectDashboardOverview(settings: AssetAllocationSettingsWrite): boolean {
   return (
     settings.stampDutyEnabled !== undefined ||
     settings.stampDutyRate !== undefined ||
@@ -199,7 +199,7 @@ export async function getTargets(
  */
 export async function setSettings(
   userId: string,
-  settings: AssetAllocationSettings
+  settings: AssetAllocationSettingsWrite
 ): Promise<void> {
   try {
     const targetRef = doc(db, ALLOCATION_TARGETS_COLLECTION, userId);

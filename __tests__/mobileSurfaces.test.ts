@@ -32,10 +32,11 @@ describe('perf/mobile-budget.json — surfaces', () => {
     }
   });
 
-  it('applies The First-Screen Rule everywhere but Impostazioni, which has no verdict', () => {
+  it('applies The First-Screen Rule everywhere but Impostazioni and Allocazione › Strategia, which have no verdict', () => {
     const exempt = Object.entries(budget.surfaces).filter(([, surface]) => !surface.target).map(([key]) => key);
 
-    expect(exempt).toEqual(['impostazioni']);
+    // Strategia is where the weights are written, an editor like Impostazioni (RU8, D-ST § 6.3).
+    expect(sorted(exempt)).toEqual(['allocazione-strategia', 'impostazioni']);
   });
 });
 

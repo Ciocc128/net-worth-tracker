@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * "Allocazione ideale" (Impostazioni → Allocazione) — the weight optimizer's objectives
+ * "Allocazione ideale" (Allocazione › Strategia) — the weight optimizer's objectives
  * (doc/weight-optimizer-ate.md §7.3). A controlled leaf: the page owns the state, the load and
  * the Salva button; this component only edits `value` in place through `onChange`. Nothing here
  * writes to Firestore on its own (no second Save path — doc/guide/impostazioni.md § Settings —

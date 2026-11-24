@@ -165,11 +165,8 @@ test('a save from Preferenze keeps every other tab’s fields — read back afte
   await page.reload({ waitUntil: 'load' });
   await expect(page.locator('h1:visible')).toContainText('Impostazioni', { timeout: 60_000 });
   await expect(yearInput(page)).toHaveValue(newYear);
-  await visibleTab(page, 'Allocazione').click();
-  await page.getByRole('button', { name: /^Apri sottocategorie di Azioni/ }).click();
-  const nameInputs = page.locator('input[id^="target-equity-sub-"][id$="-name"]');
-  await expect(nameInputs).toHaveCount(equitySubTargets.length);
-  expect((await nameInputs.evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value))).sort()).toEqual(equitySubTargets);
+  // The targets are not a view of this page since RU8 (Allocazione › Strategia): the document check above
+  // proves a Preferenze save kept them; the form round trip of the targets is e2e/allocation.spec.ts.
   await visibleTab(page, 'Dividendi').click();
   await expect(page.getByRole('combobox', { name: 'Conto di accredito dei dividendi' })).not.toContainText('Nessun conto');
   await visibleTab(page, 'Spese').click();

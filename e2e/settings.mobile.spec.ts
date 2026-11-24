@@ -7,7 +7,8 @@
  *     più lunga (Preferenze, ~4 schermi).
  *  2. Il chip «modifiche non salvate» era `hidden sm:inline-flex`: sotto 640px non esisteva. Ora la
  *     barra in fondo dice quali tab e sta sopra la pillola di navigazione, mai sotto.
- *  3. «Ripristina default» era un pulsante senza nome (l'etichetta visibile era `hidden sm:inline`).
+ *  3. «Ripristina default» era un pulsante senza nome (l'etichetta visibile era `hidden sm:inline`);
+ *     dal 2026-11-23 (RU8) è in Allocazione › Strategia, sempre con l'etichetta scritta.
  *
  * Nessun test SCRIVE: le modifiche si annullano con «Annulla modifiche».
  *
@@ -45,11 +46,11 @@ test('il navbar con «Salva» resta in cima mentre la pagina scorre', async ({ p
 });
 
 test('la barra delle modifiche non salvate sta sopra la pillola di navigazione', async ({ page }) => {
-  await openSettings(page, 'allocazione');
-  await page.getByRole('spinbutton', { name: 'Target Criptovalute' }).fill('15');
+  await openSettings(page, 'generale');
+  await page.getByRole('switch', { name: 'Centri di Costo' }).click();
 
   const bar = page.getByRole('region', { name: 'Modifiche non salvate' });
-  await expect(bar).toContainText('Modifiche non salvate in Allocazione');
+  await expect(bar).toContainText('Modifiche non salvate in Preferenze');
   await page.locator('main').evaluate((main) => main.scrollTo({ top: main.scrollHeight / 3 }));
 
   const barBox = await bar.boundingBox();
@@ -68,18 +69,8 @@ test('la barra delle modifiche non salvate sta sopra la pillola di navigazione',
   await expect(bar).toHaveCount(0);
 });
 
-test('«Ripristina default» ha un nome anche quando mostra solo l\'icona', async ({ page }) => {
-  await openSettings(page, 'allocazione');
-  const reset = page.locator('button:visible').filter({ has: page.locator('svg.lucide-rotate-ccw') }).first();
-  await expect(reset).toHaveAccessibleName('Ripristina default');
-  // Rounded: under a full suite the page's entrance spring (scale 0.995 → 1, lib/utils/motionVariants.ts)
-  // can still be a frame from settled when the box is read, and `h-11` then measures 43,999998 —
-  // the same 44px target, not a smaller one (2026-09-29, red in two full runs, green alone).
-  expect(Math.round((await reset.boundingBox())!.height)).toBeGreaterThanOrEqual(44);
-});
-
 test('nessun tab scorre di lato', async ({ page }) => {
-  for (const tab of ['allocazione', 'generale', 'spese', 'dividendi', 'condivisione', 'aspetto']) {
+  for (const tab of ['generale', 'spese', 'dividendi', 'simulazioni', 'condivisione', 'aspetto']) {
     await openSettings(page, tab);
     const overflow = await page.locator('main').evaluate((main) => main.scrollWidth - main.clientWidth);
     expect(overflow, tab).toBe(0);

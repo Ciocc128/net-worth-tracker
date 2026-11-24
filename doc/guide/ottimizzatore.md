@@ -228,7 +228,7 @@ ha peso corrente 0 e l'ottimizzatore gli dà un peso solo se un obiettivo lo chi
 - **Cosa può starci (RM2)**: `toModelWeights` (`lib/utils/modelPortfolio.ts`) toglie `frozen`, `excluded` e conti e
   riscala a 100 al centesimo di punto; `proposalToModelWeights` lo applica a un calcolo e marca `candidate` ciò che non
   si possiede (RM3). Un fondo monetario resta.
-- **Il tile «Portafoglio modello»** (`PortafoglioModelloTile`, sostituisce Composizione ideale): tabella oggi · modello ·
+- **Il tile «Portafoglio modello»** (`PortafoglioModelloTile`, sostituisce Composizione ideale; in Allocazione › Strategia da RU8, `#portafoglio-modello`): tabella oggi · modello ·
   differenza in euro (`describeModelVsToday`, RM4: base `M` = valore degli strumenti del modello, i «da valutare» in
   fondo, ciò che si possiede fuori dal modello in una riga a parte); «Ricalcola» (`IdealCompositionDialog`: le tre
   modalità, **«Salva come portafoglio modello»** scrive il risultato con `origin: 'optimizer'` e lo snapshot, «Crea un
@@ -242,7 +242,7 @@ ha peso corrente 0 e l'ottimizzatore gli dà un peso solo se un obiettivo lo chi
 
 - **I gruppi nel modello (AL16, D-AL3)**: una riga può essere un gruppo di strumenti equivalenti — `memberAssetIds` (il buyer incluso, `assetId` resta lo strumento che compra; assente = lo strumento da solo). `validateModelWeights` rifiuta uno strumento in due righe e controlla i membri come il buyer; `toModelWeights` toglie il membro che non può starci (e lo dice). Lo strumento a sé (`IdealCompositionDialog`, `ObiettiviDialog`) passa i gruppi a `buildStandaloneCandidates(…, groups)`: un gruppo è UN candidato con la chiave del buyer (profilo del buyer, avviso `proxy_mismatch` invariato), gli altri restano strumenti singoli; il risultato salvato riporta i membri. Il valore di oggi di un gruppo è la somma dei membri, `candidate` solo se nessun membro ha quote, e un membro non è mai «fuori dal modello». Il tile disegna il gruppo come il passo Target (testa = chi compra, gli altri rientrati con «non riceve acquisti»); «Modifica a mano» conserva i membri. Un modello senza gruppi si legge e si salva come prima.
 
-- **«Criteri del modello» e i target di classe (AL18, AL19, D-AL5, D-AL7)**: gli obiettivi dell'ottimizzatore si chiamano **«Criteri del modello»** (tile, «Modifica i criteri», titolo del modale, «Salva i criteri», «Criteri attivi» nei rapporti, «Senza il criterio «Leva»», Impostazioni › Allocazione); i campi salvati (`idealAllocation`) e `?obiettivi=1` non cambiano. Il modale mostra in cima i **target di classe** di Impostazioni in sola lettura — classe, %, e la leva che ne segue («Somma 110%: leva 1,10×.») — con «Modifica in Impostazioni» (`describeClassTargets`): si scrivono in un posto solo.
+- **«Criteri del modello» e i target di classe (AL18, AL19, D-AL5, D-AL7)**: gli obiettivi dell'ottimizzatore si chiamano **«Criteri del modello»** (tile, «Modifica i criteri», titolo del modale, «Salva i criteri», «Criteri attivi» nei rapporti, «Senza il criterio «Leva»»); i campi salvati (`idealAllocation`) e `?obiettivi=1` non cambiano (da RU8, 2026-11-23, `?tab=strategia&obiettivi=1`: il tile e il modale stanno in Allocazione › Strategia). Il modale mostra in cima i **target di classe** in sola lettura — classe, %, e la leva che ne segue («Somma 110%: leva 1,10×.») — con «Modifica i target per classe» verso `?tab=strategia#target` (`describeClassTargets`; il link chiude il modale): si scrivono in un posto solo.
 
 ## Limiti noti
 

@@ -335,7 +335,7 @@ describe('recurring costs in the rates (RC4)', () => {
   it('C12: the line says the costs, the three readings', () => {
     const base = { assets: costPortfolio, assetValue: valueOf };
     expect(text({ ...base, settings })).toContain('Costi 0,36% · TER 0,16%, bollo 0,20%');
-    expect(text({ ...base, settings: { ...settings, stampDutyEnabled: false } })).toContain('Costi 0,16% · Solo TER; bollo non attivo in Impostazioni › Allocazione');
+    expect(text({ ...base, settings: { ...settings, stampDutyEnabled: false } })).toContain('Costi 0,16% · Solo TER; bollo non attivo in Impostazioni › Preferenze');
     const noTer = costPortfolio.map((a) => ({ ...a, totalExpenseRatio: undefined }));
     expect(text({ assets: noTer, assetValue: valueOf, settings })).toContain('TER non inseriti negli strumenti');
   });

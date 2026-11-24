@@ -4,8 +4,9 @@
  * Impostazioni › Preferenze (`generale`) — every group is a tile: eyebrow = the group, reading =
  * ONE rule-generated state line (settingsNarrative), controls below. Order: what this tab WRITES
  * first (three rows of editable tiles), then the two read-only declarations of fields other
- * pages own. Età and risk-free rate are not here: they live in Allocazione › Auto-calcolo,
- * beside the formula whose switch they unlock (2026-09-22).
+ * pages own. The risk-free rate is here since RU8 (2026-11-23), in Calcolo dei rendimenti: it is
+ * Sharpe's and Sortino's, and the age formula of Allocazione › Strategia reads it from here; the
+ * age has its one editor in FIRE › Il mio piano.
  *
  * A controlled view of the `generale` slice: `slice` in, `onChange(patch)` out. What stays
  * local is ephemeral — a recipient being typed, a test send in flight, the dev dialogs.
@@ -29,6 +30,7 @@ import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { resolveRitaUnlockAge, DEFAULT_INPS_RETIREMENT_AGE } from '@/lib/utils/pensionUnlock';
 import type { SurfaceState } from '@/lib/utils/statesNarrative';
+import type { RiskFreeResolution } from '@/lib/utils/riskFreeRate';
 import {
   describeAssistantPreferences,
   describeCashflowSettings,
@@ -39,11 +41,13 @@ import {
   describeFireToggles,
   describePerformanceBase,
   describePlanParameters,
+  describeRiskFreeSource,
 } from '@/lib/utils/settingsNarrative';
 import { describeFlowsDeclaration } from '@/lib/utils/datedFlowsNarrative';
 import {
   NO_SELECTION,
   parseFamilyMemberDrafts,
+  STRATEGIA_TARGETS_HREF,
   type FamilyMemberDraft,
   type GeneraleSlice,
   type SettingsDeclarations,
@@ -79,10 +83,10 @@ export interface GeneraleTabProps {
   isDemo: boolean;
   expenseCategories: ExpenseCategory[];
   categoriesState: SurfaceState;
-  /** Liquidità's subcategory names when its sub-targets are on, else empty — the Costi select reads Allocazione's rows. */
+  /** Liquidità's subcategory names when its sub-targets are on (as saved), else empty — the Costi select reads Strategia's rows. */
   cashSubCategories: string[];
-  /** The Calcolo dei rendimenti footer points at the risk-free rate, which lives in Allocazione. */
-  onGoToAllocazione: () => void;
+  /** The ECB estimate of the risk-free rate: what the field follows while nothing is typed (`resolveRiskFreeEstimate`). */
+  riskFreeEstimate: RiskFreeResolution;
 }
 
 export function GeneraleTab({
@@ -94,14 +98,14 @@ export function GeneraleTab({
   expenseCategories,
   categoriesState,
   cashSubCategories,
-  onGoToAllocazione,
+  riskFreeEstimate,
 }: GeneraleTabProps) {
   const {
-    includePrimaryResidenceInFIRE, goalBasedInvestingEnabled, goalDrivenAllocationEnabled, stampDutyEnabled,
+    includePrimaryResidenceInFIRE, goalBasedInvestingEnabled, stampDutyEnabled,
     stampDutyRate, checkingAccountSubCategory, cashflowHistoryStartYear, laborIncomeCategoryIds, costCentersEnabled,
     expenseSplitEnabled, performanceIncludesPensionFunds, performanceIncludesExcludedAssets, performanceExcludesCash,
     pensionReturnStartMonth, monthlyEmailEnabled, quarterlyEmailEnabled, semiAnnualEmailEnabled, yearlyEmailEnabled,
-    weeklyBudgetEmailEnabled, monthlyEmailRecipients, familyMembers,
+    weeklyBudgetEmailEnabled, monthlyEmailRecipients, familyMembers, riskFreeRate,
   } = slice;
   const { planParams, assistantPrefs } = declarations;
 
@@ -228,6 +232,37 @@ export function GeneraleTab({
                 className={cn('shrink-0', INTERACTIVE_CONTROL_CLASS)}
               />
             </div>
+            {/* The risk-free rate (RU8, D-ST4): typed, or the ECB estimate while empty, with the way back. */}
+            <div className="flex items-center justify-between gap-4 py-3">
+              <div className="min-w-0">
+                <Label htmlFor="riskFreeRate" className="text-[13px] font-medium">Risk-free rate</Label>
+                <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
+                  {describeRiskFreeSource({ typed: riskFreeRate, estimate: riskFreeEstimate })}
+                  {riskFreeRate !== undefined && (
+                    <>
+                      {' '}
+                      <button type="button" onClick={() => onChange({ riskFreeRate: undefined })} className={TILE_FOOTER_ACTION_CLASS}>
+                        Torna alla stima
+                      </button>
+                    </>
+                  )}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Input
+                  id="riskFreeRate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={riskFreeRate ?? ''}
+                  onChange={(e) => onChange({ riskFreeRate: e.target.value ? parseFloat(e.target.value) : undefined })}
+                  placeholder={riskFreeEstimate.value.toFixed(2).replace('.', ',')}
+                  className={cn('w-24 text-right font-mono', INTERACTIVE_CONTROL_CLASS)}
+                />
+                <span className="text-sm text-muted-foreground">%</span>
+              </div>
+            </div>
             <div className="flex items-center justify-between gap-4 py-3">
               <div className="min-w-0">
                 <Label htmlFor="pensionReturnStartMonth" className="text-[13px] font-medium">
@@ -247,11 +282,11 @@ export function GeneraleTab({
             </div>
           </div>
           <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-            Le metriche si ricalcolano alla prossima visita di Rendimenti; il risk-free di Sharpe e Sortino
-            si imposta in{' '}
-            <button type="button" onClick={onGoToAllocazione} className={TILE_FOOTER_ACTION_CLASS}>
-              Allocazione
-            </button>
+            Le metriche si ricalcolano alla prossima visita di Rendimenti; il risk-free vale per Sharpe, Sortino
+            e per la formula per età di{' '}
+            <Link href={STRATEGIA_TARGETS_HREF} className={TILE_FOOTER_ACTION_CLASS}>
+              Allocazione › Strategia
+            </Link>
             .
           </div>
         </Tile>
@@ -319,7 +354,11 @@ export function GeneraleTab({
                   </Select>
                 ) : (
                   <p className="text-[11px] leading-[1.4] text-warning-foreground">
-                    Configura le sottocategorie di Liquidità, in Allocazione, per abilitarla.
+                    Configura le sottocategorie di Liquidità, in{' '}
+                    <Link href={STRATEGIA_TARGETS_HREF} className={TILE_FOOTER_ACTION_CLASS}>
+                      Allocazione › Strategia
+                    </Link>
+                    , per abilitarla.
                   </p>
                 )}
               </div>
@@ -331,15 +370,11 @@ export function GeneraleTab({
         </Tile>
       </div>
 
-      {/* FIRE e traguardi — the three toggles this page OWNS; it takes the column's slack */}
+      {/* FIRE e traguardi — the two toggles this page OWNS; it takes the column's slack */}
       <div className={cn(TILE_CELL_CLASS, 'desktop:flex-1')}>
         <Tile
           eyebrow="FIRE e traguardi"
-          reading={describeFireToggles({
-            includePrimaryResidenceInFIRE,
-            goalBasedInvestingEnabled,
-            goalDrivenAllocationEnabled,
-          })}
+          reading={describeFireToggles({ includePrimaryResidenceInFIRE, goalBasedInvestingEnabled })}
         >
           <div className="mt-1 flex flex-col divide-y divide-border">
             <div className="flex items-center justify-between gap-4 py-3">
@@ -368,31 +403,12 @@ export function GeneraleTab({
               <Switch
                 id="goalBasedInvesting"
                 checked={goalBasedInvestingEnabled}
-                // Disabling the goals disables the goal-driven allocation with them.
-                onCheckedChange={(checked) =>
-                  onChange(checked ? { goalBasedInvestingEnabled: true } : { goalBasedInvestingEnabled: false, goalDrivenAllocationEnabled: false })
-                }
+                // Disabling the goals turns the «Dai traguardi» source of Strategia off with them: the
+                // write does it (`composeSettingsDocument`, criterion 13), the targets fall back to manual.
+                onCheckedChange={(checked) => onChange({ goalBasedInvestingEnabled: checked })}
                 className={cn('shrink-0', INTERACTIVE_CONTROL_CLASS)}
               />
             </div>
-            {goalBasedInvestingEnabled && (
-              <div className="flex items-center justify-between gap-4 py-3">
-                <div className="min-w-0">
-                  <Label htmlFor="goalDrivenAllocation" className="text-[13px] font-medium">
-                    Allocazione derivata dai traguardi
-                  </Label>
-                  <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
-                    Target dal gap di ogni traguardo, pesato per priorità (Alta 3×, Media 2×, Bassa 1×)
-                  </p>
-                </div>
-                <Switch
-                  id="goalDrivenAllocation"
-                  checked={goalDrivenAllocationEnabled}
-                  onCheckedChange={(checked) => onChange({ goalDrivenAllocationEnabled: checked })}
-                  className={cn('shrink-0', INTERACTIVE_CONTROL_CLASS)}
-                />
-              </div>
-            )}
           </div>
         </Tile>
       </div>

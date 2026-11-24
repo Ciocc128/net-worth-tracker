@@ -22,14 +22,12 @@ vi.mock('firebase/firestore', () => ({
 
 import { narrativeToText, type Narrative } from '@/lib/utils/narrative';
 import {
-  describeAllocationTotal,
   describeHedgeReading,
   describeMonteCarloCorrelations,
   describeAssistantPreferences,
-  describeAutoCalc,
   describeBtpItalia,
   describeCashflowSettings,
-  describeClassTargets,
+  describeStrategiaTargets,
   describeColorTheme,
   describeTopBand,
   describeCosts,
@@ -178,40 +176,16 @@ describe('describeCosts', () => {
 });
 
 describe('describeFireToggles', () => {
-  it('reads house out, goals on with manual targets', () => {
-    expect(
-      plain(
-        describeFireToggles({
-          includePrimaryResidenceInFIRE: false,
-          goalBasedInvestingEnabled: true,
-          goalDrivenAllocationEnabled: false,
-        })
-      )
-    ).toBe('La casa resta fuori dal patrimonio FIRE; traguardi attivi, con target di allocazione manuali.');
+  it('reads house out, goals on — and where they can give the targets (RU8, D-ST4)', () => {
+    expect(plain(describeFireToggles({ includePrimaryResidenceInFIRE: false, goalBasedInvestingEnabled: true }))).toBe(
+      'La casa resta fuori dal patrimonio FIRE; traguardi attivi: possono dare i target di classe in Allocazione › Strategia.'
+    );
   });
 
-  it('reads house in and goal-derived targets', () => {
-    expect(
-      plain(
-        describeFireToggles({
-          includePrimaryResidenceInFIRE: true,
-          goalBasedInvestingEnabled: true,
-          goalDrivenAllocationEnabled: true,
-        })
-      )
-    ).toBe('La casa è dentro il patrimonio FIRE; traguardi attivi e target di allocazione derivati dai traguardi.');
-  });
-
-  it('reads goals off', () => {
-    expect(
-      plain(
-        describeFireToggles({
-          includePrimaryResidenceInFIRE: false,
-          goalBasedInvestingEnabled: false,
-          goalDrivenAllocationEnabled: false,
-        })
-      )
-    ).toBe('La casa resta fuori dal patrimonio FIRE; traguardi di investimento spenti.');
+  it('reads house in and goals off', () => {
+    expect(plain(describeFireToggles({ includePrimaryResidenceInFIRE: true, goalBasedInvestingEnabled: false }))).toBe(
+      'La casa è dentro il patrimonio FIRE; traguardi di investimento spenti.'
+    );
   });
 });
 
@@ -498,143 +472,32 @@ describe('describeEmails', () => {
 
 // ─── Allocazione ──────────────────────────────────────────────────────────────
 
-describe('describeAllocationTotal', () => {
-  it('reads a leveraged plan', () => {
-    expect(
-      plain(
-        describeAllocationTotal({
-          total: 102.5,
-          isValid: true,
-          leverageRatio: 1.025,
-          hasLeverage: true,
-          cashUseFixedAmount: false,
-          cashFixedAmount: 0,
-        })
-      )
-    ).toBe('Il piano impegna il 102,5% del capitale investito: leva target 1,03×.');
+describe('describeStrategiaTargets (RU8, D-ST4)', () => {
+  const base = { classesWithTarget: 3, classCount: 8, total: 100, cashFixedAmount: null, formula: {}, goalCount: 0, problem: null };
+
+  it('reads the manual targets, with or without leverage and fixed cash', () => {
+    expect(plain(describeStrategiaTargets({ ...base, source: 'manual' }))).toBe('A mano: 3 classi su 8, totale 100%, senza leva.');
+    // 110 / 100 = 1,10×.
+    expect(plain(describeStrategiaTargets({ ...base, source: 'manual', total: 110 }))).toBe('A mano: 3 classi su 8, totale 110%, leva 1,10×.');
+    expect(plain(describeStrategiaTargets({ ...base, source: 'manual', cashFixedAmount: 5000 }))).toContain('la liquidità fissa (5000 €) resta fuori');
   });
 
-  it('reads an unleveraged plan', () => {
-    expect(
-      plain(
-        describeAllocationTotal({
-          total: 100,
-          isValid: true,
-          leverageRatio: 1,
-          hasLeverage: false,
-          cashUseFixedAmount: false,
-          cashFixedAmount: 0,
-        })
-      )
-    ).toBe('Il piano impegna il 100% del capitale investito, senza leva.');
-  });
-
-  it('reads an under-allocated plan as blocking', () => {
-    expect(
-      plain(
-        describeAllocationTotal({
-          total: 92.5,
-          isValid: false,
-          leverageRatio: 0.925,
-          hasLeverage: false,
-          cashUseFixedAmount: false,
-          cashFixedAmount: 0,
-        })
-      )
-    ).toBe('Il piano impegna il 92,5% del capitale investito: mancano 7,5 punti al 100% e il salvataggio è bloccato.');
-  });
-
-  it('names the fixed cash outside the percentage budget', () => {
-    expect(
-      plain(
-        describeAllocationTotal({
-          total: 100,
-          isValid: true,
-          leverageRatio: 1,
-          hasLeverage: false,
-          cashUseFixedAmount: true,
-          cashFixedAmount: 10000,
-        })
-      )
-    ).toBe(
-      'Il piano impegna il 100% del capitale investito, senza leva; la liquidità fissa (10.000 €) resta fuori dal budget percentuale.'
+  it('reads the formula with its inputs, and names the missing age', () => {
+    expect(plain(describeStrategiaTargets({ ...base, source: 'formula', formula: { userAge: 40, riskFreeRate: 3, equityPct: 70 } }))).toBe(
+      'Formula per età: con 40 anni e 3% le Azioni sono al 70%, le Obbligazioni prendono il resto.'
     );
-  });
-});
-
-describe('describeAutoCalc', () => {
-  it('reads the enabled formula with the funded classes', () => {
-    expect(
-      plain(
-        describeAutoCalc({
-          enabled: true,
-          userAge: 34,
-          riskFreeRate: 3.5,
-          equityPct: 46,
-          bondsPct: 26.5,
-          otherTotal: 27.5,
-        })
-      )
-    ).toBe(
-      'Formula su 34 anni e 3,5%: 46% alle Azioni e 26,5% alle Obbligazioni; le altre classi (27,5%) scalano dalle Azioni.'
-    );
+    expect(plain(describeStrategiaTargets({ ...base, source: 'formula', formula: { riskFreeRate: 3 } }))).toContain("manca l'età");
   });
 
-  it('drops the funding clause when no other class has a target', () => {
-    expect(
-      plain(
-        describeAutoCalc({ enabled: true, userAge: 34, riskFreeRate: 3.5, equityPct: 73.5, bondsPct: 26.5, otherTotal: 0 })
-      )
-    ).toBe('Formula su 34 anni e 3,5%: 73,5% alle Azioni e 26,5% alle Obbligazioni.');
+  it('reads the goals, and says when none weighs yet', () => {
+    expect(plain(describeStrategiaTargets({ ...base, source: 'goals', goalCount: 2 }))).toBe('Dai traguardi: 2 traguardi attivi decidono le classi.');
+    expect(plain(describeStrategiaTargets({ ...base, source: 'goals', goalCount: 1 }))).toBe('Dai traguardi: 1 traguardo attivo decide le classi.');
+    expect(plain(describeStrategiaTargets({ ...base, source: 'goals' }))).toContain('valgono i target a mano');
   });
 
-  it('reads the off state with what the formula would do', () => {
-    expect(
-      plain(
-        describeAutoCalc({ enabled: false, userAge: 34, riskFreeRate: 3.5, equityPct: 46, bondsPct: 26.5, otherTotal: 27.5 })
-      )
-    ).toBe('Spento: i target sono manuali; con la formula su 34 anni e 3,5% le Azioni andrebbero al 46%.');
-  });
-
-  it('names both missing inputs, which live in the same tile', () => {
-    expect(plain(describeAutoCalc({ enabled: false }))).toBe(
-      "Spento: i target sono manuali; per usare la formula manca l'età e il risk-free rate, qui sotto."
-    );
-  });
-
-  it('names only the missing input', () => {
-    expect(plain(describeAutoCalc({ enabled: false, userAge: 34 }))).toBe(
-      'Spento: i target sono manuali; per usare la formula manca il risk-free rate, qui sotto.'
-    );
-    expect(plain(describeAutoCalc({ enabled: false, riskFreeRate: 3.5 }))).toBe(
-      "Spento: i target sono manuali; per usare la formula manca l'età, qui sotto."
-    );
-  });
-
-  it('does not call a switched-on formula «spento» when an input was cleared', () => {
-    expect(plain(describeAutoCalc({ enabled: true, userAge: 34 }))).toBe(
-      "Attivo, ma manca il risk-free rate, qui sotto: finché non c'è, i target restano quelli scritti a mano."
-    );
-  });
-});
-
-describe('describeClassTargets', () => {
-  it('counts the classes and reads leverage as legitimate', () => {
-    expect(plain(describeClassTargets({ classCount: 8, withSubcategories: 1, problem: null }))).toBe(
-      '8 classi, 1 con sottocategorie; un totale sopra il 100% è la leva target.'
-    );
-  });
-
-  it('replaces the inventory with the one problem blocking the save', () => {
-    expect(
-      plain(
-        describeClassTargets({
-          classCount: 8,
-          withSubcategories: 1,
-          problem: { kind: 'sub-total', assetClass: 'equity', total: 95 },
-        })
-      )
-    ).toBe('Le sottocategorie di Azioni sommano 95% invece del 100%. «Salva» ti porta lì e non scrive nulla finché non è corretto.');
+  it('a broken rule wins, with where «Salva i target» takes the reader', () => {
+    const reading = plain(describeStrategiaTargets({ ...base, source: 'manual', total: 90, problem: { kind: 'total-below-100', total: 90 } }));
+    expect(reading).toBe('Le classi sommano 90%: mancano 10 punti al 100%. «Salva i target» ti porta lì e non scrive nulla finché non è corretto.');
   });
 });
 

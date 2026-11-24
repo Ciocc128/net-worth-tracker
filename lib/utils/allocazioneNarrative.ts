@@ -302,23 +302,25 @@ export const ALLOCAZIONE_CLOSED_ASIDES = {
 
 // ─── Header ───────────────────────────────────────────────────────────────────
 
-/** «245.000 € allocati · 5 classi · target dalle impostazioni» — the compact header's description. */
+/**
+ * «Portafoglio 16.000 € su 300.000 € di patrimonio · fuori: Casa, Fondo pensione» — the compact
+ * header's description on the three tabs (RU8, D-ST7; closes D-RU3). The portfolio is what the page
+ * allocates (tradable and frozen), the net worth adds what it leaves out; the first two assets left
+ * out by value are named, «e altri N» beyond. Where the weights come from is no longer said here: it
+ * is the detail line of the chain's first cell.
+ */
 export function describeAllocazioneHeader(input: {
-  marketValue: number;
-  classCount: number;
-  /** Where the page's weights come from: the Accumulo tab reads them from the model or the plan, not the settings. */
-  targetSource: 'settings' | 'goals' | 'model' | 'plan';
+  portfolioValue: number;
+  netWorth: number;
+  /** The names of the `excluded` assets, heaviest first. */
+  outside: string[];
 }): string | undefined {
-  if (input.classCount === 0) return undefined;
-  const classes = input.classCount === 1 ? '1 classe' : `${input.classCount} classi`;
-  const SOURCES = {
-    goals: 'target dai traguardi',
-    settings: 'target dalle impostazioni',
-    model: 'pesi dal portafoglio modello',
-    plan: 'dai pesi del piano',
-  } as const;
-  const source = SOURCES[input.targetSource];
-  return `${cachedFormatCurrencyEUR(input.marketValue, true)} allocati · ${classes} · ${source}`;
+  if (input.portfolioValue <= 0 && input.netWorth <= 0) return undefined;
+  const head = `Portafoglio ${cachedFormatCurrencyEUR(input.portfolioValue, true)} su ${cachedFormatCurrencyEUR(input.netWorth, true)} di patrimonio`;
+  if (input.outside.length === 0) return head;
+  const named = input.outside.slice(0, 2).join(', ');
+  const others = input.outside.length - 2;
+  return `${head} · fuori: ${named}${others > 0 ? ` e ${others === 1 ? 'un altro' : `altri ${others}`}` : ''}`;
 }
 
 // ─── Bilanciamento ────────────────────────────────────────────────────────────

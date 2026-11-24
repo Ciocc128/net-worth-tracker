@@ -599,7 +599,7 @@ function formatAllocationForPrompt(emailData: MonthlyEmailData): string[] {
   const lines = [
     header,
     `Base: il portafoglio allocato, ${formatEur(allocation.marketValue)} a fine periodo (asset negoziabili e non negoziabili; gli esclusi, come la casa, sono fuori). Valori di fine periodo con i ruoli di oggi.`,
-    `Origine dei target: ${allocation.fromGoals ? 'derivati dagli obiettivi di investimento' : 'Impostazioni → Allocazione'}, già riespressi sulla base (target effettivi). Una classe è fuori target secondo la regola 5/25: scarto oltre 5 punti o oltre il 25% del suo target.`,
+    `Origine dei target: ${allocation.fromGoals ? 'derivati dagli obiettivi di investimento' : 'Allocazione › Strategia'}, già riespressi sulla base (target effettivi). Una classe è fuori target secondo la regola 5/25: scarto oltre 5 punti o oltre il 25% del suo target.`,
   ];
   if (allocation.hasLeveragedExposure) {
     lines.push(`Leva: ${formatLeverage(allocation.leverageRatio)}; le percentuali sono esposizioni nozionali sul capitale investito e possono sommare più di 100.`);

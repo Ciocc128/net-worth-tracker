@@ -7,6 +7,7 @@
 > va con la striscia). Il piano comune, R4, R10 e P6 sono in `doc/riordino-ui/ondata-2.md`; questa è la task **RU8**.
 >
 > **Stato: specifica scritta il 2026-11-23 su main `7e930b1`; decisioni D-ST1…D-ST9 PRESE da Giorgio il 2026-11-23 («procedi»; D-ST6 semplificata: non usa gli strumenti specifici) (§ 8).**
+> **Implementata il 2026-11-23 (RU8, ramo `claude/project-thread-xk2dbr`)**: Vitest, `tsc` ed e2e di Allocazione, Accumulo e Impostazioni verdi nel cloud; restano il giro sul Mac (`perf:budget`, `mobile:budget` di `allocazione`, `allocazione-accumulo` e la prima misura di `allocazione-strategia`, l'aspetto a 1440 e 390). Scarti dalla specifica in § 11.
 > Render «oggi / proposta» nella stessa pagina dell'ondata 2 (`doc/riordino-ui/ondata-2.md` § 1).
 
 ## 1. In breve
@@ -320,3 +321,18 @@ Valori inventati e tondi (WORKFLOW.md regola 7).
 **Impostazioni e prestazioni**
 17. Impostazioni non ha la scheda Allocazione; `?tab=allocazione` porta a Strategia (`replace`).
 18. JS iniziale di `/dashboard/allocation` sotto 849 KB gz sul Mac, tetto abbassato; Accumulo e Strategia sono chunk a sé.
+
+## 11. Note dall'implementazione (2026-11-23)
+
+- **Il risk-free in Preferenze** sta in «Calcolo dei rendimenti» (con «Torna alla stima»); la riga della formula in
+  Strategia dice di chi è la cifra (`describeRiskFreeOrigin`) e porta lì.
+- **L'interruttore «i traguardi danno i target»** è sparito da Preferenze: la fonte si sceglie con la pillola di
+  Strategia; spegnere i traguardi in Preferenze scrive ancora `goalDriven: false`.
+- **Le schede si vedono anche su un account senza strumenti** (lo stato vuoto sta dentro Bilanciamento), così
+  Strategia resta raggiungibile per scrivere i target prima del primo acquisto.
+- **Sotto i traguardi** le righe delle classi sono in sola lettura (i valori che i traguardi danno, dalla bozza).
+- **Esposizione chiusa a 1440 e la lettura fallita**: la riga fallita è un `alert` a 1440, dove nessun `PageRest`
+  la annuncia (sotto `desktop:` resta silenziosa, come prima).
+- **Il budget mobile**: `allocazione-strategia` è in `perf/mobile-budget.json` con `target: false`; le sue voci ai
+  tre viewport vengono dalla prima misura (vedi il `raisedBy`), da ripetere sul Mac.
+

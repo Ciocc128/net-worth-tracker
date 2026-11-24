@@ -145,8 +145,6 @@ export interface ResolveAccumuloSectionsInput {
   hasClasses: boolean;
   /** Piani conclusi is on the page: at least one plan closed or interrupted. */
   hasClosedPlans: boolean;
-  /** The model portfolio's read failed: the row opens by itself (`failed`). */
-  modelFailed: boolean;
 }
 
 /**
@@ -156,9 +154,7 @@ export interface ResolveAccumuloSectionsInput {
  */
 export function resolveAccumuloSections(input: ResolveAccumuloSectionsInput): readonly SectionSpec[] {
   return [
-    { id: ACCUMULO_SECTION_IDS.modello, eyebrow: 'Portafoglio modello', failed: input.modelFailed },
     ...(input.hasClasses ? [{ id: ACCUMULO_SECTION_IDS.classi, eyebrow: 'Classi del piano' }] : []),
-    { id: ACCUMULO_SECTION_IDS.criteri, eyebrow: 'Criteri del modello' },
     ...(input.hasClosedPlans ? [{ id: ACCUMULO_SECTION_IDS.conclusi, eyebrow: 'Piani conclusi' }] : []),
   ];
 }

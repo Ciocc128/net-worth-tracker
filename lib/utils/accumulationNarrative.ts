@@ -1171,32 +1171,21 @@ export const ACCUMULO_USE_SUGGESTED_INFLOW = 'Usa';
  */
 export const ACCUMULO_SECTION_IDS = {
   mese: 'acc-mese',
-  modello: 'acc-modello',
   classi: 'acc-classi',
-  criteri: 'acc-criteri',
   conclusi: 'acc-conclusi',
 } as const;
 
 /** What a CLOSED row says beside its eyebrow: words, never a figure (The Closed-Row Rule). */
 export const ACCUMULO_CLOSED_ASIDES = {
-  [ACCUMULO_SECTION_IDS.modello]: 'pesi per strumento',
   [ACCUMULO_SECTION_IDS.classi]: 'scostamento mese per mese',
-  [ACCUMULO_SECTION_IDS.criteri]: 'cosa chiedi al modello',
   [ACCUMULO_SECTION_IDS.conclusi]: 'piani chiusi e interrotti',
 } as const;
 
-/** The Portafoglio modello row with no saved model says so beside its eyebrow instead of the usual words. */
-export const ACCUMULO_MODEL_MISSING_ASIDE = 'nessun modello salvato';
-
 export interface AccumuloClosedAnswersInput {
-  /** `comparePlanToModel(...).count` with an active plan and a saved model; `null` otherwise. */
-  modelDifferenceCount: number | null;
   /** `selectClassStripRows(...)` at the cursor's month, `[]` without a trajectory. */
   classRows: { outOfBandNow: boolean; reentryMonth?: MonthKey | 'baseline' }[];
   /** The plan's first month: where a `baseline` re-entry reads. */
   planStartMonth: MonthKey | null;
-  /** The number of criteria the saved objectives ask the model, `0` when off. */
-  criteriaCount: number;
   /** The most recently closed plan's last month, `null` without a closed plan. */
   lastClosedMonth: MonthKey | null;
 }
@@ -1213,12 +1202,7 @@ export function describeAccumuloClosedAnswers(input: AccumuloClosedAnswersInput)
     ? outNow.map((row) => (row.reentryMonth === 'baseline' ? input.planStartMonth : (row.reentryMonth as MonthKey))).filter((month): month is MonthKey => !!month).sort().pop()
     : undefined;
   return {
-    [ACCUMULO_SECTION_IDS.modello]:
-      input.modelDifferenceCount === null
-        ? null
-        : [{ text: input.modelDifferenceCount === 0 ? 'allineato al piano' : `differisce su ${input.modelDifferenceCount} ${input.modelDifferenceCount === 1 ? 'strumento' : 'strumenti'}` }],
     [ACCUMULO_SECTION_IDS.classi]: lastReentry ? [{ text: `rientro a ${monthLabelLong(lastReentry, false)}` }] : null,
-    [ACCUMULO_SECTION_IDS.criteri]: input.criteriaCount > 0 ? [{ text: `${input.criteriaCount} ${input.criteriaCount === 1 ? 'criterio' : 'criteri'}` }] : null,
     [ACCUMULO_SECTION_IDS.conclusi]: input.lastClosedMonth ? [{ text: `ultimo a ${monthLabelLong(input.lastClosedMonth, false)}` }] : null,
   };
 }

@@ -14,9 +14,15 @@
  * the score it qualifies (Alt A of the canvas, chosen on 2026-08-25). The balance score itself is
  * band-INDEPENDENT (`computeBalanceScore`) and never moves with the band.
  *
- * TWO TABS (fork, 2026-10-07, doc/pac-ottimizzatore § RV1): «Bilanciamento» (the page as upstream
- * has it, default) and «Accumulo» (`?tab=accumulo`; the fork's plan, the optimizer and its
- * objectives, `AccumuloTab`). The band is page state shared by both. The verdict follows the tab:
+ * THREE TABS (fork; Accumulo since 2026-10-07, doc/pac-ottimizzatore § RV1; Strategia since RU8,
+ * 2026-11-23, doc/allocazione-strategia/README.md): «Bilanciamento» (the page as upstream has it,
+ * default), «Accumulo» (`?tab=accumulo`; the plan and its month, `AccumuloTab`) and «Strategia»
+ * (`?tab=strategia`; the class targets, the model portfolio and its criteria, `StrategiaTab`). Under
+ * the tab bar, on the three of them, the chain of the weights (`AllocazioneChain`): Target → Modello →
+ * Piano → Rata, each cell a link. The class targets' draft is held HERE (`useTargetsDraft`), so a visit
+ * to another tab loses nothing; Strategia's tab wears a dot while it differs from the saved document.
+ * Accumulo and Strategia are chunks of their own (`lazyComponent`, preloaded once the data is in).
+ * The band is page state shared by every tab. The verdict follows the tab:
  * Bilanciamento's carries the accumulation plan's installment in place of Versa when a plan is
  * active (PO3, `pac` in `buildAllocazioneVerdict`). Accumulo is composed like the shared pages
  * below `desktop:` (strip, THE tile, closed rows; tappa A, doc/guide/accumulo.md § Composizione mobile).
@@ -32,8 +38,10 @@
  *                     Bilanciamento open, its KPI value lifted into the strip → «Il resto della
  *                     pagina» → Per classe, Piano, Esposizione, Previdenza as closed rows
  *                     (`useMobileSections`, doc/guide/allocazione.md § Composizione mobile) →
- *                     «Modifica target» → the Dettaglio. No `order-*`: the phone reads the DOM.
- *                     The Esposizione reads its profiles only once its row has been opened.
+ *                     the Dettaglio. No `order-*`: the phone reads the DOM.
+ *   Esposizione and Previdenza are closed rows at 1440 too (D-ST7, as Intestatari in the Panoramica),
+ *   not remembered there; the Esposizione reads its profiles only once its row has been opened.
+ *   The targets are edited in Strategia: the pencil on Per classe and the strip's first cell go there.
  *
  * The «Dettaglio» disclosure under the grid holds the two holdings lists the old hero kept in
  * popovers — Non negoziabili (inside the total, untouchable) and Esclusi (outside it).
@@ -53,10 +61,9 @@
  * lib/utils/allocazioneSummary.ts, words from lib/utils/allocazioneNarrative.ts.
  */
 
-import { useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Scale, SlidersHorizontal, TrendingUp } from 'lucide-react';
+import { Compass, Scale, TrendingUp } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
@@ -67,6 +74,13 @@ import { useGoalData } from '@/lib/hooks/useGoalData';
 import { useFreshness } from '@/lib/hooks/useFreshness';
 import { usePortfolioExposureState } from '@/lib/hooks/usePortfolioExposure';
 import { useMobileSections } from '@/lib/hooks/useMobileSections';
+import { useDemoMode } from '@/lib/hooks/useDemoMode';
+import { useMarketAnchors } from '@/lib/hooks/useMarketAnchors';
+import { useTargetsDraft } from '@/lib/hooks/useTargetsDraft';
+import { resolveRiskFreeEstimate } from '@/lib/utils/riskFreeRate';
+import { composeTargets } from '@/lib/utils/targetsDraft';
+import { ALLOCATION_TAB_IDS, buildAllocationChain, STRATEGIA_TARGET_HREF, type AllocationTabId } from '@/lib/utils/allocationChain';
+import { comparePlanToModel } from '@/lib/utils/modelPortfolio';
 import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
 import {
   COMPACT_GRID_CLASS,
@@ -139,7 +153,6 @@ import {
   describePacOverlap,
 } from '@/lib/utils/allocazioneNarrative';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { PageVerdict } from '@/components/ui/page-verdict';
@@ -149,14 +162,15 @@ import { TabsContent } from '@/components/ui/tabs';
 import { VerdictStrip } from '@/components/ui/verdict-strip';
 import { PageRest } from '@/components/ui/page-rest';
 import { RowAnswers } from '@/components/ui/row-answers';
-import { TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
+import { TILE_CELL_CLASS, TILE_ROW_CELL_CLASS, type TileCollapse } from '@/components/ui/tile';
+import { lazyComponent, usePreloadWhenIdle } from '@/components/ui/lazy-component';
+import { AllocazioneChain } from '@/components/allocation/AllocazioneChain';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure } from '@/lib/utils/statesNarrative';
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { BilanciamentoTile, isBilanciamentoLiftedBlock } from '@/components/allocation/tiles/BilanciamentoTile';
 import { PianoTile } from '@/components/allocation/tiles/PianoTile';
-import { AccumuloTab } from '@/components/allocation/AccumuloTab';
 import { useModelPortfolio } from '@/lib/hooks/useModelPortfolio';
 import { PerClasseTile } from '@/components/allocation/tiles/PerClasseTile';
 import { EsposizioneTile } from '@/components/allocation/tiles/EsposizioneTile';
@@ -180,12 +194,21 @@ const SKELETON_CELLS: TileSkeletonCell[] = [
 const ALLOCATION_TABS: TabDef[] = [
   { value: 'bilanciamento', label: 'Bilanciamento', icon: Scale },
   { value: 'accumulo', label: 'Accumulo', icon: TrendingUp },
+  { value: 'strategia', label: 'Strategia', icon: Compass },
 ];
-type AllocationTabId = 'bilanciamento' | 'accumulo';
 
 function getInitialTab(param: string | null): AllocationTabId {
-  return param === 'accumulo' ? 'accumulo' : 'bilanciamento';
+  return (ALLOCATION_TAB_IDS as readonly string[]).includes(param ?? '') ? (param as AllocationTabId) : 'bilanciamento';
 }
+
+// Accumulo and Strategia are chunks of their own (P6, D-RU23): a tab draws its skeleton until its chunk
+// arrives, and both are preloaded once the page's data is in. Never import a VALUE from these modules
+// here: it would put them back in the page's initial graph (types only).
+const AccumuloTab = lazyComponent(() => import('@/components/allocation/AccumuloTab').then((m) => m.AccumuloTab));
+const StrategiaTab = lazyComponent(() => import('@/components/allocation/StrategiaTab').then((m) => m.StrategiaTab));
+const LAZY_TABS = [AccumuloTab, StrategiaTab];
+const ACCUMULO_SKELETON_CELLS: TileSkeletonCell[] = [{ span: 7, lines: 8 }, { span: 5, lines: 8 }];
+const STRATEGIA_SKELETON_CELLS: TileSkeletonCell[] = [{ span: 12, lines: 10 }, { span: 7, lines: 8 }, { span: 5, lines: 6 }];
 
 /** The Versa/Preleva amount the page opens with: the verdict needs one to name the next money. */
 const DEFAULT_PLAN_AMOUNT_INPUT = '1000';
@@ -199,9 +222,19 @@ export default function AllocationPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<AllocationTabId>(() => getInitialTab(searchParams.get('tab')));
+  const isDemo = useDemoMode();
+  // The tab follows `?tab=`: a click on the bar sets it at once (and replaces the URL), a link — a cell
+  // of the strip, «Apri il portafoglio modello», a bookmark — moves the URL and the tab follows it,
+  // settled during render (AGENTS.md § Motion, the third answer).
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<AllocationTabId>(() => getInitialTab(tabParam));
+  const [seenTabParam, setSeenTabParam] = useState(tabParam);
+  if (tabParam !== seenTabParam) {
+    setSeenTabParam(tabParam);
+    setActiveTab(getInitialTab(tabParam));
+  }
   // The accumulation plan the Bilanciamento verdict names in place of Versa (PO3).
-  const { plan: openPlan, currentIndex: pacMonthIndex } = useOpenAccumuloPlan(ownerId ?? undefined);
+  const { plansQuery, plan: openPlan, currentIndex: pacMonthIndex } = useOpenAccumuloPlan(ownerId ?? undefined);
   const pac = useMemo(() => summarizePacMonth(openPlan, pacMonthIndex), [openPlan, pacMonthIndex]);
   const queryClient = useQueryClient();
 
@@ -223,6 +256,42 @@ export default function AllocationPage() {
   // Full, unfiltered asset list — the Previdenza tile's «tutto il patrimonio» needs every role.
   const allAssets = useMemo(() => assetsData ?? [], [assetsData]);
   const modelQuery = useModelPortfolio(ownerId);
+  usePreloadWhenIdle(LAZY_TABS, !loading && !loadFailed);
+
+  // The class targets' draft (D-ST5): held by the page, edited in Strategia, seeded from the settings
+  // document every page shares; the ECB estimate feeds the formula while no rate is typed.
+  const marketAnchors = useMarketAnchors();
+  const riskFreeEstimate = resolveRiskFreeEstimate(marketAnchors);
+  const targetsController = useTargetsDraft({
+    ownerId,
+    document: settings,
+    documentUpdatedAt: settingsQuery.dataUpdatedAt,
+    riskFreeEstimate: riskFreeEstimate.value,
+  });
+  const targetsDirty = targetsController.dirty;
+  const allocationTabs = useMemo(() => ALLOCATION_TABS.map((tab) => (tab.value === 'strategia' ? { ...tab, unsaved: targetsDirty } : tab)), [targetsDirty]);
+
+  // A reload or a closed tab with the targets' draft pending asks first (the browser's own prompt);
+  // an in-app link does not (the App Router has no guard), so the bar on Strategia is the reminder.
+  useEffect(() => {
+    if (!targetsDirty || isDemo) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [targetsDirty, isDemo]);
+
+  // What the goals give the classes on the draft's tree — «Dai traguardi» of Strategia — computed only
+  // where it is shown; `null` while no goal weighs (the reading says so).
+  const draftSlice = targetsController.draft.slice;
+  const goalPreview = useMemo(() => {
+    if (activeTab !== 'strategia' || !settings?.goalBasedInvestingEnabled || !goalData || !assetsData || goalData.goals.length === 0) return null;
+    const resolved = resolveEffectiveTargets({
+      settings: { targets: composeTargets(draftSlice), goalBasedInvestingEnabled: true, goalDrivenAllocationEnabled: true },
+      goalData,
+      assets: assetsData,
+    });
+    return resolved.fromGoals ? { targets: resolved.targets, goalCount: goalData.goals.length } : null;
+  }, [activeTab, settings, goalData, assetsData, draftSlice]);
 
   // The page's one control: the drift tolerance that decides COMPRA/VENDI/OK. Session-only; the
   // default matches the server's ±2 p.p. so the first render equals the persisted classification.
@@ -252,7 +321,7 @@ export default function AllocationPage() {
     return {
       targets: effectiveTargets,
       usingGoalTargets: fromGoals,
-      // The owner's "Allocazione ideale" objectives (Impostazioni → Allocazione) — the PAC editor's
+      // The owner's "Allocazione ideale" objectives (Allocazione › Strategia) — the PAC editor's
       // Ottimizzato view reads it; `null` before the first load, same as `targets`.
       idealAllocation: settings?.idealAllocation ?? null,
       allocation: compareAllocations(inAllocation, effectiveTargets),
@@ -448,12 +517,22 @@ export default function AllocationPage() {
   const stageRef = useTabletStage();
   const tablet = useTabletComposition({ sections, order: sectionSpecs.map((section) => section.id) });
   const { reveal: handleStripOpen } = sections;
-  const exposureCollapse = sections.collapse(ALLOCAZIONE_SECTION_IDS.esposizione);
-  // Below `desktop:` the Esposizione reads its profiles only once its row has been opened — React
-  // Query fetches a key as soon as one observer is enabled, so the hook inside the tile is off until
-  // then. `useCompactLayout` is true from the first render inside `ProtectedRoute`, so a phone never
-  // starts with `compact` false and a read already fired.
-  const exposureEnabled = !sections.compact || !!exposureCollapse?.mounted;
+  // Esposizione and Previdenza are closed rows at 1440 too (D-ST7): rare readings, as Intestatari in the
+  // Panoramica. Below `desktop:` the page's controller owns them; this state answers only where it
+  // returns `undefined`, and is not remembered.
+  const [desktopRows, setDesktopRows] = useState<Record<string, { open: boolean; mounted: boolean }>>({});
+  const desktopCollapse = (id: string): TileCollapse => ({
+    id,
+    open: desktopRows[id]?.open ?? false,
+    mounted: desktopRows[id]?.mounted ?? false,
+    failed: false,
+    onOpenChange: (open) => setDesktopRows((rows) => ({ ...rows, [id]: { open, mounted: open || (rows[id]?.mounted ?? false) } })),
+  });
+  const exposureCollapse = sections.collapse(ALLOCAZIONE_SECTION_IDS.esposizione) ?? desktopCollapse(ALLOCAZIONE_SECTION_IDS.esposizione);
+  const pensionCollapse = sections.collapse(ALLOCAZIONE_SECTION_IDS.previdenza) ?? desktopCollapse(ALLOCAZIONE_SECTION_IDS.previdenza);
+  // The Esposizione reads its profiles only once its row has been opened, at every width — React
+  // Query fetches a key as soon as one observer is enabled, so the hook inside the tile is off until then.
+  const exposureEnabled = exposureCollapse.mounted;
   // The two figures of the first screen, read from the balance and the gaps the tiles already
   // print, on the same leverage gap and untargeted wealth the Bilanciamento reading gets; the KPI
   // «Fuori posizione» hides its value on a phone (the strip has it).
@@ -481,43 +560,40 @@ export default function AllocationPage() {
     [hasAssets, excludedGroup.total, balanceScore, balanceSummary, band, offTarget, leverageReading, nextMoney, orphanedTargets, pac],
   );
 
+  // The header (D-ST7): the portfolio over the net worth and what stays outside, on the three tabs;
+  // where the weights come from is the strip's first cell. The outside is named by asset, heaviest first.
+  const outsideNames = useMemo(() => {
+    const names: string[] = [];
+    for (const holding of [...excludedHoldings].sort((a, b) => b.value - a.value)) {
+      if (holding.value > 0 && !names.includes(holding.label)) names.push(holding.label);
+    }
+    return names;
+  }, [excludedHoldings]);
   const headerDescription = describeAllocazioneHeader({
-    marketValue: bandedAllocation?.marketValue ?? 0,
-    classCount,
-    targetSource: activeTab === 'accumulo' ? (modelQuery.data ? 'model' : 'plan') : usingGoalTargets ? 'goals' : 'settings',
+    portfolioValue: bandedAllocation?.marketValue ?? 0,
+    netWorth: (bandedAllocation?.marketValue ?? 0) + excludedGroup.total,
+    outside: outsideNames,
   });
 
-  const header = (
-    <PageHeader
-      title="Allocazione"
-      description={headerDescription}
-      freshness={freshness}
-      // «Modifica target» edits the Impostazioni targets: on Accumulo the weights come from the model
-      // and the plan, so the action would point at something the tab does not read.
-      actions={
-        activeTab === 'accumulo' ? undefined : (
-          <Button asChild variant="outline" className="hidden h-8 gap-1.5 px-2.5 text-xs desktop:inline-flex">
-            <Link href="/dashboard/settings">
-              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-              Modifica target
-            </Link>
-          </Button>
-        )
-      }
-    />
-  );
+  const header = <PageHeader title="Allocazione" description={headerDescription} freshness={freshness} />;
 
-  // Below desktop the header action sits AFTER the tiles as a 44px button: «Modifica target» is
-  // what you do once you have read the plan, and above the grid it outranked reading it. It is
-  // `asChild` so the DOM is one <a>, never the <a><button> pair that costs two Tab stops.
-  const mobileAction = (
-    <Button asChild variant="outline" className="h-11 w-full gap-1.5 desktop:hidden">
-      <Link href="/dashboard/settings">
-        <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-        Modifica target
-      </Link>
-    </Button>
-  );
+  // The chain of the weights (D-ST2): the documents the page already read, no new read.
+  const model = modelQuery.data ?? null;
+  const chainCells = buildAllocationChain({
+    activeTab,
+    targets: {
+      targets,
+      source: usingGoalTargets ? 'goals' : settings?.autoCalculateEquityBonds ? 'formula' : 'manual',
+      saved: !!settings?.targets,
+    },
+    model: { model, failed: modelQuery.isError },
+    plan: {
+      plan: openPlan,
+      currentIndex: pacMonthIndex,
+      failed: plansQuery.isError,
+      modelDifferenceCount: openPlan?.status === 'active' && model ? comparePlanToModel(openPlan.positions, model).count : null,
+    },
+  });
 
   // ─── Loading and empty states ───────────────────────────────────────────────
   if (loading) {
@@ -548,31 +624,22 @@ export default function AllocationPage() {
     );
   }
 
-  if (!hasAssets || !bandedAllocation || !balanceSummary || !balanceScore || !planView) {
-    return (
-      <PageContainer>
-        {header}
-        <div className="pt-1">
-          <PageVerdict verdict={verdict} ariaLabel="Verdetto sull'allocazione" />
-        </div>
-        {mobileAction}
-      </PageContainer>
-    );
-  }
-
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
     <PageContainer>
       {header}
 
       <PageTabs
-        tabs={ALLOCATION_TABS}
+        tabs={allocationTabs}
         value={activeTab}
         onValueChange={handleTabChange}
         layoutId="allocation-tab"
         ariaLabel="Sezioni di Allocazione"
         renderedPanels={new Set([activeTab])}
       >
+        {/* The chain of the weights, the same on the three tabs, between the bar and the verdict. */}
+        <AllocazioneChain cells={chainCells} className="mt-4" />
+
         {/* Only the active panel is mounted: each carries its own verdict, and two sections with the
             page-verdict view-transition name would break the page scene. */}
         {activeTab === 'bilanciamento' && (
@@ -585,6 +652,13 @@ export default function AllocationPage() {
             aria-labelledby={undefined}
             className="mt-4 flex flex-col gap-3"
           >
+      {/* An account with nothing to allocate: the verdict alone (it says what is missing). */}
+      {!hasAssets || !bandedAllocation || !balanceSummary || !balanceScore || !planView ? (
+        <div className="pt-1">
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sull'allocazione" />
+        </div>
+      ) : (
+      <>
       {/* The stage: the verdict over the grid; on a tablet in landscape the answer on the left
           (verdict and THE tile) and the index on the right (lib/utils/tabletComposition.ts). */}
       <RowAnswers value={rowAnswers}>
@@ -665,6 +739,7 @@ export default function AllocationPage() {
             asideWhenClosed={ALLOCAZIONE_CLOSED_ASIDES[ALLOCAZIONE_SECTION_IDS.perClasse]}
             reading={describeClasses(activeGaps, band)}
             aside="corrente · target · gap"
+            editHref={STRATEGIA_TARGET_HREF}
             allocation={{ ...bandedAllocation, bySubCategory: actionableSubCategories }}
             targets={targets}
             orphans={orphanedTargets}
@@ -687,15 +762,16 @@ export default function AllocationPage() {
           />
         </div>
 
-        {/* A failed FIRST read of the profiles is a failed row below `desktop:` (silent: `PageRest`
-            carries the one live node); a failed «Aggiorna» over profiles already read keeps the
-            tile with its own notice. An unread slice is never a failed read: `failed` is the
-            query's `isError` alone. At 1440 the tile is the tile of today. */}
+        {/* A failed FIRST read of the profiles is a failed row: silent below `desktop:` (`PageRest`
+            carries the one live node), an alert at 1440, where the row is closed too (RU8, D-ST7)
+            but no `PageRest` speaks for it. A failed «Aggiorna» over profiles already read keeps
+            the tile with its own notice. An unread slice is never a failed read: `failed` is the
+            query's `isError` alone. */}
         <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(ALLOCAZIONE_SECTION_IDS.esposizione), 'desktop:col-span-12')}>
-          {user && ownerId && exposureCollapse && exposureFailed && !profilesState.hasProfiles ? (
+          {user && ownerId && exposureFailed && !profilesState.hasProfiles ? (
             <ErrorNotice
               collapse={exposureCollapse}
-              live={false}
+              live={!sections.compact}
               onRetry={() => void profilesState.refetch()}
               notice={describeReadFailure({
                 subject: 'Esposizione',
@@ -720,7 +796,7 @@ export default function AllocationPage() {
         {pension && (
           <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(ALLOCAZIONE_SECTION_IDS.previdenza), 'desktop:col-span-12')}>
             <PrevidenzaTile
-              collapse={sections.collapse(ALLOCAZIONE_SECTION_IDS.previdenza)}
+              collapse={pensionCollapse}
               asideWhenClosed={ALLOCAZIONE_CLOSED_ASIDES[ALLOCAZIONE_SECTION_IDS.previdenza]}
               reading={describePension(pension)}
               aside={describePensionAside({ fundNames: pensionFundNames, fundValue: pension.fundValue, allFrozen: pension.allFrozen })}
@@ -735,9 +811,9 @@ export default function AllocationPage() {
       </div>
       </RowAnswers>
 
-          {mobileAction}
-
           <AllocazioneDettaglio frozen={frozenGroup} excluded={excludedGroup} />
+      </>
+      )}
           </TabsContent>
         )}
 
@@ -750,6 +826,7 @@ export default function AllocationPage() {
           >
             {ownerId && (
               <AccumuloTab
+                fallback={<TileGridSkeleton cells={ACCUMULO_SKELETON_CELLS} className="mt-4" />}
                 ownerId={ownerId}
                 allAssets={allAssets}
                 targets={targets}
@@ -757,6 +834,32 @@ export default function AllocationPage() {
                 targetLeverageRatio={targetLeverageRatio}
                 idealAllocation={idealAllocation}
                 onAssetsChanged={retryLoad}
+              />
+            )}
+          </TabsContent>
+        )}
+
+        {activeTab === 'strategia' && (
+          <TabsContent
+            value="strategia"
+            id={pageTabPanelId('allocation-tab', 'strategia')}
+            aria-label="Strategia"
+            aria-labelledby={undefined}
+          >
+            {ownerId && (
+              <StrategiaTab
+                fallback={<TileGridSkeleton verdict={false} cells={STRATEGIA_SKELETON_CELLS} className="mt-4" />}
+                ownerId={ownerId}
+                allAssets={allAssets}
+                targets={targets}
+                band={band}
+                targetLeverageRatio={targetLeverageRatio}
+                idealAllocation={idealAllocation}
+                onAssetsChanged={retryLoad}
+                controller={targetsController}
+                goalsEnabled={!!settings?.goalBasedInvestingEnabled}
+                goalPreview={goalPreview}
+                riskFreeEstimate={riskFreeEstimate}
               />
             )}
           </TabsContent>

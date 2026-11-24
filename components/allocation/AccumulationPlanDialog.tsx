@@ -183,7 +183,7 @@ interface AccumulationPlanDialogProps {
   band: RebalanceBand;
   /** deriveTargetLeverageRatio(targets) — the leva target the optimizer's leverage objective aims at. */
   targetLeverageRatio: number;
-  /** The owner's "Allocazione ideale" objectives (Impostazioni → Allocazione), or `null` when not
+  /** The owner's "Allocazione ideale" objectives (Allocazione › Strategia, Criteri del modello), or `null` when not
    *  yet loaded — the Ottimizzato view of step 2 reads it, never a second copy. */
   idealAllocation: IdealAllocationSettings | null;
   /** A «+ Nuovo asset» create landed: the page must reload `allAssets`. */

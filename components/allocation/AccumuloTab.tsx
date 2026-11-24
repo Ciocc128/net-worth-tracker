@@ -10,24 +10,18 @@
  *   plan open:   Questo mese (7) | Classi del piano (5)     — a draft or a finished plan has no
  *                                                              trajectory: Questo mese takes the row
  *   no plan:     Accumulo (12)                              — the empty state, RV4
- *   always:      Portafoglio modello (7) | Criteri (5)      — the model portfolio's own tile (A2)
  *   closed plans: Piani conclusi (12)
+ * The model portfolio and the criteria moved to Allocazione › Strategia with RU8 (D-ST8): this tab is
+ * the plan and its month only.
  * Below `desktop:` ONE sequence, the DOM's (doc/contributi-upstream/composizione-mobile.md § 3, 2026-10-18;
  * DESIGN.md → The First-Screen Rule): the verdict's title → the first sentence → the strip (Rata ·
  * Investito · the class farthest from its band) → «Il perché» (the band's re-entry) → Questo mese open →
- * «Il resto della pagina» → Portafoglio modello, Classi del piano, Criteri del modello, Piani conclusi as
- * closed rows (`useMobileSections`, memory `mobile-sections:allocation:accumulo`). No `order-*`. At 1440 the
- * left column is placed on the grid (Questo mese on row 1, the model under it) and the right one is a
- * box across both rows, so the desktop is the two stacks of before.
- *
- * The objectives' modal is opened from the Obiettivi tile and by `?obiettivi=1` (the link
- * Impostazioni, the optimizer panels and the model portfolio carry); the query is dropped once read.
+ * «Il resto della pagina» → Classi del piano, Piani conclusi as closed rows (`useMobileSections`, memory
+ * `mobile-sections:allocation:accumulo`; the keys of the rows that left are ignored). No `order-*`.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useMemo } from 'react';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { RebalanceBand } from '@/lib/utils/allocationUtils';
-import { DEFAULT_IDEAL_ALLOCATION } from '@/lib/utils/weightOptimizer';
 import { compareAllocations } from '@/lib/services/assetAllocationService';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { projectClassTrajectory } from '@/lib/utils/accumulationPlanUtils';
@@ -41,10 +35,8 @@ import {
   selectClosedPlans,
   summarizeDraftTotal,
 } from '@/lib/utils/accumuloSummary';
-import { ACCUMULO_CLOSED_ASIDES, ACCUMULO_MODEL_MISSING_ASIDE, describeAccumuloClosedAnswers, describeAccumuloVerdict, describeBandReentry } from '@/lib/utils/accumulationNarrative';
+import { ACCUMULO_CLOSED_ASIDES, describeAccumuloClosedAnswers, describeAccumuloVerdict, describeBandReentry } from '@/lib/utils/accumulationNarrative';
 import { selectClassStripRows } from '@/lib/utils/accumulationPlanUtils';
-import { comparePlanToModel } from '@/lib/utils/modelPortfolio';
-import { buildIdealAllocationInput, listIdealObjectives } from '@/lib/utils/settingsNarrative';
 import { VERDICT_REST_SECTION } from '@/lib/utils/mobileSections';
 import { useMobileSections } from '@/lib/hooks/useMobileSections';
 import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
@@ -52,7 +44,6 @@ import {
   COMPACT_GRID_CLASS,
   COMPACT_GRID_WRAPPER_CLASS,
   INDEX_CLASS,
-  INDEX_GROUP_CLASS,
   LEAD_CELL_CLASS,
   REST_CELL_CLASS,
   STAGE_CLASS,
@@ -74,11 +65,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { QuestoMeseTile } from '@/components/allocation/tiles/QuestoMeseTile';
 import { ClassiDelPianoTile } from '@/components/allocation/tiles/ClassiDelPianoTile';
-import { AccumuloVuotoTile, COMPOSITION_ANCHOR_ID } from '@/components/allocation/tiles/AccumuloVuotoTile';
-import { PortafoglioModelloTile } from '@/components/allocation/tiles/PortafoglioModelloTile';
+import { AccumuloVuotoTile } from '@/components/allocation/tiles/AccumuloVuotoTile';
 import { PianiConclusiTile } from '@/components/allocation/tiles/PianiConclusiTile';
-import { ObiettiviTile } from '@/components/allocation/tiles/ObiettiviTile';
-import { ObiettiviDialog } from '@/components/allocation/ObiettiviDialog';
 import { DEPS } from '@/components/allocation/tiles/accumuloShared';
 
 interface AccumuloTabProps {
@@ -97,22 +85,6 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
   const modelQuery = useModelPortfolio(ownerId);
   const model = modelQuery.data ?? null;
   const transactionsQuery = useAssetTransactions(ownerId, undefined, { enabled: !!plan && plan.status === 'active' });
-  const [objectivesOpen, setObjectivesOpen] = useState(false);
-  const editRef = useRef<HTMLButtonElement>(null);
-
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const wantsObjectives = searchParams.get('obiettivi') === '1';
-  useEffect(() => {
-    if (!wantsObjectives) return;
-    // Deferred: the effect body itself sets no state (react-hooks/set-state-in-effect).
-    const timer = setTimeout(() => {
-      setObjectivesOpen(true);
-      router.replace(`${pathname}?tab=accumulo`, { scroll: false });
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [wantsObjectives, pathname, router]);
 
   const matchResult = useMemo(
     () =>
@@ -154,8 +126,8 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
   const hasClasses = !!plan && showTrajectory;
   // Always the cells of the DOM, in its order; THE tile (Questo mese, or the empty state) is not among them.
   const sectionSpecs = useMemo(
-    () => resolveAccumuloSections({ hasClasses, hasClosedPlans: closedPlans.length > 0, modelFailed: modelQuery.isError }),
-    [hasClasses, closedPlans.length, modelQuery.isError],
+    () => resolveAccumuloSections({ hasClasses, hasClosedPlans: closedPlans.length > 0 }),
+    [hasClasses, closedPlans.length],
   );
   const sections = useMobileSections({ route: 'allocation', tab: 'accumulo', sections: sectionSpecs });
   const stageRef = useTabletStage();
@@ -166,13 +138,11 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
   const rowAnswers = useMemo(
     () =>
       describeAccumuloClosedAnswers({
-        modelDifferenceCount: plan && isActive && !done && model ? comparePlanToModel(plan.positions, model).count : null,
         classRows: trajectory.length > 0 ? selectClassStripRows(trajectory, clampedIndex) : [],
         planStartMonth: plan?.startMonth ?? null,
-        criteriaCount: idealAllocation?.enabled ? listIdealObjectives(buildIdealAllocationInput(idealAllocation, targetLeverageRatio)).length : 0,
         lastClosedMonth: closedPlans[0] ? (closedPlans[0].installments[closedPlans[0].installments.length - 1]?.month ?? closedPlans[0].startMonth) : null,
       }),
-    [plan, isActive, done, model, trajectory, clampedIndex, idealAllocation, targetLeverageRatio, closedPlans],
+    [plan, trajectory, clampedIndex, closedPlans],
   );
 
   /**
@@ -221,11 +191,6 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
     );
   }
 
-  const objectivesSaved = idealAllocation ?? DEFAULT_IDEAL_ALLOCATION;
-  // Where a row sits on the 1440 grid: with a plan Questo mese opens row 1 and the model row 2 (the
-  // right box across both); without one the empty state takes row 1 and both boxes row 2.
-  const modelRow = 'desktop:row-start-2';
-
   return (
     <div className="mt-4 flex flex-col gap-3">
       {/* The stage: the verdict over the grid; on a tablet in landscape the answer on the left (verdict and
@@ -243,12 +208,10 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
             </div>
 
             <div className={COMPACT_GRID_WRAPPER_CLASS}>
-              {/* At 1440 the left column is placed on the grid, not wrapped, and the right one is a box across
-                  the rows, so «Il resto» and the rows are ONE index on a tablet in landscape: with a plan
-                  Questo mese on row 1, the model under it on row 2, both at their natural height; the `1fr`
-                  second row takes the right box's extra height, so the shorter column leaves the void under
-                  it, as the two stacks did. */}
-              <div className={cn(COMPACT_GRID_CLASS, plan && 'desktop:grid-rows-[auto_1fr]')}>
+              {/* At 1440 Questo mese (7) and Classi del piano (5) share row 1, Piani conclusi takes row 2; a
+                  draft or a finished plan has no trajectory, so Questo mese takes the whole row. «Il resto» and
+                  the rows are ONE index on a tablet in landscape. */}
+              <div className={COMPACT_GRID_CLASS}>
                 {!plan && (
                   <div data-stage="lead" className={cn(TILE_CELL_CLASS, LEAD_CELL_CLASS, 'desktop:col-span-12 desktop:row-start-1')}>
                     <AccumuloVuotoTile
@@ -261,7 +224,6 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
                       model={model}
                       today={today}
                       onAssetsChanged={onAssetsChanged}
-                      onGoToComposition={sections.compact ? () => sections.reveal(ACCUMULO_SECTION_IDS.modello) : undefined}
                     />
                   </div>
                 )}
@@ -270,7 +232,7 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
                   <div
                     id={ACCUMULO_SECTION_IDS.mese}
                     data-stage="lead"
-                    className={cn(TILE_CELL_CLASS, LEAD_CELL_CLASS, 'scroll-mt-24 desktop:col-span-7 desktop:row-start-1 desktop:self-start')}
+                    className={cn(TILE_CELL_CLASS, LEAD_CELL_CLASS, 'scroll-mt-24 desktop:row-start-1 desktop:self-start', showTrajectory ? 'desktop:col-span-7' : 'desktop:col-span-12')}
                   >
                     <QuestoMeseTile
                       ownerId={ownerId}
@@ -291,63 +253,21 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
                 <div className={INDEX_CLASS}>
                   <PageRest sections={sections} className={REST_CELL_CLASS} />
 
-                  <div id={COMPOSITION_ANCHOR_ID} className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(ACCUMULO_SECTION_IDS.modello), 'scroll-mt-4 desktop:col-span-7 desktop:col-start-1 desktop:self-start', modelRow)}>
-                    <PortafoglioModelloTile
-                      ownerId={ownerId}
-                      allAssets={allAssets}
-                      targets={targets}
-                      band={band}
-                      targetLeverageRatio={targetLeverageRatio}
-                      idealAllocation={idealAllocation}
-                      model={model}
-                      plan={plan}
-                      readFailed={modelQuery.isError}
-                      onAssetsChanged={onAssetsChanged}
-                      collapse={sections.collapse(ACCUMULO_SECTION_IDS.modello)}
-                      asideWhenClosed={model ? ACCUMULO_CLOSED_ASIDES[ACCUMULO_SECTION_IDS.modello] : ACCUMULO_MODEL_MISSING_ASIDE}
-                    />
-                  </div>
-
-                  <div
-                    className={cn(
-                      'contents desktop:col-span-5 desktop:col-start-8 desktop:row-span-2 desktop:flex desktop:min-w-0 desktop:flex-col desktop:gap-3',
-                      plan ? 'desktop:row-start-1' : modelRow,
-                      INDEX_GROUP_CLASS,
-                    )}
-                  >
-                    {plan && showTrajectory && (
-                      <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(ACCUMULO_SECTION_IDS.classi))}>
-                        <ClassiDelPianoTile
-                          plan={plan}
-                          trajectory={trajectory}
-                          currentIndex={currentIndex}
-                          band={band}
-                          collapse={sections.collapse(ACCUMULO_SECTION_IDS.classi)}
-                          asideWhenClosed={ACCUMULO_CLOSED_ASIDES[ACCUMULO_SECTION_IDS.classi]}
-                        />
-                      </div>
-                    )}
-
-                    <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(ACCUMULO_SECTION_IDS.criteri))}>
-                      <ObiettiviTile
-                        idealAllocation={idealAllocation}
-                        targetLeverageRatio={targetLeverageRatio}
-                        snapshot={model?.optimizerSnapshot}
-                        editRef={editRef}
-                        disabled={!targets}
-                        plan={isActive && !done ? plan : null}
-                        ownerId={ownerId}
-                        allAssets={allAssets}
-                        targets={targets}
-                        onEdit={() => setObjectivesOpen(true)}
-                        collapse={sections.collapse(ACCUMULO_SECTION_IDS.criteri)}
-                        asideWhenClosed={ACCUMULO_CLOSED_ASIDES[ACCUMULO_SECTION_IDS.criteri]}
+                  {plan && showTrajectory && (
+                    <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(ACCUMULO_SECTION_IDS.classi), 'desktop:col-span-5 desktop:col-start-8 desktop:row-start-1 desktop:self-start')}>
+                      <ClassiDelPianoTile
+                        plan={plan}
+                        trajectory={trajectory}
+                        currentIndex={currentIndex}
+                        band={band}
+                        collapse={sections.collapse(ACCUMULO_SECTION_IDS.classi)}
+                        asideWhenClosed={ACCUMULO_CLOSED_ASIDES[ACCUMULO_SECTION_IDS.classi]}
                       />
                     </div>
-                  </div>
+                  )}
 
                   {closedPlans.length > 0 && (
-                    <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(ACCUMULO_SECTION_IDS.conclusi), 'desktop:col-span-12 desktop:row-start-3')}>
+                    <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(ACCUMULO_SECTION_IDS.conclusi), 'desktop:col-span-12 desktop:row-start-2')}>
                       <PianiConclusiTile
                         ownerId={ownerId}
                         plans={closedPlans}
@@ -365,21 +285,6 @@ export function AccumuloTab({ ownerId, allAssets, targets, band, targetLeverageR
         </div>
       </RowAnswers>
 
-      {objectivesOpen && targets && (
-        <ObiettiviDialog
-          open={objectivesOpen}
-          onClose={() => setObjectivesOpen(false)}
-          ownerId={ownerId}
-          allAssets={allAssets}
-          targets={targets}
-          targetLeverageRatio={targetLeverageRatio}
-          saved={objectivesSaved}
-          model={model}
-          plan={isActive && !done ? plan : null}
-          onSaved={onAssetsChanged}
-          returnFocusTo={editRef}
-        />
-      )}
     </div>
   );
 }

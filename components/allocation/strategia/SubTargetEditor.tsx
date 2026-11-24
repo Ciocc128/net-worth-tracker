@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * One subcategory row of a class in Impostazioni › Allocazione › Target per classe: name, share of
- * the class, delete — and, once named, the «Traccia asset specifici» switch with its asset list
+ * One subcategory row of a class in Allocazione › Strategia › Target per classe: name, share of
+ * the class, delete — and, only where the account already uses it (D-ST6: the switch is on or the
+ * list holds a row), the «Strumenti specifici (solo per Bilanciamento)» switch with its asset list
  * behind a Collapsible that is NOT force-mounted (since 2026-10-08): a closed list is not in the DOM, so a
  * keystroke elsewhere on the page renders no hidden editor.
  *
@@ -17,7 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
-import { targetFieldId, type SubTargetDraft } from '@/lib/utils/settingsDraft';
+import { targetFieldId, type SubTargetDraft } from '@/lib/utils/targetsDraft';
 import type { AssetClass } from '@/types/assets';
 import { INTERACTIVE_CONTROL_CLASS, pctLabel } from '@/components/settings/tabs/shared';
 
@@ -86,8 +87,9 @@ export function SubTargetEditor({ assetClass, index, target, datalistId, onChang
         </Button>
       </div>
 
-      {/* Specific assets toggle + expand */}
-      {target.name && (
+      {/* Specific assets toggle + expand — only where they are in use (D-ST6): the per-instrument
+          weights come from the model portfolio, this list only feeds Bilanciamento's drill. */}
+      {target.name && (target.specificAssetsEnabled || target.specificAssets.length > 0) && (
         <div className="ml-4 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -98,7 +100,7 @@ export function SubTargetEditor({ assetClass, index, target, datalistId, onChang
                 className={INTERACTIVE_CONTROL_CLASS}
               />
               <Label htmlFor={`specific-${assetClass}-${index}`} className="cursor-pointer text-xs text-muted-foreground">
-                Traccia asset specifici
+                Strumenti specifici (solo per Bilanciamento)
               </Label>
             </div>
             {target.specificAssetsEnabled && (

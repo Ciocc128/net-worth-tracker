@@ -1,6 +1,6 @@
 /**
  * Weight optimizer — proposes market weights for the PAC's Target step from the owner's ideal
- * allocation objectives (Impostazioni → Allocazione → "Allocazione ideale", `doc/weight-optimizer-ate.md`).
+ * allocation objectives (Allocazione › Strategia → «Criteri del modello», `doc/weight-optimizer-ate.md`).
  *
  * Convex QP solved by ONE exact active-set method (`./activeSetQP`, doc/pac-ottimizzatore § RO2;
  * `projectOntoBudgetBox` of `./boxProjection` only seeds its start): every soft

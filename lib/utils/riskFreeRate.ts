@@ -1,5 +1,5 @@
 /**
- * The risk-free rate in force (Impostazioni › Allocazione, doc/guide/impostazioni.md § Risk-free rate).
+ * The risk-free rate in force (typed in Impostazioni › Preferenze since RU8, read by the formula of Allocazione › Strategia; doc/guide/impostazioni.md § Risk-free rate).
  *
  * ONE number feeds the Sharpe and Sortino ratios, the Rendimenti report, the PDF, the periodic email and The Bull's
  * equity formula. It is either TYPED by the reader (`AssetAllocationSettings.riskFreeRate`, kept as it is) or an

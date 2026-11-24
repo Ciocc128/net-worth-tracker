@@ -3,7 +3,7 @@
 /**
  * ObiettiviTile — «quali obiettivi guidano il portafoglio ideale?» (doc/pac-ottimizzatore § RV6).
  * Lists the objectives of «Allocazione ideale» with their priority and opens `ObiettiviDialog` to
- * change them; Impostazioni › Allocazione keeps a read-only summary and a link here. With a saved
+ * change them; it sits in Allocazione › Strategia beside the model portfolio (RU8). With a saved
  * model portfolio whose snapshot carries the calculation, each objective is a target → reached bar
  * (`ObjectiveBars`, RO4) and the first conflict of that calculation is quoted under them; without a
  * snapshot — or when the model was written by hand — the tile lists the objectives as words.
