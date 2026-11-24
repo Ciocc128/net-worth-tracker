@@ -1,12 +1,12 @@
 # Email periodiche e PDF export
 
-> **Quando aprire questa guida** — chi tocca `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailHtml,emailPeriodComparison,emailAiComment}.ts`, `lib/utils/{emailNarrative,pdfNarrative}.ts`, `lib/utils/pdfGenerator.tsx`, `lib/services/pdfDataService.ts`, `components/pdf/*`, `lib/constants/printTokens.ts`, il cron `app/api/cron/monthly-snapshot/route.ts`. Entrambe rendono fuori dal DOM: si verificano renderizzandole, e nessuna verifica è nella suite. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: § *Files*, sotto.
+> **Quando aprire questa guida** — chi tocca `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailHtml,emailPeriodComparison,emailAiComment}.ts`, `lib/utils/{emailNarrative,pdfNarrative}.ts`, `lib/utils/pdfGenerator.tsx`, `lib/services/pdfDataService.ts`, `components/pdf/*`, `lib/constants/printTokens.ts`, il cron `app/api/cron/period-recap/route.ts`. Entrambe rendono fuori dal DOM: si verificano renderizzandole, e nessuna verifica è nella suite. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: § *Files*, sotto.
 
 ## Files
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
-- **Email · PDF · token fuori dal DOM**: `lib/constants/printTokens.ts` (l'unica sede di un hex fuori dal DOM); email `lib/utils/emailNarrative.ts` (parole), `lib/server/emailHtml.ts` (chrome, tabelle annidate), `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailPeriodComparison}.ts`; the AI comment's provider layer `lib/server/llm/{index,openrouter,anthropic,types,budget}.ts` + `lib/constants/aiModels.ts` (surface → provider and model), tests `__tests__/llmProvider.test.ts`; the model eval (F2, doc/ai-open-models-wiki.md § 7) `scripts/aiEval.mts` (`npm run ai:eval:freeze` on the emulators, `npm run ai:eval` for estimate · run · blind · score, data OUTSIDE git) + `lib/utils/{aiEvalChecks,aiEvalScore}.ts`, tests `__tests__/{aiEvalChecks,aiEvalScore}.test.ts`; the portfolio half of the periodic email `lib/utils/emailPortfolio.ts` (F1b: Driver, allocation, class moves, trades, TWR — composed from the pages' modules, `lib/utils/allocationComparison.ts` among them), tests `__tests__/{emailPortfolio,allocationComparison}.test.ts`; PDF `lib/utils/pdfNarrative.ts` (`pdfSafeText` = il confine WinAnsi), `components/pdf/primitives/*` (`PDF_RAMP`), `lib/utils/pdfGenerator.tsx` → `lib/services/pdfDataService.ts` → `components/pdf/{PDFDocument,sections/*}`, `lib/utils/pdfTimeFilters.ts`, `types/pdf.ts`; cron `app/api/cron/monthly-snapshot/route.ts` (phases 2-9), `lib/server/{assetAdminRepository,dividendUseCase,dividendProcessor}.ts`
+- **Email · PDF · token fuori dal DOM**: `lib/constants/printTokens.ts` (l'unica sede di un hex fuori dal DOM); email `lib/utils/emailNarrative.ts` (parole), `lib/server/emailHtml.ts` (chrome, tabelle annidate), `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailPeriodComparison}.ts`; the AI comment's provider layer `lib/server/llm/{index,openrouter,anthropic,types,budget}.ts` + `lib/constants/aiModels.ts` (surface → provider and model), tests `__tests__/llmProvider.test.ts`; the model eval (F2, doc/ai-open-models-wiki.md § 7) `scripts/aiEval.mts` (`npm run ai:eval:freeze` on the emulators, `npm run ai:eval` for estimate · run · blind · score, data OUTSIDE git) + `lib/utils/{aiEvalChecks,aiEvalScore}.ts`, tests `__tests__/{aiEvalChecks,aiEvalScore}.test.ts`; the portfolio half of the periodic email `lib/utils/emailPortfolio.ts` (F1b: Driver, allocation, class moves, trades, TWR — composed from the pages' modules, `lib/utils/allocationComparison.ts` among them), tests `__tests__/{emailPortfolio,allocationComparison}.test.ts`; PDF `lib/utils/pdfNarrative.ts` (`pdfSafeText` = il confine WinAnsi), `components/pdf/primitives/*` (`PDF_RAMP`), `lib/utils/pdfGenerator.tsx` → `lib/services/pdfDataService.ts` → `components/pdf/{PDFDocument,sections/*}`, `lib/utils/pdfTimeFilters.ts`, `types/pdf.ts`; cron `app/api/cron/period-recap/route.ts` (period emails, weekly budget, TheBull retries, vault export; the delivery record `lib/server/{deliveryRecord,periodEmailDelivery,emailTransport,cronRun}.ts`, `lib/utils/periodRecapDue.ts`), `lib/server/{assetAdminRepository,dividendUseCase,dividendProcessor}.ts`
 
 ## PDF Export (`lib/utils/pdfGenerator.tsx`, `lib/services/pdfDataService.ts`, `lib/utils/pdfTimeFilters.ts`)
 
@@ -85,9 +85,9 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **A ranked list shows six rows and a residual.** The categories are ranked BY AMOUNT, so a
   catch-all category outranks real ones — that is correct, and the residual row is what keeps the
   shares reaching 100%.
-- **Four period types** with independent cron phases, so 31 Dec can send Q4 + H2 + yearly (intentional). Adding one is a
-  wide fan-out: the union, `MonthlyEmailData`, the date and label helpers, `buildPeriodEmailData`, `buildAndSend*`, the
-  cron phase, the send route and the settings 3-place + toggle + test-send button.
+- **Four period types** with independent sends, so 1 Jan can send Q4 + H2 + yearly (intentional). Adding one is a
+  wide fan-out: the union, `MonthlyEmailData`, the date and label helpers, `buildPeriodEmailData`, `buildAndSendForPeriod`, `duePeriods`,
+  the cron phase, the send route and the settings 3-place + toggle + test-send button.
 - **Income targets have their own tile** (`Obiettivi di entrata`): «am I within my budgets?» and «did what I expected arrive?» are two questions, and only the first has a limit to breach. The budget track carries **today's mark on the row's own window** — day of month for a monthly budget, day of year for an annual one — drawn as a split table row, because out of the DOM there is no positioning to overlay it with.
 - **The weekly budget email is a SEPARATE module and nothing in it is weekly**: it is *sent* on Sunday, but its numbers
   are month-to-date and year-to-date. `buildCommentContext` (pure, exported, tested) states the day-of-month, tags the
@@ -110,7 +110,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   reasoning, leaving no text, so the total `max_tokens` is what protects the text: 7.800 ·
   12.340 · 12.340 · 13.880 per period, sized to the comment's own timeout (`EMAIL_AI_TIMEOUT_MS`, 150 s, at the ~100
   tokens/s measured in F6b) — the wall clock is the limit, not the money (a full yearly ≈ 0,02 $). **The four period
-  emails run side by side in the cron** (phases 2-5, `maxDuration` 300): on December 31, in a row, a reasoning model
+  emails run side by side in the recap cron** (phase `period-emails`, `maxDuration` 300): on 1 January, in a row, a reasoning model
   would outlast the function and leave the last ones without a comment. The Anthropic adapter keeps the old call (adaptive thinking,
   `effort: high`) for whoever routes a surface back to it. AI and comparison failures are both non-blocking — and so
   is the context bundle, built inside the same `try`; without the provider's key the periodic email skips the bundle
@@ -263,8 +263,9 @@ Not an email — F5 puts its month pages in the periodic prompt (above) — but 
 - **`dati/portafoglio.md`** is the latest real snapshot per instrument (class as the Strumenti chip names it, a
   composite with every leg; the instruments at zero counted, not listed) plus the email's composition and
   allocation blocks for that month.
-- **Whose data**: `WIKI_EXPORT_UID` (the vault is one person's); without it the cron's phase 10 is off. The cron
-  exports the month on its last day only; that evening the month is NOT `parziale` (the email's rule), before it is.
+- **Whose data**: `WIKI_EXPORT_UID` (the vault is one person's); without it the recap cron's `vault-export` phase is off.
+  Since D-SN12 (2026-11-24, `doc/cron-serale/README.md`) the cron exports the month that CLOSED, on the 1st (and up to
+  the 7th if a run was missed), through the `deliveries` record `vault-YYYY-MM`: the month is never `parziale`.
 - A month without a snapshot is skipped and named in the log line (`ok · senza snapshot: …`), never written empty.
 
 ## Verifying a surface with no DOM
@@ -335,3 +336,20 @@ PDF half seen from inside the section, this is the recipe for both surfaces.
   dividends received are the same. The TOTAL export has the page's whole-history window, and its twelve yield fields were
   equal to the page's, field by field.
 - **Fuori dal DOM restano tre punti ciechi**: le email non rispecchiano i cinque temi nominati (scelta — si leggono su una scheda bianca); «un hex sta solo in `printTokens`» è documentato ma **non applicato da un linter**; e `@react-pdf/renderer` scarta in SILENZIO ogni carattere fuori da WinAnsi (`pdfSafeText` copre U+2212; frecce, simboli ed emoji no). Le tre superfici si verificano solo renderizzandole, e **nessuna di quelle verifiche è nella suite**. doc/guide/email-pdf.md. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)
+
+
+## The recap cron (2026-11-24, `doc/cron-serale/README.md`)
+
+- **What is due** (`lib/utils/periodRecapDue.ts`, `duePeriods`): a CLOSED period — on the 1st the month that closed,
+  on 1 January the month, quarter, half and year — whose delivery record is not `sent`, up to 7 days after its end
+  (Vercel does not retry a missed run). The weekly budget email keeps its Sunday evening. The recap is built on the
+  1st, so it reads the month's FINAL cashflow, including the edits typed after the last evening's run (D-SN12).
+- **The delivery record** `deliveries/{uid}_{period}`: claim in a transaction (10-minute claim, twice `maxDuration`) →
+  **transport check before data and before any AI call** → build, reusing the AI comment kept on the record → send →
+  `sent`/`failed`. A failed send keeps the paid comment: the next run sends it, no second payment.
+- **No sender fallback**: `isEmailTransportConfigured()` needs `RESEND_API_KEY` AND `RESEND_FROM_EMAIL`; without them
+  every due email is recorded `failed: email-not-configured`, the run is red (500), `dati/` is still written, and
+  «Invia … ora» answers 503 before its rate limit. If a red run every 1st is unwanted before Resend exists, turn the
+  email toggles off (the run then records nothing and is green).
+- **«Invia … ora»** of a closed period (quarter, half, year) marks its record `sent` as a manual send, so the cron
+  does not send it again; the running month and the weekly email are format tests and write no record.

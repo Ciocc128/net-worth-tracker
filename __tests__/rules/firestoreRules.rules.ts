@@ -257,3 +257,28 @@ describe('CA10: the monthly expense totals are server-only (doc/totali-mensili/R
     await assertFails(setDoc(doc(db(A), 'expense-totals-meta', A), { userId: A }))
   })
 })
+
+describe('CS11: cron-runs and deliveries are Admin-only (doc/cron-serale/README.md § 5.4–5.5)', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const s = ctx.firestore()
+      await setDoc(doc(s, 'cron-runs', '2026-06-15_recap'), { job: 'recap', date: '2026-06-15', outcome: 'ok' })
+      await setDoc(doc(s, 'deliveries', `${A}_monthly-2026-05`), { userId: A, period: 'monthly-2026-05', status: 'sent' })
+    })
+  })
+  it('no client reads them: the owner, a member and a stranger alike', async () => {
+    for (const uid of [A, M, B]) {
+      await assertFails(getDoc(doc(db(uid), 'cron-runs', '2026-06-15_recap')))
+      await assertFails(getDocs(collection(db(uid), 'cron-runs')))
+      await assertFails(getDoc(doc(db(uid), 'deliveries', `${A}_monthly-2026-05`)))
+      await assertFails(getDocs(query(collection(db(uid), 'deliveries'), where('userId', '==', A))))
+    }
+  })
+  it('no client writes them, not even the owner of the account the record names', async () => {
+    await assertFails(setDoc(doc(db(A), 'deliveries', `${A}_monthly-2026-05`), { userId: A, status: 'failed' }))
+    await assertFails(setDoc(doc(db(A), 'deliveries', `${A}_monthly-2026-06`), { userId: A, status: 'sent' }))
+    await assertFails(deleteDoc(doc(db(A), 'deliveries', `${A}_monthly-2026-05`)))
+    await assertFails(setDoc(doc(db(A), 'cron-runs', '2026-06-16_recap'), { job: 'recap' }))
+    await assertFails(deleteDoc(doc(db(A), 'cron-runs', '2026-06-15_recap')))
+  })
+})

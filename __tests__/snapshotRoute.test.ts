@@ -18,6 +18,7 @@ vi.mock('@/lib/helpers/priceUpdater', () => ({ updateUserAssetPrices: updateUser
 
 import { fake, bearer } from './helpers/adminFake';
 import { POST as snapshotRoute } from '@/app/api/portfolio/snapshot/route';
+import { createPortfolioSnapshot } from '@/lib/server/portfolioSnapshot';
 
 const NOW = new Date('2026-11-14T11:00:00.000Z'); // 12:00 in Rome
 const T0 = Timestamp.fromDate(new Date('2026-11-01T18:00:00.000Z'));
@@ -33,12 +34,15 @@ function post(body: Record<string, unknown>, uid?: string) {
   );
 }
 
-const cron = (extra: Record<string, unknown> = {}) => post({ userId: 'owner-1', cronSecret: 'cron-secret-test', ...extra });
+/** The cron's way in since C7: the function itself, no HTTP. Answers like the route did. */
+const cron = async () => {
+  const result = await createPortfolioSnapshot('owner-1', { writtenBy: 'cron' });
+  return { status: 200, json: async () => ({ success: result.status !== 'no-assets', data: 'data' in result ? result.data : null }) };
+};
 
 beforeAll(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(NOW);
-  vi.stubEnv('CRON_SECRET', 'cron-secret-test');
   vi.spyOn(console, 'log').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -63,8 +67,8 @@ beforeEach(() => {
 });
 
 describe('SR1 — a closed month is refused', () => {
-  it('cron secret, body with year 2024 and month 3: 400, no price update, zero writes', async () => {
-    const response = await cron({ year: 2024, month: 3 });
+  it('a token, body with year 2024 and month 3: 400, no price update, zero writes', async () => {
+    const response = await post({ userId: 'owner-1', year: 2024, month: 3 }, 'owner-1');
     expect(response.status).toBe(400);
     expect(updateUserAssetPricesMock).not.toHaveBeenCalled();
     expect(fake.writes).toEqual([]);
@@ -107,7 +111,7 @@ describe('SR4–SR5 — the price record', () => {
     expect(prices.status).toBe('partial');
     expect(prices.failed).toEqual([{ assetId: 'asset-feni', ticker: 'FENI', reason: 'quote' }]);
     const payload = await response.json();
-    expect(payload.data.prices.status).toBe('partial');
+    expect(payload.data!.prices.status).toBe('partial');
   });
 
   it('SR5: the updater throws: status failed, the document written', async () => {

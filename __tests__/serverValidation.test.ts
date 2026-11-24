@@ -72,13 +72,11 @@ describe('snapshotRequestSchema', () => {
     ).toBe(true);
   });
 
-  it('accepts a full valid body', () => {
+  // C7: the secret no longer travels in the body.
+  it('rejects a cronSecret (strict)', () => {
     expect(
-      snapshotRequestSchema.safeParse({
-        userId: 'user-1',
-        cronSecret: 'secret',
-      }).success
-    ).toBe(true);
+      snapshotRequestSchema.safeParse({ userId: 'user-1', cronSecret: 'secret' }).success
+    ).toBe(false);
   });
 
   // RI6 (doc/snapshot-integri/README.md § 5.3): the target is always the current month; a caller

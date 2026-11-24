@@ -18,9 +18,15 @@ const { runDividendScrapingMock, runExpenseCreationMock, runNextCouponScheduling
 vi.mock('@/lib/firebase/admin', () => ({
   adminAuth: { verifyIdToken: vi.fn() },
   adminDb: {
-    collection: vi.fn(() => ({
-      get: vi.fn().mockResolvedValue({ empty: true, docs: [] }),
-    })),
+    collection: vi.fn(() => {
+      const chain = {
+        get: vi.fn().mockResolvedValue({ empty: true, docs: [] }),
+        doc: vi.fn(() => ({ get: vi.fn().mockResolvedValue({ exists: false, data: () => undefined }), set: vi.fn() })),
+        where: vi.fn(() => chain),
+        limit: vi.fn(() => chain),
+      };
+      return chain;
+    }),
   },
 }));
 
@@ -44,9 +50,6 @@ vi.mock('@/lib/server/monthlyEmailService', () => ({
   monthToSemester: vi.fn(),
   getSettingsAdmin: vi.fn(),
   buildAndSendForPeriod: vi.fn(),
-  buildAndSendQuarterly: vi.fn(),
-  buildAndSendSemiAnnual: vi.fn(),
-  buildAndSendYearly: vi.fn(),
 }));
 
 vi.mock('@/lib/server/ecbRatesService', () => ({
@@ -60,6 +63,7 @@ vi.mock('@/lib/server/weeklyBudgetEmailService', () => ({
 
 vi.mock('@/lib/utils/dateHelpers', () => ({
   getItalyMonthYear: vi.fn(() => ({ month: 4, year: 2026 })),
+  getItalyDateIso: vi.fn(() => '2026-04-10'),
 }));
 
 function makeRequest(url: string, authHeader?: string): NextRequest {
@@ -228,5 +232,35 @@ describe('GET /api/cron/monthly-snapshot auth', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ success: true });
+  });
+});
+
+// ─── Route-level tests for period-recap (the third cron, D-CS1) ──────────
+
+describe('GET /api/cron/period-recap auth', () => {
+  let GET: CronRouteHandler;
+
+  beforeAll(async () => {
+    ({ GET } = await import('@/app/api/cron/period-recap/route'));
+  }, MODULE_LOAD_TIMEOUT_MS);
+
+  beforeEach(() => {
+    vi.stubEnv('CRON_SECRET', 'test-cron-secret');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 when no Authorization header is present', async () => {
+    const response = await GET(makeRequest('http://localhost/api/cron/period-recap'));
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' });
+  });
+
+  it('returns 401 when the Authorization header carries a wrong secret', async () => {
+    const response = await GET(makeRequest('http://localhost/api/cron/period-recap', 'Bearer wrong-secret'));
+    expect(response.status).toBe(401);
   });
 });

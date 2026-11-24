@@ -7,7 +7,7 @@ Fork only. Card: Todoist «Fable minori · Cron serale: dire quando fallisce, em
 
 Sources: the security review of 2026-11-11 (project Library `review-sicurezza/parte-3-cron-snapshot.md`, C2 C5 C6
 C7), the test-health review (`salute-test/parte-2-copertura.md`, its C2: the cron's body has no test), Vercel's cron
-documentation read on 2026-11-24 (§ 3.4). Spec written on 2026-11-24 on `main` = `34b24f5`; decisions confirmed by the owner on 2026-11-24 (§ 8).
+documentation read on 2026-11-24 (§ 3.4). Spec written on 2026-11-24 on `main` = `34b24f5`; decisions confirmed by the owner on 2026-11-24 (§ 8). **Implemented 2026-11-24** in the same PR as this dossier (thread «Implementare il cron serale affidabile»): `lib/server/{portfolioSnapshot,emailTransport,deliveryRecord,periodEmailDelivery,cronRun}.ts`, `lib/utils/periodRecapDue.ts`, `app/api/cron/period-recap/route.ts`, `app/api/user/cron-status/route.ts`, `scripts/cronStatus.mts`; tests CS1–CS11 as in § 6 (CS11 in `__tests__/rules/firestoreRules.rules.ts`).
 
 ---
 

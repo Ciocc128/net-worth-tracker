@@ -89,7 +89,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   article is data (`dayRef`: «il 13», «l'8», «l'11», «il 1°», «dall'8»). The Tetto tile's second and third KPIs
   have TWO faces on `exceeded`: «Restano / Al giorno (per restare nel tetto)» becomes «Oltre (dal 22) / Al giorno
   = real pace (spesi al giorno · il tetto ne regge 65)» — «0 € al giorno» told nothing.
-- **The ceiling IS historicised, by the cron, one document per month.** Phase 8 of `/api/cron/monthly-snapshot`
+- **The ceiling IS historicised, by the cron, one document per month.** The `budget-history` phase of `/api/cron/monthly-snapshot`
   (`captureBudgetHistory`) copies every `budgets/{uid}` into `budgetHistory/{uid}/months/{YYYY-MM}` every day
   (merge), so a month's record is its LAST captured configuration. The client never writes it (rule `allow write:
   if false`; read by `canAccess(userId)` — nested under the uid so a missing month reads `null`, not a permission

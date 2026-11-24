@@ -1,13 +1,19 @@
 {
-  "regions": ["fra1"],
+  "regions": [
+    "fra1"
+  ],
   "crons": [
+    {
+      "path": "/api/cron/daily-dividend-processing",
+      "schedule": "0 17 * * *"
+    },
     {
       "path": "/api/cron/monthly-snapshot",
       "schedule": "0 18 * * *"
     },
     {
-      "path": "/api/cron/daily-dividend-processing",
-      "schedule": "0 18 * * *"
+      "path": "/api/cron/period-recap",
+      "schedule": "0 19 * * *"
     }
   ]
 }

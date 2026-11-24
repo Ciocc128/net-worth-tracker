@@ -31,6 +31,12 @@ vi.mock('@/lib/services/assistantMonthContextService', async () => {
   return { ...actual, buildAssistantPeriodRangeContext: vi.fn(actual.buildAssistantPeriodRangeContext) };
 });
 
+// The mail transport needs both variables (lib/server/emailTransport.ts, D-CS4): no sender fallback.
+beforeEach(() => {
+  vi.stubEnv('RESEND_API_KEY', 're_test');
+  vi.stubEnv('RESEND_FROM_EMAIL', 'noreply@fenicottero.example');
+});
+
 // Per-collection query chains — filled per-test
 const collectionMocks: Record<string, unknown> = {};
 
@@ -1914,6 +1920,40 @@ describe('buildAndSendForPeriod — AI comment through the provider layer', () =
     expect(body.messages[0].role).toBe('system');
     expect(htmlSent()).toContain('Commento AI');
     expect(htmlSent()).toContain('fenicottero');
+  });
+
+  // CS4 (doc/cron-serale § 5.4, UC6): the paid comment is kept BEFORE the send and reused after a failure.
+  it('keeps a newly paid comment through onAiComment before it sends', async () => {
+    process.env.OPENROUTER_API_KEY = 'or-test';
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ finish_reason: 'stop', message: { content: 'Commento ornitorinco.' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 10 },
+        }),
+        { status: 200 }
+      )
+    );
+    const order: string[] = [];
+    resendSendMock.mockImplementation(async () => {
+      order.push('send');
+      return { data: {}, error: null };
+    });
+    const onAiComment = vi.fn(async () => {
+      order.push('keep');
+    });
+    expect(await buildAndSendForPeriod('user-1', ['a@b.com'], 'monthly', 2025, 3, { onAiComment })).toBe(true);
+    expect(onAiComment).toHaveBeenCalledWith(expect.stringContaining('ornitorinco'));
+    expect(order).toEqual(['keep', 'send']);
+  });
+
+  it('a stored comment is sent as it is and the model is not called again', async () => {
+    process.env.OPENROUTER_API_KEY = 'or-test';
+    expect(
+      await buildAndSendForPeriod('user-1', ['a@b.com'], 'monthly', 2025, 3, { storedAiComment: 'Commento già pagato.' })
+    ).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(htmlSent()).toContain('già pagato');
   });
 
   describe("the Wiki for the vault's owner (F5)", () => {

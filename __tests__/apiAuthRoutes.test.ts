@@ -735,7 +735,6 @@ describe('Private API route auth', () => {
         method: 'POST',
         body: {
           userId: 'user-1',
-          cronSecret: 'test-cron-secret',
           month: 13,
         },
       })
@@ -747,7 +746,9 @@ describe('Private API route auth', () => {
     expect(updateUserAssetPricesMock).not.toHaveBeenCalled();
   });
 
-  it('allows snapshot creation for cron callers using cronSecret without Firebase auth', async () => {
+  // CS7 (doc/cron-serale § 5.2, C7): the cron calls `createPortfolioSnapshot` directly; the route
+  // has no secret door any more, so a body carrying `cronSecret` is refused before anything runs.
+  it('refuses a body carrying cronSecret: 400, no token check, no write', async () => {
     const response = await snapshotRoute(
       createJsonRequest('http://localhost/api/portfolio/snapshot', {
         method: 'POST',
@@ -758,13 +759,10 @@ describe('Private API route auth', () => {
       })
     );
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      success: true,
-      snapshotId: 'user-1-2026-4',
-    });
+    expect(response.status).toBe(400);
     expect(verifyIdTokenMock).not.toHaveBeenCalled();
-    expect(snapshotDocSetMock).toHaveBeenCalledTimes(1);
+    expect(snapshotDocSetMock).not.toHaveBeenCalled();
+    expect(updateUserAssetPricesMock).not.toHaveBeenCalled();
   });
 
   it('keeps the Storico note of the snapshot it overwrites', async () => {
@@ -778,7 +776,8 @@ describe('Private API route auth', () => {
     await snapshotRoute(
       createJsonRequest('http://localhost/api/portfolio/snapshot', {
         method: 'POST',
-        body: { userId: 'user-1', cronSecret: 'test-cron-secret' },
+        headers: { Authorization: 'Bearer valid-token' },
+        body: { userId: 'user-1' },
       })
     );
 

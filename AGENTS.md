@@ -327,7 +327,7 @@ holds it): how it was learned is `git log`'s.
 - **A date in a request is a STRING first** (2026-10-04): every request date goes through `isoDateSchema` + `parseOr400` in `lib/server/validation.ts`, never an `as { … }` cast. On its own, `z.coerce.date()` turns `null` into 1970-01-01, which gives a 200 instead of a 400. Pinned by `__tests__/performanceYieldsRoute.test.ts` and `serverValidation.test.ts`.
 - **A Vercel Function never `require()`s an ESM-only package, on any Node version** (2026-10-08, PR #436): `package.json` `overrides` → `jwks-rsa ^3.2.2` and `engines.node` `"24.x"`, held by `__tests__/vercelConfig.test.ts`. Grep a new server dependency's `require(` calls. The emulators cannot see this; only a real token on a deploy shows it.
 - **`tsc` does not protect a `server-only` module** (2026-09-06): importing one from a client page type-checks and only fails in the browser. Client pages read through a client reader (`lib/services/dividendReceiptsService.ts`), and tests mock it with `vi.mock('server-only', () => ({}))`.
-- Il resto — the cron routes and `CRON_SECRET` (`/api/portfolio/snapshot` keeps `cronSecret`), the `Server-Timing` header (`lib/server/serverTiming.ts`, its stages, the recorder, counts beside the body), `REGISTRATION_WHITELIST` without `NEXT_PUBLIC_`, the files and the suites — in `doc/guide/server.md`.
+- Il resto — the three cron routes (17/18/19 UTC, each recording itself in `cron-runs`, 500 on any failure), `CRON_SECRET` (`/api/portfolio/snapshot` has no secret door), the `Server-Timing` header (`lib/server/serverTiming.ts`, its stages, the recorder, counts beside the body), `REGISTRATION_WHITELIST` without `NEXT_PUBLIC_`, the files and the suites — in `doc/guide/server.md`.
 
 ### Dynamic Imports and Module Hygiene
 - **Components must be at module level** — one defined in a render body is a new type every render (remount,
@@ -431,7 +431,7 @@ file used to carry.
 - Opt-in (`reconcileBudgetItems` never auto-creates); NO period axis (always the current Italian month; annual budgets are year-to-date on their own Off-Axis tile).
 - ONE projection rule, the app's: `buildSpendingForecast` over the month's spending SPLIT at today (`spendingProjection.ts`, shared with Panoramica/Tracciamento); a FIXED category never follows the pace; `MIN_FORECAST_DAYS` (4).
 - Risk vs fact: «Categorie a rischio» = projection over amount AND not over yet; a budget already over is a fact for «Avvisi». No row in two tiles. A threshold is a fact of what is BOOKED (`BudgetAlert.spent` = up to today), read against the calendar of its own window (`calendarPct`, `aheadOfCalendar`): the amber is for the rows ahead of it only. «Speso» is `spentToDate`; the scheduled rows are their own clause in every sentence (2026-09-14).
-- The ceiling IS historicised by the cron (phase 8, one doc per month, `budgetHistory/{uid}/months/{YYYY-MM}`, `allow write: if false`). The crossing day is a fact of the EXPENSE DATES, never a cron's memory.
+- The ceiling IS historicised by the snapshot cron (phase `budget-history`, one doc per month, `budgetHistory/{uid}/months/{YYYY-MM}`, `allow write: if false`). The crossing day is a fact of the EXPENSE DATES, never a cron's memory.
 - Il resto — the mobile composition (§ Composizione mobile), `summarizeCeiling`, the two-face KPIs on `exceeded`, `BudgetTrack`, the `cashflow:add-budget` event — in `doc/guide/cashflow-budget.md`.
 
 ### Centri di Costo → `doc/guide/centri-di-costo.md`
@@ -467,7 +467,7 @@ file used to carry.
 ### Hall of Fame — a verdict over tiles → `doc/guide/hall-of-fame.md`
 - The page has NO axis and re-derives nothing: `hall-of-fame/{userId}` holds the rankings; "today" is a PARAMETER, never `new Date()` inside the module.
 - `hallOfFameRecords.ts` is the ONE definition of a record AND a ranking — both writers and the periodic email call `buildHallOfFameRankings`; never re-implement a ranking.
-- A stale document heals only from the page's «Aggiorna» button when the account has no assets (the cron gates on `snapshotResult.success`); disabled in demo. Never document a field as "the cron will fill it in".
+- A stale document heals only from the page's «Aggiorna» button when the account has no assets (the cron updates the Hall of Fame only for a written snapshot, never `no-assets`); disabled in demo. Never document a field as "the cron will fill it in".
 - A savings record needs income (`totalIncome > 0` guard); `stats` and the two savings rankings are OPTIONAL on pre-2026-08-25 documents — `getBoard` returns `null` (≠ empty board), never `?? []`. Same for `rankingsUpdatedAt`, `stats.sinceWorstMonth` and `YearlyRecord.monthsCovered` (2026-09-24): stored by `updateHallOfFame`, never derived, their clause dropped when absent.
 - Il resto — the mobile composition (§ Composizione mobile), the podium-vs-chronology split, the tile-never-repeats-the-verdict rule, `NoteTrigger` and the prefilled note, the section-key fan-out, the Playwright locators — in `doc/guide/hall-of-fame.md`.
 

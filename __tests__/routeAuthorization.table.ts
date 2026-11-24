@@ -94,6 +94,7 @@ export const ROUTE_TABLE: RouteRow[] = [
 
   { route: 'cron/daily-dividend-processing', method: 'GET', kind: 'secret', secret: { env: 'CRON_SECRET', in: 'header' }, request: () => ({}) },
   { route: 'cron/monthly-snapshot', method: 'GET', kind: 'secret', secret: { env: 'CRON_SECRET', in: 'header' }, request: () => ({}) },
+  { route: 'cron/period-recap', method: 'GET', kind: 'secret', secret: { env: 'CRON_SECRET', in: 'header' }, request: () => ({}) },
 
   { route: 'dashboard/overview', method: 'GET', kind: 'owner', request: query() },
   { route: 'dashboard/overview/invalidate', method: 'POST', kind: 'owner', request: (account) => ({ body: { ownerId: account, reason: 'test' } }) },
@@ -124,7 +125,7 @@ export const ROUTE_TABLE: RouteRow[] = [
 
   { route: 'portfolio/exposure', method: 'GET', kind: 'viewer', request: () => ({}), note: 'a delegate reads their own account (functional, out of S1)' },
   { route: 'portfolio/instrument-profiles', method: 'GET', kind: 'owner', request: (account) => ({ query: { userId: account, assetIds: `asset-${account}` } }) },
-  { route: 'portfolio/snapshot', method: 'POST', kind: 'owner', request: body({}), note: 'also accepts `cronSecret` in the body instead of a token' },
+  { route: 'portfolio/snapshot', method: 'POST', kind: 'owner', request: body({}), note: 'C7: no cron door any more — `cronSecret` in the body is a 400' },
   {
     route: 'portfolio/snapshot/manual', method: 'POST', kind: 'owner',
     request: body({ year: 2026, month: 3, totalNetWorth: 2500, liquidNetWorth: 2500, illiquidNetWorth: 0, byAssetClass: { equity: 2500 } }),
@@ -136,6 +137,7 @@ export const ROUTE_TABLE: RouteRow[] = [
   { route: 'prices/bond-quote', method: 'GET', kind: 'token', request: () => ({ query: { isin: 'IT0005083057' } }) },
   { route: 'prices/update', method: 'POST', kind: 'owner', request: body({}) },
 
+  { route: 'user/cron-status', method: 'GET', kind: 'owner', request: (account) => ({ query: { ownerId: account } }), note: 'D-CS3: the caller’s account only; a member reads the owner’s' },
   { route: 'user/monthly-email/send', method: 'POST', kind: 'viewer', request: () => ({ body: { periodType: 'monthly' } }), note: 'on the helper, 5 sends an hour, RU9' },
   { route: 'wiki/ingest', method: 'POST', kind: 'secret', secret: { env: 'WIKI_INGEST_SECRET', in: 'header' }, request: () => ({ body: {} }) },
 ];

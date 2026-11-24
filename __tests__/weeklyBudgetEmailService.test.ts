@@ -332,6 +332,8 @@ describe('buildAndSendWeeklyBudget — the AI comment never blocks the email', (
   }
 
   beforeEach(() => {
+    vi.stubEnv('RESEND_API_KEY', 're_test');
+    vi.stubEnv('RESEND_FROM_EMAIL', 'noreply@fenicottero.example');
     mockSentEmails.length = 0;
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
