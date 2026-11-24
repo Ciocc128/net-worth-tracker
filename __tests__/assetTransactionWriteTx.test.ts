@@ -434,6 +434,131 @@ describe('assetTransactionUseCase — atomic write transaction', () => {
     expect(store.has(docKey('assetTransactions', 'auto-1'))).toBe(false);
   });
 
+  describe('the opening position of the first trade (withOpening, 2026-11-24)', () => {
+    // Hand-worked: the asset tracks 2 shares at a PMC of 100 with no operation. The opening is a
+    // baseline BUY of 2 @ 100 dated the day of the first trade; then
+    //   buy 1 @ 130  → 3 shares, PMC (2·100 + 1·130) / 3 = 110
+    //   adjustment to 5 shares at a PMC of 90 → 5 shares, PMC 90 (an adjustment replaces both).
+    const tradeDate = new Date(2026, 10, 10, 12);
+
+    it('writes the opening and the first buy together, and the quantity adds up instead of being overwritten', async () => {
+      seedAsset({ quantity: 2, averageCost: 100 });
+      seedCash('cash-1', 1000);
+
+      const result = await createAssetTransaction(
+        OWNER,
+        { assetId: 'asset-1', type: 'buy', date: tradeDate, quantity: 1, pricePerUnit: 130 },
+        { withOpening: true }
+      );
+
+      expect(result.derived).toEqual({ quantity: 3, averageCost: 110, averageCostEur: 110 });
+      const asset = store.get(docKey('assets', 'asset-1'))!;
+      expect(asset.quantity).toBe(3);
+      expect(asset.averageCost).toBe(110);
+
+      const opening = store.get(docKey('assetTransactions', 'baseline-asset-1'))!;
+      expect(opening).toMatchObject({
+        userId: OWNER,
+        assetId: 'asset-1',
+        type: 'buy',
+        isBaseline: true,
+        quantity: 2,
+        pricePerUnit: 100,
+        priceEur: 100,
+      });
+      expect(opening.date).toEqual(tradeDate);
+      // Two trade docs in all: the opening and the buy.
+      expect([...store.keys()].filter((k) => k.startsWith('assetTransactions/'))).toHaveLength(2);
+    });
+
+    it('moves no money for the opening: only the buy settles the account', async () => {
+      seedAsset({ quantity: 2, averageCost: 100 });
+      seedCash('cash-1', 1000);
+
+      await createAssetTransaction(
+        OWNER,
+        {
+          assetId: 'asset-1',
+          type: 'buy',
+          date: tradeDate,
+          quantity: 1,
+          pricePerUnit: 130,
+          linkedCashAssetId: 'cash-1',
+        },
+        { withOpening: true }
+      );
+
+      // 1000 − 1·130 = 870; had the opening settled too, it would be 670.
+      expect(store.get(docKey('assets', 'cash-1'))!.quantity).toBe(870);
+    });
+
+    it('lets an adjustment be the first operation once the opening is registered', async () => {
+      seedAsset({ quantity: 2, averageCost: 100 });
+
+      const result = await createAssetTransaction(
+        OWNER,
+        { assetId: 'asset-1', type: 'adjustment', date: tradeDate, quantity: 5, pricePerUnit: 90 },
+        { withOpening: true }
+      );
+
+      expect(result.derived).toEqual({ quantity: 5, averageCost: 90, averageCostEur: 90 });
+    });
+
+    it('still refuses without the flag, and writes nothing', async () => {
+      seedAsset({ quantity: 2, averageCost: 100 });
+
+      await expect(
+        createAssetTransaction(OWNER, {
+          assetId: 'asset-1',
+          type: 'adjustment',
+          date: tradeDate,
+          quantity: 5,
+          pricePerUnit: 90,
+        })
+      ).rejects.toMatchObject({ status: 409 });
+
+      expect(store.has(docKey('assetTransactions', 'baseline-asset-1'))).toBe(false);
+      expect(store.get(docKey('assets', 'asset-1'))!.quantity).toBe(2);
+    });
+
+    it('writes no opening when there is no quantity to open with', async () => {
+      seedAsset({ quantity: 0 });
+
+      const result = await createAssetTransaction(
+        OWNER,
+        { assetId: 'asset-1', type: 'buy', date: tradeDate, quantity: 5, pricePerUnit: 100 },
+        { withOpening: true }
+      );
+
+      expect(result.derived.quantity).toBe(5);
+      expect(store.has(docKey('assetTransactions', 'baseline-asset-1'))).toBe(false);
+    });
+
+    it('writes no opening when the asset already has operations', async () => {
+      seedAsset({ quantity: 10, averageCost: 100 });
+      store.set(docKey('assetTransactions', 'old-1'), {
+        userId: OWNER,
+        assetId: 'asset-1',
+        type: 'buy',
+        date: new Date(2026, 0, 5, 12),
+        quantity: 10,
+        pricePerUnit: 100,
+        priceEur: 100,
+        createdAt: new Date(2026, 0, 5),
+        updatedAt: new Date(2026, 0, 5),
+      });
+
+      const result = await createAssetTransaction(
+        OWNER,
+        { assetId: 'asset-1', type: 'buy', date: tradeDate, quantity: 5, pricePerUnit: 100 },
+        { withOpening: true }
+      );
+
+      expect(result.derived.quantity).toBe(15);
+      expect(store.has(docKey('assetTransactions', 'baseline-asset-1'))).toBe(false);
+    });
+  });
+
   it('allows the first-ever trade on a freshly created ledger asset (quantity starts at 0)', async () => {
     seedAsset({ quantity: 0 });
 

@@ -96,6 +96,13 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   DIRECTLY in-tx, not via `updateAsset`.
 - **Migration is idempotent**: meta doc present → done; else one baseline BUY per eligible asset, batched ≤400, **meta
   doc written LAST**. Mutation hooks invalidate a TRIPLE: `assetTransactions.all` + `assets.all` + `dashboard.overview`.
+- **The first-trade guard and its remedy** (2026-11-24): an asset with a tracked quantity and NO operation refuses its
+  first one (409), because the replay would overwrite the quantity. The way out is the opening position: the POST
+  takes `withOpening: true` (literal `true` only) and, in the same transaction, writes a baseline BUY of the tracked
+  quantity (`baseline-${assetId}`, the asset's PMC, dated the first trade's day, moves no money) before the trade.
+  `TransactionDialog` shows a pre-ticked checkbox for it when the ledger is loaded, empty and the quantity is not 0;
+  unticked, the 409 stands. An adjustment is no remedy: it is a `set` on an empty history too. (Berkshire Hathaway,
+  0,05 quote: the first real case.)
 - **`updateAssetMetadata` closes the `deleteField()` trap** — ledger-type edits go through it, never `updateAsset`.
   **Testing the atomic write**: the in-memory Admin fake is built inside the hoisted `vi.mock` factory, so reference
   `vi.hoisted(...)` state, never a plain const.

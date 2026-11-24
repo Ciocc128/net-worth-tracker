@@ -69,6 +69,7 @@ import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -171,9 +172,13 @@ export function TransactionDialog({ open, onClose, asset, transaction, prefill, 
   const isBaseline = transaction?.isBaseline === true;
 
   const { data: allAssets = [] } = useAssets(ownerId);
-  const { data: existingTransactions = [] } = useAssetTransactions(ownerId, asset.id, {
+  const { data: existingTransactions = [], isSuccess: ledgerLoaded } = useAssetTransactions(ownerId, asset.id, {
     enabled: open,
   });
+  // An asset with a tracked quantity and an empty ledger: its first operation would overwrite that
+  // quantity, so the owner confirms registering it as the opening position (server guard, 409).
+  const needsOpening = !transaction && ledgerLoaded && existingTransactions.length === 0 && Math.abs(asset.quantity) > 1e-9;
+  const [withOpening, setWithOpening] = useState(true);
 
   const createMutation = useCreateAssetTransaction(ownerId || '');
   const updateMutation = useUpdateAssetTransaction(ownerId || '');
@@ -477,7 +482,7 @@ export function TransactionDialog({ open, onClose, asset, transaction, prefill, 
           ...(taxValue !== undefined ? { withheldTaxEur: taxValue } : {}),
           note: noteValue,
         };
-        const result = await createMutation.mutateAsync(formData);
+        const result = await createMutation.mutateAsync({ ...formData, ...(needsOpening && withOpening ? { withOpening: true } : {}) });
         onCreated?.(result, formData, estimateTradePriceEur(asset, formData.pricePerUnit));
         toast.success(
           result.realizedPnlEur !== undefined
@@ -591,6 +596,22 @@ export function TransactionDialog({ open, onClose, asset, transaction, prefill, 
           <p className="text-xs text-muted-foreground">
             Posizione iniziale: puoi modificarne solo quantità, prezzo e nota.
           </p>
+        )}
+
+        {needsOpening && (
+          <div className="flex items-start gap-2 rounded-md border p-3">
+            <Checkbox
+              id="trade-opening"
+              checked={withOpening}
+              onCheckedChange={(checked) => setWithOpening(checked === true)}
+              className="mt-0.5"
+            />
+            <Label htmlFor="trade-opening" className="text-sm font-normal leading-snug">
+              Registra anche la posizione iniziale: {Number(asset.quantity.toFixed(6))} quote già tracciate
+              senza operazioni, al PMC dell’asset. Non muove denaro. Senza, la prima operazione
+              sovrascriverebbe la quantità.
+            </Label>
+          </div>
         )}
 
         {/* Data — hidden for baseline (its date is locked to the migration day). */}
