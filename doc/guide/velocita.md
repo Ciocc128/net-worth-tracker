@@ -17,7 +17,7 @@
 **Le simulazioni FIRE fuori dal thread principale (F12, 2026-11-24, `doc/simulazioni-worker/README.md`)**: «Dopo il FIRE» e Proiezione calcolano in
 un Web Worker (un chunk a sé, `fireSimulation.worker`) e tengono in memoria le ultime tre corse per tipo. Sonda nel cloud, `next dev` a CPU 4×,
 seed di base: il long task più lungo all'apertura di Dopo il FIRE passa da 7361 ms (simulazione sul thread principale) a 1248 ms (il resto è il
-disegno della scheda in sviluppo); al ritorno sulla scheda 695 ms, nessuna corsa. La misura sulla build di produzione è del giro sul Mac.
+disegno della scheda in sviluppo); al ritorno sulla scheda 695 ms, nessuna corsa. Sulla build di produzione (Mac, 2026-11-24, CPU 4×): apertura di Dopo il FIRE 3045 → 628 ms a 1440 e 3025 → 313 ms a 390, Proiezione 1640 → 449 ms e 1652 → 0; al ritorno sotto i 100 ms (dossier § 9).
 
 ## Il budget — «quanto JS spedisce ogni route?»
 
@@ -71,6 +71,7 @@ stati verificati nell'analizzatore: il dubbio sul tree-shaking di `radix-ui` res
 
 | Data | Route | Da → a (KB gz) | PR | Perché |
 |---|---|---|---|---|
+| 2026-11-24 | tre route (fork) | /dashboard/fire-simulations 876 → 879 (878.4) · /dashboard/pension 693 → 694 (693.3) · /login 486 → 487 (486.1) | F12 «simulazioni FIRE in un worker» (#238) | Il client del worker, il deposito e l'hook entrano nel JS iniziale di FIRE (+2,8 KB gz); il guscio del worker è un chunk a sé (632 B gz). Pension e login: deriva dei merge, nessun modulo solo loro; misura `perf:build` sul Mac (main eee66b10), tetto = misura arrotondata su |
 | 2026-11-23 | una route (fork) | /dashboard/analisi 686 → 690 (689.7; main 687.1 nella stessa sessione) | Totali mensili Fase B | Analisi legge i totali (`useExpenseFlows`, `loadExpenseFlows` e il client dei totali nel suo JS iniziale, +2,6 KB gz); misura `perf:build` nel cloud contro main nella stessa sessione, tetto = misura arrotondata su. Da riconfermare sul Mac e da allineare con #231. **Da confermare dal proprietario.** |
 | 2026-11-23 | `/dashboard/assets` (fork) | 752 → 753 (752.8) | RU7 «Patrimonio, prima schermata» (#234) | Il totale basso a desktop, la riga Operazioni/Conti alta come il totale e `useScrollsVertically` pesano +1 KB gz su questa route; misura `perf:build` sul Mac (main d0811384), tetto = misura arrotondata su. **Da confermare dal proprietario.** |
 | 2026-11-23 | otto route (fork) | /dashboard/allocation 847 → 849 (848.3) · /dashboard/assets 750 → 752 (751.8) · /dashboard/cashflow 797 → 799 (798.3) · /dashboard/fire-simulations 875 → 876 (875.6) · /dashboard/history 799 → 801 (800.5) · /dashboard/pension 691 → 693 (692.1) · /dashboard/performance 676 → 679 (678.3) · /dashboard/settings 809 → 812 (811.3) | thread «Alleggerire Storico dal motore PDF» | Deriva dei merge, nessun modulo solo suo: il motore del PDF non è nel JS iniziale di Storico (`import()` al clic, verificato). La misura rossa di 1196 KB era di una `.next` vecchia di ottobre letta per errore; ora `perf:budget` legge `.next-perf` di default. Misura `perf:build` pulita sul Mac, tetto = misura arrotondata su. **Da confermare dal proprietario.** |
