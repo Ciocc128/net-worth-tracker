@@ -3,7 +3,7 @@
 > Dossier della card Todoist «F12 FEAT prestazioni: simulazioni FIRE senza ricalcolo e in un Web Worker (P2, P4),
 > prima di R9», gruppo 12 del piano della review Fable (14/11). Fonte: Library `prestazioni-reali.html`
 > (proposte 2, 4, 5) e `parte-3-interazioni-simulazioni.md`. Sblocca R9 (FIRE in tre schede, ondata 3 del
-> riordino). Stato: specifica e implementazione del 2026-11-24, decisioni prese da Giorgio lo stesso giorno (§ 7); in attesa del giro sul Mac.
+> riordino). Stato: specifica e implementazione del 2026-11-24, decisioni prese da Giorgio lo stesso giorno (§ 7); giro sul Mac fatto il 2026-11-24 (§ 9).
 
 ## 1. Obiettivo
 
@@ -159,6 +159,28 @@ ma separa il calcolo dal disegno: la stessa sonda con `window.Worker` tolto fa g
 Il worker è uno solo (`turbopack-worker-…`), e il verdetto della Proiezione ha le stesse cifre nei due casi (192.528 € in mediana a 30 anni).
 Ciò che resta (circa 0,7–1,2 s in sviluppo) è il montaggio delle schede con React in modalità di sviluppo: sulla build di produzione va
 rimisurato; se resta sopra i 200 ms è materia di P5/P6, non di questa task.
+
+**Build di produzione sul Mac, 2026-11-24** (main eee66b10, `perf:serve` su :3200, emulatori con il seed di base, CPU 4×; long task
+massimo in ms dal clic a tre secondi dopo che il verdetto ha cifre; «senza» = `window.Worker` tolto, la riserva sul thread principale):
+
+| Passo | 1440 con worker | 1440 senza | 390 con worker | 390 senza |
+| --- | --- | --- | --- | --- |
+| Dopo il FIRE, apertura | 628 | 3045 | 313 | 3025 |
+| Proiezione, apertura | 449 | 1640 | 0 | 1652 |
+| Dopo il FIRE, ritorno | 78 | 81 | 60 | 63 |
+| Proiezione, ritorno | 94 | 85 | 0 | 0 |
+
+- **CA4 soddisfatto**: al ritorno resta solo il montaggio, sotto i 100 ms.
+- **CA3 in parte**: il blocco del calcolo è sparito (da 3 s a 0,3–0,6 s), ma a 1440 restano 628 ms su Dopo il FIRE e 449 ms su
+  Proiezione, e 313 ms a 390 su Dopo il FIRE: è il disegno della scheda con le sue cifre (ventaglio, scenari, tabelle), non la simulazione.
+  Va guardato con P6 e con R9, che ridisegna queste schede.
+- **CA7**: `/dashboard/fire-simulations` 878,4 KB gz contro un tetto di 876 (+2,4 KB: il client del worker, il deposito, l'hook); tetto
+  alzato a 879 nel registro di `doc/guide/velocita.md`, con `/dashboard/pension` (693,3) e `/login` (486,1) per deriva.
+- **P5, Calcolatore al ritorno** (build `--profile --no-mangling`, profilo CPU di Chrome a 4×): nessuna delle tre parti pesa. In 5 s
+  il thread è fermo 3,8 s, layout e paint 0,9 s, il JS circa 170 ms (`FireCalculatorTab` 60 ms inclusivi; `FireFanChart`, la matrice di
+  sensibilità e la proiezione deterministica circa 1 ms ciascuna). Le voci più alte sono `getBoundingClientRect` (54 ms, layout
+  forzato) e il motore di accumulo del ventaglio del Calcolatore, 1000 percorsi, ancora sul thread principale (circa 50 ms). P5 non è
+  un problema di calcolo: se va toccato, è il layout forzato.
 
 ## 10. File
 
