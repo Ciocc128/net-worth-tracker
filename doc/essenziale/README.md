@@ -27,8 +27,9 @@ spegne in blocco **sette aree**; ogni area ha anche il suo interruttore, e chi n
 
 ### 1.1 Dove sono i render
 
-Pagina pubblicata con il thread «Specificare la modalità Essenziale» (2026-11-24): il menu a 1440 e a 390 «oggi /
-Essenziale», la scheda Funzioni, il menu dell'account, la riga di una pagina nascosta, il tile «Verso il FIRE». I render
+Pagina pubblicata con il thread «Specificare la modalità Essenziale» (2026-11-24),
+https://claude.ai/artifact/ATpieDpvUSjrWcwnPu449c: la fascia a 1440 e il foglio «Altro» a 390 «oggi / Essenziale», le schede
+di Cashflow, la riga di una pagina nascosta, il menu dell'account, la scheda Funzioni (interattiva), il tile «Verso il FIRE». I render
 «oggi» sono l'app vera sugli emulatori (account `census@example.com`); quelli «proposta» la stessa pagina con le voci
 tolte da uno script, o composti a schizzo dove la scheda non esiste ancora (Funzioni nasce con RU9). File sorgente nella
 Library `essenziale/`.
@@ -175,9 +176,10 @@ Una tabella sola, `lib/constants/viewAreas.ts`, dice quali porte appartengono a 
 | 1 | **Cosa vedi** 12 | in testa la pillola `SegmentedPill` «Essenziale · Completa» (con «Personalizzata» scritto accanto quando ci sono override, non un terzo bottone); la riga «Vale solo per te: chi usa l'account con te sceglie la sua.»; poi una riga per area (§ 5.1) con `Switch`, nome e una riga d'aiuto che dice cosa compare quando è accesa («Aggiunge Allocazione al menu: Bilanciamento e Strategia»). Le dipendenti rientrate sotto il capo. Si salva da sola, come il tema (non entra nella bozza di Impostazioni, non accende il pallino). |
 | 2 | **Funzioni dell'account** 12 | il tile di RU9 (Traguardi, Centri di Costo, Divisione, Ruoli 50/30/20), con la riga «Valgono per tutti quelli che usano l'account.»; entra nella bozza e nel «Salva» come in RU9. |
 
-**Menu dell'account** (`AccountMenu`, una sola copia per la barra laterale e la fascia): un gruppo «Vista» subito sotto il
-`ThemePicker`, con due voci a radio «Essenziale» e «Completa» (la spunta su quella attiva; con override nessuna spunta e
-l'etichetta del gruppo dice «Vista: personalizzata»), e «Scegli le aree…» che apre Impostazioni › Funzioni.
+**Menu dell'account** (`AccountMenu`, una sola copia per la barra laterale e la fascia): sotto «Preferenze», dopo la riga
+«Tema», una riga «Vista» con la stessa pillola del `ThemePicker` e due voci di testo «Essenziale · Completa» (con override
+nessuna delle due è segnata e la riga dice «Vista: personalizzata»), poi la voce «Scegli le aree…» che apre Impostazioni ›
+Funzioni.
 
 ### 5.4 Menu e schede
 
@@ -185,7 +187,11 @@ l'etichetta del gruppo dice «Vista: personalizzata»), e «Scegli le aree…» 
   Investimenti (Patrimonio) · Storia (Storico, Hall of Fame) · Assistente · Impostazioni = **8**. Con i Traguardi accesi
   nell'account: + Futuro (Traguardi) = **9**. Completa: 12 come oggi.
 - **Un gruppo con una sola pagina** resta un gruppo (nome e una scheda nella fascia): cambiare la forma della fascia per la
-  vista corta sarebbe una seconda composizione (regola R2).
+  vista corta sarebbe una seconda composizione (regola R2). Nel foglio «Altro» (che omette le tre pagine della pillola) un
+  gruppo rimasto senza voci sparisce con la sua etichetta (Investimenti in Essenziale).
+- **La pagina aperta resta nella fascia**: arrivati da un link a una pagina di un'area spenta, la fascia mostra la sua scheda
+  (aperta) nel suo gruppo finché ci si resta, così chi guarda non perde dove si trova; le altre pagine spente del gruppo no.
+- **Una pagina con una sola scheda visibile** non mostra la barra delle schede (FIRE ridotta ai Traguardi).
 - **Schede**: `PageTabs`/`PageTabBar` ricevono le schede già filtrate dalla pagina con `filterTabsByArea(tabs, areas)`. Una
   scheda spenta richiesta da `?tab=` **si apre lo stesso** con la riga di § 5.6 (non ricade sulla prima, come fa oggi la
   scheda di una funzione dell'account spenta: lì la funzione non esiste, qui è solo nascosta).
