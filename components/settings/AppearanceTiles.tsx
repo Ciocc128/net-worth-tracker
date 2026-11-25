@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * Impostazioni › Account — the first two tiles: light/dark/system beside the colour themes (the
- * old Aspetto tab, since RU9). Two grid cells, no panel of their own: AccountTab lays them first.
+ * Impostazioni › Account — the first tile, «Aspetto»: the light/dark/system pill in its head and the
+ * colour themes under it, ONE tile (the old Aspetto tab, since RU9; two half-empty tiles side by
+ * side until 2026-11-25). One grid cell, no panel of their own: AccountTab lays it first.
  *
  * No slice: both choices save themselves (the mode through next-themes, per device; the theme
  * through `ColorThemeContext`, on the account) outside the page's «Salva», and mark no tab
@@ -177,6 +178,30 @@ export function AppearanceTiles() {
   const isThemeHydrated = useSyncExternalStore(neverChanges, () => true, () => false);
   const resolvedThemeMode = isThemeHydrated ? (theme as ThemeMode | undefined) : undefined;
   const activeSwatch = COLOR_THEME_SWATCHES.find((swatch) => swatch.id === colorTheme) ?? COLOR_THEME_SWATCHES[0];
+
+  // The mode pill: in the tile's head from `desktop:` up, as the first line of the body below it.
+  const modePill = (className: string) => (
+    <div className={cn('rounded-lg bg-muted p-1', className)} role="group" aria-label="Modalità del tema">
+      {THEME_MODES.map(({ value, label, Icon }) => {
+        const isActive = resolvedThemeMode === value;
+        return (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={isActive}
+            onClick={(e) => applyThemeWithTransition(value, e, setTheme)}
+            className={cn(
+              'flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-[13px] font-medium transition-colors',
+              isActive ? 'bg-segment-active text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Icon className="h-4 w-4" aria-hidden="true" />
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
     <>

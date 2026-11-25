@@ -19,7 +19,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tile, TILE_CELL_CLASS, TILE_FOOTER_ACTION_CLASS } from '@/components/ui/tile';
 import { cn } from '@/lib/utils';
 import type { RiskFreeResolution } from '@/lib/utils/riskFreeRate';
-import { describeCosts, describeFireWealth, describePerformanceBase, describeRiskFreeSource } from '@/lib/utils/settingsNarrative';
+import { describeCosts, describePerformanceBase, describeRiskFreeSource } from '@/lib/utils/settingsNarrative';
 import { NO_SELECTION, STRATEGIA_TARGETS_HREF, type InvestimentiSlice } from '@/lib/utils/settingsDraft';
 import { ElsewhereLine, INTERACTIVE_CONTROL_CLASS, SettingsTabPanel } from './shared';
 
@@ -166,10 +166,10 @@ export function InvestimentiTab({ slice, onChange, cashSubCategories, riskFreeEs
         </Tile>
       </div>
 
-      {/* Costi — imposta di bollo */}
-      <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
+      {/* Costi e patrimonio — the stamp duty and the home in the FIRE wealth, ONE tile (2026-11-25), not stretched to Calcolo's height */}
+      <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6 desktop:self-start')}>
         <Tile
-          eyebrow="Costi"
+          eyebrow="Costi e patrimonio"
           aside="stima annua"
           reading={describeCosts({ stampDutyEnabled, stampDutyRate, checkingAccountSubCategory })}
         >
@@ -233,23 +233,14 @@ export function InvestimentiTab({ slice, onChange, cashSubCategories, riskFreeEs
                 )}
               </div>
             )}
-          </div>
-          <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-            Gli asset esenti si marcano dalla scheda dello strumento, in Patrimonio.
-          </div>
-        </Tile>
-      </div>
-
-      {/* Patrimonio nel FIRE — the one switch of the plan that stays here: the home in the capital */}
-      <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
-        <Tile eyebrow="Patrimonio nel FIRE" reading={describeFireWealth({ includePrimaryResidenceInFIRE })}>
-          <div className="mt-1 flex flex-col divide-y divide-border">
             <div className="flex items-center justify-between gap-4 py-3">
               <div className="min-w-0">
                 <Label htmlFor="firePrimaryResidence" className="text-[13px] font-medium">
                   Casa nel patrimonio FIRE
                 </Label>
-                <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">Lo standard FIRE la esclude</p>
+                <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
+                  {includePrimaryResidenceInFIRE ? 'Il piano la conta come capitale da cui prelevare' : 'Lo standard FIRE la esclude'}
+                </p>
               </div>
               <Switch
                 id="firePrimaryResidence"
@@ -258,6 +249,9 @@ export function InvestimentiTab({ slice, onChange, cashSubCategories, riskFreeEs
                 className={cn('shrink-0', INTERACTIVE_CONTROL_CLASS)}
               />
             </div>
+          </div>
+          <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
+            Gli asset esenti si marcano dalla scheda dello strumento, in Patrimonio.
           </div>
         </Tile>
       </div>
