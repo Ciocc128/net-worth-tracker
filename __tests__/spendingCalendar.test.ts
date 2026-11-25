@@ -8,6 +8,7 @@ import type { Expense } from '@/types/expenses';
 import type { AnalisiPeriod } from '@/lib/utils/analisiSummary';
 import {
   buildSpendingCalendar,
+  layoutYearByMonth,
   resolveCalendarWindow,
   summarizeSpendingCalendar,
   weekdayOf,
@@ -190,4 +191,37 @@ describe('edges', () => {
     expect(cell(cal, '2026-03-07').total).toBe(10);
   });
 
+});
+
+describe('layoutYearByMonth (D-RU35)', () => {
+  // Reference worked by hand: 2026 is not a leap year, so the cells that hold a day per month are
+  // 31+28+31+30+31+30+31+31+30+31+30+31 = 365; the rest of the 12 × 31 = 372 are empty (7).
+  it('lays a whole year as 12 rows of 31 columns, null where the month has no such day', () => {
+    const rows = layoutYearByMonth(buildSpendingCalendar([], YEAR_2026, AFTER, 'all')!);
+    expect(rows.map((r) => r.month)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    expect(rows.every((r) => r.cells.length === 31)).toBe(true);
+    expect(rows.flatMap((r) => r.cells).filter(Boolean)).toHaveLength(365);
+    expect(rows[1].cells.slice(27).map((c) => c?.day ?? null)).toEqual([28, null, null, null]); // February
+    expect(rows[3].cells[30]).toBeNull(); // 31 April
+    expect(rows[0].cells[30]?.date).toBe('2026-01-31');
+  });
+
+  it('puts every day in the column of its day of the month, with its own data', () => {
+    const rows = layoutYearByMonth(buildSpendingCalendar(FIXTURE_A, YEAR_2026, AFTER, 'all')!);
+    const march14 = rows[2].cells[13]!;
+    expect(march14.date).toBe('2026-03-14');
+    expect(march14.total).toBe(1313.3); // 1240 + 73.3
+  });
+
+  it('stops at the month of today on a year to date', () => {
+    const today = new Date(2026, 2, 20, 12);
+    const rows = layoutYearByMonth(buildSpendingCalendar([], { mode: 'ytd', year: 2026, month: null }, today, 'all')!);
+    expect(rows.map((r) => r.month)).toEqual([1, 2, 3]);
+  });
+
+  it('a leap year fills 29 February', () => {
+    const rows = layoutYearByMonth(buildSpendingCalendar([], { mode: 'year', year: 2028, month: null }, new Date(2029, 0, 5, 12), 'all')!);
+    expect(rows[1].cells[28]?.date).toBe('2028-02-29');
+    expect(rows[1].cells[29]).toBeNull();
+  });
 });

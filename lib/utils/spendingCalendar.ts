@@ -269,3 +269,29 @@ export function summarizeSpendingCalendar(calendar: SpendingCalendar): CalendarS
   }
   return { pastDays, spendingDays, total: roundCents(total), planned: roundCents(planned), topDay, heaviestWeekday, heaviestMean, othersMean };
 }
+
+/** One row of the year grid (D-RU35): a month and its 31 columns, `null` where the month has no such day. */
+export interface CalendarMonthRow {
+  /** 1-12. */
+  month: number;
+  cells: (CalendarDay | null)[];
+}
+
+/**
+ * The year as 12 × 31 (doc/riordino-ui/ondata-3.md § 5.4): one row per month of the window,
+ * January first, one column per day of the month. A day the month does not have (30–31 February,
+ * 31 April…) is `null`. Only the arrangement changes: the days, their steps and thresholds are the
+ * calendar's own.
+ */
+export function layoutYearByMonth(calendar: SpendingCalendar): CalendarMonthRow[] {
+  const rows = new Map<number, CalendarMonthRow>();
+  for (const day of calendar.days) {
+    let row = rows.get(day.month);
+    if (!row) {
+      row = { month: day.month, cells: Array<CalendarDay | null>(31).fill(null) };
+      rows.set(day.month, row);
+    }
+    row.cells[day.day - 1] = day;
+  }
+  return [...rows.values()].sort((a, b) => a.month - b.month);
+}

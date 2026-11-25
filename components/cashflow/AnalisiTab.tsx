@@ -188,10 +188,10 @@ const NO_FOCUS: DrillDownState = { level: 'category', chartType: null, selectedC
  * the Flusso only when something flowed. One read for the page: no row is ever `failed`.
  */
 const ANALISI_SECTIONS: readonly SectionSpec[] = [
-  { id: ANALISI_SECTION_IDS.fuoriScala, eyebrow: 'Fuori scala' },
-  { id: ANALISI_SECTION_IDS.maggiori, eyebrow: 'Spese maggiori' },
   { id: ANALISI_SECTION_IDS.spese, eyebrow: 'Spese per categoria' },
   { id: ANALISI_SECTION_IDS.entrate, eyebrow: 'Entrate per categoria' },
+  { id: ANALISI_SECTION_IDS.fuoriScala, eyebrow: 'Fuori scala' },
+  { id: ANALISI_SECTION_IDS.maggiori, eyebrow: 'Spese maggiori' },
   { id: ANALISI_SECTION_IDS.calendario, eyebrow: 'Calendario delle spese' },
   { id: ANALISI_SECTION_IDS.scheda, eyebrow: 'Scheda' },
   { id: ANALISI_SECTION_IDS.flusso, eyebrow: 'Flusso' },
@@ -214,13 +214,13 @@ const FLUSSO_SANKEY_MIN_CELL = 608;
 /** «Apri tutte», where the focus goes when the Scheda closes with no opener to return to and no Flusso after it. */
 const ANALISI_REST_BUTTON_ID = 'analisi-resto';
 
-/** The page's own grid, for the skeleton: Periodo · Fuori scala · Spese maggiori / Spese · Entrate / Flusso. */
+/** The page's own grid, for the skeleton: Periodo · Spese · Entrate / Fuori scala · Spese maggiori / Flusso. */
 const SKELETON_CELLS: TileSkeletonCell[] = [
   { span: 5, rows: 2, lines: 8 },
-  { span: 3, lines: 3 },
-  { span: 4, lines: 5 },
   { span: 4, lines: 6 },
   { span: 3, lines: 4 },
+  { span: 3, lines: 3 },
+  { span: 4, lines: 5 },
   { span: 12, lines: 8 },
 ];
 
@@ -962,35 +962,6 @@ export function AnalisiTab({ ownerId, categories, loading: taxonomyLoading, load
           <div className={INDEX_CLASS}>
           <PageRest sections={sections} buttonId={ANALISI_REST_BUTTON_ID} className={REST_CELL_CLASS} />
 
-          {/* Fuori scala exists only on a month; without one, Spese maggiori takes its columns. */}
-          {singleMonth && (
-            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(ANALISI_SECTION_IDS.fuoriScala), 'desktop:col-span-3')}>
-              <FuoriScalaTile
-                collapse={sections.collapse(ANALISI_SECTION_IDS.fuoriScala)}
-                asideWhenClosed={`${MONTH_NAMES[singleMonth.month - 1].toLowerCase()} ${singleMonth.year}`}
-                anomalies={anomalies}
-                nearest={nearest}
-                monthLabel={`${MONTH_NAMES[singleMonth.month - 1].toLowerCase()} ${singleMonth.year}`}
-                reading={describeAnomalies(anomalies)}
-                followsPeriod={period.month !== null}
-                onSelect={handleAnomalySelect}
-              />
-            </div>
-          )}
-
-          <div
-            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(ANALISI_SECTION_IDS.maggiori), singleMonth ? 'desktop:col-span-4' : 'desktop:col-span-7')}
-           
-          >
-            <SpeseMaggioriTile
-              top={topExpenses}
-              reading={describeTopExpenses(topExpenses)}
-              onSelect={handleTopExpenseSelect}
-              collapse={sections.collapse(ANALISI_SECTION_IDS.maggiori)}
-              asideWhenClosed={ANALISI_CLOSED_ASIDES.maggiori}
-            />
-          </div>
-
           <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(ANALISI_SECTION_IDS.spese), 'desktop:col-span-4')}>
             <CategorieTile
               collapse={sections.collapse(ANALISI_SECTION_IDS.spese)}
@@ -1021,6 +992,35 @@ export function AnalisiTab({ ownerId, categories, loading: taxonomyLoading, load
               emptyCopy="Nessuna entrata registrata nel periodo."
               reference={pacing && baseline ? { label: baseline, amount: pacing.income.previous } : null}
               labelClassName="min-w-[72px]"
+            />
+          </div>
+
+          {/* Fuori scala exists only on a month; without one, Spese maggiori takes its columns. */}
+          {singleMonth && (
+            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(ANALISI_SECTION_IDS.fuoriScala), 'desktop:col-span-3')}>
+              <FuoriScalaTile
+                collapse={sections.collapse(ANALISI_SECTION_IDS.fuoriScala)}
+                asideWhenClosed={`${MONTH_NAMES[singleMonth.month - 1].toLowerCase()} ${singleMonth.year}`}
+                anomalies={anomalies}
+                nearest={nearest}
+                monthLabel={`${MONTH_NAMES[singleMonth.month - 1].toLowerCase()} ${singleMonth.year}`}
+                reading={describeAnomalies(anomalies)}
+                followsPeriod={period.month !== null}
+                onSelect={handleAnomalySelect}
+              />
+            </div>
+          )}
+
+          <div
+            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(ANALISI_SECTION_IDS.maggiori), singleMonth ? 'desktop:col-span-4' : 'desktop:col-span-7')}
+           
+          >
+            <SpeseMaggioriTile
+              top={topExpenses}
+              reading={describeTopExpenses(topExpenses)}
+              onSelect={handleTopExpenseSelect}
+              collapse={sections.collapse(ANALISI_SECTION_IDS.maggiori)}
+              asideWhenClosed={ANALISI_CLOSED_ASIDES.maggiori}
             />
           </div>
 

@@ -84,11 +84,11 @@ test('lays the tiles on the 12-column grid at 1440 with nothing scrolling sidewa
     await expect(page.getByRole('region', { name, exact: true })).toBeVisible();
   }
 
-  // Periodo spans two rows beside Fuori scala + Spese maggiori: it starts at the grid's top and
-  // is taller than its right-hand neighbour.
+  // Periodo spans two rows beside the categories (first row) and Fuori scala + Spese maggiori
+  // (second, D-RU34): it starts at the grid's top and is taller than its right-hand neighbour.
   const [periodo, fuoriScala] = await page.evaluate(() => {
     const rect = (name: string) => document.querySelector(`section[aria-label="${name}"]`)!.getBoundingClientRect();
-    return [rect('Periodo'), rect('Fuori scala')];
+    return [rect('Periodo'), rect('Spese per categoria')];
   });
   expect(Math.abs(periodo.top - fuoriScala.top)).toBeLessThan(2);
   expect(periodo.height).toBeGreaterThan(fuoriScala.height * 1.5);
@@ -426,22 +426,46 @@ test.describe('Calendario delle spese', () => {
     await expect(cell).toBeFocused();
   });
 
-  test('is one Tab stop: the arrows move a day and a week, Enter opens the day', async ({ page }) => {
+  test('is one Tab stop: ←→ move a day, ↑↓ the same day of the next month, Enter opens the day', async ({ page }) => {
     await gotoAnalisi(page, `?period=year&year=${PREVIOUS_YEAR}`);
     const first = dayCell(page, `${PREVIOUS_YEAR}-01-15`);
     await first.focus();
     await page.keyboard.press('ArrowRight');
     await expect(dayCell(page, `${PREVIOUS_YEAR}-01-16`)).toBeFocused();
     await page.keyboard.press('ArrowDown');
-    await expect(dayCell(page, `${PREVIOUS_YEAR}-01-23`)).toBeFocused();
+    await expect(dayCell(page, `${PREVIOUS_YEAR}-02-16`)).toBeFocused();
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('ArrowLeft');
     await expect(first).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(dayCell(page, `${PREVIOUS_YEAR}-01-31`)).toBeFocused();
+    await page.keyboard.press('Home');
+    await expect(dayCell(page, `${PREVIOUS_YEAR}-01-01`)).toBeFocused();
+    await first.focus();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('dialog')).toContainText(/Speso/);
     await page.keyboard.press('Escape');
     // Only the focused cell is in the Tab order.
     expect(await calendarTile(page).locator('button[data-date][tabindex="0"]').count()).toBe(1);
+  });
+
+  test('the year is a row per month, each cell with its weekday letter', async ({ page }) => {
+    await gotoAnalisi(page, `?period=year&year=${PREVIOUS_YEAR}`);
+    const grid = calendarTile(page).getByRole('grid');
+    await expect(grid.getByRole('row')).toHaveCount(12);
+    await expect(grid.getByRole('row', { name: 'gennaio' }).locator('[data-date]')).toHaveCount(31);
+    await expect(grid.getByRole('row', { name: 'febbraio' }).locator('[data-date]')).toHaveCount(PREVIOUS_YEAR % 4 === 0 ? 29 : 28);
+    // 31 cells fit: the first row's cells are a row apart from the second's, in one column per day.
+    const [jan15, feb15] = await Promise.all([dayCell(page, `${PREVIOUS_YEAR}-01-15`).boundingBox(), dayCell(page, `${PREVIOUS_YEAR}-02-15`).boundingBox()]);
+    expect(Math.abs(jan15!.x - feb15!.x)).toBeLessThan(1);
+    expect(feb15!.y).toBeGreaterThan(jan15!.y);
+    // 2 January 2025 was a Thursday, 4 January a Saturday (PREVIOUS_YEAR is the seed's year, 2025 when this was written):
+    // the letter is the cell's own weekday, whatever the year.
+    const letters = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
+    const weekdayOf = (iso: string) => (new Date(`${iso}T12:00:00Z`).getUTCDay() + 6) % 7;
+    for (const iso of [`${PREVIOUS_YEAR}-01-15`, `${PREVIOUS_YEAR}-02-15`, `${PREVIOUS_YEAR}-03-16`]) {
+      await expect(dayCell(page, iso)).toContainText(letters[weekdayOf(iso)]);
+    }
   });
 
   test('remembers «Solo variabili» after a reload', async ({ page }) => {

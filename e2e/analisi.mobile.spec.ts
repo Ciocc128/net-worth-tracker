@@ -66,7 +66,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('stacks the tiles in the DOM\'s order with no horizontal overflow', async ({ page }) => {
-  // The DOM order is the reading order (The First-Screen Rule): Spese maggiori before the two category rows.
+  // The DOM order is the reading order (The First-Screen Rule): the two category rows first (D-RU34).
   const order = await page.evaluate(() =>
     Array.from(document.querySelectorAll('main section[aria-label]'))
       .map((section) => ({ name: section.getAttribute('aria-label')!, top: section.getBoundingClientRect().top }))
@@ -74,7 +74,7 @@ test('stacks the tiles in the DOM\'s order with no horizontal overflow', async (
       .sort((a, b) => a.top - b.top)
       .map((section) => section.name),
   );
-  expect(order).toEqual(['Periodo', 'Fuori scala', 'Spese maggiori', 'Spese per categoria', 'Entrate per categoria', 'Calendario delle spese', 'Flusso']);
+  expect(order).toEqual(['Periodo', 'Spese per categoria', 'Entrate per categoria', 'Fuori scala', 'Spese maggiori', 'Calendario delle spese', 'Flusso']);
 
   // `main` is the horizontal scroll container (AGENTS.md): measure it and every element in it.
   const overflow = await page.evaluate(() => {
@@ -274,12 +274,12 @@ test.describe('Flusso in deficit at 390', () => {
   });
 });
 
-test('the Calendario is a closed row after Entrate; open it shows one month, cells of 44px, ‹ › off at the period\'s edges', async ({ page }) => {
+test('the Calendario is a closed row after Spese maggiori; open it shows one month, cells of 44px, ‹ › off at the period\'s edges', async ({ page }) => {
   const trigger = page.locator('#analisi-calendario-trigger');
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
-  // The row sits between Entrate and the Flusso in the DOM's order.
+  // The row sits between Spese maggiori and the Flusso in the DOM's order.
   const ids = await page.evaluate(() => [...document.querySelectorAll('main [id$="-trigger"]')].map((el) => el.id));
-  expect(ids.indexOf('analisi-calendario-trigger')).toBe(ids.indexOf('analisi-entrate-trigger') + 1);
+  expect(ids.indexOf('analisi-calendario-trigger')).toBe(ids.indexOf('analisi-maggiori-trigger') + 1);
 
   await openRow(page, 'analisi-calendario');
   const tile = page.getByRole('region', { name: 'Calendario delle spese', exact: true });

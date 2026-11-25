@@ -8,7 +8,7 @@
 ## 1. In breve
 
 Un tile nuovo in Cashflow › Analisi, **«Calendario delle spese»**: ogni giorno del periodo è una cella colorata per
-quanto hai speso quel giorno. Con un anno è la griglia a 53 settimane (colonne = settimane, righe = lunedì … domenica);
+quanto hai speso quel giorno. Con un anno è la griglia 12 mesi × 31 giorni (una riga per mese, una colonna per giorno del mese, ogni cella con la lettera del suo giorno della settimana; rivista da D-RU35, 2026-11-25);
 con un mese è il calendario del mese. Una lettura dice in quanti giorni hai speso, quale giorno della settimana pesa
 di più e qual è stato il giorno più caro; toccando un giorno un popover accanto alla cella dice il totale e le voci.
 Nessuna lettura nuova dal database.
@@ -88,9 +88,14 @@ Tutte le cifre nascono in un modulo puro nuovo, `lib/utils/spendingCalendar.ts`;
 ### 5.2 La griglia
 - `buildSpendingCalendar(rows, period, today, filter)` → per ogni giorno del periodo `{ date, weekday, total,
   scheduled, rows }`; `weekday` 0 = lunedì.
-- Anno: colonne = settimane ISO-like che iniziano il lunedì; la prima colonna può avere celle prima del 1° gennaio,
-  che restano vuote e invisibili; etichette dei mesi sopra la colonna in cui il mese inizia; righe L · M · V · D
-  etichettate (le altre senza testo).
+- Anno (rivisto da D-RU35, `doc/riordino-ui/ondata-3.md` § 5.4): una riga per mese (gennaio in alto; `ytd` fino al mese di
+  oggi), una colonna per giorno del mese (1…31), `layoutYearByMonth(calendar)` → `{ month, cells: (Day | null)[31] }[]`;
+  i giorni che il mese non ha non hanno cella. Etichetta del mese a sinistra, numeri 1·5·10·15·20·25·31 sopra le colonne.
+  Ogni cella porta al centro la lettera del giorno della settimana (L M M G V S D, giudizio di Giorgio 2026-11-25: il
+  trattino sotto sabato e domenica non si capiva), nello stesso colore della cella in un'altra tonalità, così segue la heatmap (`calendarLetterStyle`: più scuro sui gradini 1–3, più chiaro sul 4, tenue senza spesa; giudizio di Giorgio 2026-11-25). Le 31
+  colonne si dividono la larghezza del tile (10px a cella al minimo, sotto il mese), le righe sono alte 28px al massimo
+  (giudizio di Giorgio, 2026-11-25: con celle quadrate col tetto a 28px restava vuoto a destra); 3px di spazio in
+  orizzontale e 5px in verticale.
 - Mese: 7 colonne lun–dom, il 1° nella colonna del suo giorno.
 - `ytd`: gennaio → fine del mese di oggi; `current` e `year`: l'anno intero.
 
@@ -142,11 +147,13 @@ le spese, euro interi su stime e confronti; ID in doc/unslop/README.md quando sa
 - Tile: eyebrow «Calendario delle spese» (`<h3>`), la pillola «Tutte · Solo variabili» nella testa
   (`SegmentedPill`, chiave `localStorage` `analisi.calendario.filtro`, valori `all | variable`, try/catch come
   `cashflow.andamento.confronto`), la lettura (`NarrativeText`, cifre mono a peso normale), la griglia, la legenda.
-- Celle di 14–18px a 1440 con 3px di spazio; nessun titolo nativo al passaggio del mouse oltre al nome accessibile.
+- Celle larghe quanto il tile e alte fino a 28px a 1440 (D-RU35: 12 × 31) con 3px di spazio; nessun titolo nativo al passaggio del mouse oltre al nome accessibile.
 
 ### 6.2 Accessibilità
-- La griglia è UNA fermata di Tab (`useRovingFocus`): frecce per giorno (←→) e settimana (↑↓) nell'anno, per giorno e
-  settimana nel mese; Invio o spazio apre il popover.
+- La griglia è UNA fermata di Tab (`useRovingFocus`): nell'anno (D-RU35) ←→ un giorno nello stesso mese, ↑↓ lo stesso
+  giorno nel mese prima o dopo (l'ultimo se il mese è più corto), Home e Fine il primo e l'ultimo giorno del mese;
+  nel mese ←→ un giorno e ↑↓ una settimana; Invio o spazio apre il popover. L'anno è un `role="grid"` con una riga
+  (`role="row"`, nome il mese) per mese.
 - Ogni cella ha come nome «{g} {mese}: {T}» o «{g} {mese}: nessuna spesa» / «in calendario {T}».
 - Il colore non è l'unica informazione: il popover e il nome accessibile dicono la cifra.
 
@@ -188,7 +195,7 @@ schizzo.
 
 | ID | Stato | Decisione | Alternative scartate e motivo |
 |----|-------|--------------------|-------------------------------|
-| D-CS1 | **Presa** | In Analisi: anno = griglia a 53 settimane, mese = calendario del mese; in «Storico» il tile non c'è. | Tracciamento, accanto ad Andamento: il ritmo del mese lo dice già Andamento, e la domanda «dove vanno i soldi» è di Analisi. Tutte e due: due tile per una domanda. |
+| D-CS1 | **Presa; l'anno rivisto da D-RU35 (2026-11-25)** | In Analisi: anno = griglia 12 mesi × 31 giorni (era: 53 settimane), mese = calendario del mese; in «Storico» il tile non c'è. | Tracciamento, accanto ad Andamento: il ritmo del mese lo dice già Andamento, e la domanda «dove vanno i soldi» è di Analisi. Tutte e due: due tile per una domanda. |
 | D-CS2 | **Presa** | Le spese di «Spese» con una pillola «Tutte · Solo variabili», predefinita «Tutte», ricordata sul dispositivo. | Solo variabili: non somma come gli altri totali della pagina. Tutte senza pillola: affitto e rate dominano i primi del mese. |
 | D-CS3 | **Presa** | Quattro gradini per quartili dei giorni con spesa del periodo; legenda con le soglie in euro interi. | Gradini fissi in euro: giusti per un reddito, sbagliati per un altro. Lineare sul giorno più caro: una spesa grossa schiaccia tutto sul primo gradino (sezione 2 dello schizzo). |
 | D-CS4 | **Presa** | `--flow-out` a quattro intensità; giorno senza spese `--muted`; mai il rosso. | Il rosso: in Lime Frost e Graphite vale solo per i giudizi, e spendere non è un errore. |
