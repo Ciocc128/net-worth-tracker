@@ -102,7 +102,7 @@ function stepLabel(step: SpendingStep, [q1, q2, q3]: [number, number, number]): 
   return `oltre ${euroWhole(q3)}`;
 }
 
-function Legend({ calendar, hasPlanned }: { calendar: SpendingCalendar; hasPlanned: boolean }) {
+function Legend({ calendar, hasPlanned, showWeekend }: { calendar: SpendingCalendar; hasPlanned: boolean; showWeekend: boolean }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground" aria-hidden="true">
       <span className="flex items-center gap-1 whitespace-nowrap">
@@ -116,6 +116,12 @@ function Legend({ calendar, hasPlanned }: { calendar: SpendingCalendar; hasPlann
             <span className="font-mono tabular-nums">{stepLabel(step, calendar.thresholds as [number, number, number])}</span>
           </span>
         ))}
+      {showWeekend && (
+        <span className="flex items-center gap-1 whitespace-nowrap">
+          <span className="inline-block h-0.5 w-3 rounded-full bg-muted-foreground/40" />
+          sabato e domenica
+        </span>
+      )}
       {hasPlanned && (
         <span className="flex items-center gap-1 whitespace-nowrap">
           <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={calendarCellStyle({ step: 0, isFuture: true, planned: 1 })} />
@@ -421,7 +427,7 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
         </Popover>
       </div>
 
-      <Legend calendar={calendar} hasPlanned={hasPlanned} />
+      <Legend calendar={calendar} hasPlanned={hasPlanned} showWeekend={showYear} />
     </Tile>
   );
 }
