@@ -9,7 +9,7 @@
 > (D-CS1…D-CS8), che questa ondata rivede in un punto (D-CS1).
 >
 > **Stato: specifica scritta il 2026-11-25 su main `c47998c`; decisioni D-RU25…D-RU35 PROPOSTE, da confermare da Giorgio (§ 8).**
-> Schizzi «oggi / proposta» (WORKFLOW.md regola 8): pagina pubblicata con il thread «Specificare l'ondata 3 del riordino» (§ 1.1).
+> Schizzi «oggi / proposta» (WORKFLOW.md regola 8): https://claude.ai/artifact/QasTFvrzao8ZLSuYGjkH3r (§ 1.1).
 
 ## 1. In breve
 
@@ -28,7 +28,7 @@ E P6 su FIRE: solo «Quando» nel JS iniziale della pagina (oggi anche la Proiez
 
 ### 1.1 Dove sono gli schizzi
 
-Pagina «oggi / proposta» pubblicata con il thread (link nel messaggio del thread e nella card). Sono schizzi a blocchi con cifre
+Pagina «oggi / proposta»: https://claude.ai/artifact/QasTFvrzao8ZLSuYGjkH3r (sorgente in Library `riordino-ui/ondata-3/schizzi.html`). Sono schizzi a blocchi con cifre
 inventate, non render dell'app: le decisioni di questa ondata sono di struttura (schede, rotte, ordine, griglia). I render veri
 sul census si fanno nelle PR, prima della richiesta di review, come in RU7.
 
