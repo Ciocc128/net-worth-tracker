@@ -15,10 +15,10 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 | Tab (`?tab=`) | Holds | Old tabs it absorbed |
 | --- | --- | --- |
-| `account` (default) | Aspetto (`AppearanceTiles`: the Modalità pill in the tile's head, the palettes under it; ONE tile since 2026-11-25) · Famiglia · Condivisione account (its footer is a `TileMethodNote`) · Email periodiche | Aspetto, Condivisione, Famiglia and Email of Preferenze |
+| `account` (default) | Aspetto (`AppearanceTiles`: the Modalità pill in the tile's head, the palettes under it; ONE tile since 2026-11-25, its reading is `describeAppearance`: what the mode follows, that the palette is on the account) · Famiglia · Condivisione account (its footer is a `TileMethodNote`) · Email periodiche | Aspetto, Condivisione, Famiglia and Email of Preferenze |
 | `funzioni` | ONE tile of four switches (Traguardi di investimento · Centri di Costo · Divisione delle spese · Ruoli 50/30/20), the roles' classification under its row | the switches of Preferenze and Spese |
 | `cashflow` | Categorie · Conti di default · Commissioni bancarie · Import CSV · Reddito e storico · Dividendi (the sync, the category, the account) | Spese, Dividendi |
-| `investimenti` | Calcolo dei rendimenti (risk-free) · Costi e patrimonio (stamp duty + home in the FIRE wealth, `self-start`: no stretch to Calcolo's height; 2026-11-25) · «Si regola altrove» | Preferenze |
+| `investimenti` | Calcolo dei rendimenti (risk-free) · Costi and Patrimonio nel FIRE stacked in the right column (Calcolo dei rendimenti spans two grid rows, `desktop:row-span-2`, so no tile is stretched over empty space; 2026-11-25) · «Si regola altrove» | Preferenze |
 | `avanzate` | Ipotesi di mercato (`MonteCarloMarketTile`) · the IRPEF brackets · the dev snapshot tools | Simulazioni |
 
 - **Aliases** (`resolveRequestedTab`, `lib/utils/settingsDraft.ts`): `generale`/`condivisione`/`aspetto` → `account`, `spese` → `cashflow`, `dividendi` → `cashflow` with `focus=dividendi` (the Dividendi tile takes the focus; a query param, not a hash, so a tab change drops it), `simulazioni` → `avanzate`, `allocazione` → `/dashboard/allocation?tab=strategia#target`. An unknown id opens Account. The address is replaced by the canonical one.

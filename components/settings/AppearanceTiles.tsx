@@ -1,9 +1,8 @@
 'use client';
 
 /**
- * Impostazioni › Account — the first tile, «Aspetto»: the light/dark/system pill in its head and the
- * colour themes under it, ONE tile (the old Aspetto tab, since RU9; two half-empty tiles side by
- * side until 2026-11-25). One grid cell, no panel of their own: AccountTab lays it first.
+ * Impostazioni › Account — the first two tiles: light/dark/system beside the colour themes (the
+ * old Aspetto tab, since RU9). Two grid cells, no panel of their own: AccountTab lays them first.
  *
  * No slice: both choices save themselves (the mode through next-themes, per device; the theme
  * through `ColorThemeContext`, on the account) outside the page's «Salva», and mark no tab
@@ -169,21 +168,12 @@ function BandPicker({ theme, band, onPick }: { theme: TopBandTheme; band: TopBan
   );
 }
 
-export function AppearanceTiles() {
-  const { colorTheme, setColorTheme, topBand, setTopBand } = useColorTheme();
-  // The theme whose band popover is open: it opens when a theme with a band is picked (or tapped again).
-  const [bandFor, setBandFor] = useState<TopBandTheme | null>(null);
-  const { theme, setTheme } = useTheme();
-  // The active next-themes mode does not exist until hydration (same guard as ThemePicker).
-  const isThemeHydrated = useSyncExternalStore(neverChanges, () => true, () => false);
-  const resolvedThemeMode = isThemeHydrated ? (theme as ThemeMode | undefined) : undefined;
-  const activeSwatch = COLOR_THEME_SWATCHES.find((swatch) => swatch.id === colorTheme) ?? COLOR_THEME_SWATCHES[0];
-
-  // The mode pill: in the tile's head from `desktop:` up, as the first line of the body below it.
-  const modePill = (className: string) => (
-    <div className={cn('rounded-lg bg-muted p-1', className)} role="group" aria-label="Modalità del tema">
+/** The Chiaro · Scuro · Sistema pill — the mode is per device (next-themes), with the circle view transition. */
+function ModePill({ className, mode, setTheme }: { className?: string; mode: ThemeMode | undefined; setTheme: (value: string) => void }) {
+  return (
+    <div className={cn('w-full rounded-lg bg-muted p-1 tablet:w-auto', className)} role="group" aria-label="Modalità del tema">
       {THEME_MODES.map(({ value, label, Icon }) => {
-        const isActive = resolvedThemeMode === value;
+        const isActive = mode === value;
         return (
           <button
             key={value}
@@ -191,7 +181,7 @@ export function AppearanceTiles() {
             aria-pressed={isActive}
             onClick={(e) => applyThemeWithTransition(value, e, setTheme)}
             className={cn(
-              'flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-[13px] font-medium transition-colors',
+              'flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md text-[13px] font-medium transition-colors tablet:flex-none tablet:px-3.5',
               isActive ? 'bg-segment-active text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -202,6 +192,17 @@ export function AppearanceTiles() {
       })}
     </div>
   );
+}
+
+export function AppearanceTiles() {
+  const { colorTheme, setColorTheme, topBand, setTopBand } = useColorTheme();
+  // The theme whose band popover is open: it opens when a theme with a band is picked (or tapped again).
+  const [bandFor, setBandFor] = useState<TopBandTheme | null>(null);
+  const { theme, setTheme } = useTheme();
+  // The active next-themes mode does not exist until hydration (same guard as ThemePicker).
+  const isThemeHydrated = useSyncExternalStore(neverChanges, () => true, () => false);
+  const resolvedThemeMode = isThemeHydrated ? (theme as ThemeMode | undefined) : undefined;
+  const activeSwatch = COLOR_THEME_SWATCHES.find((swatch) => swatch.id === colorTheme) ?? COLOR_THEME_SWATCHES[0];
 
   return (
     <>
@@ -209,30 +210,11 @@ export function AppearanceTiles() {
       <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
         <Tile
           eyebrow="Aspetto"
-          aside={
-            <div className="flex w-full rounded-lg bg-muted p-1 tablet:w-auto" role="group" aria-label="Modalità del tema">
-              {THEME_MODES.map(({ value, label, Icon }) => {
-                const isActive = resolvedThemeMode === value;
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    aria-pressed={isActive}
-                    onClick={(e) => applyThemeWithTransition(value, e, setTheme)}
-                    className={cn(
-                      'flex h-9 flex-1 tablet:flex-none tablet:px-3.5 items-center justify-center gap-1.5 rounded-md text-[13px] font-medium transition-colors',
-                      isActive ? 'bg-segment-active text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    <Icon className="h-4 w-4" aria-hidden="true" />
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          }
+          aside={<ModePill className="hidden tablet:flex" mode={resolvedThemeMode} setTheme={setTheme} />}
           reading={describeAppearance(resolvedThemeMode, activeSwatch.name)}
         >
+          {/* Below the tablet the pill has no room beside the eyebrow: it takes the tile's full width under the reading */}
+          <ModePill className="mt-3.5 flex tablet:hidden" mode={resolvedThemeMode} setTheme={setTheme} />
           <div className="mb-3 mt-3.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4 desktop:grid-cols-8">
             {COLOR_THEME_SWATCHES.map((swatch, index) => {
               const isActive = colorTheme === swatch.id;
