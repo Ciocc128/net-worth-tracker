@@ -446,7 +446,7 @@ export function haveRunInputsChanged(last: MonteCarloRunInputs, current: MonteCa
     if (MONTE_CARLO_CLASSES.some((cls) => a.classes[cls].cagr !== b.classes[cls].cagr || a.classes[cls].volatility !== b.classes[cls].volatility)) return true;
   }
   if (MONTE_CARLO_CLASSES.some((cls) => (last.uncertainty?.[cls] ?? 0) !== (current.uncertainty?.[cls] ?? 0))) return true;
-  // The correlations ride on the shared params: a save in Impostazioni › Simulazioni makes the last run stale too.
+  // The correlations ride on the shared params: a save in Impostazioni › Avanzate makes the last run stale too.
   const lastCorrelations = last.params.correlations ?? [];
   const currentCorrelations = current.params.correlations ?? [];
   if (lastCorrelations.length !== currentCorrelations.length || lastCorrelations.some((value, index) => value !== currentCorrelations[index])) return true;

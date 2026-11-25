@@ -26,7 +26,7 @@ describe('the Rendimenti chip (RC3, A3, A10)', () => {
     const chip = describeReturnsChip(build({}));
     expect(chip.label).toBe('Rendimento Base 6,6% · reale 4,5%');
     expect(chip.lines).toEqual(['Portafoglio target', 'Bear 3,7%, Bull 9,6% (15° e 85° percentile a 30 anni del portafoglio, con l’incertezza sulle stime)', 'Inflazione 2,0%']);
-    expect(chip.links[0]).toMatchObject({ href: '/dashboard/settings?tab=simulazioni' });
+    expect(chip.links[0]).toMatchObject({ href: '/dashboard/settings?tab=avanzate' });
   });
 
   it('says it when there is no target and the portfolio held today stands in', () => {

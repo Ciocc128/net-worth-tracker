@@ -185,7 +185,7 @@ export function CoastFireTab() {
   const typedRetirementAge = settings?.coastFireRetirementAge ?? DEFAULT_FIRE_TARGET_AGE;
   const retirementAge = isValidAge(typedRetirementAge) ? typedRetirementAge : null;
   const previewPensions = useMemo(() => normalizeCoastFirePensions(settings?.coastFirePensions), [settings?.coastFirePensions]);
-  // The IRPEF brackets are a rule of law, edited in Impostazioni › Simulazioni (RP8): always the saved ones.
+  // The IRPEF brackets are a rule of law, edited in Impostazioni › Avanzate (RP8): always the saved ones.
   const previewTaxBrackets = useMemo(() => normalizeCoastFireTaxBrackets(settings?.coastFireTaxBrackets), [settings?.coastFireTaxBrackets]);
 
   const withdrawalRate = settings?.withdrawalRate ?? 4.0;
@@ -209,7 +209,7 @@ export function CoastFireTab() {
   }, [respectPensionLockIn, assets, currentAge, settings?.userAge, settings?.pensionInpsRetirementAge, settings?.pensionRitaLongUnemployment]);
 
   // The page's hypotheses (doc/fire-ipotesi/README.md): the scenarios are the target portfolio's rates on the
-  // per-class assumptions of Impostazioni › Simulazioni, read through ONE hook in every tab.
+  // per-class assumptions of Impostazioni › Avanzate, read through ONE hook in every tab.
   const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
   const { assumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true });
   const scenarios = useMemo(() => assumptions?.scenarios ?? getDefaultScenarios(), [assumptions]);

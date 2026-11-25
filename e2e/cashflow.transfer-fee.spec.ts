@@ -4,7 +4,7 @@
  * property (a deposit on a house, 2026-10-10): a plain spesa and a two-row series take a fee each,
  * the fixture plants «Casa Nibbio» at price 1 (the shape a transfer can land on).
  *
- * What only a browser can prove here: that the setting chosen in Impostazioni › Spese survives a
+ * What only a browser can prove here: that the setting chosen in Impostazioni › Cashflow survives a
  * hard reload (the half of the round trip `settingsRoundTrip` cannot see), that without it the
  * form's «Commissione» is off and links there, and that the fee lives the whole life of its
  * transfer through the app's own paths — created with it in one batch, edited from it, cleared,
@@ -158,10 +158,10 @@ test('without a fee category the field is off and links Impostazioni; the catego
   test.setTimeout(120_000);
   const dialog = await openNewTransfer(page);
   await expect(dialog.locator('#fee')).toBeDisabled();
-  const link = dialog.getByRole('link', { name: 'Impostazioni › Spese' });
-  await expect(link).toHaveAttribute('href', '/dashboard/settings?tab=spese');
+  const link = dialog.getByRole('link', { name: 'Impostazioni › Cashflow' });
+  await expect(link).toHaveAttribute('href', '/dashboard/settings?tab=cashflow');
 
-  await page.goto('/dashboard/settings?tab=spese', { waitUntil: 'load' });
+  await page.goto('/dashboard/settings?tab=cashflow', { waitUntil: 'load' });
   const tile = page.getByRole('region', { name: 'Commissioni bancarie' });
   await expect(tile).toContainText('Senza una categoria, il campo «Commissione» del form spesa resta spento.', { timeout: 60_000 });
   await tile.getByRole('combobox', { name: 'Categoria delle commissioni bancarie', exact: true }).click();

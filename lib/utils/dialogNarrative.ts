@@ -1086,7 +1086,7 @@ export function describeExpenseFeeField(facts: ExpenseFeeFieldFacts): string | n
   return `Da${facts.type === 'transfer' ? 'l conto di origine' : 'l conto collegato'} escono ${cachedFormatCurrencyEUR(facts.amount)} in più: una spesa in ${facts.categoryLabel} ${when}.`;
 }
 
-/** The sentence before the link to Impostazioni › Spese when no fee category is chosen. */
+/** The sentence before the link to Impostazioni › Cashflow when no fee category is chosen. */
 export const EXPENSE_FEE_NEEDS_CATEGORY = 'Per registrare il costo bancario dell’operazione scegli prima la categoria delle commissioni in';
 
 /** The line under «Commissione» while the edited row's saved fee is being read. */

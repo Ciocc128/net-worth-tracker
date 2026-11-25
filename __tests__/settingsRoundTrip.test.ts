@@ -459,7 +459,7 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
 });
 
 // H1 (doc/fire-ipotesi/README.md § 15, T8/T9): «Il mio piano» writes ALL its fields with ONE setSettings; the IRPEF brackets are
-// written from Impostazioni › Simulazioni and must survive the plan's save (it never sends them).
+// written from Impostazioni › Avanzate and must survive the plan's save (it never sends them).
 describe('«Il mio piano» — il salvataggio unico', () => {
   const PLAN_STORED = {
     userAge: 45,
@@ -580,7 +580,7 @@ describe('M1 — a stale Impostazioni «Salva» keeps the targets saved in Strat
     } as AssetAllocationSettings);
 
     // The stale page turns the monthly email on and saves, pre-reading the current document.
-    const edited = { ...staleSlices, generale: { ...staleSlices.generale, monthlyEmailEnabled: true } };
+    const edited = { ...staleSlices, account: { ...staleSlices.account, monthlyEmailEnabled: true } };
     const result = composeSettingsDocument(edited, stored as unknown as AssetAllocationSettings, { saved: staleSlices, effectiveGoldSubCategory: null });
     if (!result.ok) throw new Error('compose refused');
     await setSettings('user-1', result.document);

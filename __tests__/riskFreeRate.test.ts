@@ -48,11 +48,11 @@ describe('the drafts', () => {
     expect(resolveFormulaSplit(targetsDraftReducer(loadTargets(1), { type: 'riskFreeEstimate', value: 3 }).slice)?.equityPercentage).toBe(80);
   });
 
-  it('a typed rate is a Preferenze edit; clearing it back is not', () => {
-    let state = settingsDraftReducer(loadSettings(undefined), { type: 'generale/set', patch: { riskFreeRate: 1 } });
-    expect(isSliceDirty('generale', state.slices, state.saved)).toBe(true);
-    state = settingsDraftReducer(state, { type: 'generale/set', patch: { riskFreeRate: undefined } });
-    expect(isSliceDirty('generale', state.slices, state.saved)).toBe(false);
+  it('a typed rate is an Investimenti edit; clearing it back is not', () => {
+    let state = settingsDraftReducer(loadSettings(undefined), { type: 'investimenti/set', patch: { riskFreeRate: 1 } });
+    expect(isSliceDirty('investimenti', state.slices, state.saved)).toBe(true);
+    state = settingsDraftReducer(state, { type: 'investimenti/set', patch: { riskFreeRate: undefined } });
+    expect(isSliceDirty('investimenti', state.slices, state.saved)).toBe(false);
   });
 
   it('«Salva» writes no value while the rate follows the estimate, and never the estimate itself', () => {

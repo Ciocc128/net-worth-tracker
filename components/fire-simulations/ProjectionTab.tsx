@@ -25,7 +25,7 @@
  * This file is the ORCHESTRATOR and computes nothing: the numbers come from
  * lib/utils/projectionSummary.ts, the words from lib/utils/projectionNarrative.ts. The form is
  * ephemeral local state (strings). The market assumptions are NOT edited here: they live in
- * Impostazioni › Simulazioni and the Parametri tile declares them.
+ * Impostazioni › Avanzate and the Parametri tile declares them.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -184,7 +184,7 @@ export function ProjectionTab() {
     [pensionLockState],
   );
 
-  // The market assumptions, saved in Impostazioni › Simulazioni (the legacy field migrated, else the defaults).
+  // The market assumptions, saved in Impostazioni › Avanzate (the legacy field migrated, else the defaults).
   const anchors = useMarketAnchors();
   const market = useMemo(() => resolveMonteCarloMarketForPortfolio(settings, assets, anchors), [settings, assets, anchors]);
   const scenarios = market.scenarios;

@@ -267,7 +267,7 @@ describe('Ipotesi di mercato nel tile Parametri', () => {
     expect(plain(describeMarketDeclaration({ origin: 'saved', editedClasses: ['equity', 'gold', 'carry'] }))).toBe('Ipotesi di mercato: salvate, modificate in 3 classi.');
     expect(plain(describeMarketDeclaration({ origin: 'default', editedClasses: [], correlationOrigin: 'default' }))).toBe('Ipotesi di mercato: valori predefiniti, in euro e reali. Correlazioni predefinite.');
     expect(plain(describeMarketDeclaration({ origin: 'saved', editedClasses: ['equity'], correlationOrigin: 'saved' }))).toBe('Ipotesi di mercato: salvate, modificate in 1 classe. Correlazioni personalizzate.');
-    expect(plain(describeMarketDeclaration({ origin: 'migrated', editedClasses: [] }))).toBe('Ipotesi di mercato: convertite in termini reali dal vecchio formato: fissale con «Salva» in Impostazioni › Simulazioni.');
+    expect(plain(describeMarketDeclaration({ origin: 'migrated', editedClasses: [] }))).toBe('Ipotesi di mercato: convertite in termini reali dal vecchio formato: fissale con «Salva» in Impostazioni › Avanzate.');
   });
 });
 
@@ -418,7 +418,7 @@ describe('T5 — Dopo il FIRE: partenza, euro di oggi, righe di Parametri', () =
 
   it('the Probabilità footer says the euros are today\'s and the inflation, not «Valori nominali»', () => {
     const footer = plain(describeProbabilitaFooter(makeRun(REAL), INACTIVE_LOCK));
-    expect(footer).toContain("Euro di oggi, inflazione 3,04% (Impostazioni › Simulazioni): il prelievo resta costante in potere d'acquisto.");
+    expect(footer).toContain("Euro di oggi, inflazione 3,04% (Impostazioni › Avanzate): il prelievo resta costante in potere d'acquisto.");
     expect(footer).not.toContain('Valori nominali');
   });
 

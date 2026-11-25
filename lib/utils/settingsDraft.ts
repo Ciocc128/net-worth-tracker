@@ -22,25 +22,29 @@
  * that does not come back, and the identity test is where it would show.
  *
  * Which slice a field belongs to is the TAB THAT EDITS IT (the dot must land on that tab): the
- * risk-free rate is Preferenze's (Calcolo dei rendimenti, since RU8), the default accounts and the
- * transfer fee are Spese's.
+ * risk-free rate is Investimenti's (Calcolo dei rendimenti), the default accounts, the transfer fee
+ * and the dividends' landing are Cashflow's. RU9 (2026-11-26, doc/riordino-ui/ondata-2.md § 5.2):
+ * five tabs by «whose adjustment it is» — Account, Funzioni, Cashflow, Investimenti, Avanzate — and
+ * five slices of the same names; the read-only declarations are gone (a field another surface
+ * owns is a «Si regola altrove» line, never a copy), and what the write carries through comes from
+ * the document read just before «Salva».
  *
  * RU8 (2026-11-23, doc/allocazione-strategia/README.md § 5.4, D-ST5): the class targets left this
  * draft for Allocazione › Strategia (lib/utils/targetsDraft.ts). «Salva» writes NO `targets` key —
  * so `setSettings` takes its merge branch, and a «Salva» from a page opened before cannot bring
  * back targets saved in Strategia since (the M1 defect of the data-model review) — nor
- * `autoCalculateEquityBonds`; `goalDrivenAllocationEnabled` only to switch it off with the goals. Condivisione and Aspetto write nothing through «Salva» (the colour
- * theme saves itself, the grants are their own documents), so they have no slice.
+ * `autoCalculateEquityBonds`; `goalDrivenAllocationEnabled` only to switch it off with the goals. The colour theme and the mode save themselves and the grants are their own
+ * documents, so they are in no slice.
  *
- * FORK (tenth realignment, T3): a seventh slice, `simulazioni` — the Monte Carlo market
- * assumptions and the IRPEF brackets of Impostazioni › Simulazioni — and the fields the page
+ * FORK (tenth realignment, T3): a slice for the Monte Carlo market assumptions and the IRPEF
+ * brackets (`avanzate` since RU9, `simulazioni` before it) — and the fields the page
  * only CARRIES THROUGH from the document read just before «Salva» (the FIRE plan's emergency
- * fund and dated flows, the optimizer's objectives). The Simulazioni
+ * fund and dated flows, the optimizer's objectives). The Avanzate
  * fields are written only when the tab holds an edit (or a legacy document waits to be
  * converted), so a «Salva» from another tab can never turn defaults into a saved market.
  */
 
-import type { Asset, AssetAllocationSettings, AssetAllocationSettingsWrite, AssetAllocationTarget, FamilyMember, IdealAllocationSettings } from '@/types/assets';
+import type { Asset, AssetAllocationSettings, AssetAllocationSettingsWrite, AssetAllocationTarget, FamilyMember } from '@/types/assets';
 import { MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
 import {
   buildTaxBracketSnapshotKey,
@@ -58,17 +62,31 @@ import {
   type MonteCarloMarketOrigin,
 } from '@/lib/utils/monteCarloMarket';
 import { findMonteCarloMarketProblems, type MonteCarloMarketProblem } from '@/lib/utils/monteCarloMarketValidation';
-import { DEFAULT_IDEAL_ALLOCATION } from '@/lib/utils/weightOptimizer';
 
 // ─── Identifiers ──────────────────────────────────────────────────────────────────────────
 
-export type SettingsTabId = 'generale' | 'spese' | 'dividendi' | 'simulazioni' | 'condivisione' | 'aspetto';
+export type SettingsTabId = 'account' | 'funzioni' | 'cashflow' | 'investimenti' | 'avanzate';
 
-export const SETTINGS_TAB_IDS: readonly SettingsTabId[] = ['generale', 'spese', 'dividendi', 'simulazioni', 'condivisione', 'aspetto'];
+/** The tab bar's order; the first is the default (D-RU21). */
+export const SETTINGS_TAB_IDS: readonly SettingsTabId[] = ['account', 'funzioni', 'cashflow', 'investimenti', 'avanzate'];
+export const DEFAULT_SETTINGS_TAB: SettingsTabId = 'account';
 
 export function isSettingsTabId(value: string | null | undefined): value is SettingsTabId {
   return (SETTINGS_TAB_IDS as readonly string[]).includes(value ?? '');
 }
+
+/**
+ * The old `?tab=` ids (RU9, D-RU21): bookmarks and the links of other pages. `dividendi` lands on
+ * Cashflow with the focus on the Dividendi tile; `allocazione` is not a tab at all any more (below).
+ */
+const LEGACY_TAB_ALIASES: Record<string, SettingsTabId> = {
+  generale: 'account',
+  condivisione: 'account',
+  aspetto: 'account',
+  spese: 'cashflow',
+  dividendi: 'cashflow',
+  simulazioni: 'avanzate',
+};
 
 /**
  * The old `?tab=allocazione` (D-RU21): the targets live in Allocazione › Strategia since RU8, so a
@@ -76,6 +94,24 @@ export function isSettingsTabId(value: string | null | undefined): value is Sett
  */
 export const LEGACY_ALLOCAZIONE_TAB = 'allocazione';
 export const STRATEGIA_TARGETS_HREF = '/dashboard/allocation?tab=strategia#target';
+
+/** The id of the Dividendi tile in Cashflow: what `focus=dividendi` lands on. */
+export const DIVIDENDI_TILE_ID = 'dividendi';
+/** Where the gear of Cashflow › Dividendi and the old `?tab=dividendi` land (D-RU21). */
+export const DIVIDENDI_SETTINGS_HREF = `/dashboard/settings?tab=cashflow&focus=${DIVIDENDI_TILE_ID}`;
+
+export type RequestedSettingsTab =
+  | { kind: 'tab'; tab: SettingsTabId; /** The URL does not say the tab the page opens on: it is replaced by the canonical one. */ canonical: boolean; focusDividendi: boolean }
+  | { kind: 'redirect'; href: string };
+
+/** What a `?tab=` asks for: a tab (an old id translated), or another page. Absent or unknown = the default tab. */
+export function resolveRequestedTab(value: string | null | undefined): RequestedSettingsTab {
+  if (value === LEGACY_ALLOCAZIONE_TAB) return { kind: 'redirect', href: STRATEGIA_TARGETS_HREF };
+  if (isSettingsTabId(value)) return { kind: 'tab', tab: value, canonical: true, focusDividendi: false };
+  const alias = value ? LEGACY_TAB_ALIASES[value] : undefined;
+  if (alias) return { kind: 'tab', tab: alias, canonical: false, focusDividendi: value === 'dividendi' };
+  return { kind: 'tab', tab: DEFAULT_SETTINGS_TAB, canonical: false, focusDividendi: false };
+}
 
 /** The «none» option of the account and subcategory selects (a Radix Select cannot hold ''). */
 export const NO_SELECTION = '__none__';
@@ -94,25 +130,8 @@ export interface FamilyMemberDraft {
   firstEmploymentYear: string;
 }
 
-export interface GeneraleSlice {
-  includePrimaryResidenceInFIRE: boolean;
-  goalBasedInvestingEnabled: boolean;
-  /**
-   * The rate TYPED by the reader (Calcolo dei rendimenti, since RU8; Investimenti with RU9);
-   * `undefined` = follow the ECB estimate (the key is then deleted on «Salva»).
-   */
-  riskFreeRate: number | undefined;
-  stampDutyEnabled: boolean;
-  stampDutyRate: number;
-  checkingAccountSubCategory: string;
-  cashflowHistoryStartYear: number;
-  laborIncomeCategoryIds: string[];
-  costCentersEnabled: boolean;
-  expenseSplitEnabled: boolean;
-  performanceIncludesPensionFunds: boolean;
-  performanceIncludesExcludedAssets: boolean;
-  performanceExcludesCash: boolean;
-  pensionReturnStartMonth: string;
+/** Account — the household and the periodic emails (the colour theme and the mode save themselves). */
+export interface AccountSlice {
   monthlyEmailEnabled: boolean;
   quarterlyEmailEnabled: boolean;
   semiAnnualEmailEnabled: boolean;
@@ -122,31 +141,55 @@ export interface GeneraleSlice {
   familyMembers: FamilyMemberDraft[];
 }
 
-export interface SpeseSlice {
+/** Funzioni — one switch per piece of the app that can exist or not (D-RU19: the stamp duty is a calculation, not a piece). */
+export interface FunzioniSlice {
+  goalBasedInvestingEnabled: boolean;
+  costCentersEnabled: boolean;
+  expenseSplitEnabled: boolean;
+  spendingRolesEnabled: boolean;
+}
+
+/** Cashflow — the rules of the movements: accounts, the fee's category, labor income, the history floor, the dividends' landing. */
+export interface CashflowSlice {
   defaultDebitCashAssetId: string;
   defaultCreditCashAssetId: string;
   /** '' = none: the expense form's «Commissione» stays off. */
   transferFeeCategoryId: string;
   transferFeeSubCategoryId: string;
-  spendingRolesEnabled: boolean;
-}
-
-export interface DividendiSlice {
+  laborIncomeCategoryIds: string[];
+  cashflowHistoryStartYear: number;
   dividendIncomeCategoryId: string;
   dividendIncomeSubCategoryId: string;
   dividendCashAssetId: string;
+}
+
+/** Investimenti — how the wealth is measured: the returns' base, the risk-free rate, the stamp duty, the house in the FIRE. */
+export interface InvestimentiSlice {
+  performanceIncludesPensionFunds: boolean;
+  performanceIncludesExcludedAssets: boolean;
+  performanceExcludesCash: boolean;
+  pensionReturnStartMonth: string;
+  /**
+   * The rate TYPED by the reader (Calcolo dei rendimenti); `undefined` = follow the ECB estimate
+   * (the key is then deleted on «Salva»).
+   */
+  riskFreeRate: number | undefined;
+  stampDutyEnabled: boolean;
+  stampDutyRate: number;
+  checkingAccountSubCategory: string;
+  includePrimaryResidenceInFIRE: boolean;
 }
 
 /** The pairs the last «Salva» adapted to keep the correlation matrix valid (R5), by pair index; marked until the next write. */
 export type CorrelationCorrections = Record<number, { index: number; written: number; used: number }>;
 
 /**
- * Simulazioni (fork) — the Monte Carlo market assumptions as the reader typed them, and the IRPEF
- * brackets the state pensions' net is computed with (RP8). `market` holds ONLY what was typed
+ * Avanzate (fork) — the Monte Carlo market assumptions both engines read and the IRPEF brackets the
+ * state pensions' net is computed with (RP8). `market` holds ONLY what was typed
  * (an undefined field is the default in force); `marketOrigin` says where the loaded numbers came
  * from (`migrated` = a v1 document converted at read, written as v2 by the first «Salva», RQ8).
  */
-export interface SimulazioniSlice {
+export interface AvanzateSlice {
   market: MonteCarloMarketDraft;
   marketOrigin: MonteCarloMarketOrigin;
   /** What the conversion of an old document did, only while it is still unsaved. */
@@ -158,44 +201,17 @@ export interface SimulazioniSlice {
   correlationCorrections: CorrelationCorrections;
 }
 
-/**
- * Read-only declarations: fields OWNED by other pages (FIRE › Il mio piano, the Assistant's
- * popover, Allocazione › Strategia). The page reads them for a tile's reading line and never
- * writes them from a control — no dirty check. The ones the FIRE plan and the optimizer own are
- * CARRIED THROUGH `composeSettingsDocument` from the document read just before «Salva» (the
- * write goes through `setSettings`, which replaces the targets and must not lose them).
- */
-export interface SettingsDeclarations {
-  /** The optimizer's objectives, edited in Allocazione › Strategia; carried through, never shown here. */
-  idealAllocation: IdealAllocationSettings;
-  planParams: {
-    withdrawalRate?: number;
-    plannedAnnualExpenses?: number;
-    fireEmergencyFund?: number;
-    fireCashToInvestPct?: number;
-    fireDatedFlowsCount: number;
-    pensionInpsRetirementAge?: number;
-    pensionRitaLongUnemployment: boolean;
-    respectPensionLockInFire: boolean;
-  };
-  assistantPrefs: {
-    responseStyle?: 'balanced' | 'concise' | 'deep';
-    memoryEnabled?: boolean;
-    macroContextEnabled?: boolean;
-  };
-}
-
 export interface SettingsSlices {
-  generale: GeneraleSlice;
-  spese: SpeseSlice;
-  dividendi: DividendiSlice;
-  simulazioni: SimulazioniSlice;
-  declarations: SettingsDeclarations;
+  account: AccountSlice;
+  funzioni: FunzioniSlice;
+  cashflow: CashflowSlice;
+  investimenti: InvestimentiSlice;
+  avanzate: AvanzateSlice;
 }
 
-/** The tabs that have a slice «Salva» writes — the ones that can carry the dot. */
-export type WritableTabId = 'generale' | 'spese' | 'dividendi' | 'simulazioni';
-export const WRITABLE_TABS: readonly WritableTabId[] = ['generale', 'spese', 'dividendi', 'simulazioni'];
+/** The tabs that have a slice «Salva» writes — all five, so every one can carry the dot. */
+export type WritableTabId = SettingsTabId;
+export const WRITABLE_TABS: readonly WritableTabId[] = SETTINGS_TAB_IDS;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────────────────
 
@@ -241,21 +257,7 @@ export function parseFamilyMemberDrafts(drafts: FamilyMemberDraft[]): FamilyMemb
 export function sliceSettings(document: AssetAllocationSettings | null): SettingsSlices {
   const data = document ?? ({} as Partial<AssetAllocationSettings>);
 
-  const generale: GeneraleSlice = {
-    includePrimaryResidenceInFIRE: data.includePrimaryResidenceInFIRE ?? false,
-    goalBasedInvestingEnabled: data.goalBasedInvestingEnabled ?? false,
-    riskFreeRate: data.riskFreeRate,
-    stampDutyEnabled: data.stampDutyEnabled ?? false,
-    stampDutyRate: data.stampDutyRate ?? DEFAULT_STAMP_DUTY_RATE,
-    checkingAccountSubCategory: data.checkingAccountSubCategory || NO_SELECTION,
-    cashflowHistoryStartYear: data.cashflowHistoryStartYear ?? DEFAULT_HISTORY_START_YEAR,
-    laborIncomeCategoryIds: data.laborIncomeCategoryIds ?? [],
-    costCentersEnabled: data.costCentersEnabled ?? false,
-    expenseSplitEnabled: data.expenseSplitEnabled ?? false,
-    performanceIncludesPensionFunds: data.performanceIncludesPensionFunds ?? false,
-    performanceIncludesExcludedAssets: data.performanceIncludesExcludedAssets ?? false,
-    performanceExcludesCash: data.performanceExcludesCash ?? false,
-    pensionReturnStartMonth: data.pensionReturnStartMonth ?? '',
+  const account: AccountSlice = {
     monthlyEmailEnabled: data.monthlyEmailEnabled ?? false,
     quarterlyEmailEnabled: data.quarterlyEmailEnabled ?? false,
     semiAnnualEmailEnabled: data.semiAnnualEmailEnabled ?? false,
@@ -265,24 +267,41 @@ export function sliceSettings(document: AssetAllocationSettings | null): Setting
     familyMembers: toFamilyMemberDrafts(data.familyMembers),
   };
 
-  const spese: SpeseSlice = {
+  const funzioni: FunzioniSlice = {
+    goalBasedInvestingEnabled: data.goalBasedInvestingEnabled ?? false,
+    costCentersEnabled: data.costCentersEnabled ?? false,
+    expenseSplitEnabled: data.expenseSplitEnabled ?? false,
+    spendingRolesEnabled: data.spendingRolesEnabled ?? false,
+  };
+
+  const cashflow: CashflowSlice = {
     defaultDebitCashAssetId: data.defaultDebitCashAssetId || NO_SELECTION,
     defaultCreditCashAssetId: data.defaultCreditCashAssetId || NO_SELECTION,
     transferFeeCategoryId: data.transferFeeCategoryId || '',
     transferFeeSubCategoryId: data.transferFeeSubCategoryId || '',
-    spendingRolesEnabled: data.spendingRolesEnabled ?? false,
-  };
-
-  const dividendi: DividendiSlice = {
+    laborIncomeCategoryIds: data.laborIncomeCategoryIds ?? [],
+    cashflowHistoryStartYear: data.cashflowHistoryStartYear ?? DEFAULT_HISTORY_START_YEAR,
     dividendIncomeCategoryId: data.dividendIncomeCategoryId || '',
     dividendIncomeSubCategoryId: data.dividendIncomeSubCategoryId || '',
     dividendCashAssetId: data.dividendCashAssetId || NO_SELECTION,
   };
 
-  // Simulazioni: the market as the Monte Carlo and the Ventaglio will read it (no commodity list
+  const investimenti: InvestimentiSlice = {
+    performanceIncludesPensionFunds: data.performanceIncludesPensionFunds ?? false,
+    performanceIncludesExcludedAssets: data.performanceIncludesExcludedAssets ?? false,
+    performanceExcludesCash: data.performanceExcludesCash ?? false,
+    pensionReturnStartMonth: data.pensionReturnStartMonth ?? '',
+    riskFreeRate: data.riskFreeRate,
+    stampDutyEnabled: data.stampDutyEnabled ?? false,
+    stampDutyRate: data.stampDutyRate ?? DEFAULT_STAMP_DUTY_RATE,
+    checkingAccountSubCategory: data.checkingAccountSubCategory || NO_SELECTION,
+    includePrimaryResidenceInFIRE: data.includePrimaryResidenceInFIRE ?? false,
+  };
+
+  // Avanzate: the market as the Monte Carlo and the Ventaglio will read it (no commodity list
   // here: the Oro choice stays «never chosen» until the reader makes one, RG).
   const resolvedMarket = resolveMonteCarloMarket(data, []);
-  const simulazioni: SimulazioniSlice = {
+  const avanzate: AvanzateSlice = {
     market: {
       overrides: resolvedMarket.overrides,
       goldSubCategory: data.monteCarloMarket ? data.monteCarloMarket.goldSubCategory : undefined,
@@ -300,26 +319,7 @@ export function sliceSettings(document: AssetAllocationSettings | null): Setting
     correlationCorrections: {},
   };
 
-  const declarations: SettingsDeclarations = {
-    idealAllocation: data.idealAllocation ?? DEFAULT_IDEAL_ALLOCATION,
-    planParams: {
-      withdrawalRate: data.withdrawalRate,
-      plannedAnnualExpenses: data.plannedAnnualExpenses,
-      fireEmergencyFund: data.fireEmergencyFund,
-      fireCashToInvestPct: data.fireCashToInvestPct,
-      fireDatedFlowsCount: data.fireDatedFlows?.length ?? 0,
-      pensionInpsRetirementAge: data.pensionInpsRetirementAge,
-      pensionRitaLongUnemployment: data.pensionRitaLongUnemployment ?? false,
-      respectPensionLockInFire: data.respectPensionLockInFire ?? false,
-    },
-    assistantPrefs: {
-      responseStyle: data.assistantResponseStyle,
-      memoryEnabled: data.assistantMemoryEnabled,
-      macroContextEnabled: data.assistantMacroContextEnabled,
-    },
-  };
-
-  return { generale, spese, dividendi, simulazioni, declarations };
+  return { account, funzioni, cashflow, investimenti, avanzate };
 }
 
 // ─── composeSettingsDocument ──────────────────────────────────────────────────────────────
@@ -330,20 +330,20 @@ export type ComposeResult =
       /** No `targets`: `setSettings` takes its merge branch (RU8, criterion 12). */
       document: AssetAllocationSettingsWrite;
       /**
-       * The Simulazioni slice as it was written (the correlations corrected, the Oro choice explicit,
+       * The Avanzate slice as it was written (the correlations corrected, the Oro choice explicit,
        * the legacy format converted) — the new baseline — or `null` when «Salva» wrote none of it.
        */
-      simulazioni: SimulazioniSlice | null;
+      avanzate: AvanzateSlice | null;
       /** The correlation pairs the write adapted to keep the matrix valid (R5); empty when none. */
       adaptedPairs: { index: number; written: number; used: number }[];
     }
-  | { ok: false; marketProblems: MonteCarloMarketProblem[]; tab: 'simulazioni' };
+  | { ok: false; marketProblems: MonteCarloMarketProblem[]; tab: 'avanzate' };
 
-/** What the page knows that the slices do not: the baseline (Simulazioni is written only when it differs) and the Oro in force. */
+/** What the page knows that the slices do not: the baseline (Avanzate is written only when it differs) and the Oro in force. */
 export interface ComposeContext {
   /** The slices as last read or written. */
   saved: SettingsSlices;
-  /** The sub-category read as Oro in force: the draft's choice, else the default rule (`resolveSimulazioniGold`). */
+  /** The sub-category read as Oro in force: the draft's choice, else the default rule (`resolveAvanzateGold`). */
   effectiveGoldSubCategory: string | null;
 }
 
@@ -354,19 +354,19 @@ export interface ComposeContext {
  * @param current - The document as it is NOW (the pre-read of «Salva»), for the fields the write
  *   carries through unchanged: the FIRE plan's (withdrawal rate, planned expenses, emergency fund,
  *   dated flows) and the optimizer's objectives. Every one of them is owned by another page.
- * @param context - Without it nothing of Simulazioni is written unless a legacy market waits to be converted.
+ * @param context - Without it nothing of Avanzate is written unless a legacy market waits to be converted.
  */
 export function composeSettingsDocument(
   slices: SettingsSlices,
   current: AssetAllocationSettings | null,
   context?: ComposeContext
 ): ComposeResult {
-  // Simulazioni: the market only when it holds an edit (or a legacy document to convert), the
+  // Avanzate: the market only when it holds an edit (or a legacy document to convert), the
   // brackets only when they were edited — a «Salva» from another tab never writes either.
   const saved = context?.saved ?? slices;
-  const { market, taxBrackets } = slices.simulazioni;
-  const marketPending = isMarketPending(slices.simulazioni, saved.simulazioni);
-  const taxBracketsDirty = isTaxBracketsDirty(taxBrackets, saved.simulazioni.taxBrackets);
+  const { market, taxBrackets } = slices.avanzate;
+  const marketPending = isMarketPending(slices.avanzate, saved.avanzate);
+  const taxBracketsDirty = isTaxBracketsDirty(taxBrackets, saved.avanzate.taxBrackets);
 
   let marketPayload: ReturnType<typeof toMonteCarloMarketSettings> | undefined;
   let correctedCorrelations: number[] | undefined;
@@ -380,7 +380,7 @@ export function composeSettingsDocument(
       correlations: market.correlations,
       leverageSpread: market.leverageSpread,
     });
-    if (marketProblems.length > 0) return { ok: false, marketProblems, tab: 'simulazioni' };
+    if (marketProblems.length > 0) return { ok: false, marketProblems, tab: 'avanzate' };
     // R5: a matrix that is not valid is replaced by the nearest valid one, at full precision.
     correctedCorrelations = correctUpperTriangle(market.correlations, MONTE_CARLO_CLASSES.length);
     marketPayload = toMonteCarloMarketSettings(
@@ -392,50 +392,51 @@ export function composeSettingsDocument(
   }
   const taxBracketsPayload = taxBracketsDirty ? parseTaxBracketDrafts(taxBrackets) : undefined;
 
-  const { generale, spese, dividendi } = slices;
+  const { account, funzioni, cashflow, investimenti } = slices;
   // Switching the goals off switches the goal-driven targets off with them (what the Preferenze
   // tile did until RU8). The flag is Strategia's now, so it is written ONLY on that transition:
-  // a «Salva» that leaves the goals as they were never touches the source chosen in Strategia.
-  const goalsSwitchedOff = saved.generale.goalBasedInvestingEnabled && !generale.goalBasedInvestingEnabled;
+  // a «Salva» that leaves the goals as they were never touches the source chosen in Strategia
+  // (criterion 13: on → off writes both, off → on writes the first alone).
+  const goalsSwitchedOff = saved.funzioni.goalBasedInvestingEnabled && !funzioni.goalBasedInvestingEnabled;
   const document: AssetAllocationSettingsWrite = {
     // `userAge` is NOT written from here (D-T5): the age is typed in FIRE › Il mio piano.
     // Present-but-undefined when it follows the ECB estimate: the service's `'x' in settings` guard deletes it.
-    riskFreeRate: generale.riskFreeRate,
-    includePrimaryResidenceInFIRE: generale.includePrimaryResidenceInFIRE,
-    goalBasedInvestingEnabled: generale.goalBasedInvestingEnabled,
+    riskFreeRate: investimenti.riskFreeRate,
+    includePrimaryResidenceInFIRE: investimenti.includePrimaryResidenceInFIRE,
+    goalBasedInvestingEnabled: funzioni.goalBasedInvestingEnabled,
     ...(goalsSwitchedOff ? { goalDrivenAllocationEnabled: false } : {}),
     withdrawalRate: current?.withdrawalRate,
     plannedAnnualExpenses: current?.plannedAnnualExpenses,
     fireEmergencyFund: current?.fireEmergencyFund,
     fireCashToInvestPct: current?.fireCashToInvestPct,
     fireDatedFlows: current?.fireDatedFlows,
-    dividendIncomeCategoryId: dividendi.dividendIncomeCategoryId || undefined,
-    dividendIncomeSubCategoryId: dividendi.dividendIncomeSubCategoryId || undefined,
-    dividendCashAssetId: dividendi.dividendCashAssetId !== NO_SELECTION ? dividendi.dividendCashAssetId : undefined,
-    defaultDebitCashAssetId: spese.defaultDebitCashAssetId !== NO_SELECTION ? spese.defaultDebitCashAssetId : undefined,
-    defaultCreditCashAssetId: spese.defaultCreditCashAssetId !== NO_SELECTION ? spese.defaultCreditCashAssetId : undefined,
-    transferFeeCategoryId: spese.transferFeeCategoryId || undefined,
-    transferFeeSubCategoryId: spese.transferFeeSubCategoryId || undefined,
-    stampDutyEnabled: generale.stampDutyEnabled,
-    stampDutyRate: generale.stampDutyRate,
-    checkingAccountSubCategory: generale.checkingAccountSubCategory,
-    cashflowHistoryStartYear: generale.cashflowHistoryStartYear,
-    laborIncomeCategoryIds: generale.laborIncomeCategoryIds,
-    costCentersEnabled: generale.costCentersEnabled,
-    expenseSplitEnabled: generale.expenseSplitEnabled,
-    spendingRolesEnabled: spese.spendingRolesEnabled,
-    performanceIncludesPensionFunds: generale.performanceIncludesPensionFunds,
-    performanceIncludesExcludedAssets: generale.performanceIncludesExcludedAssets,
-    performanceExcludesCash: generale.performanceExcludesCash,
+    dividendIncomeCategoryId: cashflow.dividendIncomeCategoryId || undefined,
+    dividendIncomeSubCategoryId: cashflow.dividendIncomeSubCategoryId || undefined,
+    dividendCashAssetId: cashflow.dividendCashAssetId !== NO_SELECTION ? cashflow.dividendCashAssetId : undefined,
+    defaultDebitCashAssetId: cashflow.defaultDebitCashAssetId !== NO_SELECTION ? cashflow.defaultDebitCashAssetId : undefined,
+    defaultCreditCashAssetId: cashflow.defaultCreditCashAssetId !== NO_SELECTION ? cashflow.defaultCreditCashAssetId : undefined,
+    transferFeeCategoryId: cashflow.transferFeeCategoryId || undefined,
+    transferFeeSubCategoryId: cashflow.transferFeeSubCategoryId || undefined,
+    stampDutyEnabled: investimenti.stampDutyEnabled,
+    stampDutyRate: investimenti.stampDutyRate,
+    checkingAccountSubCategory: investimenti.checkingAccountSubCategory,
+    cashflowHistoryStartYear: cashflow.cashflowHistoryStartYear,
+    laborIncomeCategoryIds: cashflow.laborIncomeCategoryIds,
+    costCentersEnabled: funzioni.costCentersEnabled,
+    expenseSplitEnabled: funzioni.expenseSplitEnabled,
+    spendingRolesEnabled: funzioni.spendingRolesEnabled,
+    performanceIncludesPensionFunds: investimenti.performanceIncludesPensionFunds,
+    performanceIncludesExcludedAssets: investimenti.performanceIncludesExcludedAssets,
+    performanceExcludesCash: investimenti.performanceExcludesCash,
     // '' = «no month set»: saved as undefined, or pensionReturn would parse it as a date.
-    pensionReturnStartMonth: generale.pensionReturnStartMonth || undefined,
-    monthlyEmailEnabled: generale.monthlyEmailEnabled,
-    quarterlyEmailEnabled: generale.quarterlyEmailEnabled,
-    semiAnnualEmailEnabled: generale.semiAnnualEmailEnabled,
-    yearlyEmailEnabled: generale.yearlyEmailEnabled,
-    weeklyBudgetEmailEnabled: generale.weeklyBudgetEmailEnabled,
-    monthlyEmailRecipients: generale.monthlyEmailRecipients,
-    familyMembers: parseFamilyMemberDrafts(generale.familyMembers),
+    pensionReturnStartMonth: investimenti.pensionReturnStartMonth || undefined,
+    monthlyEmailEnabled: account.monthlyEmailEnabled,
+    quarterlyEmailEnabled: account.quarterlyEmailEnabled,
+    semiAnnualEmailEnabled: account.semiAnnualEmailEnabled,
+    yearlyEmailEnabled: account.yearlyEmailEnabled,
+    weeklyBudgetEmailEnabled: account.weeklyBudgetEmailEnabled,
+    monthlyEmailRecipients: account.monthlyEmailRecipients,
+    familyMembers: parseFamilyMemberDrafts(account.familyMembers),
     // The optimizer's objectives are not this page's (edited in Allocazione › Strategia): what the
     // document holds NOW goes back, never the copy this page loaded.
     idealAllocation: current?.idealAllocation,
@@ -444,12 +445,12 @@ export function composeSettingsDocument(
     ...(taxBracketsPayload ? { coastFireTaxBrackets: taxBracketsPayload } : {}),
   };
 
-  let simulazioni: SimulazioniSlice | null = null;
+  let avanzate: AvanzateSlice | null = null;
   let adaptedPairs: { index: number; written: number; used: number }[] = [];
   if (marketPayload && correctedCorrelations) {
     adaptedPairs = changedPairs(market.correlations, correctedCorrelations);
-    simulazioni = {
-      ...slices.simulazioni,
+    avanzate = {
+      ...slices.avanzate,
       // The Oro choice is now explicit in the document: the draft says so, and stays clean.
       market: {
         overrides: market.overrides,
@@ -462,10 +463,10 @@ export function composeSettingsDocument(
       correlationCorrections: Object.fromEntries(adaptedPairs.map((pair) => [pair.index, pair])),
     };
   }
-  return { ok: true, document, simulazioni, adaptedPairs };
+  return { ok: true, document, avanzate, adaptedPairs };
 }
 
-// ─── Simulazioni helpers ──────────────────────────────────────────────────────────────────
+// ─── Avanzate helpers ───────────────────────────────────────────────────────────────────
 
 /**
  * Dirty-state value of the market draft: what the user wrote — normalised exactly as it is saved,
@@ -486,7 +487,7 @@ function isTaxBracketsDirty(draft: CoastFireTaxBracketDraft[], saved: CoastFireT
 }
 
 /** The market differs from the saved one: the reader typed something (a value typed back to the default is clean again). */
-export function isMarketEdited(draft: SimulazioniSlice, saved: SimulazioniSlice): boolean {
+export function isMarketEdited(draft: AvanzateSlice, saved: AvanzateSlice): boolean {
   return marketSnapshotKey(draft.market) !== marketSnapshotKey(saved.market);
 }
 
@@ -494,7 +495,7 @@ export function isMarketEdited(draft: SimulazioniSlice, saved: SimulazioniSlice)
  * The market has something to write: an edit, or a document still in the old format — the first
  * «Salva» rewrites it as v2 even when nothing was typed (RQ8).
  */
-export function isMarketPending(draft: SimulazioniSlice, saved: SimulazioniSlice): boolean {
+export function isMarketPending(draft: AvanzateSlice, saved: AvanzateSlice): boolean {
   return isMarketEdited(draft, saved) || draft.marketOrigin === 'migrated';
 }
 
@@ -502,8 +503,8 @@ export function isMarketPending(draft: SimulazioniSlice, saved: SimulazioniSlice
  * The sub-categories that can be named «Oro» (the targets as saved — Strategia owns them — then the portfolio)
  * and the one in force — the draft's choice, else the default rule (doc/montecarlo/README.md, RG).
  */
-export function resolveSimulazioniGold(
-  slice: SimulazioniSlice,
+export function resolveAvanzateGold(
+  slice: AvanzateSlice,
   targets: AssetAllocationTarget | undefined,
   assets: readonly Asset[] | undefined
 ): { commoditySubCategories: string[]; effectiveGoldSubCategory: string | null } {
@@ -538,24 +539,28 @@ function familyMembersSnapshot(members: FamilyMember[]) {
  */
 function snapshotSlice(tab: WritableTabId, slices: SettingsSlices): string {
   switch (tab) {
-    case 'generale': {
-      const { familyMembers, laborIncomeCategoryIds, monthlyEmailRecipients, stampDutyRate, ...rest } = slices.generale;
+    case 'account': {
+      const { familyMembers, monthlyEmailRecipients, ...rest } = slices.account;
       return JSON.stringify({
         ...rest,
-        stampDutyRate: roundToTwoDecimals(stampDutyRate),
-        laborIncomeCategoryIds: [...laborIncomeCategoryIds].sort(),
         monthlyEmailRecipients: [...monthlyEmailRecipients].sort(),
         familyMembers: familyMembersSnapshot(parseFamilyMemberDrafts(familyMembers)),
       });
     }
-    case 'spese':
-      return JSON.stringify(slices.spese);
-    case 'dividendi':
-      return JSON.stringify(slices.dividendi);
-    case 'simulazioni':
+    case 'funzioni':
+      return JSON.stringify(slices.funzioni);
+    case 'cashflow': {
+      const { laborIncomeCategoryIds, ...rest } = slices.cashflow;
+      return JSON.stringify({ ...rest, laborIncomeCategoryIds: [...laborIncomeCategoryIds].sort() });
+    }
+    case 'investimenti': {
+      const { stampDutyRate, ...rest } = slices.investimenti;
+      return JSON.stringify({ ...rest, stampDutyRate: roundToTwoDecimals(stampDutyRate) });
+    }
+    case 'avanzate':
       return JSON.stringify({
-        market: marketSnapshotKey(slices.simulazioni.market),
-        taxBrackets: buildTaxBracketSnapshotKey(parseTaxBracketDrafts(slices.simulazioni.taxBrackets)),
+        market: marketSnapshotKey(slices.avanzate.market),
+        taxBrackets: buildTaxBracketSnapshotKey(parseTaxBracketDrafts(slices.avanzate.taxBrackets)),
       });
   }
 }
@@ -563,7 +568,7 @@ function snapshotSlice(tab: WritableTabId, slices: SettingsSlices): string {
 /** Whether a tab holds an edit «Salva» would write — the dot on the tab and the bar at the bottom. */
 export function isSliceDirty(tab: WritableTabId, draft: SettingsSlices, saved: SettingsSlices): boolean {
   // A legacy market waiting to be converted is a pending write even though nothing was typed (RQ8).
-  if (tab === 'simulazioni' && draft.simulazioni.marketOrigin === 'migrated') return true;
+  if (tab === 'avanzate' && draft.avanzate.marketOrigin === 'migrated') return true;
   return snapshotSlice(tab, draft) !== snapshotSlice(tab, saved);
 }
 
@@ -580,11 +585,12 @@ export interface SettingsDraft {
 
 export type SettingsDraftAction =
   | { type: 'reset'; document: AssetAllocationSettings | null }
-  | { type: 'saved'; simulazioni?: SimulazioniSlice | null }
-  | { type: 'generale/set'; patch: Partial<GeneraleSlice> }
-  | { type: 'spese/set'; patch: Partial<SpeseSlice> }
-  | { type: 'dividendi/set'; patch: Partial<DividendiSlice> }
-  | { type: 'simulazioni/set'; patch: Partial<SimulazioniSlice> };
+  | { type: 'saved'; avanzate?: AvanzateSlice | null }
+  | { type: 'account/set'; patch: Partial<AccountSlice> }
+  | { type: 'funzioni/set'; patch: Partial<FunzioniSlice> }
+  | { type: 'cashflow/set'; patch: Partial<CashflowSlice> }
+  | { type: 'investimenti/set'; patch: Partial<InvestimentiSlice> }
+  | { type: 'avanzate/set'; patch: Partial<AvanzateSlice> };
 
 /** The draft before the first read: every slice at its defaults, nothing dirty. */
 export function createSettingsDraft(): SettingsDraft {
@@ -600,17 +606,19 @@ export function settingsDraftReducer(state: SettingsDraft, action: SettingsDraft
       return { slices, saved: slices, loaded: true };
     }
     case 'saved': {
-      // The baseline is what was WRITTEN: Simulazioni's market as it was written (corrected, converted).
-      const slices = { ...state.slices, ...(action.simulazioni ? { simulazioni: action.simulazioni } : {}) };
+      // The baseline is what was WRITTEN: Avanzate's market as it was written (corrected, converted).
+      const slices = { ...state.slices, ...(action.avanzate ? { avanzate: action.avanzate } : {}) };
       return { ...state, slices, saved: slices };
     }
-    case 'generale/set':
-      return { ...state, slices: { ...state.slices, generale: { ...state.slices.generale, ...action.patch } } };
-    case 'spese/set':
-      return { ...state, slices: { ...state.slices, spese: { ...state.slices.spese, ...action.patch } } };
-    case 'dividendi/set':
-      return { ...state, slices: { ...state.slices, dividendi: { ...state.slices.dividendi, ...action.patch } } };
-    case 'simulazioni/set':
-      return { ...state, slices: { ...state.slices, simulazioni: { ...state.slices.simulazioni, ...action.patch } } };
+    case 'account/set':
+      return { ...state, slices: { ...state.slices, account: { ...state.slices.account, ...action.patch } } };
+    case 'funzioni/set':
+      return { ...state, slices: { ...state.slices, funzioni: { ...state.slices.funzioni, ...action.patch } } };
+    case 'cashflow/set':
+      return { ...state, slices: { ...state.slices, cashflow: { ...state.slices.cashflow, ...action.patch } } };
+    case 'investimenti/set':
+      return { ...state, slices: { ...state.slices, investimenti: { ...state.slices.investimenti, ...action.patch } } };
+    case 'avanzate/set':
+      return { ...state, slices: { ...state.slices, avanzate: { ...state.slices.avanzate, ...action.patch } } };
   }
 }

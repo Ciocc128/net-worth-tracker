@@ -72,9 +72,9 @@ const SOURCE_LABELS: Record<TargetSource, string> = {
   goals: 'Dai traguardi',
 };
 
-/** The age's one editor (D-T5) and the risk-free rate's (RU8, Impostazioni › Preferenze). */
+/** The age's one editor (D-T5) and the risk-free rate's (RU8, Impostazioni › Investimenti). */
 const AGE_HREF = '/dashboard/fire-simulations?piano=eta';
-const RISK_FREE_HREF = '/dashboard/settings?tab=generale';
+const RISK_FREE_HREF = '/dashboard/settings?tab=investimenti';
 
 export interface StrategiaGoalPreview {
   /** What the goals give the classes on the draft's tree (`resolveEffectiveTargets` with the flag on). */
@@ -294,7 +294,7 @@ export function StrategiaTab({
                   <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
                     {describeRiskFreeOrigin({ typed: riskFreeRate, estimate: riskFreeEstimate })} · si modifica in{' '}
                     <Link href={RISK_FREE_HREF} className={TILE_FOOTER_ACTION_CLASS}>
-                      Impostazioni › Preferenze
+                      Impostazioni › Investimenti
                     </Link>
                   </p>
                 </div>

@@ -185,7 +185,7 @@ async function getOwnedTradeOrThrow(ownerId: string, transactionId: string): Pro
 }
 
 /**
- * Where a trade's fee row lands: the category chosen in Impostazioni › Spese for fees, or null
+ * Where a trade's fee row lands: the category chosen in Impostazioni › Cashflow for fees, or null
  * when none is set (or it was deleted since). Read with the Admin SDK — a route has no signed-in
  * client — like `resolveDividendIncomeCategory`. A null never blocks the trade: the fee still
  * leaves the account, it just has no cashflow row.

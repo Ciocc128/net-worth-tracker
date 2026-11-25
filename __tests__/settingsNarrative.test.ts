@@ -24,9 +24,6 @@ import { narrativeToText, type Narrative } from '@/lib/utils/narrative';
 import {
   describeHedgeReading,
   describeMonteCarloCorrelations,
-  describeAssistantPreferences,
-  describeBtpItalia,
-  describeCashflowSettings,
   describeStrategiaTargets,
   describeColorTheme,
   describeTopBand,
@@ -36,14 +33,14 @@ import {
   describeExpenseCategories,
   describeEmails,
   describeFamily,
-  describeFireToggles,
+  describeFireWealth,
+  describeFunctions,
+  describeIncomeHistory,
   buildIdealAllocationInput,
   describeIdealAllocation,
   describeIdealComposition,
   describeImport,
   describePerformanceBase,
-  describePlanParameters,
-  describeEmergencyFundDeclaration,
   describeSharing,
   describeTargetProblem,
   describeThemeMode,
@@ -56,7 +53,7 @@ import {
 
 const plain = (n: Narrative | null) => (n ? narrativeToText(n).replace(/ /g, ' ') : null);
 
-// ─── Preferenze ───────────────────────────────────────────────────────────────
+// ─── Investimenti, Cashflow, Account, Funzioni ───────────────────────────────────────────────────────────
 
 describe('describeUnsavedChanges', () => {
   it('says nothing when every tab is saved', () => {
@@ -175,209 +172,75 @@ describe('describeCosts', () => {
   });
 });
 
-describe('describeFireToggles', () => {
-  it('reads house out, goals on — and where they can give the targets (RU8, D-ST4)', () => {
-    expect(plain(describeFireToggles({ includePrimaryResidenceInFIRE: false, goalBasedInvestingEnabled: true }))).toBe(
-      'La casa resta fuori dal patrimonio FIRE; traguardi attivi: possono dare i target di classe in Allocazione › Strategia.'
+describe('describeFireWealth', () => {
+  it('reads the home out (the standard) and in', () => {
+    expect(plain(describeFireWealth({ includePrimaryResidenceInFIRE: false }))).toBe(
+      'La casa resta fuori dal patrimonio FIRE, come vuole lo standard.'
     );
-  });
-
-  it('reads house in and goals off', () => {
-    expect(plain(describeFireToggles({ includePrimaryResidenceInFIRE: true, goalBasedInvestingEnabled: false }))).toBe(
-      'La casa è dentro il patrimonio FIRE; traguardi di investimento spenti.'
+    expect(plain(describeFireWealth({ includePrimaryResidenceInFIRE: true }))).toBe(
+      'La casa è dentro il patrimonio FIRE: il piano la conta come capitale da cui prelevare.'
     );
   });
 });
 
-describe('describePlanParameters', () => {
-  it('reads the full plan with the lock clause', () => {
-    expect(
-      plain(
-        describePlanParameters({
-          withdrawalRate: 3.5,
-          plannedAnnualExpenses: 24000,
-          pensionInpsRetirementAge: 67,
-          pensionRitaLongUnemployment: false,
-          respectPensionLockInFire: true,
-        })
-      )
-    ).toBe(
-      "SWR al 3,5% e spese per 24.000 € l'anno; pensione INPS a 67 anni, RITA a 62 anni; il fondo pensione vincolato resta fuori dal FIRE fino allo sblocco."
+describe('describeIncomeHistory', () => {
+  it('names up to two labor categories and the history floor', () => {
+    expect(plain(describeIncomeHistory({ laborCategoryNames: ['Stipendio', 'Freelance'], historyStartYear: 2023 }))).toBe(
+      'Stipendio e Freelance contano come reddito da lavoro; lo storico parte dal 2023.'
+    );
+    expect(plain(describeIncomeHistory({ laborCategoryNames: ['Stipendio'], historyStartYear: 2025 }))).toBe(
+      'Stipendio conta come reddito da lavoro; lo storico parte dal 2025.'
     );
   });
 
-  it('applies the long-unemployment RITA rule and drops the lock clause when off', () => {
-    expect(
-      plain(
-        describePlanParameters({
-          withdrawalRate: 4,
-          plannedAnnualExpenses: undefined,
-          pensionInpsRetirementAge: 67,
-          pensionRitaLongUnemployment: true,
-          respectPensionLockInFire: false,
-        })
-      )
-    ).toBe('SWR al 4%; pensione INPS a 67 anni, RITA a 57 anni.');
-  });
-
-  it('marks the applicative INPS default as such', () => {
-    expect(
-      plain(
-        describePlanParameters({
-          withdrawalRate: undefined,
-          plannedAnnualExpenses: 24000,
-          pensionInpsRetirementAge: undefined,
-          pensionRitaLongUnemployment: false,
-          respectPensionLockInFire: false,
-        })
-      )
-    ).toBe("Spese per 24.000 € l'anno; pensione INPS a 67 anni (predefinita), RITA a 62 anni.");
-  });
-
-  it('states the empty state and where the parameters live', () => {
-    expect(
-      plain(
-        describePlanParameters({
-          withdrawalRate: undefined,
-          plannedAnnualExpenses: undefined,
-          pensionInpsRetirementAge: undefined,
-          pensionRitaLongUnemployment: false,
-          respectPensionLockInFire: false,
-        })
-      )
-    ).toBe('Nessun parametro salvato: SWR e spese si impostano da FIRE › Calcolatore, età INPS e RITA da Coast FIRE.');
-  });
-});
-
-describe('describeAssistantPreferences', () => {
-  it('reads the three preferences', () => {
-    expect(
-      plain(describeAssistantPreferences({ responseStyle: 'balanced', memoryEnabled: true, macroContextEnabled: false }))
-    ).toBe('Risposte bilanciate, apprendimento attivo, ricerca web spenta.');
-  });
-
-  it('maps the other styles and drops missing clauses', () => {
-    expect(plain(describeAssistantPreferences({ responseStyle: 'deep', memoryEnabled: undefined, macroContextEnabled: true }))).toBe(
-      'Risposte approfondite, ricerca web attiva.'
-    );
-    expect(plain(describeAssistantPreferences({ responseStyle: 'concise', memoryEnabled: false, macroContextEnabled: undefined }))).toBe(
-      'Risposte concise, apprendimento spento.'
-    );
-  });
-
-  it('states the never-synced state', () => {
-    expect(plain(describeAssistantPreferences({}))).toBe(
-      'Preferenze non ancora sincronizzate: si leggono e modificano accanto alla conversazione.'
-    );
-  });
-});
-
-describe('describeCashflowSettings', () => {
-  const SPLIT_OFF = { expenseSplitEnabled: false, familyMemberCount: 0 };
-
-  it('names up to two labor categories, the history floor and cost centers', () => {
-    expect(
-      plain(
-        describeCashflowSettings({
-          laborCategoryNames: ['Stipendio', 'Freelance'],
-          historyStartYear: 2023,
-          costCentersEnabled: true,
-          ...SPLIT_OFF,
-        })
-      )
-    ).toBe(
-      'Stipendio e Freelance contano come reddito da lavoro; lo storico parte dal 2023; Centri di Costo attivi; Divisione spenta.'
-    );
-  });
-
-  it('counts the overflow past two names and reads the off state', () => {
-    expect(
-      plain(
-        describeCashflowSettings({
-          laborCategoryNames: ['Stipendio', 'Freelance', 'Bonus'],
-          historyStartYear: 2025,
-          costCentersEnabled: false,
-          ...SPLIT_OFF,
-        })
-      )
-    ).toBe(
-      'Stipendio, Freelance e 1 altra contano come reddito da lavoro; lo storico parte dal 2025; Centri di Costo spenti; Divisione spenta.'
+  it('counts the overflow past two names', () => {
+    expect(plain(describeIncomeHistory({ laborCategoryNames: ['Stipendio', 'Freelance', 'Bonus'], historyStartYear: 2025 }))).toBe(
+      'Stipendio, Freelance e 1 altra contano come reddito da lavoro; lo storico parte dal 2025.'
     );
   });
 
   it('reads the empty labor selection', () => {
-    expect(
-      plain(
-        describeCashflowSettings({
-          laborCategoryNames: [],
-          historyStartYear: 2025,
-          costCentersEnabled: false,
-          ...SPLIT_OFF,
-        })
-      )
-    ).toBe(
-      'Nessuna categoria conta come reddito da lavoro; lo storico parte dal 2025; Centri di Costo spenti; Divisione spenta.'
+    expect(plain(describeIncomeHistory({ laborCategoryNames: [], historyStartYear: 2025 }))).toBe(
+      'Nessuna categoria conta come reddito da lavoro; lo storico parte dal 2025.'
     );
   });
 
   it('does not read a failed category fetch as «no labor category»', () => {
-    expect(
-      plain(
-        describeCashflowSettings({
-          laborCategoryNames: [],
-          historyStartYear: 2025,
-          costCentersEnabled: false,
-          categoriesUnread: true,
-          ...SPLIT_OFF,
-        })
-      )
-    ).toBe(
-      'Le categorie non sono state lette: il reddito da lavoro scelto non si può mostrare; lo storico parte dal 2025; Centri di Costo spenti; Divisione spenta.'
+    expect(plain(describeIncomeHistory({ laborCategoryNames: [], historyStartYear: 2025, categoriesUnread: true }))).toBe(
+      'Le categorie non sono state lette: il reddito da lavoro scelto non si può mostrare; lo storico parte dal 2025.'
+    );
+  });
+});
+
+describe('describeFunctions', () => {
+  const NONE = { goalBasedInvesting: false, costCenters: false, expenseSplit: false, spendingRoles: false, familyMemberCount: 0 };
+
+  it('says nothing is on', () => {
+    expect(plain(describeFunctions(NONE))).toBe('Nessuna funzione accesa: restano le pagine di base.');
+  });
+
+  it('names what is on and what is off', () => {
+    expect(plain(describeFunctions({ ...NONE, costCenters: true, spendingRoles: true }))).toBe(
+      'Accese: 2 su 4 (Centri di Costo e Ruoli 50/30/20); spente: Traguardi di investimento e Divisione delle spese.'
     );
   });
 
-  it('states what the Divisione does once two people exist', () => {
+  it('drops the «spente» clause when all four are on', () => {
     expect(
-      plain(
-        describeCashflowSettings({
-          laborCategoryNames: ['Stipendio'],
-          historyStartYear: 2025,
-          costCentersEnabled: false,
-          expenseSplitEnabled: true,
-          familyMemberCount: 2,
-        })
-      )
-    ).toBe(
-      'Stipendio conta come reddito da lavoro; lo storico parte dal 2025; Centri di Costo spenti; ogni voce si può marcare come personale e la Divisione ripartisce le comuni fra 2 persone.'
-    );
+      plain(describeFunctions({ goalBasedInvesting: true, costCenters: true, expenseSplit: true, spendingRoles: true, familyMemberCount: 2 }))
+    ).toBe('Accese: 4 su 4 (Traguardi di investimento, Centri di Costo, Divisione delle spese e Ruoli 50/30/20).');
   });
 
-  // The toggle can be on with the household half-configured, and the reading has to say which
+  // The switch can be on with the household half-configured, and the reading has to say which
   // input is missing instead of promising a division that cannot happen.
-  it('names the missing input when the split is on without two people', () => {
-    expect(
-      plain(
-        describeCashflowSettings({
-          laborCategoryNames: ['Stipendio'],
-          historyStartYear: 2025,
-          costCentersEnabled: false,
-          expenseSplitEnabled: true,
-          familyMemberCount: 1,
-        })
-      )
-    ).toContain('Divisione attiva, ma in Famiglia c\'è una persona sola: servono almeno due.');
-
-    expect(
-      plain(
-        describeCashflowSettings({
-          laborCategoryNames: ['Stipendio'],
-          historyStartYear: 2025,
-          costCentersEnabled: false,
-          expenseSplitEnabled: true,
-          familyMemberCount: 0,
-        })
-      )
-    ).toContain('Divisione attiva, ma senza nessuno in Famiglia non riparte nulla.');
+  it('names the missing input when the Divisione is on without two people', () => {
+    expect(plain(describeFunctions({ ...NONE, expenseSplit: true, familyMemberCount: 1 }))).toContain(
+      "La Divisione è accesa, ma in Famiglia c'è una persona sola: servono almeno due."
+    );
+    expect(plain(describeFunctions({ ...NONE, expenseSplit: true, familyMemberCount: 0 }))).toContain(
+      'La Divisione è accesa, ma senza nessuno in Famiglia non riparte nulla.'
+    );
+    expect(plain(describeFunctions({ ...NONE, expenseSplit: true, familyMemberCount: 2 }))).not.toContain('Famiglia');
   });
 });
 
@@ -825,14 +688,6 @@ describe('describeDividendCategory', () => {
   });
 });
 
-describe('describeBtpItalia', () => {
-  it('declares where the FOI is announced', () => {
-    expect(plain(describeBtpItalia())).toBe(
-      'Le cedole indicizzate attendono il FOI del periodo: lo annunci dal calendario di Dividendi, cedola per cedola.'
-    );
-  });
-});
-
 // ─── Condivisione e Aspetto ───────────────────────────────────────────────────
 
 describe('describeSharing', () => {
@@ -912,16 +767,6 @@ describe('describeMonteCarloCorrelations', () => {
     expect(narrativeToText(describeMonteCarloCorrelations({ editedPairCount: 0, correctedPairCount: 0 }))).toContain('Valori predefiniti');
     expect(narrativeToText(describeMonteCarloCorrelations({ editedPairCount: 4, correctedPairCount: 0 }))).toContain('Modificate 4 coppie su 21');
     expect(narrativeToText(describeMonteCarloCorrelations({ editedPairCount: 4, correctedPairCount: 3 }))).toContain('ne ha adattate 3');
-  });
-});
-
-describe('describeEmergencyFundDeclaration (§ 14.6)', () => {
-  it('says the saved amount, the absence, or the conversion still to fix', () => {
-    const say = (fund: number | undefined, pct: number | undefined) => describeEmergencyFundDeclaration(fund, pct).replace(/\u00a0/g, ' ');
-    expect(say(30_000, undefined)).toBe('30.000 €');
-    expect(say(0, 50)).toBe('0 €');
-    expect(say(undefined, undefined)).toBe('non impostato · la liquidità fuori dal portafoglio resta fuori');
-    expect(say(undefined, 50)).toBe('da fissare nel Calcolatore (quota salvata 50%)');
   });
 });
 

@@ -11,7 +11,7 @@
  * Every edit is a PREVIEW: the draft lives in the page (`useFirePlanDraft`), every tab reads it over the saved settings
  * (`useFireSettings`), and «Salva il piano» writes ALL the plan's fields in one `setSettings` (RP3, RP4). Each field says
  * on which tabs it acts (RP1, `FIRE_PLAN_AFFECTS`). The laws (IRPEF brackets) and the market hypotheses are NOT here:
- * they are Impostazioni › Simulazioni's.
+ * they are Impostazioni › Avanzate's.
  *
  * Config-first: the block opens by itself once per visit when the plan is not written yet (RP5, in the hook).
  *
@@ -413,7 +413,7 @@ export function FirePlanBlock() {
                   Aggiungi pensione
                 </Button>
                 <span className="text-[11px] leading-[1.4] text-muted-foreground">
-                  Lordo al mese come lo dà il simulatore INPS «La mia pensione futura», a prezzi di oggi; 13 mensilità con la tredicesima. Gli scaglioni IRPEF sono in Impostazioni › Simulazioni. {FIRE_PLAN_AFFECTS.pensions}.
+                  Lordo al mese come lo dà il simulatore INPS «La mia pensione futura», a prezzi di oggi; 13 mensilità con la tredicesima. Gli scaglioni IRPEF sono in Impostazioni › Avanzate. {FIRE_PLAN_AFFECTS.pensions}.
                 </span>
               </div>
 

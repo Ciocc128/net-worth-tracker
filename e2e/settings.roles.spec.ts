@@ -1,5 +1,5 @@
 /**
- * Impostazioni › Spese › Ruoli 50/30/20 — the opt-in switch and the category dialog's role picker,
+ * Impostazioni › Funzioni and Cashflow › Ruoli 50/30/20 — the opt-in switch and the category dialog's role picker,
  * at 1440px on the base account (`test@example.com`).
  *
  * Unlike settings.spec.ts these tests WRITE: the switch is saved and a category's role is set and
@@ -13,7 +13,7 @@
  * the tile's counts are therefore read from the emulator at the moment of the assertion, never
  * pinned (AGENTS.md § Emulator Exercise Scripts, «On a shared account never pin ABSOLUTE values»).
  *
- * What only a browser can prove here: the switch lives in Spese and its dirty state belongs to that
+ * What only a browser can prove here: the switch lives in Funzioni and its dirty state belongs to that
  * tab; the dialog shows the picker only with the switch on; «Da classificare» DELETES the stored
  * field (deleteField — a plain update would keep the old role); a dialog opened with the switch off
  * neither shows nor rewrites a stored role; and a role saved in the dialog reaches Analisi's Flusso
@@ -92,13 +92,16 @@ function expectedReading({ spending, classified }: Classification): string {
   return `Attivi: ${have}; ${missing} ${missing === 1 ? 'finisce' : 'finiscono'} in «Da classificare».`;
 }
 
-async function openSpese(page: Page) {
-  await page.goto('/dashboard/settings?tab=spese', { waitUntil: 'load' });
+/** RU9: the switch is a row of Funzioni, the categories (and their dialog) are in Cashflow. */
+async function openTab(page: Page, tab: 'funzioni' | 'cashflow') {
+  await page.goto(`/dashboard/settings?tab=${tab}`, { waitUntil: 'load' });
   await expect(page.locator('h1:visible')).toContainText('Impostazioni', { timeout: 60_000 });
-  await expect(rolesTile(page)).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator(`#settings-tab-pill-panel-${tab} section`).first()).toBeVisible({ timeout: 30_000 });
 }
+const openFunzioni = (page: Page) => openTab(page, 'funzioni');
+const openCashflow = (page: Page) => openTab(page, 'cashflow');
 
-const rolesTile = (page: Page) => page.getByRole('region', { name: 'Ruoli 50/30/20' });
+const rolesTile = (page: Page) => page.locator('#settings-tab-pill-panel-funzioni section').first();
 const unsavedBar = (page: Page) => page.getByRole('region', { name: 'Modifiche non salvate' });
 const dialog = (page: Page) => page.getByRole('dialog');
 
@@ -134,15 +137,14 @@ test.afterAll(async () => {
   await setFoodRole(undefined);
 });
 
-test('the switch lives in Spese, off by default; switched on and saved, it writes the flag', async ({ page }) => {
-  await openSpese(page);
+test('the switch lives in Funzioni, off by default; switched on and saved, it writes the flag', async ({ page }) => {
+  await openFunzioni(page);
   const tile = rolesTile(page);
-  await expect(tile).toContainText('Spenti: il flusso di Analisi si legge solo per tipo di spesa.');
-  const toggle = tile.getByRole('switch', { name: 'Necessità, desideri, risparmi' });
+  const toggle = tile.getByRole('switch', { name: 'Ruoli 50/30/20' });
   await expect(toggle).toHaveAttribute('aria-checked', 'false');
 
   await toggle.click();
-  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Spese');
+  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Funzioni');
   await unsavedBar(page).getByRole('button', { name: 'Salva' }).click();
   await expect(unsavedBar(page)).toHaveCount(0);
 
@@ -155,7 +157,7 @@ test('the switch lives in Spese, off by default; switched on and saved, it write
 
 test('the dialog sets a role, and «Da classificare» deletes the stored field', async ({ page }) => {
   await setFlag(true);
-  await openSpese(page);
+  await openCashflow(page);
   const before = await readClassification();
 
   await pickFoodRole(page, /^Necessità/);
@@ -163,7 +165,6 @@ test('the dialog sets a role, and «Da classificare» deletes the stored field',
   // One more classified than before the dialog, whatever else the account holds.
   const after = await readClassification();
   expect(after).toEqual({ spending: before.spending, classified: before.classified + 1 });
-  await expect(rolesTile(page)).toContainText(expectedReading(after));
 
   await pickFoodRole(page, /^Da classificare/);
   await expect.poll(async () => 'spendingRole' in (await readFields(FOOD_DOC))).toBe(false);
@@ -172,7 +173,7 @@ test('the dialog sets a role, and «Da classificare» deletes the stored field',
 test('with the switch off the dialog neither shows nor rewrites a stored role', async ({ page }) => {
   await setFlag(false);
   await setFoodRole('want');
-  await openSpese(page);
+  await openCashflow(page);
 
   await editFood(page);
   await expect(dialog(page).getByRole('combobox', { name: 'Ruolo 50/30/20' })).toHaveCount(0);
@@ -185,14 +186,15 @@ test('with the switch off the dialog neither shows nor rewrites a stored role', 
 test('a role saved in the dialog reaches Analisi\'s Flusso without a reload', async ({ page }) => {
   await setFlag(true);
   await setFoodRole(undefined);
-  await openSpese(page);
+  await openCashflow(page);
 
   // Analisi reached client-side, so the categories land in the React Query cache the page keeps —
   // the global staleTime is 5 minutes, and that copy is what a missing invalidation would serve back.
   // The band: the folder «Entrate e spese» first, then the group's page «Analisi spese».
   await page.getByRole('link', { name: 'Entrate e spese', exact: true }).filter({ visible: true }).first().click();
+  await expect(page).toHaveURL(/\/dashboard\/cashflow/, { timeout: 60_000 });
   await page.locator('a[href="/dashboard/analisi"]:visible').first().click();
-  await expect(page).toHaveURL(/\/dashboard\/analisi/);
+  await expect(page).toHaveURL(/\/dashboard\/analisi/, { timeout: 60_000 });
   const chart = page.getByRole('region', { name: 'Flusso', exact: true }).getByRole('img', { name: /^Flusso del periodo/ });
   const roleNode = (label: string) => chart.locator('text').filter({ hasText: new RegExp(`^${label}$`) });
   // The base seed's Alimentari and Casa carry no role: both flow into «Da classificare».
@@ -203,7 +205,7 @@ test('a role saved in the dialog reaches Analisi\'s Flusso without a reload', as
   // (two entries back: the band took the folder first, then the page).
   await page.goBack();
   await page.goBack();
-  await expect(rolesTile(page)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('button', { name: 'Modifica Alimentari' })).toBeVisible({ timeout: 30_000 });
   await pickFoodRole(page, /^Necessità/);
   await expect.poll(async () => (await readFields(FOOD_DOC)).spendingRole?.stringValue).toBe('need');
 

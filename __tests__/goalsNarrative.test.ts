@@ -371,7 +371,7 @@ describe('resolveTraiettoriaHero and buildTraiettoriaChips', () => {
 
 describe('describeTraiettoriaFooter', () => {
   it('names the allocation the return comes from, the scenario and the two dashed lines', () => {
-    expect(plain(describeTraiettoriaFooter(trajectory({})))).toBe('Rendimento nominale dall\'allocazione del traguardo (70% obbligazioni, 20% azioni, 10% liquidità) sulle ipotesi dello scenario Base di Impostazioni › Simulazioni: una stima, non un consiglio. Tratteggiata orizzontale: il target; verticale: la scadenza.');
+    expect(plain(describeTraiettoriaFooter(trajectory({})))).toBe('Rendimento nominale dall\'allocazione del traguardo (70% obbligazioni, 20% azioni, 10% liquidità) sulle ipotesi dello scenario Base di Impostazioni › Avanzate: una stima, non un consiglio. Tratteggiata orizzontale: il target; verticale: la scadenza.');
   });
 
   it('declares what the hypotheses leave out (crypto, real estate)', () => {

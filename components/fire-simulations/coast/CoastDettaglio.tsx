@@ -199,7 +199,7 @@ export function CoastDettaglio({
                   <strong className="font-semibold text-foreground">Importo lordo mensile.</strong> A prezzi di oggi, come nel simulatore INPS; l&apos;IRPEF si calcola su questa cifra.
                 </p>
                 <p>
-                  <strong className="font-semibold text-foreground">IRPEF.</strong> Imposta sul lordo annuo con gli scaglioni di Impostazioni › Simulazioni; il netto reale è ciò che abbatte il fabbisogno.
+                  <strong className="font-semibold text-foreground">IRPEF.</strong> Imposta sul lordo annuo con gli scaglioni di Impostazioni › Avanzate; il netto reale è ciò che abbatte il fabbisogno.
                 </p>
                 <p>
                   <strong className="font-semibold text-foreground">Decorrenza.</strong> Prima di quella data la pensione non riduce nulla: il portafoglio copre da solo.

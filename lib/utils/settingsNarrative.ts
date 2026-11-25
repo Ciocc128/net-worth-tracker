@@ -8,9 +8,7 @@
  * will not trust. Each phrasing is pinned by __tests__/settingsNarrative.test.ts.
  *
  * The Narrative Honesty Rule holds: a missing input drops its clause (no risk-free rate → no
- * rate clause, and the sentence says what stalls without it), the applicative INPS default is
- * NAMED as a default rather than shown as a choice, and the RITA unlock age is never derived
- * here — it comes from `resolveRitaUnlockAge`, the app's single unlock rule.
+ * rate clause, and the sentence says what stalls without it).
  *
  * Percentages go through chartService's it-IT formatter (comma decimals); currency through
  * `cachedFormatCurrencyEUR` (nbsp before €, four-digit amounts ungrouped).
@@ -19,7 +17,6 @@
 import type { Narrative, NarrativeSegment } from '@/lib/utils/narrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatNumber, formatPercentage } from '@/lib/services/chartService';
-import { resolveRitaUnlockAge, DEFAULT_INPS_RETIREMENT_AGE } from '@/lib/utils/pensionUnlock';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { CHECKING_ACCOUNT_STAMP_DUTY_EUR, CHECKING_ACCOUNT_STAMP_DUTY_THRESHOLD_EUR } from '@/lib/constants/stampDuty';
 import type { ExpenseType } from '@/types/expenses';
@@ -78,7 +75,7 @@ export function describeUnsavedChanges(tabLabels: string[]): string | null {
   return `Modifiche non salvate in ${joinNames(tabLabels)}`;
 }
 
-// ─── Preferenze ───────────────────────────────────────────────────────────────
+// ─── Investimenti, Cashflow, Account, Funzioni ───────────────────────────────────────────────────────────
 
 export interface PerformanceBaseInput {
   includesPensionFunds: boolean;
@@ -153,126 +150,28 @@ export function describeCosts({ stampDutyEnabled, stampDutyRate, checkingAccount
   ];
 }
 
-export interface FireTogglesInput {
+export interface FireWealthInput {
   includePrimaryResidenceInFIRE: boolean;
-  goalBasedInvestingEnabled: boolean;
 }
 
 /**
- * FIRE e traguardi — the two toggles this page owns. Whether the class targets come from the goals
- * is a SOURCE of the targets since RU8 (D-ST4), chosen in Allocazione › Strategia, not a switch here.
+ * Patrimonio nel FIRE (Investimenti) — the one switch this page keeps for the FIRE plan: whether the
+ * home counts in the wealth the plan simulates. The plan itself (age, expense, SWR, fund, flows,
+ * pensions) is FIRE › Il mio piano's, named in the tab's «Si regola altrove» line (D-RU20).
  */
-export function describeFireToggles({ includePrimaryResidenceInFIRE, goalBasedInvestingEnabled }: FireTogglesInput): Narrative {
-  const house = includePrimaryResidenceInFIRE
-    ? 'La casa è dentro il patrimonio FIRE'
-    : 'La casa resta fuori dal patrimonio FIRE';
-  const goals = goalBasedInvestingEnabled
-    ? '; traguardi attivi: possono dare i target di classe in Allocazione › Strategia.'
-    : '; traguardi di investimento spenti.';
-  return [prose(house), prose(goals)];
+export function describeFireWealth({ includePrimaryResidenceInFIRE }: FireWealthInput): Narrative {
+  return [
+    prose(
+      includePrimaryResidenceInFIRE
+        ? 'La casa è dentro il patrimonio FIRE: il piano la conta come capitale da cui prelevare.'
+        : 'La casa resta fuori dal patrimonio FIRE, come vuole lo standard.'
+    ),
+  ];
 }
 
-export interface PlanParametersInput {
-  withdrawalRate?: number;
-  plannedAnnualExpenses?: number;
-  pensionInpsRetirementAge?: number;
-  pensionRitaLongUnemployment: boolean;
-  respectPensionLockInFire: boolean;
-}
-
-/**
- * Parametri del piano — the read-only declaration of the FIRE parameters owned by the FIRE
- * pages. The INPS default is named as such; the RITA age comes from the app's one unlock rule.
- */
-export function describePlanParameters(input: PlanParametersInput): Narrative {
-  const { withdrawalRate, plannedAnnualExpenses, pensionInpsRetirementAge, pensionRitaLongUnemployment } = input;
-  if (withdrawalRate === undefined && plannedAnnualExpenses === undefined) {
-    return [
-      prose('Nessun parametro salvato: SWR e spese si impostano da FIRE › Calcolatore, età INPS e RITA da Coast FIRE.'),
-    ];
-  }
-
-  const segments: Narrative = [];
-  if (withdrawalRate !== undefined) {
-    segments.push(prose('SWR al '), figure(pctTrim(withdrawalRate)));
-    if (plannedAnnualExpenses !== undefined) {
-      segments.push(prose(' e spese per '), figure(euro(plannedAnnualExpenses)), prose(" l'anno"));
-    }
-  } else if (plannedAnnualExpenses !== undefined) {
-    segments.push(prose('Spese per '), figure(euro(plannedAnnualExpenses)), prose(" l'anno"));
-  }
-
-  const inpsAge = pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE;
-  const inpsIsDefault = pensionInpsRetirementAge === undefined;
-  const ritaAge = resolveRitaUnlockAge({ pensionInpsRetirementAge, pensionRitaLongUnemployment });
-  segments.push(
-    prose('; pensione INPS a '),
-    figure(String(inpsAge)),
-    prose(` anni${inpsIsDefault ? ' (predefinita)' : ''}, RITA a `),
-    figure(String(ritaAge)),
-    prose(' anni')
-  );
-
-  if (input.respectPensionLockInFire) {
-    segments.push(prose('; il fondo pensione vincolato resta fuori dal FIRE fino allo sblocco.'));
-  } else {
-    segments.push(prose('.'));
-  }
-  return segments;
-}
-
-/**
- * § 14.6, the «Fondo di emergenza» row of Parametri del piano: the saved euro amount, «non impostato» (all the cash outside the
- * portfolio stays out), or — a legacy share saved and no fund yet — the one thing the user still has to do (RE5).
- */
-export function describeEmergencyFundDeclaration(fund: number | undefined, legacyPct: number | undefined): string {
-  if (fund !== undefined) return euro(fund);
-  if (legacyPct !== undefined) return `da fissare nel Calcolatore (quota salvata ${pctTrim(legacyPct)})`;
-  return 'non impostato · la liquidità fuori dal portafoglio resta fuori';
-}
-
-export interface AssistantPreferencesInput {
-  responseStyle?: 'balanced' | 'concise' | 'deep';
-  memoryEnabled?: boolean;
-  macroContextEnabled?: boolean;
-}
-
-const ASSISTANT_STYLE_WORDS: Record<'balanced' | 'concise' | 'deep', string> = {
-  balanced: 'Risposte bilanciate',
-  concise: 'Risposte concise',
-  deep: 'Risposte approfondite',
-};
-
-/**
- * Assistente — the mirror the assistant syncs into the settings doc on every preference save.
- * A field never synced drops its clause; with nothing synced the reading says where the truth
- * lives instead of guessing defaults the memory document may contradict.
- */
-export function describeAssistantPreferences({
-  responseStyle,
-  memoryEnabled,
-  macroContextEnabled,
-}: AssistantPreferencesInput): Narrative {
-  const clauses: string[] = [];
-  if (responseStyle !== undefined) clauses.push(ASSISTANT_STYLE_WORDS[responseStyle]);
-  if (memoryEnabled !== undefined) clauses.push(memoryEnabled ? 'apprendimento attivo' : 'apprendimento spento');
-  if (macroContextEnabled !== undefined) clauses.push(macroContextEnabled ? 'ricerca web attiva' : 'ricerca web spenta');
-  if (clauses.length === 0) {
-    return [prose('Preferenze non ancora sincronizzate: si leggono e modificano accanto alla conversazione.')];
-  }
-  const sentence = clauses.join(', ');
-  return [prose(`${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.`)];
-}
-
-export interface CashflowSettingsInput {
+export interface IncomeHistoryInput {
   laborCategoryNames: string[];
   historyStartYear: number;
-  costCentersEnabled: boolean;
-  expenseSplitEnabled: boolean;
-  // How many people are configured under Famiglia. The split needs two: with fewer, the
-  // toggle is on and nothing happens, so the reading has to say which input is missing
-  // rather than promising a division the page cannot compute.
-  familyMemberCount: number;
   /**
    * The expense categories were NOT read (a failed fetch): an empty `laborCategoryNames` then
    * means «unknown», not «none», and the labor clause says so instead of claiming no category
@@ -281,15 +180,8 @@ export interface CashflowSettingsInput {
   categoriesUnread?: boolean;
 }
 
-/** Cashflow — labor income categories, the history floor, cost centers, the household split. */
-export function describeCashflowSettings({
-  laborCategoryNames,
-  historyStartYear,
-  costCentersEnabled,
-  expenseSplitEnabled,
-  familyMemberCount,
-  categoriesUnread = false,
-}: CashflowSettingsInput): Narrative {
+/** Reddito e storico (Cashflow) — the categories that count as labor income and the history floor. */
+export function describeIncomeHistory({ laborCategoryNames, historyStartYear, categoriesUnread = false }: IncomeHistoryInput): Narrative {
   const segments: Narrative = [];
   if (categoriesUnread) {
     segments.push(prose('Le categorie non sono state lette: il reddito da lavoro scelto non si può mostrare'));
@@ -307,35 +199,49 @@ export function describeCashflowSettings({
       prose(` ${extra === 1 ? 'altra contano' : 'altre contano'} come reddito da lavoro`)
     );
   }
-  segments.push(
-    prose('; lo storico parte dal '),
-    figure(String(historyStartYear)),
-    prose(costCentersEnabled ? '; Centri di Costo attivi' : '; Centri di Costo spenti')
-  );
-  segments.push(...describeSplitClause(expenseSplitEnabled, familyMemberCount));
+  segments.push(prose('; lo storico parte dal '), figure(String(historyStartYear)), prose('.'));
   return segments;
 }
 
+export interface FunctionsInput {
+  goalBasedInvesting: boolean;
+  costCenters: boolean;
+  expenseSplit: boolean;
+  spendingRoles: boolean;
+  // How many people are configured under Famiglia (Account). The split needs two: with fewer, the
+  // switch is on and nothing happens, so the reading has to say which input is missing rather than
+  // promising a division the page cannot compute.
+  familyMemberCount: number;
+}
+
 /**
- * The Divisione clause of the Cashflow reading.
- *
- * States the effect downstream — what the tab and the expense dialog will do — and, when the
- * feature is on without the two people it needs, names the missing input instead of promising
- * a division that cannot be computed (the Narrative Honesty Rule).
+ * Funzioni — which pieces of the app exist. Says what is on and what is off, and — when the
+ * Divisione is on without the two people it needs — names the missing input instead of promising a
+ * division that cannot be computed (the Narrative Honesty Rule).
  */
-function describeSplitClause(enabled: boolean, familyMemberCount: number): Narrative {
-  if (!enabled) return [prose('; Divisione spenta.')];
-  if (familyMemberCount === 0) {
-    return [prose('; Divisione attiva, ma senza nessuno in Famiglia non riparte nulla.')];
-  }
-  if (familyMemberCount === 1) {
-    return [prose('; Divisione attiva, ma in Famiglia c\'\u00e8 una persona sola: servono almeno due.')];
-  }
-  return [
-    prose('; ogni voce si pu\u00f2 marcare come personale e la Divisione ripartisce le comuni fra '),
-    figure(String(familyMemberCount)),
-    prose(' persone.'),
+export function describeFunctions({ goalBasedInvesting, costCenters, expenseSplit, spendingRoles, familyMemberCount }: FunctionsInput): Narrative {
+  const pieces: [string, boolean][] = [
+    ['Traguardi di investimento', goalBasedInvesting],
+    ['Centri di Costo', costCenters],
+    ['Divisione delle spese', expenseSplit],
+    ['Ruoli 50/30/20', spendingRoles],
   ];
+  const on = pieces.filter(([, enabled]) => enabled).map(([name]) => name);
+  const off = pieces.filter(([, enabled]) => !enabled).map(([name]) => name);
+  const segments: Narrative = [];
+  if (on.length === 0) {
+    segments.push(prose('Nessuna funzione accesa: restano le pagine di base.'));
+  } else {
+    segments.push(prose('Accese: '), figure(String(on.length)), prose(` su ${pieces.length} (${joinNames(on)})`));
+    if (off.length > 0) segments.push(prose(`; spente: ${joinNames(off)}`));
+    segments.push(prose('.'));
+  }
+  if (expenseSplit && familyMemberCount === 0) {
+    segments.push(prose(' La Divisione è accesa, ma senza nessuno in Famiglia non riparte nulla.'));
+  } else if (expenseSplit && familyMemberCount === 1) {
+    segments.push(prose(" La Divisione è accesa, ma in Famiglia c'è una persona sola: servono almeno due."));
+  }
+  return segments;
 }
 
 export interface FamilyInput {
@@ -408,7 +314,7 @@ export function describeRiskFreeSource(input: { typed: number | undefined; estim
 
 /**
  * The origin of the risk-free rate in force, in a few words, for the formula's row of Strategia ›
- * Target per classe (RU8): the field lives in Impostazioni › Preferenze, the row only says whose figure it is.
+ * Target per classe (RU8): the field lives in Impostazioni › Investimenti, the row only says whose figure it is.
  */
 export function describeRiskFreeOrigin(input: { typed: number | undefined; estimate: RiskFreeResolution }): string {
   if (input.typed !== undefined) return 'impostato da te';
@@ -874,13 +780,6 @@ export function describeDividendCategory({ categoryName, subCategoryName, accoun
   // still carry its own, so «nessun conto si muove» would be a claim this tile cannot make.
   if (!accountName) return [prose(`${landing}.`)];
   return [prose(`${landing}; dal giorno del pagamento accredita ${accountName}, salvo un conto scelto sullo strumento.`)];
-}
-
-/** BTP Italia — the FOI is announced per coupon, from the Dividendi calendar. */
-export function describeBtpItalia(): Narrative {
-  return [
-    prose('Le cedole indicizzate attendono il FOI del periodo: lo annunci dal calendario di Dividendi, cedola per cedola.'),
-  ];
 }
 
 // ─── Condivisione e Aspetto ───────────────────────────────────────────────────

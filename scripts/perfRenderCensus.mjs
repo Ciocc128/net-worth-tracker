@@ -250,7 +250,7 @@ async function typeKeys(page, input) {
 
 const scenarioRunners = {
   async settings(page, cdp) {
-    await page.goto(`${BASE}/dashboard/settings?tab=generale`, { waitUntil: 'load' });
+    await page.goto(`${BASE}/dashboard/settings?tab=account`, { waitUntil: 'load' });
     const input = page.locator('#cashflowHistoryStartYear');
     await input.waitFor({ state: 'visible', timeout: 30_000 });
     await page.waitForTimeout(1_000); // the settings document and the count-ups land first

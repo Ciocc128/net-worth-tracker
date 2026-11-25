@@ -6,7 +6,7 @@
  * is typed). Two blocks: the Piano (starting capital with the «Totale / Liquido» shortcuts, the
  * yearly saving seeded from the Cashflow and how many years it is paid, the horizon, the threshold,
  * the simulation count) and the Allocazione (`WeightsFields`, shared with the Monte Carlo) with the
- * DECLARATION of the market assumptions — edited in Impostazioni › Simulazioni, never here (The
+ * DECLARATION of the market assumptions — edited in Impostazioni › Avanzate, never here (The
  * Declaration-Tile Rule). One action row: Prova (the run is a try-out, never saved: «Salva il piano» is the plan block's), and the footer that says whether the figures above
  * still match what is typed.
  *
@@ -87,7 +87,7 @@ const CONTROL_CLASS = 'mt-1 h-9 font-mono tabular-nums transition-[border-color,
 /** The seed's size is `WeightsFields`' (AsideToggle's pressed look, the 44px touch floor, 32px on a pointer). */
 const SEED_CLASS = 'h-11 rounded-md border px-3 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring desktop:h-8 desktop:px-2.5';
 const HINT_CLASS = 'mt-1 text-[11px] leading-[1.4] text-muted-foreground';
-const MARKET_SETTINGS_HREF = '/dashboard/settings?tab=simulazioni';
+const MARKET_SETTINGS_HREF = '/dashboard/settings?tab=avanzate';
 
 export function ParametriTile({
   reading,
@@ -218,7 +218,7 @@ export function ParametriTile({
             idPrefix="pr-weight"
           />
 
-          {/* Market assumptions: DECLARED here, edited in Impostazioni › Simulazioni (The Declaration-Tile Rule). */}
+          {/* Market assumptions: DECLARED here, edited in Impostazioni › Avanzate (The Declaration-Tile Rule). */}
           <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted p-3.5">
             <p className={TILE_SUB_EYEBROW_CLASS}>Ipotesi di mercato</p>
             <NarrativeText segments={marketDeclaration} className="text-[12px] leading-[1.5] text-muted-foreground" figureClassName="font-medium text-foreground" />

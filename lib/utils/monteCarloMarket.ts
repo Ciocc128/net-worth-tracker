@@ -3,7 +3,7 @@
  *
  * ONE function reads the two settings fields — `monteCarloMarket` (CAGR, the new shape) and the
  * legacy `monteCarloScenarios` (arithmetic means, four classes) — and EVERY consumer goes through
- * it: the Monte Carlo tab, the Ventaglio, Impostazioni › Simulazioni. Nobody reads the fields
+ * it: the Monte Carlo tab, the Ventaglio, Impostazioni › Avanzate. Nobody reads the fields
  * directly, so the two engines cannot see different numbers.
  */
 import type {

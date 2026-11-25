@@ -1,8 +1,9 @@
 /**
  * SETTINGS PAGE — the orchestrator (2026-10-08).
  *
- * Six tabs, six views, ONE draft (the Allocazione tab moved to Allocazione › Strategia with RU8, 2026-11-23;
- * `?tab=allocazione` lands there). Until 2026-10-08 this file was one 4100-line component with 70
+ * Five tabs, five views, ONE draft (RU9, 2026-11-26: Account · Funzioni · Cashflow · Investimenti ·
+ * Avanzate, by «whose adjustment it is»; the old seven are aliases of `?tab=`, and `?tab=allocazione`
+ * — the targets left for Allocazione › Strategia with RU8 — redirects there). Until 2026-10-08 this file was one 4100-line component with 70
  * `useState`s, and every keystroke re-ran the whole function (286 components per key on one
  * machine with the compiler on, 318 on another — the census, doc/guide/velocita.md). Now the page holds
  * the draft in a single `useReducer(settingsDraftReducer)`
@@ -16,13 +17,15 @@
  *     seeding the draft during render — from the persisted cache at once on a warm visit, from
  *     the fresh read behind it while no tab is dirty; the skeleton only for a first visit;
  *   - the tab: which one is active, which ones were mounted (`aria-controls` only names a panel
- *     that exists), the `?tab=` canonicalised on mount only when absent or invalid;
+ *     that exists), the `?tab=` canonicalised on mount only when absent, invalid or an old id;
+ *     Account is in this page's JavaScript, the other four are chunks (`lazyComponent`) loaded
+ *     when the document has been read and the browser is idle, or when their tab opens (P6);
  *   - the ONE «Salva»: `composeSettingsDocument` validates the tree as it will be written and
- *     names the first market figure out of range — the page then opens Simulazioni;
+ *     names the first market figure out of range — the page then opens Avanzate;
  *   - the save state PER TAB: a dot on each tab holding edits (`isSliceDirty`), a bar at the
  *     bottom naming them, «Annulla modifiche» as a RE-READ of the saved document, never a copy.
  *
- * The colour theme and the light/dark mode are the exception: they save themselves (Aspetto).
+ * The colour theme and the light/dark mode are the exception: they save themselves (Account).
  */
 
 'use client';
@@ -31,7 +34,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useState }
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Save, Receipt, Coins, Settings, Palette, Users, Dices } from 'lucide-react';
+import { Save, Receipt, ToggleRight, UserRound, Landmark, Dices } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
@@ -39,18 +42,20 @@ import { setSettings } from '@/lib/services/assetAllocationService';
 import {
   composeSettingsDocument,
   createSettingsDraft,
-  isSettingsTabId,
+  parseFamilyMemberDrafts,
+  DEFAULT_SETTINGS_TAB,
   isSliceDirty,
-  LEGACY_ALLOCAZIONE_TAB,
-  resolveSimulazioniGold,
+  resolveAvanzateGold,
+  resolveRequestedTab,
   settingsDraftReducer,
-  STRATEGIA_TARGETS_HREF,
+  DIVIDENDI_TILE_ID,
   WRITABLE_TABS,
-  type DividendiSlice,
-  type GeneraleSlice,
+  type AccountSlice,
+  type AvanzateSlice,
+  type CashflowSlice,
+  type FunzioniSlice,
+  type InvestimentiSlice,
   type SettingsTabId,
-  type SimulazioniSlice,
-  type SpeseSlice,
 } from '@/lib/utils/settingsDraft';
 import type { Asset } from '@/types/assets';
 import type { ExpenseCategory } from '@/types/expenses';
@@ -70,31 +75,46 @@ import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarr
 import { describeUnsavedChanges } from '@/lib/utils/settingsNarrative';
 import { useMarketAnchors } from '@/lib/hooks/useMarketAnchors';
 import { resolveRiskFreeEstimate } from '@/lib/utils/riskFreeRate';
-import { AspettoTab } from '@/components/settings/tabs/AspettoTab';
-import { CondivisioneTab } from '@/components/settings/tabs/CondivisioneTab';
-import { DividendiTab } from '@/components/settings/tabs/DividendiTab';
-import { GeneraleTab } from '@/components/settings/tabs/GeneraleTab';
-import { SimulazioniTab } from '@/components/settings/tabs/SimulazioniTab';
-import { SpeseTab } from '@/components/settings/tabs/SpeseTab';
-import { runGuarded, SETTINGS_TABS_LAYOUT_ID } from '@/components/settings/tabs/shared';
+import { AccountTab } from '@/components/settings/tabs/AccountTab';
+import { runGuarded, SettingsTabFallback, SETTINGS_TABS_LAYOUT_ID } from '@/components/settings/tabs/shared';
+import { lazyComponent, usePreloadWhenIdle } from '@/components/ui/lazy-component';
+import {
+  AVANZATE_SKELETON_CELLS,
+  CASHFLOW_SETTINGS_SKELETON_CELLS,
+  FUNZIONI_SKELETON_CELLS,
+  INVESTIMENTI_SKELETON_CELLS,
+} from '@/lib/constants/settingsTabSkeletons';
+import { summarizeCategoryClassification } from '@/lib/utils/spendingRoles';
 import { SAVED_BUTTON_CLASS, SaveButtonContent } from '@/components/ui/save-button-content';
 import { useSavedFlash } from '@/lib/hooks/useSavedFlash';
 import { cn } from '@/lib/utils';
 
-// Module-level tab definitions drive both the mobile pill and the desktop underline tabs.
+// Module-level tab definitions drive both the mobile pill and the desktop underline tabs. Five
+// tabs: the pill holds them without scrolling at 390 (the seven it replaced did not).
 const SETTINGS_TABS: TabDef[] = [
-  { value: 'generale',    label: 'Preferenze',  icon: Settings },
-  { value: 'spese',       label: 'Spese',       icon: Receipt  },
-  { value: 'dividendi',   label: 'Dividendi',   icon: Coins    },
-  { value: 'simulazioni', label: 'Simulazioni', icon: Dices    },
-  { value: 'condivisione', label: 'Condivisione', icon: Users   },
-  { value: 'aspetto',     label: 'Aspetto',     icon: Palette  },
+  { value: 'account',      label: 'Account',      icon: UserRound   },
+  { value: 'funzioni',     label: 'Funzioni',     icon: ToggleRight },
+  { value: 'cashflow',     label: 'Cashflow',     icon: Receipt     },
+  { value: 'investimenti', label: 'Investimenti', icon: Landmark    },
+  { value: 'avanzate',     label: 'Avanzate',     icon: Dices       },
 ];
+
+// The four tabs that are not the default load their code on demand (P6, D-RU23): the draft stays in
+// this page (the views are controlled), so a chunk that arrives late loses nothing. Each draws its
+// own skeleton until it arrives (`lazyComponent`, no Suspense) and they are preloaded once the
+// document has been read. Never import a VALUE from these modules here: it would put them back in
+// the page's initial graph (types only).
+const FunzioniTab = lazyComponent(() => import('@/components/settings/tabs/FunzioniTab').then((m) => m.FunzioniTab));
+const CashflowTab = lazyComponent(() => import('@/components/settings/tabs/CashflowTab').then((m) => m.CashflowTab));
+const InvestimentiTab = lazyComponent(() => import('@/components/settings/tabs/InvestimentiTab').then((m) => m.InvestimentiTab));
+const AvanzateTab = lazyComponent(() => import('@/components/settings/tabs/AvanzateTab').then((m) => m.AvanzateTab));
+// A module-level array: `usePreloadWhenIdle` runs its effect on its identity.
+const SETTINGS_LAZY_TABS = [FunzioniTab, CashflowTab, InvestimentiTab, AvanzateTab];
 
 const EMPTY_CATEGORIES: ExpenseCategory[] = [];
 const EMPTY_ASSETS: Asset[] = [];
 
-const PAGE_HEADER = { label: 'Configurazione', title: 'Impostazioni', description: 'Preferenze, flussi e simulazioni' } as const;
+const PAGE_HEADER = { label: 'Configurazione', title: 'Impostazioni', description: 'Account, funzioni e regole di calcolo' } as const;
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -106,11 +126,12 @@ export default function SettingsPage() {
 
   // THE draft: one reducer, one slice per tab (lib/utils/settingsDraft.ts).
   const [draft, dispatch] = useReducer(settingsDraftReducer, undefined, createSettingsDraft);
-  const { generale, spese, dividendi, simulazioni, declarations } = draft.slices;
-  const setGenerale = (patch: Partial<GeneraleSlice>) => dispatch({ type: 'generale/set', patch });
-  const setSpese = (patch: Partial<SpeseSlice>) => dispatch({ type: 'spese/set', patch });
-  const setDividendi = (patch: Partial<DividendiSlice>) => dispatch({ type: 'dividendi/set', patch });
-  const setSimulazioni = (patch: Partial<SimulazioniSlice>) => dispatch({ type: 'simulazioni/set', patch });
+  const { account, funzioni, cashflow, investimenti, avanzate } = draft.slices;
+  const setAccount = (patch: Partial<AccountSlice>) => dispatch({ type: 'account/set', patch });
+  const setFunzioni = (patch: Partial<FunzioniSlice>) => dispatch({ type: 'funzioni/set', patch });
+  const setCashflow = (patch: Partial<CashflowSlice>) => dispatch({ type: 'cashflow/set', patch });
+  const setInvestimenti = (patch: Partial<InvestimentiSlice>) => dispatch({ type: 'investimenti/set', patch });
+  const setAvanzate = (patch: Partial<AvanzateSlice>) => dispatch({ type: 'avanzate/set', patch });
 
   // The expense categories from the key Cashflow, Analisi and the expense form read (2026-09-29).
   // `isLoading` is true before the first read, so an empty list is «not read yet», never «no
@@ -136,20 +157,24 @@ export default function SettingsPage() {
   const riskFreeEstimate = resolveRiskFreeEstimate(marketAnchors);
   const settingsDocument = settingsQuery.data; // undefined = not read yet; null = no document
   const freshness = useFreshness([settingsQuery, categoriesQuery, accountsQuery]);
+  // After the document is read, never during it: a preload is a download competing with the first read.
+  usePreloadWhenIdle(SETTINGS_LAZY_TABS, settingsDocument !== undefined);
 
-  // Tab navigation — lazy-loading pattern (same as Assets/Cashflow pages): Preferenze is the
-  // default, every panel mounts once opened; `aria-controls` may only name a panel that exists.
-  // `?tab=allocazione` is the old address of the targets (bookmarks, links in emails): it lands
-  // on Allocazione › Strategia (RU8, D-ST1).
+  // Tab navigation — lazy-loading pattern (same as Assets/Cashflow pages): Account is the default,
+  // every panel mounts once opened; `aria-controls` may only name a panel that exists. The old
+  // `?tab=` ids are aliases (D-RU21) and `?tab=allocazione` is the old address of the targets
+  // (bookmarks, links in emails): it lands on Allocazione › Strategia (RU8, D-ST1), by `replace`,
+  // so the back button does not return to a redirect.
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const requestedTab = searchParams.get('tab');
-  const movedToStrategia = requestedTab === LEGACY_ALLOCAZIONE_TAB;
-  const initialTab: SettingsTabId = isSettingsTabId(requestedTab) ? requestedTab : 'generale';
+  const requested = resolveRequestedTab(searchParams.get('tab'));
+  const initialTab: SettingsTabId = requested.kind === 'tab' ? requested.tab : DEFAULT_SETTINGS_TAB;
   const [mountedTabs, setMountedTabs] = useState<Set<SettingsTabId>>(new Set([initialTab]));
   const [activeTab, setActiveTab] = useState<SettingsTabId>(initialTab);
   const renderedPanels = new Set<string>(mountedTabs);
+  // `?focus=dividendi`: the old `?tab=dividendi` and the gear of Cashflow › Dividendi (a tab change drops it).
+  const focusDividendi = searchParams.get('focus') === DIVIDENDI_TILE_ID;
 
   const handleTabChange = (value: string) => {
     setActiveTab(value as SettingsTabId);
@@ -157,16 +182,17 @@ export default function SettingsPage() {
     router.replace(`${pathname}?tab=${value}`, { scroll: false });
   };
 
-  // Canonicalize the URL on mount only when the tab param is absent or invalid (as Cashflow does):
-  // an unconditional replace re-rendered every `useSearchParams` consumer of the shell. An Effect
-  // Event: the URL and the router are read, never triggers — it runs once, at mount.
+  // Canonicalize the URL on mount only when the tab param is absent, invalid or an old id (as
+  // Cashflow does): an unconditional replace re-rendered every `useSearchParams` consumer of the
+  // shell. An Effect Event: the URL and the router are read, never triggers — it runs once, at mount.
   const canonicalizeTabParam = useEffectEvent(() => {
-    if (movedToStrategia) {
-      router.replace(STRATEGIA_TARGETS_HREF);
+    if (requested.kind === 'redirect') {
+      router.replace(requested.href);
       return;
     }
     if (searchParams.get('tab') !== initialTab) {
-      router.replace(`${pathname}?tab=${initialTab}`, { scroll: false });
+      const focus = requested.focusDividendi ? `&focus=${DIVIDENDI_TILE_ID}` : '';
+      router.replace(`${pathname}?tab=${initialTab}${focus}`, { scroll: false });
     }
   });
   useEffect(() => {
@@ -230,15 +256,15 @@ export default function SettingsPage() {
     // Validated as it will be written, BEFORE any read: a refused save
     // costs no round trip. The fields the document carries through (the FIRE plan's and the
     // optimizer's) come from the CURRENT document, pre-read below. The Oro in force and the
-    // baseline are what the Simulazioni write needs (it is written only when that tab holds edits).
+    // baseline are what the Avanzate write needs (it is written only when that tab holds edits).
     const context = {
       saved: draft.saved,
-      effectiveGoldSubCategory: resolveSimulazioniGold(simulazioni, settingsDocument?.targets, allAssets).effectiveGoldSubCategory,
+      effectiveGoldSubCategory: resolveAvanzateGold(avanzate, settingsDocument?.targets, allAssets).effectiveGoldSubCategory,
     };
     const checked = composeSettingsDocument(draft.slices, null, context);
     if (!checked.ok) {
       const [first, ...others] = checked.marketProblems;
-      handleTabChange('simulazioni');
+      handleTabChange('avanzate');
       toast.error(`Ipotesi di mercato fuori intervallo — ${first.message}${others.length > 0 ? ` (+${others.length})` : ''}`);
       return;
     }
@@ -266,7 +292,7 @@ export default function SettingsPage() {
       await queryClient.invalidateQueries({ queryKey: queryKeys.settings.all(ownerId) });
       // The baseline is what was WRITTEN (the corrected market), so an adapted pair does not
       // leave the tab marked as unsaved.
-      dispatch({ type: 'saved', simulazioni: composed.simulazioni });
+      dispatch({ type: 'saved', avanzate: composed.avanzate });
     }, (error) => {
       console.error('Error saving settings:', error);
       toast.error('Errore nel salvataggio delle impostazioni');
@@ -344,6 +370,9 @@ export default function SettingsPage() {
   const cashConfig = settingsDocument?.targets?.cash?.subCategoryConfig;
   const cashSubCategories = cashConfig?.enabled ? cashConfig.categories : [];
   const accountsState = resolveSurfaceState({ loading: loadingAccounts, failed: accountsFailed });
+  // Funzioni's reading and its Ruoli row: Famiglia's size (the Divisione needs two) and how far the roles got.
+  const familyMemberCount = parseFamilyMemberDrafts(account.familyMembers).length;
+  const categoryClassification = summarizeCategoryClassification(expenseCategories);
 
   return (
     <PageContainer>
@@ -375,27 +404,32 @@ export default function SettingsPage() {
         ariaLabel="Sezioni delle Impostazioni"
         renderedPanels={renderedPanels}
       >
-        {/* Each view is a controlled view of its slice; the two without one (Condivisione,
-            Aspetto) write where they act. Every panel mounts once opened. */}
-        {mountedTabs.has('generale') && (
-          <GeneraleTab
-            slice={generale}
-            onChange={setGenerale}
-            declarations={declarations}
-            ownerId={ownerId}
-            isDemo={isDemo}
-            expenseCategories={expenseCategories}
+        {/* Each view is a controlled view of its slice. Account is in this page's JavaScript; the
+            other four are chunks that draw a skeleton of their own geometry until they arrive. */}
+        {mountedTabs.has('account') && (
+          <AccountTab slice={account} onChange={setAccount} ownerId={ownerId} isDemo={isDemo} />
+        )}
+
+        {mountedTabs.has('funzioni') && (
+          <FunzioniTab
+            fallback={<SettingsTabFallback tab="funzioni" label="Funzioni" cells={FUNZIONI_SKELETON_CELLS} />}
+            slice={funzioni}
+            onChange={setFunzioni}
+            familyMemberCount={familyMemberCount}
+            classification={categoryClassification}
             categoriesState={categoriesState}
-            cashSubCategories={cashSubCategories}
-            riskFreeEstimate={riskFreeEstimate}
           />
         )}
 
-        {mountedTabs.has('spese') && (
-          <SpeseTab
-            slice={spese}
-            onChange={setSpese}
+        {mountedTabs.has('cashflow') && (
+          <CashflowTab
+            fallback={<SettingsTabFallback tab="cashflow" label="Cashflow" cells={CASHFLOW_SETTINGS_SKELETON_CELLS} />}
+            slice={cashflow}
+            onChange={setCashflow}
             ownerId={ownerId}
+            isDemo={isDemo}
+            focusDividendi={focusDividendi}
+            spendingRolesEnabled={funzioni.spendingRolesEnabled}
             expenseCategories={expenseCategories}
             categoriesState={categoriesState}
             onRetryCategories={loadExpenseCategories}
@@ -406,35 +440,27 @@ export default function SettingsPage() {
           />
         )}
 
-        {mountedTabs.has('dividendi') && (
-          <DividendiTab
-            slice={dividendi}
-            onChange={setDividendi}
-            ownerId={ownerId}
-            isDemo={isDemo}
-            expenseCategories={expenseCategories}
-            categoriesState={categoriesState}
-            onRetryCategories={() => void loadExpenseCategories()}
-            cashAssets={cashAssets}
-            accountsState={accountsState}
-            onRetryAccounts={() => void loadCashAccounts()}
+        {mountedTabs.has('investimenti') && (
+          <InvestimentiTab
+            fallback={<SettingsTabFallback tab="investimenti" label="Investimenti" cells={INVESTIMENTI_SKELETON_CELLS} />}
+            slice={investimenti}
+            onChange={setInvestimenti}
+            cashSubCategories={cashSubCategories}
+            riskFreeEstimate={riskFreeEstimate}
           />
         )}
 
-        {mountedTabs.has('simulazioni') && (
-          <SimulazioniTab
-            slice={simulazioni}
+        {mountedTabs.has('avanzate') && (
+          <AvanzateTab
+            fallback={<SettingsTabFallback tab="avanzate" label="Avanzate" cells={AVANZATE_SKELETON_CELLS} />}
+            slice={avanzate}
             saved={draft.saved}
-            onChange={setSimulazioni}
+            onChange={setAvanzate}
             assets={accountsQuery.data}
-            {...resolveSimulazioniGold(simulazioni, settingsDocument?.targets, accountsQuery.data)}
+            {...resolveAvanzateGold(avanzate, settingsDocument?.targets, accountsQuery.data)}
             isDemo={isDemo}
           />
         )}
-
-        {mountedTabs.has('condivisione') && <CondivisioneTab isDemo={isDemo} />}
-
-        {mountedTabs.has('aspetto') && <AspettoTab />}
       </PageTabs>
 
       {/* The save state, where the thumb and the eye are: a bar that sticks to the bottom of the

@@ -72,8 +72,8 @@ export function AvvisiTile({ rows, enabled, aside, reading, footer, collapse, as
       )}
       <div className="mt-auto flex flex-col gap-1 border-t border-border pt-3.5 text-[11px] leading-[1.45] text-muted-foreground">
         <NarrativeText segments={footer} figureClassName="font-medium" />
-        {/* The switch of the weekly email lives in Impostazioni › Preferenze: the rimando Fable asked for (R6). */}
-        <Link href="/dashboard/settings?tab=generale" className={cn(TILE_FOOTER_ACTION_CLASS, 'self-start')}>
+        {/* The switch of the weekly email lives in Impostazioni › Account: the rimando Fable asked for (R6). */}
+        <Link href="/dashboard/settings?tab=account" className={cn(TILE_FOOTER_ACTION_CLASS, 'self-start')}>
           Email settimanale del budget
         </Link>
       </div>

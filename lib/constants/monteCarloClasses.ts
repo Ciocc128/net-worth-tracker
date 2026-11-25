@@ -3,7 +3,7 @@
  *
  * The ORDER is the order of the correlation matrix's upper triangle (T2), so it is part of the
  * data format: never reorder. The keys are `AssetClass` keys plus `gold`, which is not an
- * `AssetClass` — it is the commodity sub-category the user names in Impostazioni › Simulazioni
+ * `AssetClass` — it is the commodity sub-category the user names in Impostazioni › Avanzate
  * (rule RG). Crypto and real estate are NOT classes of the simulation: their value stays outside
  * the simulated capital.
  */

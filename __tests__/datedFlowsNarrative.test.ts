@@ -4,7 +4,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { DatedFlow } from '@/types/assets';
-import { describeFlowRow, describeFlowsDeclaration, describeFlowsRow, describeMortgageOption, describeSimulationFlowsRow } from '@/lib/utils/datedFlowsNarrative';
+import { describeFlowRow, describeFlowsRow, describeMortgageOption, describeSimulationFlowsRow } from '@/lib/utils/datedFlowsNarrative';
 import { describeFlowsChip, withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
 import { buildFlowSchedule, lumpMarkersOf, resolveDatedFlows } from '@/lib/utils/datedFlows';
 import { resolveCoastPace } from '@/lib/utils/coastFireView';
@@ -46,11 +46,6 @@ describe('describeFlowsRow — the Base di calcolo', () => {
     expect(describeFlowsRow({ count: 0, excluded: [], yearWithout: null, yearWith: null })).toEqual({ value: null, caption: 'nessuno: aggiungili in Il mio piano' });
     const row = describeFlowsRow({ count: 3, excluded: [{ id: 'x', label: 'x', reason: "manca l'età" }], yearWithout: 2034, yearWith: 2034 });
     expect(row.caption).toBe("non spostano l'anno FIRE · 1 escluso: manca l'età");
-  });
-
-  it('should declare the count in Impostazioni', () => {
-    expect(describeFlowsDeclaration(0)).toBe('nessuno');
-    expect(describeFlowsDeclaration(4)).toBe('4');
   });
 });
 

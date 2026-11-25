@@ -8,7 +8,7 @@
  * mixed into the category of the thing paid for. So the fee is a row of its own (owner,
  * 2026-09-25 for a transfer; every row, and every occurrence of a series, since 2026-10-10):
  *
- *   - a spending row, in the category chosen in Impostazioni › Spese (`transferFeeCategoryId`,
+ *   - a spending row, in the category chosen in Impostazioni › Cashflow (`transferFeeCategoryId`,
  *     the key kept from the transfer-only days), typed by that category — categories are
  *     type-scoped;
  *   - on the SAME date as its parent row, debiting the parent's account (`linkedCashAssetId` —

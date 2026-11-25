@@ -12,7 +12,7 @@
  *     real estate (and the legs of a composite asset in those classes) are OUTSIDE the simulated
  *     capital `K`; they are reported, never simulated.
  *   - Oro is the part of the `commodity` class whose sub-category is the one named in
- *     Impostazioni › Simulazioni (RG); everything else of that class is Materie prime.
+ *     Impostazioni › Avanzate (RG); everything else of that class is Materie prime.
  *   - a pension fund the lock keeps closed is not in `K` (it re-enters as a capital inflow).
  */
 import type { Asset } from '@/types/assets';

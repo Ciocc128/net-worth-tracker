@@ -352,7 +352,7 @@ export default function CashflowPage() {
             )}
             {/* One gear per page, and it opens THIS page's settings (P2): the categories on Tracciamento,
                 the dividend preferences on Dividendi; Budget has its pencil on the ceiling, Divisione and
-                Centri only the switch in Impostazioni › Preferenze (R6, D-RU7). */}
+                Centri only the switch in Impostazioni › Funzioni (R6, D-RU7). */}
             {(effectiveTab === 'tracking' || effectiveTab === 'dividends') && (
               <Button
                 size="icon"
@@ -362,7 +362,7 @@ export default function CashflowPage() {
                 title={effectiveTab === 'tracking' ? 'Categorie' : 'Impostazioni dei dividendi'}
                 className="size-11 desktop:size-9"
               >
-                <Link href={effectiveTab === 'tracking' ? '/dashboard/settings?tab=spese' : '/dashboard/settings?tab=dividendi'}>
+                <Link href={effectiveTab === 'tracking' ? '/dashboard/settings?tab=cashflow' : '/dashboard/settings?tab=cashflow&focus=dividendi'}>
                   <Settings className="h-4 w-4" />
                 </Link>
               </Button>

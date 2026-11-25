@@ -7,7 +7,7 @@
  * capital with the two «Usa» shortcuts and the read-only pension row, the horizon, the
  * withdrawal, the simulation count) and the Allocazione (seven class weights with their sum, what
  * stays outside the simulation, and the DECLARATION of the market assumptions: they are edited in
- * Impostazioni › Simulazioni, never here — The Declaration-Tile Rule). One action row: Prova (the run is a try-out, never saved: «Salva il piano» is the plan block's), and
+ * Impostazioni › Avanzate, never here — The Declaration-Tile Rule). One action row: Prova (the run is a try-out, never saved: «Salva il piano» is the plan block's), and
  * the footer that says whether the figures above still match what is typed (`describeParametriFooter`).
  *
  * The form is owned by the tab as strings (`MonteCarloForm`), the way FireParametri's is: a
@@ -94,7 +94,7 @@ interface ParametriTileProps {
 
 const CONTROL_CLASS = 'mt-1 h-9 font-mono tabular-nums transition-[border-color,background-color,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-primary/25 motion-reduce:transition-none';
 
-const MARKET_SETTINGS_HREF = '/dashboard/settings?tab=simulazioni';
+const MARKET_SETTINGS_HREF = '/dashboard/settings?tab=avanzate';
 
 export function ParametriTile({
   reading,
@@ -230,7 +230,7 @@ export function ParametriTile({
             onImportHoldings={onImportHoldings}
           />
 
-          {/* Market assumptions: DECLARED here, edited in Impostazioni › Simulazioni (The Declaration-Tile Rule). */}
+          {/* Market assumptions: DECLARED here, edited in Impostazioni › Avanzate (The Declaration-Tile Rule). */}
           <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted p-3.5">
             <p className={TILE_SUB_EYEBROW_CLASS}>Ipotesi di mercato</p>
             <NarrativeText segments={marketDeclaration} className="text-[12px] leading-[1.5] text-muted-foreground" figureClassName="font-medium text-foreground" />

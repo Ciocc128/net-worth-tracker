@@ -1,8 +1,8 @@
 /**
- * The settings draft (lib/utils/settingsDraft.ts) — the ONE reducer behind Impostazioni's six
- * tabs since 2026-10-08.
+ * The settings draft (lib/utils/settingsDraft.ts) — the ONE reducer behind Impostazioni's tabs since
+ * 2026-10-08; five of them since RU9 (2026-11-26): account, funzioni, cashflow, investimenti, avanzate.
  *
- * PERCHÉ ESISTE: the page used to hold 70 `useState`s; splitting it into six views means every
+ * PERCHÉ ESISTE: the page used to hold 70 `useState`s; splitting it into views means every
  * field now travels slice → view → patch → compose, and a field that one of those steps forgets
  * is written as a default with a green toast — the bug of 2026-09-25, when «Salva» dropped the
  * allocation sub-targets. So the identity `composeSettingsDocument(sliceSettings(doc), doc)
@@ -20,9 +20,13 @@
  * to `targetsDraft.test.ts`. «Salva» writes NO `targets` (criterion 11 of doc/riordino-ui/ondata-2.md
  * § 10): the merge branch of `setSettings`, so a stale page cannot bring old targets back (M1).
  *
- * REGRESSION GUARD, seen red (2026-10-08): `dividendCashAssetId` removed from the dividendi slice
- * and from `composeSettingsDocument` (the identity on both fixtures); `spendingRolesEnabled`
- * removed from the spese slice (idem).
+ * RU9 (2026-11-26): the slices follow «whose adjustment it is» (doc/riordino-ui/ondata-2.md § 5.2.1); the
+ * read-only declarations are gone from the draft, the old `?tab=` ids are aliases (`resolveRequestedTab`),
+ * and every dot lands on the tab that edits the field (criterion 14).
+ *
+ * REGRESSION GUARD, seen red (2026-10-08): `dividendCashAssetId` removed from its slice and from
+ * `composeSettingsDocument` (the identity on both fixtures); `spendingRolesEnabled` removed from its
+ * slice (idem).
  */
 import { describe, expect, it, vi } from 'vitest';
 
@@ -36,7 +40,10 @@ import {
   createSettingsDraft,
   isSettingsTabId,
   isSliceDirty,
-  resolveSimulazioniGold,
+  resolveAvanzateGold,
+  resolveRequestedTab,
+  SETTINGS_TAB_IDS,
+  STRATEGIA_TARGETS_HREF,
   settingsDraftReducer,
   sliceSettings,
   type SettingsSlices,
@@ -54,7 +61,7 @@ import {
 /**
  * Every key a CLEAN «Salva» hands to `setSettings` — the write surface of the page, as a checklist.
  * Not here, on purpose: `userAge` (its one editor is FIRE › Il mio piano), `monteCarloMarket` /
- * `coastFireTaxBrackets` (written only when the Simulazioni tab holds an edit), and since RU8 the
+ * `coastFireTaxBrackets` (written only when the Avanzate tab holds an edit), and since RU8 the
  * targets' fields — `targets`, `autoCalculateEquityBonds`, `goalDrivenAllocationEnabled` (Strategia's;
  * the last written here only to switch it off with the goals).
  */
@@ -75,7 +82,7 @@ const WRITTEN_KEYS = [
 function contextOf(saved: SettingsSlices, slices: SettingsSlices = saved) {
   return {
     saved,
-    effectiveGoldSubCategory: resolveSimulazioniGold(slices.simulazioni, FULL_PAGE_SETTINGS.targets, undefined).effectiveGoldSubCategory,
+    effectiveGoldSubCategory: resolveAvanzateGold(slices.avanzate, FULL_PAGE_SETTINGS.targets, undefined).effectiveGoldSubCategory,
   };
 }
 
@@ -115,14 +122,14 @@ describe('sliceSettings ∘ composeSettingsDocument — the identity', () => {
 
     const {
       targets, familyMembers, respectPensionLockInFire, pensionInpsRetirementAge, pensionRitaLongUnemployment,
-      // Written only by their own tab (Simulazioni) or by FIRE; the S1 describe below pins them.
+      // Written only by their own tab (Avanzate) or by FIRE; the S1 describe below pins them.
       monteCarloMarket, coastFireTaxBrackets, coastFireCustomExpenses,
       // Strategia's since RU8.
       autoCalculateEquityBonds, goalDrivenAllocationEnabled, ...owned
     } = STORED_SETTINGS as AssetAllocationSettings;
     void [targets, monteCarloMarket, coastFireTaxBrackets, coastFireCustomExpenses, autoCalculateEquityBonds, goalDrivenAllocationEnabled];
     expect(document).toMatchObject(owned);
-    // The three RITA fields are FIRE's: declared on the Parametri del piano tile, never written here.
+    // The three RITA fields are FIRE's: Impostazioni no longer shows them, and never writes them.
     expect(document).not.toHaveProperty('respectPensionLockInFire');
     expect(document).not.toHaveProperty('pensionInpsRetirementAge');
     expect(document).not.toHaveProperty('pensionRitaLongUnemployment');
@@ -134,18 +141,24 @@ describe('sliceSettings ∘ composeSettingsDocument — the identity', () => {
   it('seeds a brand-new account from the defaults', () => {
     const slices = sliceSettings(null);
 
-    expect(slices.generale.riskFreeRate).toBeUndefined();
-    expect(slices.generale.stampDutyRate).toBe(0.2);
-    expect(slices.generale.cashflowHistoryStartYear).toBe(2025);
-    expect(slices.spese.defaultDebitCashAssetId).toBe('__none__');
-    expect(slices.dividendi.dividendIncomeCategoryId).toBe('');
+    expect(slices.investimenti.riskFreeRate).toBeUndefined();
+    expect(slices.investimenti.stampDutyRate).toBe(0.2);
+    expect(slices.cashflow.cashflowHistoryStartYear).toBe(2025);
+    expect(slices.cashflow.defaultDebitCashAssetId).toBe('__none__');
+    expect(slices.cashflow.dividendIncomeCategoryId).toBe('');
   });
 
   it('writes an emptied select or input as undefined, never as its sentinel', () => {
     const slices = sliceSettings(FULL_PAGE_SETTINGS);
-    slices.dividendi = { dividendIncomeCategoryId: '', dividendIncomeSubCategoryId: '', dividendCashAssetId: '__none__' };
-    slices.spese = { ...slices.spese, defaultDebitCashAssetId: '__none__', transferFeeCategoryId: '' };
-    slices.generale = { ...slices.generale, pensionReturnStartMonth: '' };
+    slices.cashflow = {
+      ...slices.cashflow,
+      dividendIncomeCategoryId: '',
+      dividendIncomeSubCategoryId: '',
+      dividendCashAssetId: '__none__',
+      defaultDebitCashAssetId: '__none__',
+      transferFeeCategoryId: '',
+    };
+    slices.investimenti = { ...slices.investimenti, pensionReturnStartMonth: '' };
 
     const { document } = composeOk(slices, FULL_PAGE_SETTINGS, sliceSettings(FULL_PAGE_SETTINGS));
 
@@ -157,7 +170,7 @@ describe('sliceSettings ∘ composeSettingsDocument — the identity', () => {
     // The age is never written from here (D-T5): a cleared field cannot clear FIRE › Il mio piano's age either.
     expect('userAge' in document).toBe(false);
     // Present-but-undefined: the service's `'x' in settings` guard needs the KEY to clear the field.
-    expect('riskFreeRate' in composeOk({ ...slices, generale: { ...slices.generale, riskFreeRate: undefined } }).document).toBe(true);
+    expect('riskFreeRate' in composeOk({ ...slices, investimenti: { ...slices.investimenti, riskFreeRate: undefined } }).document).toBe(true);
   });
 });
 
@@ -166,7 +179,7 @@ describe('the goals and the goal-driven targets (RU8)', () => {
 
   it('switching the goals off writes the goal-driven targets off with them', () => {
     // Criterion 13 of doc/riordino-ui/ondata-2.md § 10: goals on → off with goal-driven saved true.
-    const draft = { ...saved, generale: { ...saved.generale, goalBasedInvestingEnabled: false } };
+    const draft = { ...saved, funzioni: { ...saved.funzioni, goalBasedInvestingEnabled: false } };
     const { document } = composeOk(draft, FULL_PAGE_SETTINGS, saved);
     expect(document.goalBasedInvestingEnabled).toBe(false);
     expect(document.goalDrivenAllocationEnabled).toBe(false);
@@ -174,20 +187,53 @@ describe('the goals and the goal-driven targets (RU8)', () => {
 
   it('switching them on, or leaving them as they were, never touches the source Strategia chose', () => {
     const off = sliceSettings({ ...FULL_PAGE_SETTINGS, goalBasedInvestingEnabled: false });
-    const on = { ...off, generale: { ...off.generale, goalBasedInvestingEnabled: true } };
+    const on = { ...off, funzioni: { ...off.funzioni, goalBasedInvestingEnabled: true } };
     expect('goalDrivenAllocationEnabled' in composeOk(on, FULL_PAGE_SETTINGS, off).document).toBe(false);
     expect('goalDrivenAllocationEnabled' in composeOk(saved, FULL_PAGE_SETTINGS, saved).document).toBe(false);
   });
 
-  it('the risk-free rate is Preferenze’s now: its edit marks that tab', () => {
-    const draft = settingsDraftReducer({ slices: saved, saved, loaded: true }, { type: 'generale/set', patch: { riskFreeRate: 4 } }).slices;
-    expect(isSliceDirty('generale', draft, saved)).toBe(true);
+  it('the risk-free rate is Investimenti’s: its edit marks that tab and no other (criterion 14)', () => {
+    const draft = settingsDraftReducer({ slices: saved, saved, loaded: true }, { type: 'investimenti/set', patch: { riskFreeRate: 4 } }).slices;
+    expect(isSliceDirty('investimenti', draft, saved)).toBe(true);
+    for (const tab of SETTINGS_TAB_IDS.filter((id) => id !== 'investimenti')) expect(isSliceDirty(tab, draft, saved), tab).toBe(false);
     expect(composeOk(draft, FULL_PAGE_SETTINGS, saved).document.riskFreeRate).toBe(4);
   });
+});
 
-  it('the old ?tab=allocazione is no tab of the page (it is redirected to Strategia)', () => {
-    expect(isSettingsTabId('allocazione')).toBe(false);
-    expect(isSettingsTabId('generale')).toBe(true);
+describe('the address of a tab (D-RU21)', () => {
+  it('knows five tabs, Account first, and nothing of the old seven', () => {
+    expect([...SETTINGS_TAB_IDS]).toEqual(['account', 'funzioni', 'cashflow', 'investimenti', 'avanzate']);
+    for (const old of ['generale', 'spese', 'dividendi', 'simulazioni', 'condivisione', 'aspetto', 'allocazione']) {
+      expect(isSettingsTabId(old), old).toBe(false);
+    }
+  });
+
+  it('opens Account with no `?tab=` or an unknown one', () => {
+    expect(resolveRequestedTab(null)).toEqual({ kind: 'tab', tab: 'account', canonical: false, focusDividendi: false });
+    expect(resolveRequestedTab('boh')).toMatchObject({ kind: 'tab', tab: 'account', canonical: false });
+  });
+
+  it('keeps a current id as it is', () => {
+    expect(resolveRequestedTab('investimenti')).toEqual({ kind: 'tab', tab: 'investimenti', canonical: true, focusDividendi: false });
+  });
+
+  it('translates the old ids, and Dividendi asks for the focus on its tile', () => {
+    const tabOf = (id: string) => {
+      const requested = resolveRequestedTab(id);
+      return requested.kind === 'tab' ? requested.tab : requested.href;
+    };
+    expect(tabOf('generale')).toBe('account');
+    expect(tabOf('condivisione')).toBe('account');
+    expect(tabOf('aspetto')).toBe('account');
+    expect(tabOf('spese')).toBe('cashflow');
+    expect(tabOf('dividendi')).toBe('cashflow');
+    expect(tabOf('simulazioni')).toBe('avanzate');
+    expect(resolveRequestedTab('dividendi')).toMatchObject({ canonical: false, focusDividendi: true });
+    expect(resolveRequestedTab('spese')).toMatchObject({ canonical: false, focusDividendi: false });
+  });
+
+  it('sends `allocazione` to Allocazione › Strategia, not to a tab', () => {
+    expect(resolveRequestedTab('allocazione')).toEqual({ kind: 'redirect', href: STRATEGIA_TARGETS_HREF });
   });
 });
 
@@ -195,31 +241,30 @@ describe('isSliceDirty — the dot on the tab', () => {
   const saved = sliceSettings(FULL_PAGE_SETTINGS);
 
   it('is false on the slices as read', () => {
-    for (const tab of ['generale', 'spese', 'dividendi', 'simulazioni'] as const) {
+    for (const tab of SETTINGS_TAB_IDS) {
       expect(isSliceDirty(tab, saved, saved), tab).toBe(false);
     }
   });
 
   it('marks ONLY the tab that edits the field', () => {
-    const draft = settingsDraftReducer({ slices: saved, saved, loaded: true }, { type: 'generale/set', patch: { costCentersEnabled: false } }).slices;
+    const draft = settingsDraftReducer({ slices: saved, saved, loaded: true }, { type: 'funzioni/set', patch: { costCentersEnabled: false } }).slices;
 
-    expect(isSliceDirty('generale', draft, saved)).toBe(true);
-    expect(isSliceDirty('spese', draft, saved)).toBe(false);
-    expect(isSliceDirty('dividendi', draft, saved)).toBe(false);
-    expect(isSliceDirty('simulazioni', draft, saved)).toBe(false);
+    expect(isSliceDirty('funzioni', draft, saved)).toBe(true);
+    for (const tab of SETTINGS_TAB_IDS.filter((id) => id !== 'funzioni')) expect(isSliceDirty(tab, draft, saved), tab).toBe(false);
   });
 
   it('ignores an empty member row and a reordered list', () => {
     const draft: SettingsSlices = {
       ...saved,
-      generale: {
-        ...saved.generale,
-        familyMembers: [...saved.generale.familyMembers, { id: 'new', name: '', grossAnnualIncome: '', isFirstEmploymentPost2007: false, firstEmploymentYear: '' }],
-        laborIncomeCategoryIds: [...saved.generale.laborIncomeCategoryIds].reverse(),
+      account: {
+        ...saved.account,
+        familyMembers: [...saved.account.familyMembers, { id: 'new', name: '', grossAnnualIncome: '', isFirstEmploymentPost2007: false, firstEmploymentYear: '' }],
       },
+      cashflow: { ...saved.cashflow, laborIncomeCategoryIds: [...saved.cashflow.laborIncomeCategoryIds].reverse() },
     };
 
-    expect(isSliceDirty('generale', draft, saved)).toBe(false);
+    expect(isSliceDirty('account', draft, saved)).toBe(false);
+    expect(isSliceDirty('cashflow', draft, saved)).toBe(false);
   });
 });
 
@@ -227,7 +272,7 @@ describe('settingsDraftReducer', () => {
   it('starts unloaded, with nothing dirty', () => {
     const draft = createSettingsDraft();
     expect(draft.loaded).toBe(false);
-    expect(isSliceDirty('generale', draft.slices, draft.saved)).toBe(false);
+    expect(isSliceDirty('account', draft.slices, draft.saved)).toBe(false);
   });
 
   it('reset reads the document into both sides', () => {
@@ -235,13 +280,14 @@ describe('settingsDraftReducer', () => {
 
     expect(draft.loaded).toBe(true);
     expect(draft.slices).toBe(draft.saved);
-    expect(draft.slices.generale.riskFreeRate).toBe(3.25);
+    expect(draft.slices.investimenti.riskFreeRate).toBe(3.25);
   });
 
   it('an edit keeps the identity of the slices it did not touch', () => {
     const loaded = settingsDraftReducer(createSettingsDraft(), { type: 'reset', document: FULL_PAGE_SETTINGS });
-    const edited = settingsDraftReducer(loaded, { type: 'spese/set', patch: { spendingRolesEnabled: false } });
-    expect(edited.slices.generale).toBe(loaded.slices.generale);
+    const edited = settingsDraftReducer(loaded, { type: 'funzioni/set', patch: { spendingRolesEnabled: false } });
+    expect(edited.slices.investimenti).toBe(loaded.slices.investimenti);
+    expect(edited.slices.cashflow).toBe(loaded.slices.cashflow);
   });
 });
 
@@ -279,56 +325,56 @@ describe('«Salva» keeps the fork’s fields (gate S1)', () => {
     const saved = loadedFrom(STORED_SETTINGS as AssetAllocationSettings);
     const edited = settingsDraftReducer(
       { slices: saved, saved, loaded: true },
-      { type: 'generale/set', patch: { costCentersEnabled: false } }
+      { type: 'funzioni/set', patch: { costCentersEnabled: false } }
     );
     const result = composeOk(edited.slices, STORED_SETTINGS as AssetAllocationSettings, saved);
 
     expect('monteCarloMarket' in result.document).toBe(false);
     expect('coastFireTaxBrackets' in result.document).toBe(false);
     expect('userAge' in result.document).toBe(false);
-    expect(result.simulazioni).toBeNull();
+    expect(result.avanzate).toBeNull();
   });
 
   it('reads the market and the brackets from the stored document, without altering them', () => {
     const slices = loadedFrom(STORED_SETTINGS as AssetAllocationSettings);
 
-    expect(slices.simulazioni.marketOrigin).toBe('saved');
-    expect(slices.simulazioni.market.overrides.inflationRate).toBe(2.5);
-    expect(slices.simulazioni.market.overrides.classes.equity).toMatchObject({ cagr: 6.5, uncertainty: 3 });
-    expect(slices.simulazioni.market.goldSubCategory).toBeNull();
-    expect(slices.simulazioni.market.leverageSpread).toBe(3);
-    expect(slices.simulazioni.taxBrackets.map((bracket) => bracket.rate)).toEqual(['23', '43']);
-    expect(isSliceDirty('simulazioni', slices, slices)).toBe(false);
+    expect(slices.avanzate.marketOrigin).toBe('saved');
+    expect(slices.avanzate.market.overrides.inflationRate).toBe(2.5);
+    expect(slices.avanzate.market.overrides.classes.equity).toMatchObject({ cagr: 6.5, uncertainty: 3 });
+    expect(slices.avanzate.market.goldSubCategory).toBeNull();
+    expect(slices.avanzate.market.leverageSpread).toBe(3);
+    expect(slices.avanzate.taxBrackets.map((bracket) => bracket.rate)).toEqual(['23', '43']);
+    expect(isSliceDirty('avanzate', slices, slices)).toBe(false);
   });
 
-  it('writes the market when — and only when — the Simulazioni tab holds an edit', () => {
+  it('writes the market when — and only when — the Avanzate tab holds an edit', () => {
     const saved = loadedFrom(STORED_SETTINGS as AssetAllocationSettings);
     const edited = settingsDraftReducer(
       { slices: saved, saved, loaded: true },
       {
-        type: 'simulazioni/set',
-        patch: { market: { ...saved.simulazioni.market, overrides: { ...saved.simulazioni.market.overrides, inflationRate: 3 } } },
+        type: 'avanzate/set',
+        patch: { market: { ...saved.avanzate.market, overrides: { ...saved.avanzate.market.overrides, inflationRate: 3 } } },
       }
     );
 
-    expect(isSliceDirty('simulazioni', edited.slices, saved)).toBe(true);
-    expect(isSliceDirty('generale', edited.slices, saved)).toBe(false);
+    expect(isSliceDirty('avanzate', edited.slices, saved)).toBe(true);
+    expect(isSliceDirty('investimenti', edited.slices, saved)).toBe(false);
     const result = composeOk(edited.slices, STORED_SETTINGS as AssetAllocationSettings, saved);
     expect(result.document.monteCarloMarket).toMatchObject({ version: 2, inflationRate: 3, goldSubCategory: null, leverageSpread: 3 });
     // What the reader had typed beside the edit travels with it.
     expect((result.document.monteCarloMarket as { classes?: Record<string, unknown> } | undefined)?.classes?.equity).toMatchObject({ cagr: 6.5, uncertainty: 3 });
     expect('coastFireTaxBrackets' in result.document).toBe(false);
     // The slice as written is the new baseline: clean again, the market recorded as saved.
-    expect(result.simulazioni?.marketOrigin).toBe('saved');
-    const after = settingsDraftReducer(edited, { type: 'saved', simulazioni: result.simulazioni });
-    expect(isSliceDirty('simulazioni', after.slices, after.saved)).toBe(false);
+    expect(result.avanzate?.marketOrigin).toBe('saved');
+    const after = settingsDraftReducer(edited, { type: 'saved', avanzate: result.avanzate });
+    expect(isSliceDirty('avanzate', after.slices, after.saved)).toBe(false);
   });
 
   it('writes the brackets only when they were edited', () => {
     const saved = loadedFrom(STORED_SETTINGS as AssetAllocationSettings);
     const edited = settingsDraftReducer(
       { slices: saved, saved, loaded: true },
-      { type: 'simulazioni/set', patch: { taxBrackets: saved.simulazioni.taxBrackets.map((bracket, index) => (index === 0 ? { ...bracket, rate: '24' } : bracket)) } }
+      { type: 'avanzate/set', patch: { taxBrackets: saved.avanzate.taxBrackets.map((bracket, index) => (index === 0 ? { ...bracket, rate: '24' } : bracket)) } }
     );
     const result = composeOk(edited.slices, STORED_SETTINGS as AssetAllocationSettings, saved);
 
@@ -344,11 +390,11 @@ describe('«Salva» keeps the fork’s fields (gate S1)', () => {
     } as unknown as AssetAllocationSettings;
     const saved = loadedFrom(legacy);
 
-    expect(saved.simulazioni.marketOrigin).toBe('migrated');
-    expect(isSliceDirty('simulazioni', saved, saved)).toBe(true);
+    expect(saved.avanzate.marketOrigin).toBe('migrated');
+    expect(isSliceDirty('avanzate', saved, saved)).toBe(true);
     const result = composeOk(saved, legacy, saved);
     expect(result.document.monteCarloMarket).toMatchObject({ version: 2 });
-    expect(result.simulazioni?.marketOrigin).toBe('saved');
+    expect(result.avanzate?.marketOrigin).toBe('saved');
   });
 
   it('refuses a figure out of range and names it, before any write', () => {
@@ -356,20 +402,20 @@ describe('«Salva» keeps the fork’s fields (gate S1)', () => {
     const draft = settingsDraftReducer(
       { slices: saved, saved, loaded: true },
       {
-        type: 'simulazioni/set',
-        patch: { market: { ...saved.simulazioni.market, overrides: { ...saved.simulazioni.market.overrides, inflationRate: 80 } } },
+        type: 'avanzate/set',
+        patch: { market: { ...saved.avanzate.market, overrides: { ...saved.avanzate.market.overrides, inflationRate: 80 } } },
       }
     );
     const result = composeSettingsDocument(draft.slices, null, contextOf(saved, draft.slices));
 
     expect(result.ok).toBe(false);
-    if (result.ok || result.tab !== 'simulazioni') throw new Error('expected a market problem');
+    if (result.ok || result.tab !== 'avanzate') throw new Error('expected a market problem');
     expect(result.marketProblems.length).toBeGreaterThan(0);
   });
 
   it('keeps the stored market identical when a clean save reads it back', () => {
     const slices = loadedFrom(STORED_SETTINGS as AssetAllocationSettings);
-    const { market } = slices.simulazioni;
+    const { market } = slices.avanzate;
     expect(market.correlations).toEqual(STORED_MONTE_CARLO_MARKET.correlations);
   });
 });

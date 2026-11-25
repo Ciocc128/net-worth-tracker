@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * Impostazioni › Aspetto — light/dark/system beside the seven colour themes.
+ * Impostazioni › Account — the first two tiles: light/dark/system beside the colour themes (the
+ * old Aspetto tab, since RU9). Two grid cells, no panel of their own: AccountTab lays them first.
  *
  * No slice: both choices save themselves (the mode through next-themes, per device; the theme
  * through `ColorThemeContext`, on the account) outside the page's «Salva», and mark no tab
@@ -25,7 +26,6 @@ import {
   type TopBandOption,
   type TopBandTheme,
 } from '@/lib/constants/topBand';
-import { SettingsTabPanel } from './shared';
 import { NarrativeText } from '@/components/ui/narrative-text';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
@@ -168,7 +168,7 @@ function BandPicker({ theme, band, onPick }: { theme: TopBandTheme; band: TopBan
   );
 }
 
-export function AspettoTab() {
+export function AppearanceTiles() {
   const { colorTheme, setColorTheme, topBand, setTopBand } = useColorTheme();
   // The theme whose band popover is open: it opens when a theme with a band is picked (or tapped again).
   const [bandFor, setBandFor] = useState<TopBandTheme | null>(null);
@@ -179,9 +179,9 @@ export function AspettoTab() {
   const activeSwatch = COLOR_THEME_SWATCHES.find((swatch) => swatch.id === colorTheme) ?? COLOR_THEME_SWATCHES[0];
 
   return (
-    <SettingsTabPanel tab="aspetto" label="Aspetto">
+    <>
       {/* Modalità — next-themes, per device, with the circle view transition */}
-      <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4')}>
+      <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
         <Tile eyebrow="Modalità" aside="questo dispositivo" reading={describeThemeMode(resolvedThemeMode)}>
           <div className="mt-3.5 flex rounded-lg bg-muted p-1" role="group" aria-label="Modalità del tema">
             {THEME_MODES.map(({ value, label, Icon }) => {
@@ -211,7 +211,7 @@ export function AspettoTab() {
       </div>
 
       {/* Tema colori — the seven palettes, synced on the account */}
-      <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-8')}>
+      <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-6')}>
         <Tile eyebrow="Tema colori" aside="tutti i dispositivi" reading={describeColorTheme(activeSwatch.name)}>
           <div className="mt-3.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             {COLOR_THEME_SWATCHES.map((swatch, index) => {
@@ -270,7 +270,6 @@ export function AspettoTab() {
           </div>
         </Tile>
       </div>
-
-    </SettingsTabPanel>
+    </>
   );
 }
