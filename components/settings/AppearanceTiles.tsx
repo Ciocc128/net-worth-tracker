@@ -16,7 +16,7 @@ import { useColorTheme, type ColorTheme } from '@/contexts/ColorThemeContext';
 import { Tile, TILE_CELL_CLASS } from '@/components/ui/tile';
 import { cn } from '@/lib/utils';
 import { applyThemeWithTransition } from '@/lib/utils/themeTransition';
-import { describeColorTheme, describeThemeMode, describeTopBand, type ThemeMode } from '@/lib/utils/settingsNarrative';
+import { describeAppearance, describeTopBand, type ThemeMode } from '@/lib/utils/settingsNarrative';
 import {
   TOP_BAND_LABELS,
   TOP_BAND_NONE,
@@ -168,6 +168,32 @@ function BandPicker({ theme, band, onPick }: { theme: TopBandTheme; band: TopBan
   );
 }
 
+/** The Chiaro · Scuro · Sistema pill — the mode is per device (next-themes), with the circle view transition. */
+function ModePill({ className, mode, setTheme }: { className?: string; mode: ThemeMode | undefined; setTheme: (value: string) => void }) {
+  return (
+    <div className={cn('w-full rounded-lg bg-muted p-1 tablet:w-auto', className)} role="group" aria-label="Modalità del tema">
+      {THEME_MODES.map(({ value, label, Icon }) => {
+        const isActive = mode === value;
+        return (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={isActive}
+            onClick={(e) => applyThemeWithTransition(value, e, setTheme)}
+            className={cn(
+              'flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md text-[13px] font-medium transition-colors tablet:flex-none tablet:px-3.5',
+              isActive ? 'bg-segment-active text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Icon className="h-4 w-4" aria-hidden="true" />
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function AppearanceTiles() {
   const { colorTheme, setColorTheme, topBand, setTopBand } = useColorTheme();
   // The theme whose band popover is open: it opens when a theme with a band is picked (or tapped again).
@@ -180,40 +206,16 @@ export function AppearanceTiles() {
 
   return (
     <>
-      {/* Modalità — next-themes, per device, with the circle view transition */}
-      <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
-        <Tile eyebrow="Modalità" aside="questo dispositivo" reading={describeThemeMode(resolvedThemeMode)}>
-          <div className="mt-3.5 flex rounded-lg bg-muted p-1" role="group" aria-label="Modalità del tema">
-            {THEME_MODES.map(({ value, label, Icon }) => {
-              const isActive = resolvedThemeMode === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={isActive}
-                  onClick={(e) => applyThemeWithTransition(value, e, setTheme)}
-                  className={cn(
-                    'flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md text-[13px] font-medium transition-colors',
-                    isActive ? 'bg-segment-active text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <Icon className="h-4 w-4" aria-hidden="true" />
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-          <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-            Il passaggio anima con la transizione circolare dal punto del clic; il selettore resta anche nel menu
-            account della sidebar.
-          </div>
-        </Tile>
-      </div>
-
-      {/* Tema colori — the seven palettes, synced on the account */}
-      <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-6')}>
-        <Tile eyebrow="Tema colori" aside="tutti i dispositivi" reading={describeColorTheme(activeSwatch.name)}>
-          <div className="mt-3.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+      {/* Aspetto — the mode (next-themes, per device, with the circle view transition) and the palette (synced on the account) in ONE tile */}
+      <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
+        <Tile
+          eyebrow="Aspetto"
+          aside={<ModePill className="hidden tablet:flex" mode={resolvedThemeMode} setTheme={setTheme} />}
+          reading={describeAppearance(resolvedThemeMode, activeSwatch.name)}
+        >
+          {/* Below the tablet the pill has no room beside the eyebrow: it takes the tile's full width under the reading */}
+          <ModePill className="mt-3.5 flex tablet:hidden" mode={resolvedThemeMode} setTheme={setTheme} />
+          <div className="mb-3 mt-3.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4 desktop:grid-cols-8">
             {COLOR_THEME_SWATCHES.map((swatch, index) => {
               const isActive = colorTheme === swatch.id;
               const bandTheme = isTopBandTheme(swatch.id) ? swatch.id : null;
@@ -266,7 +268,7 @@ export function AppearanceTiles() {
             })}
           </div>
           <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-            La scelta si salva da sola sull&apos;account: nessun Salva necessario.
+            Il colore si salva da solo sull&apos;account; la modalità vale solo su questo browser e il passaggio anima dal punto del clic. Nessun Salva necessario.
           </div>
         </Tile>
       </div>

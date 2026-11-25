@@ -25,7 +25,7 @@ import {
   describeHedgeReading,
   describeMonteCarloCorrelations,
   describeStrategiaTargets,
-  describeColorTheme,
+  describeAppearance,
   describeTopBand,
   describeCosts,
   describeDefaultAccounts,
@@ -43,7 +43,6 @@ import {
   describePerformanceBase,
   describeSharing,
   describeTargetProblem,
-  describeThemeMode,
   describeTransferFeeCategory,
   describeSpendingRolesSetting,
   describeUnsavedChanges,
@@ -710,27 +709,15 @@ describe('describeSharing', () => {
   });
 });
 
-describe('describeThemeMode', () => {
-  it('reads the explicit modes', () => {
-    expect(plain(describeThemeMode('dark'))).toBe(
-      'Tema scuro su questo dispositivo; «Sistema» segue le impostazioni del dispositivo.'
-    );
-    expect(plain(describeThemeMode('light'))).toBe(
-      'Tema chiaro su questo dispositivo; «Sistema» segue le impostazioni del dispositivo.'
-    );
-    expect(plain(describeThemeMode('system'))).toBe(
-      'Il tema segue il dispositivo; la scelta vale solo su questo browser.'
-    );
+describe('describeAppearance', () => {
+  it('says what the mode follows and that the palette is on the account', () => {
+    expect(plain(describeAppearance('system', 'Solar Dusk'))).toBe('Il tema segue il dispositivo; Solar Dusk su tutti i dispositivi.');
+    expect(plain(describeAppearance('dark', 'Graphite'))).toBe('Sempre scuro su questo dispositivo; Graphite su tutti i dispositivi.');
+    expect(plain(describeAppearance('light', 'Graphite'))).toBe('Sempre chiaro su questo dispositivo; Graphite su tutti i dispositivi.');
   });
 
-  it('returns null before hydration resolves the theme', () => {
-    expect(describeThemeMode(undefined)).toBeNull();
-  });
-});
-
-describe('describeColorTheme', () => {
-  it('names the active theme and its sync scope', () => {
-    expect(plain(describeColorTheme('Solar Dusk'))).toBe('Solar Dusk attivo, sincronizzato su tutti i dispositivi.');
+  it('names the palette alone before hydration resolves the mode', () => {
+    expect(plain(describeAppearance(undefined, 'Lime Frost'))).toBe('Lime Frost su tutti i dispositivi.');
   });
 });
 
