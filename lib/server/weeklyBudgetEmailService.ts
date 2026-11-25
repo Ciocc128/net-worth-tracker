@@ -1,3 +1,4 @@
+import 'server-only';
 /**
  * Budget status email (sent on Sundays).
  *

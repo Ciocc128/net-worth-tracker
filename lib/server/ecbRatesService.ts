@@ -1,3 +1,4 @@
+import 'server-only';
 import { adminDb } from '@/lib/firebase/admin';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { EcbMonthlyRate } from '@/types/benchmarks';

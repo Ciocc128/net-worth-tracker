@@ -12,6 +12,8 @@ const { accountAccessDocGetMock, collectionMock, docMock } = vi.hoisted(() => {
   return { accountAccessDocGetMock, collectionMock, docMock };
 });
 
+// The server-only guard uses a Next.js internal; stub it so the import succeeds in Vitest.
+vi.mock('server-only', () => ({}));
 vi.mock('@/lib/firebase/admin', () => ({
   adminAuth: {},
   adminDb: { collection: collectionMock },

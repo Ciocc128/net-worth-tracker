@@ -8,6 +8,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Asset } from '@/types/assets';
 
+// The server-only guard uses a Next.js internal; stub it so the import succeeds in Vitest.
+vi.mock('server-only', () => ({}));
 vi.mock('@/lib/firebase/config', () => ({ db: {} }));
 vi.mock('@/lib/utils/authFetch', () => ({ authenticatedFetch: vi.fn() }));
 vi.mock('@/lib/services/dashboardOverviewInvalidation', () => ({

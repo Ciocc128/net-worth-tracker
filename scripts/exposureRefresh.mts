@@ -3,7 +3,7 @@
  * (`lib/constants/instrumentProfiles.ts`). `npm run exposure:refresh`.
  *
  * Four things, in order:
- *  1. Read the real portfolio (Firebase Admin SDK, `giorgiotrentadue@gmail.com`) and flag any
+ *  1. Read the real portfolio (Firebase Admin SDK, the account passed as argument) and flag any
  *     ALLOCABLE instrument with NO `INSTRUMENT_PROFILES` entry and no obvious stock exemption —
  *     the mechanism that stops a new purchase from going unnoticed (the engine already reads an
  *     uncurated ticker as `nonLetta`, never silently zero; this is the LOUD, proactive version of
@@ -26,6 +26,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { resolveTargetEmail } from './lib/targetEmail';
 
 function loadEnvLocal(): void {
   const envPath = path.resolve(process.cwd(), '.env.local');
@@ -38,7 +39,8 @@ function loadEnvLocal(): void {
 }
 loadEnvLocal();
 
-const TARGET_EMAIL = 'giorgiotrentadue@gmail.com';
+// The account comes from the command line, never from the repo.
+const TARGET_EMAIL = resolveTargetEmail(process.argv.slice(2), 'exposure:refresh');
 
 type DownloadMode = 'auto' | 'manual';
 
