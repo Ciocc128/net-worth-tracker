@@ -967,7 +967,7 @@ export function ExpenseTrackingTab({
   // portrait FAB in the bottom nav is the only «add» there), 44px tall — the one add affordance of
   // a tablet in landscape, a touch target (2026-10-16).
   const axis = (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center justify-center gap-2 tablet:justify-start">
       <PeriodPicker value={period} onChange={handlePeriodChange} availableYears={availableYears} className="shrink-0 max-w-[190px]" />
       <Button
         size="sm"

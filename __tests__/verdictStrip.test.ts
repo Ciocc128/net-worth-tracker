@@ -29,6 +29,14 @@ const cell = (overrides: Partial<StripFigure>): StripFigure => ({
   ...overrides,
 });
 
+describe('formatStripFigure — a long currency cell drops its cents', () => {
+  it('should print «23.038 €» for 23038 with two decimals, keeping the cents when the text fits', () => {
+    expect(text(cell({ format: 'currency', value: 23_038, decimals: 2 }))).toBe('23.038 €');
+    expect(text(cell({ format: 'currency', value: 1232.56, decimals: 2 }))).toBe('1232,56 €');
+    expect(text(cell({ format: 'signed-currency', value: -23_038.4, decimals: 2 }))).toBe('−23.038 €');
+  });
+});
+
 describe('formatStripFigure — the nine formats', () => {
   it('should print a signed amount with «+» and the typographic minus', () => {
     expect(text(cell({ format: 'signed-currency', value: 41_300 }))).toBe('+41.300 €');
@@ -64,7 +72,9 @@ describe('formatStripFigure — the nine formats', () => {
   });
 
   it('should take the decimals the tile prints with when the selector passes them', () => {
-    expect(text(cell({ format: 'signed-currency', value: 1234.5, decimals: 2 }))).toBe('+1234,50 €');
+    expect(text(cell({ format: 'signed-currency', value: 12.5, decimals: 2 }))).toBe('+12,50 €');
+    // 10 characters with the cents, so the cell drops them (2026-11-25).
+    expect(text(cell({ format: 'signed-currency', value: 1234.5, decimals: 2 }))).toBe('+1235 €');
     expect(text(cell({ format: 'percent', value: 12.345, decimals: 2 }))).toBe('12,35%');
     expect(text(cell({ format: 'ratio', value: 2, decimals: 0 }))).toBe('2');
     expect(text(cell({ format: 'points', value: 1.5, decimals: 2 }))).toBe('+1,50 pt');
