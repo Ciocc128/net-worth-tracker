@@ -1,5 +1,5 @@
 /**
- * CR1 — the two crons walk the ADMITTED users, never `users` (doc/sicurezza/S2-utenti-ammessi.md
+ * CR1 — the crons walk the ADMITTED users, never `users` (doc/sicurezza/S2-utenti-ammessi.md
  * RU5, D-SI14). `users` holds `owner-1` and `outsider`; `allowed-users` only `owner-1`: the
  * snapshot is asked once, for `owner-1`, and the three dividend phases receive only `owner-1`.
  */
@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   runDividendScraping: vi.fn(async () => ({ assetsScraped: 0, newDividends: 0, errors: 0 })),
   runExpenseCreation: vi.fn(async () => ({ processedCount: 0, errorCount: 0 })),
   runNextCouponScheduling: vi.fn(async () => ({ scheduled: 0, skipped: 0, errors: 0 })),
+  createPortfolioSnapshot: vi.fn<(userId: string, options: unknown) => Promise<{ status: string; snapshotId: string }>>(async () => ({ status: 'updated', snapshotId: 's-1' })),
   evaluateActiveGoals: vi.fn<(userId: string) => Promise<{ skippedReason: string }>>(async () => ({ skippedReason: 'no-goals' })),
 }));
 
@@ -24,34 +25,16 @@ vi.mock('@/lib/server/dividendProcessor', () => ({
   runNextCouponScheduling: mocks.runNextCouponScheduling,
 }));
 vi.mock('@/lib/services/hallOfFameService.server', () => ({ updateHallOfFame: vi.fn() }));
-vi.mock('@/lib/server/monthlyEmailService', () => ({
-  isLastDayOfMonthItaly: vi.fn(() => false),
-  isLastDayOfQuarterItaly: vi.fn(() => false),
-  isLastDayOfHalfYearItaly: vi.fn(() => false),
-  isLastDayOfYearItaly: vi.fn(() => false),
-  monthToQuarter: vi.fn(),
-  monthToSemester: vi.fn(),
-  getSettingsAdmin: vi.fn(),
-  buildAndSendForPeriod: vi.fn(),
-  buildAndSendQuarterly: vi.fn(),
-  buildAndSendSemiAnnual: vi.fn(),
-  buildAndSendYearly: vi.fn(),
-}));
+// C7: the snapshot is a function the cron calls, not a route it fetches.
+vi.mock('@/lib/server/portfolioSnapshot', () => ({ createPortfolioSnapshot: mocks.createPortfolioSnapshot }));
 vi.mock('@/lib/server/ecbRatesService', () => ({ refreshEcbRatesIfStale: vi.fn() }));
 vi.mock('@/lib/server/marketAnchorsService', () => ({ refreshMarketAnchorsIfStale: vi.fn(async () => false) }));
-vi.mock('@/lib/server/weeklyBudgetEmailService', () => ({
-  isWeeklyBudgetDayItaly: vi.fn(() => false),
-  buildAndSendWeeklyBudget: vi.fn(),
-}));
 vi.mock('@/lib/server/assistant/goalEvaluationService', () => ({ evaluateActiveGoals: mocks.evaluateActiveGoals }));
 vi.mock('@/lib/server/budgetHistoryService', () => ({ captureBudgetHistory: vi.fn(async () => ({ captured: 0 })) }));
-vi.mock('@/lib/server/wiki/githubVault', () => ({ createVaultClient: vi.fn(), readVaultConfig: vi.fn(() => null) }));
-vi.mock('@/lib/server/wiki/thebullCompiler', () => ({ retryPendingTheBull: vi.fn() }));
-vi.mock('@/lib/server/wiki/vaultExport', () => ({ exportToVault: vi.fn() }));
 
 import { fake } from './helpers/adminFake';
 
-const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => new Response(JSON.stringify({ success: true, snapshotId: 's-1' })));
+const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => new Response('{}'));
 
 beforeAll(() => {
   vi.stubGlobal('fetch', fetchMock);
@@ -74,6 +57,7 @@ beforeEach(() => {
   fake.set('users/outsider', { email: 'outsider@example.com', displayName: 'Ornitorinco' });
   fake.allow('owner-1');
   fetchMock.mockClear();
+  mocks.createPortfolioSnapshot.mockClear();
   mocks.runDividendScraping.mockClear();
   mocks.runExpenseCreation.mockClear();
   mocks.runNextCouponScheduling.mockClear();
@@ -91,10 +75,8 @@ describe('CR1 — the crons process only the admitted users', () => {
     const response = await GET(cronRequest('monthly-snapshot'));
     expect(response.status).toBe(200);
 
-    const snapshotBodies = fetchMock.mock.calls
-      .filter((call) => String(call[0]).endsWith('/api/portfolio/snapshot'))
-      .map((call) => JSON.parse(String(call[1]!.body)).userId);
-    expect(snapshotBodies).toEqual(['owner-1']);
+    expect(mocks.createPortfolioSnapshot.mock.calls.map((call) => call[0])).toEqual(['owner-1']);
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(mocks.evaluateActiveGoals.mock.calls.map((call) => call[0])).toEqual(['owner-1']);
   }, 60_000);
 

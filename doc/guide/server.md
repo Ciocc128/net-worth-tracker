@@ -4,7 +4,7 @@
 
 ## Files
 
-- **Server layer**: `app/api/**/route.ts` (the cron routes `app/api/cron/monthly-snapshot/route.ts` and `app/api/cron/daily-dividend-processing/route.ts`, `/api/portfolio/snapshot`), `lib/server/*` (server-only: `apiAuth.ts` with `assertCanAccessAccount`, `validation.ts` with the reusable schemas, `isoDateSchema` and `parseOr400`, `serverTiming.ts` with `startTiming()` and `ServerTimingRecorder`), `lib/firebase/admin.ts` (the Admin SDK), `vercel.json`, `package.json` (`overrides`, `engines.node`); tests `__tests__/vercelConfig.test.ts`, `__tests__/serverCashSettlement.test.ts`, `__tests__/serverValidation.test.ts`, `__tests__/serverTiming.test.ts`, `__tests__/apiAuthRoutes.test.ts`, the authorization table `__tests__/routeAuthorization.{table,test}.ts` over `__tests__/helpers/adminFake.ts`, and the route tests (`__tests__/{performanceYieldsRoute,dividendStatsRoute,instrumentProfilesRoute,syncExpensesRoute,dividendLinkedExpenseRoute,assetDeleteRoute}.test.ts`), plus the throwaway emulator exercises `scripts/*.tmp.mts` of doc/guide/e2e-emulatori.md
+- **Server layer**: `app/api/**/route.ts` (the cron routes `app/api/cron/{daily-dividend-processing,monthly-snapshot,period-recap}/route.ts`, `/api/portfolio/snapshot`, `lib/server/{portfolioSnapshot,cronRun,deliveryRecord,periodEmailDelivery,emailTransport}.ts`, `lib/utils/periodRecapDue.ts`), `lib/server/*` (server-only: `apiAuth.ts` with `assertCanAccessAccount`, `validation.ts` with the reusable schemas, `isoDateSchema` and `parseOr400`, `serverTiming.ts` with `startTiming()` and `ServerTimingRecorder`), `lib/firebase/admin.ts` (the Admin SDK), `vercel.json`, `package.json` (`overrides`, `engines.node`); tests `__tests__/vercelConfig.test.ts`, `__tests__/serverCashSettlement.test.ts`, `__tests__/serverValidation.test.ts`, `__tests__/serverTiming.test.ts`, `__tests__/apiAuthRoutes.test.ts`, the authorization table `__tests__/routeAuthorization.{table,test}.ts` over `__tests__/helpers/adminFake.ts`, and the route tests (`__tests__/{performanceYieldsRoute,dividendStatsRoute,instrumentProfilesRoute,syncExpensesRoute,dividendLinkedExpenseRoute,assetDeleteRoute}.test.ts`), plus the throwaway emulator exercises `scripts/*.tmp.mts` of doc/guide/e2e-emulatori.md
 
 ## Server Layer and API Authorization
 - Route = auth → validate → fetch → ownership check → delegate → return; no Firestore queries or business logic in the
@@ -38,14 +38,25 @@
   writes, or reads more than `allowed-users/{uid}` (RA6, F04). The routes run for real over `__tests__/helpers/adminFake.ts`, an
   in-memory Admin SDK that records every path read and written; `fetch` rejects. A new route is born with its row; the
   readable table with the review's notes is `doc/sicurezza/README.md` § 5.
-- Server-owned materialized docs are mutated only via a private authenticated route; cron routes use `CRON_SECRET`, and
-  `/api/portfolio/snapshot` must keep accepting `cronSecret`.
+- Server-owned materialized docs are mutated only via a private authenticated route; cron routes use `CRON_SECRET`.
+  **`/api/portfolio/snapshot` has no cron door any more** (C7, 2026-11-24): the cron calls `createPortfolioSnapshot`
+  (`lib/server/portfolioSnapshot.ts`) directly and `cronSecret` in the body is a 400.
+- **Three crons in three hours** (2026-11-24, `doc/cron-serale/README.md`, D-CS1): dividends 17:00 UTC → snapshot
+  18:00 → recap (`/api/cron/period-recap`: period emails, weekly budget, TheBull retries, vault export) 19:00;
+  distinct hours give the order, two in one hour have none (Vercel fires anywhere in the hour). Each route has its
+  own `maxDuration = 300` (held by `vercelConfig.test.ts`). **A run records itself** in `cron-runs/{YYYY-MM-DD}_{job}`
+  (`lib/server/cronRun.ts`: phases, per-user results, `invocations`, 90 days) and the **HTTP status follows it: 500 when
+  any phase or user failed** — never answer 200 over a failure, Vercel paints it green. A period's email goes through
+  `deliveries/{uid}_{period}` (`deliveryRecord.ts`, `periodEmailDelivery.ts`: claim in a transaction → transport check
+  → build, reusing a paid AI comment → send): a doubled run sends nothing twice, a missed run is caught up for 7
+  days. Both collections are Admin-only. The caller reads its own at `GET /api/user/cron-status`; the Mac at
+  `npm run cron:status`.
 - **The automatic snapshot route writes the current Italian month and nothing else** (F07, 2026-11-16,
-  `doc/snapshot-integri/README.md` § 5.3): `snapshotRequestSchema` is `{ userId, cronSecret? }` and STRICT — a `year`
-  or `month` is a 400 before any price update, never silently dropped. A closed month has one writer, the manual
+  `doc/snapshot-integri/README.md` § 5.3): `snapshotRequestSchema` is `{ userId }` and STRICT — a `year`,
+  `month` or `cronSecret` is a 400 before any price update, never silently dropped. A closed month has one writer, the manual
   route (409 on a month with figures unless `replace: true`; the replaced document kept in `versions/`), and one undo,
   `POST /api/portfolio/snapshot/restore` (kind `owner`). All three read and write in ONE `runTransaction`, and every
-  snapshot goes through `buildSnapshotDocument`, which stamps `writtenBy` from the credential (`cron` with the secret,
+  snapshot goes through `buildSnapshotDocument`, which stamps `writtenBy` from the credential (`cron` from the cron's direct call,
   `button` with a token on the automatic route, `manual` on the manual one) and the token's uid.
 - **Validation**: `lib/server/validation.ts` owns the reusable schemas and `parseOr400` — never cast with `as { … }`
   first, coerce dates with `z.coerce.date()` (behind a string when they come from a request, below), and validate

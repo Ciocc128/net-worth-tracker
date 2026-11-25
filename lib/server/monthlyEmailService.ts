@@ -15,7 +15,7 @@ import { generateText, isSurfaceConfigured } from '@/lib/server/llm';
 import { outputBudget, type OutputBudget } from '@/lib/server/llm/budget';
 import { adminDb } from '@/lib/firebase/admin';
 import { Timestamp } from 'firebase-admin/firestore';
-import { Resend } from 'resend';
+import { sendEmail } from '@/lib/server/emailTransport';
 import {
   escapeHtml,
   emailShell,
@@ -2283,15 +2283,13 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
 
 /**
  * Send a periodic summary email to all configured recipients.
- * Throws if RESEND_API_KEY is not set or if Resend returns an error.
+ * Throws if the mail transport is not configured (lib/server/emailTransport.ts) or Resend returns an error.
  */
 export async function sendMonthlyEmail(
   recipients: string[],
   data: MonthlyEmailData,
   comparison?: PeriodComparison
 ): Promise<void> {
-  const resend = new Resend(process.env.RESEND_API_KEY);
-
   const title = periodTitle(data);
   const subjectPrefix =
     data.periodType === 'quarterly'
@@ -2304,32 +2302,34 @@ export async function sendMonthlyEmail(
 
   const subject = `${subjectPrefix} ${title} — Net Worth Tracker`;
 
-  const { error } = await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL ?? 'noreply@example.com',
-    to: recipients,
-    subject,
-    html: generateEmailHtml(data, comparison),
-  });
-
-  if (error) {
-    throw new Error(`Resend error: ${error.message}`);
-  }
+  await sendEmail({ to: recipients, subject, html: generateEmailHtml(data, comparison) });
 }
 
 // ─── Convenience builders ─────────────────────────────────────────────────────
 
 /**
+ * What the delivery record hands the builder (doc/cron-serale § 5.4): a comment already paid for by
+ * a run whose send then failed, and the way to keep a newly paid one BEFORE the send is attempted.
+ */
+export interface PeriodSendHooks {
+  storedAiComment?: string | null;
+  onAiComment?: (comment: string) => Promise<void>;
+}
+
+/**
  * Build and send for any period type.
  * Returns false when no snapshot exists for the period (email skipped).
  * Generates an AI comment and injects it into the email when possible;
- * AI failure is non-blocking — the email is sent without the comment.
+ * AI failure is non-blocking — the email is sent without the comment. A comment stored by an earlier
+ * attempt is reused, never paid twice.
  */
 export async function buildAndSendForPeriod(
   userId: string,
   recipients: string[],
   periodType: EmailPeriodType,
   year: number,
-  month: number
+  month: number,
+  hooks: PeriodSendHooks = {}
 ): Promise<boolean> {
   const emailData = await buildPeriodEmailData(userId, year, month, periodType);
   if (!emailData) return false;
@@ -2343,45 +2343,23 @@ export async function buildAndSendForPeriod(
     console.error(`[email] Comparison build failed for user ${userId}:`, error);
   }
 
-  // Attempt to generate the AI comment — failure is silently swallowed inside generateEmailAiComment.
-  // The comparison is required for the comparison-driven prompt; skip the comment if it's missing.
-  if (comparison) {
+  if (hooks.storedAiComment) {
+    emailData.aiComment = hooks.storedAiComment;
+  } else if (comparison) {
+    // Attempt to generate the AI comment — failure is silently swallowed inside generateEmailAiComment.
+    // The comparison is required for the comparison-driven prompt; skip the comment if it's missing.
     const aiComment = await generateEmailAiComment(userId, emailData, comparison);
     if (aiComment) {
       emailData.aiComment = aiComment;
+      // Kept before the send: if Resend refuses, the next run sends THIS comment (UC6).
+      try {
+        await hooks.onAiComment?.(aiComment);
+      } catch (error) {
+        console.error(`[email] Could not keep the AI comment for user ${userId}:`, error);
+      }
     }
   }
 
   await sendMonthlyEmail(recipients, emailData, comparison);
   return true;
-}
-
-/** Build and send quarterly/yearly convenience aliases used by the cron handler. */
-export async function buildAndSendQuarterly(
-  userId: string,
-  recipients: string[],
-  year: number,
-  quarter: number
-): Promise<boolean> {
-  const lastMonth = quarter * 3;
-  return buildAndSendForPeriod(userId, recipients, 'quarterly', year, lastMonth);
-}
-
-export async function buildAndSendSemiAnnual(
-  userId: string,
-  recipients: string[],
-  year: number,
-  half: number
-): Promise<boolean> {
-  // half 1 → June (end month 6); half 2 → December (end month 12)
-  const lastMonth = half === 1 ? 6 : 12;
-  return buildAndSendForPeriod(userId, recipients, 'semiannual', year, lastMonth);
-}
-
-export async function buildAndSendYearly(
-  userId: string,
-  recipients: string[],
-  year: number
-): Promise<boolean> {
-  return buildAndSendForPeriod(userId, recipients, 'yearly', year, 12);
 }

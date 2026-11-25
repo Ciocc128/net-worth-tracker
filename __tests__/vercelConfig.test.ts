@@ -50,10 +50,26 @@ describe('vercel.json', () => {
     expect(config.regions).toEqual(['fra1']);
   });
 
-  it('keeps the two crons', () => {
+  /**
+   * D-CS1 (doc/cron-serale § 5.1): three crons in three DIFFERENT hours, so the order holds — the
+   * dividends are credited (17) before the photo of the month is taken (18), and the emails read
+   * the finished day (19). Two crons in the same hour are not ordered (Vercel fires anywhere in it).
+   */
+  it('keeps the three crons, one hour apart and in order', () => {
     expect(config.crons).toEqual([
+      { path: '/api/cron/daily-dividend-processing', schedule: '0 17 * * *' },
       { path: '/api/cron/monthly-snapshot', schedule: '0 18 * * *' },
-      { path: '/api/cron/daily-dividend-processing', schedule: '0 18 * * *' },
+      { path: '/api/cron/period-recap', schedule: '0 19 * * *' },
     ]);
+    const hours = (config.crons ?? []).map((cron) => Number(cron.schedule.split(' ')[1]));
+    expect(hours).toEqual([...hours].sort((a, b) => a - b));
+    expect(new Set(hours).size).toBe(hours.length);
+  });
+
+  it('gives every cron route its own 300 s budget', () => {
+    for (const cron of config.crons ?? []) {
+      const source = readFileSync(path.resolve(__dirname, '..', 'app', cron.path.replace(/^\//, ''), 'route.ts'), 'utf8');
+      expect(source, cron.path).toMatch(/export const maxDuration = 300;/);
+    }
   });
 });

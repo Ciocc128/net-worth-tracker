@@ -2,479 +2,164 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase/admin';
 import { updateHallOfFame } from '@/lib/services/hallOfFameService.server';
 import { verifyExpenseTotals, type VerifyResult } from '@/lib/server/expenseTotals';
-import {
-  isLastDayOfMonthItaly,
-  isLastDayOfQuarterItaly,
-  isLastDayOfHalfYearItaly,
-  isLastDayOfYearItaly,
-  monthToQuarter,
-  monthToSemester,
-  getSettingsAdmin,
-  buildAndSendForPeriod,
-  buildAndSendQuarterly,
-  buildAndSendSemiAnnual,
-  buildAndSendYearly,
-} from '@/lib/server/monthlyEmailService';
-import { getItalyMonthYear } from '@/lib/utils/dateHelpers';
 import { refreshEcbRatesIfStale } from '@/lib/server/ecbRatesService';
 import { refreshMarketAnchorsIfStale } from '@/lib/server/marketAnchorsService';
-import { isWeeklyBudgetDayItaly, buildAndSendWeeklyBudget } from '@/lib/server/weeklyBudgetEmailService';
 import { evaluateActiveGoals } from '@/lib/server/assistant/goalEvaluationService';
 import { captureBudgetHistory } from '@/lib/server/budgetHistoryService';
+import { createPortfolioSnapshot } from '@/lib/server/portfolioSnapshot';
+import { CronRunRecorder, pruneCronRuns, shortError } from '@/lib/server/cronRun';
 import { verifyCronSecret } from '@/lib/server/apiAuth';
 import { ALLOWED_USERS_COLLECTION } from '@/types/account';
-import { createVaultClient, readVaultConfig } from '@/lib/server/wiki/githubVault';
-import { retryPendingTheBull } from '@/lib/server/wiki/thebullCompiler';
-import { exportToVault } from '@/lib/server/wiki/vaultExport';
 
-// The Hobby plan's ceiling with Fluid compute: the period emails' AI comments run inside it (F6b).
+// The Hobby plan's ceiling with Fluid compute.
 export const maxDuration = 300;
 
 /**
  * GET /api/cron/monthly-snapshot
  *
- * Daily automated snapshot creation cron job
- * Scheduled execution: every day at 18:00 UTC (19:00/20:00 CET) via Vercel Cron
+ * The evening photo. Scheduled: every day at 18:00 UTC (19:00/20:00 Italian) via Vercel Cron — the
+ * SECOND of three crons in three hours (doc/cron-serale § 5.1, D-CS1): the dividends are credited at
+ * 17:00 UTC, before the photo; the period emails are the recap cron's, at 19:00 UTC.
  *
- * Runs daily — snapshot ID is {userId}-{year}-{month}, so each run overwrites
- * the same document throughout the month (upsert via .set()). The last run of
- * the month becomes the permanent historical record.
- * Emails are guarded by isLastDayOfMonthItaly / isLastDayOfQuarterItaly /
- * isLastDayOfYearItaly and are only sent once on the appropriate day. The
- * assistant's goal re-evaluation (phase 7) runs every day, like the snapshot, and so
- * does the budget history capture (phase 8): budgetHistory/{userId}/months/{YYYY-MM}
- * is overwritten daily, so a month's record is its last captured configuration — the
- * ceiling "as it was", which budgets/{userId} alone cannot tell.
+ * Runs daily — snapshot ID is {userId}-{year}-{month}, so each run overwrites the same document
+ * throughout the month (upsert). The last run of the month becomes the permanent historical record.
+ * The goal re-evaluation (phase 4) and the budget history capture (phase 5, overwritten daily so a
+ * month's record is its last captured configuration) run every day too.
  *
- * Orchestration Pattern:
- *   - Fetches all users from database
- *   - For each user: Calls /api/portfolio/snapshot internally
- *   - After each snapshot: checks the monthly expense totals (`verifyExpenseTotals`,
- *     doc/totali-mensili § 5.3), then updates the Hall of Fame on them
- *   - Collects results and errors for monitoring
+ * Phases (each recorded in `cron-runs`, doc/cron-serale § 5.5):
+ *   1. per user: `createPortfolioSnapshot` (a direct call — C7, no HTTP), then `verifyExpenseTotals`,
+ *      then `updateHallOfFame` when the snapshot was written
+ *   2. ECB rates · 3. market anchors · 4. assistant goals · 5. budget history
  *
- * Why internal fetch instead of direct service calls?
- *   - Reuses existing snapshot logic (price updates, calculations)
- *   - Maintains single source of truth for snapshot creation
- *   - Simplifies error handling and response formatting
+ * Failure: one phase or one user failing does not stop the others; the run is then `partial` and the
+ * response is HTTP 500, so Vercel shows it red (D-CS2).
  *
- * Error Handling:
- *   - Non-blocking: One user's failure doesn't stop others
- *   - Hall of Fame update failures are logged but don't fail the job
- *   - Returns summary of successes and failures
- *
- * Security:
- *   - Requires CRON_SECRET via Authorization header
- *   - Uses Admin SDK for cross-user operations
- *
- * Related:
- *   - portfolio/snapshot/route.ts: Called internally for each user
- *   - hallOfFameService.server.ts: Ranking updates after snapshots
+ * Security: requires CRON_SECRET via Authorization header; the Admin SDK reads every admitted user.
  */
 export async function GET(request: NextRequest) {
-  try {
-    // Verify cron secret
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!verifyCronSecret(token)) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+  const authHeader = request.headers.get('authorization');
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!verifyCronSecret(token)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
+  const run = new CronRunRecorder('snapshot');
+  const results: Array<{ userId: string; snapshotId: string | null; status: string }> = [];
+  const errors: Array<{ userId: string; error: string }> = [];
+  const goalSummary = { evaluated: 0, suggestions: 0, skipped: 0, errors: 0 };
+  let budgetHistorySummary = { captured: 0, skipped: 0, errors: 0 };
+
+  try {
     // Every ADMITTED user (doc/sicurezza/S2-utenti-ammessi.md RU5): `users/{uid}` is a profile a
     // client writes; it no longer decides who is processed.
-    const usersRef = adminDb.collection(ALLOWED_USERS_COLLECTION);
-    const usersSnapshot = await usersRef.get();
+    const userIds: string[] = [];
+    await run.phase('users', async () => {
+      const usersSnapshot = await adminDb.collection(ALLOWED_USERS_COLLECTION).get();
+      userIds.push(...usersSnapshot.docs.map((doc) => doc.id));
+      return { counts: { users: userIds.length } };
+    });
 
-    if (usersSnapshot.empty) {
-      return NextResponse.json({
-        success: true,
-        message: 'No users found',
-        snapshotsCreated: 0,
-      });
+    // Nobody admitted: nothing to photograph, and the shared caches are not worth refreshing for no one.
+    if (userIds.length === 0) {
+      await run.save();
+      return run.respond({ message: 'No users found', snapshotsCreated: 0 });
     }
 
-    const results = [];
-    const errors = [];
-
-    // Create snapshot for each user
-    for (const userDoc of usersSnapshot.docs) {
-      const userId = userDoc.id;
-
-      try {
-        // Call the snapshot API for this user
-        const snapshotResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/portfolio/snapshot`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              userId,
-              cronSecret: process.env.CRON_SECRET,
-            }),
-          }
-        );
-
-        const snapshotResult = await snapshotResponse.json();
-
-        // The monthly totals' nightly check (doc/totali-mensili § 5.3), after the snapshot and before
-        // the Hall of Fame, which then reads the documents it left in memory. Never fatal: it logs
-        // its own failures, and a Hall of Fame without it reads from Firestore.
-        let verified: VerifyResult | undefined;
+    await run.phase('snapshots', async () => {
+      for (const userId of userIds) {
         try {
-          verified = await verifyExpenseTotals(userId);
-          const { report } = verified;
-          console.log(`Expense totals checked for user ${userId}`, {
-            changed: report.changed.length,
-            mismatched: report.mismatched.length,
-            missingYears: report.missingYears,
-          });
-        } catch (totalsError) {
-          console.error(`Error checking expense totals for user ${userId}:`, totalsError);
-        }
+          const snapshot = await createPortfolioSnapshot(userId, { writtenBy: 'cron', now: run.startedAt });
+          run.user(userId).snapshot = snapshot.status;
 
-        if (snapshotResult.success) {
-          // Update Hall of Fame after successful snapshot creation
+          // The monthly totals' nightly check (doc/totali-mensili § 5.3), after the snapshot and before
+          // the Hall of Fame, which then reads the documents it left in memory. Never fatal.
+          let verified: VerifyResult | undefined;
           try {
-            await updateHallOfFame(userId, { verified });
-            console.log(`Hall of Fame updated for user ${userId}`);
-          } catch (hallOfFameError) {
-            console.error(`Error updating Hall of Fame for user ${userId}:`, hallOfFameError);
-            // Don't fail the snapshot creation if Hall of Fame update fails
+            verified = await verifyExpenseTotals(userId);
+            const { report } = verified;
+            console.log(`Expense totals checked for user ${userId}`, {
+              changed: report.changed.length,
+              mismatched: report.mismatched.length,
+              missingYears: report.missingYears,
+            });
+          } catch (totalsError) {
+            console.error(`Error checking expense totals for user ${userId}:`, totalsError);
           }
 
-          results.push({
-            userId,
-            snapshotId: snapshotResult.snapshotId,
-            message: snapshotResult.message,
-          });
-        } else {
-          errors.push({
-            userId,
-            error: snapshotResult.error || 'Unknown error',
-          });
+          if (snapshot.status !== 'no-assets') {
+            try {
+              await updateHallOfFame(userId, { verified });
+              console.log(`Hall of Fame updated for user ${userId}`);
+            } catch (hallOfFameError) {
+              console.error(`Error updating Hall of Fame for user ${userId}:`, hallOfFameError);
+            }
+          }
+          results.push({ userId, snapshotId: snapshot.snapshotId, status: snapshot.status });
+        } catch (error) {
+          console.error(`Error creating snapshot for user ${userId}:`, error);
+          run.user(userId).snapshot = 'failed';
+          errors.push({ userId, error: shortError(error) });
         }
-      } catch (error) {
-        console.error(`Error creating snapshot for user ${userId}:`, error);
-        errors.push({
-          userId,
-          error: (error as Error).message,
-        });
       }
-    }
+      return {
+        failed: errors.length > 0,
+        counts: { snapshots: results.length, failed: errors.length },
+      };
+    });
 
-    // Refresh ECB rate cache if stale — non-blocking so the cron never fails because of this
-    try {
+    await run.phase('ecb-rates', async () => {
       await refreshEcbRatesIfStale();
-      console.log('[cron] ECB rate cache refreshed');
-    } catch (ecbError) {
-      console.error('[cron] ECB rate cache refresh failed (non-blocking):', ecbError);
-    }
+    });
 
-    // The Monte Carlo market's ECB anchors (Q3): €STR, AAA 10y, SPF — a failure here stops nothing either.
-    try {
-      const fetched = await refreshMarketAnchorsIfStale();
-      console.log(`[cron] market anchors ${fetched ? 'refreshed' : 'still fresh'}`);
-    } catch (anchorsError) {
-      console.error('[cron] market anchors refresh failed (non-blocking):', anchorsError);
-    }
+    // The Monte Carlo market's ECB anchors (Q3): €STR, AAA 10y, SPF.
+    await run.phase('market-anchors', async () => {
+      await refreshMarketAnchorsIfStale();
+    });
 
-    // Phases 2-5: the period emails, SIDE BY SIDE (F6b, 2026-10-06). Each one waits on its AI
-    // comment — a reasoning model, up to EMAIL_AI_TIMEOUT_MS — and on December 31 all four are due:
-    // run in a row they could outlast the function's 300 s and leave the last ones without a comment.
-    // They share nothing but `now` and the users' snapshot; each keeps its own counters.
-    const now = new Date();
-    const emailResults = { sent: 0, skipped: 0, errors: 0 };
-    const quarterlyEmailResults = { sent: 0, skipped: 0, errors: 0 };
-    const semiAnnualEmailResults = { sent: 0, skipped: 0, errors: 0 };
-    const yearlyEmailResults = { sent: 0, skipped: 0, errors: 0 };
-
-    // Phase 2: Send monthly summary emails (only on the last day of the month)
-    const sendMonthly = async () => {
-      if (isLastDayOfMonthItaly(now)) {
-        const { year, month } = getItalyMonthYear(now);
-        console.log(`Last day of month detected — sending summary emails for ${month}/${year}`);
-
-        for (const userDoc of usersSnapshot.docs) {
-          const userId = userDoc.id;
-
-          // Skip demo user — its data is synthetic
-          if (userId === process.env.NEXT_PUBLIC_DEMO_USER_ID) {
-            emailResults.skipped++;
-            continue;
-          }
-
-          try {
-            const settings = await getSettingsAdmin(userId);
-            if (!settings?.monthlyEmailEnabled || !settings.monthlyEmailRecipients?.length) {
-              emailResults.skipped++;
-              continue;
-            }
-
-            const sent = await buildAndSendForPeriod(userId, settings.monthlyEmailRecipients, 'monthly', year, month);
-            if (!sent) {
-              console.warn(`No snapshot found for user ${userId} — skipping monthly email`);
-              emailResults.skipped++;
-            } else {
-              emailResults.sent++;
-              console.log(`Monthly email sent for user ${userId}`);
-            }
-          } catch (emailError) {
-            console.error(`Monthly email failed for user ${userId}:`, emailError);
-            emailResults.errors++;
-          }
-        }
-      }
-    };
-
-    // Phase 3: Send quarterly summary emails (only on the last day of a quarter)
-    const sendQuarterly = async () => {
-      if (isLastDayOfQuarterItaly(now)) {
-        const { year, month } = getItalyMonthYear(now);
-        const quarter = monthToQuarter(month);
-        console.log(`Last day of Q${quarter} detected — sending quarterly emails for Q${quarter}/${year}`);
-
-        for (const userDoc of usersSnapshot.docs) {
-          const userId = userDoc.id;
-
-          if (userId === process.env.NEXT_PUBLIC_DEMO_USER_ID) {
-            quarterlyEmailResults.skipped++;
-            continue;
-          }
-
-          try {
-            const settings = await getSettingsAdmin(userId);
-            if (!settings?.quarterlyEmailEnabled || !settings.monthlyEmailRecipients?.length) {
-              quarterlyEmailResults.skipped++;
-              continue;
-            }
-
-            const sent = await buildAndSendQuarterly(userId, settings.monthlyEmailRecipients, year, quarter);
-            if (!sent) {
-              console.warn(`No Q${quarter} snapshot found for user ${userId} — skipping quarterly email`);
-              quarterlyEmailResults.skipped++;
-            } else {
-              quarterlyEmailResults.sent++;
-              console.log(`Quarterly email sent for user ${userId}`);
-            }
-          } catch (emailError) {
-            console.error(`Quarterly email failed for user ${userId}:`, emailError);
-            quarterlyEmailResults.errors++;
-          }
-        }
-      }
-    };
-
-    // Phase 4: Send semi-annual summary emails (only on June 30 / December 31).
-    // Note: a half-year-end coincides with a quarter-end (Q2/Q4) and, on Dec 31, with the
-    // year-end too — these are independent opt-in emails, so a user enabling several toggles
-    // can receive more than one summary on the same day. That is intentional.
-    const sendSemiAnnual = async () => {
-      if (isLastDayOfHalfYearItaly(now)) {
-        const { year, month } = getItalyMonthYear(now);
-        const semester = monthToSemester(month);
-        console.log(`Last day of H${semester} detected — sending semi-annual emails for H${semester}/${year}`);
-
-        for (const userDoc of usersSnapshot.docs) {
-          const userId = userDoc.id;
-
-          if (userId === process.env.NEXT_PUBLIC_DEMO_USER_ID) {
-            semiAnnualEmailResults.skipped++;
-            continue;
-          }
-
-          try {
-            const settings = await getSettingsAdmin(userId);
-            if (!settings?.semiAnnualEmailEnabled || !settings.monthlyEmailRecipients?.length) {
-              semiAnnualEmailResults.skipped++;
-              continue;
-            }
-
-            const sent = await buildAndSendSemiAnnual(userId, settings.monthlyEmailRecipients, year, semester);
-            if (!sent) {
-              console.warn(`No H${semester} snapshot found for user ${userId} — skipping semi-annual email`);
-              semiAnnualEmailResults.skipped++;
-            } else {
-              semiAnnualEmailResults.sent++;
-              console.log(`Semi-annual email sent for user ${userId}`);
-            }
-          } catch (emailError) {
-            console.error(`Semi-annual email failed for user ${userId}:`, emailError);
-            semiAnnualEmailResults.errors++;
-          }
-        }
-      }
-    };
-
-    // Phase 5: Send yearly summary emails (only on December 31)
-    const sendYearly = async () => {
-      if (isLastDayOfYearItaly(now)) {
-        const { year } = getItalyMonthYear(now);
-        console.log(`December 31 detected — sending yearly emails for ${year}`);
-
-        for (const userDoc of usersSnapshot.docs) {
-          const userId = userDoc.id;
-
-          if (userId === process.env.NEXT_PUBLIC_DEMO_USER_ID) {
-            yearlyEmailResults.skipped++;
-            continue;
-          }
-
-          try {
-            const settings = await getSettingsAdmin(userId);
-            if (!settings?.yearlyEmailEnabled || !settings.monthlyEmailRecipients?.length) {
-              yearlyEmailResults.skipped++;
-              continue;
-            }
-
-            const sent = await buildAndSendYearly(userId, settings.monthlyEmailRecipients, year);
-            if (!sent) {
-              console.warn(`No December snapshot found for user ${userId} — skipping yearly email`);
-              yearlyEmailResults.skipped++;
-            } else {
-              yearlyEmailResults.sent++;
-              console.log(`Yearly email sent for user ${userId}`);
-            }
-          } catch (emailError) {
-            console.error(`Yearly email failed for user ${userId}:`, emailError);
-            yearlyEmailResults.errors++;
-          }
-        }
-      }
-    };
-
-    await Promise.all([sendMonthly(), sendQuarterly(), sendSemiAnnual(), sendYearly()]);
-
-    // Phase 6: Send weekly budget status emails (every Sunday)
-    const weeklyBudgetEmailResults = { sent: 0, skipped: 0, errors: 0 };
-    if (isWeeklyBudgetDayItaly(now)) {
-      console.log('Sunday detected — sending weekly budget emails');
-
-      for (const userDoc of usersSnapshot.docs) {
-        const userId = userDoc.id;
-
+    // The assistant's structured goals, re-evaluated every day after the snapshot of the month: what
+    // makes a goal reached "by itself" — the market moved, not the user — surface without anyone opening it.
+    await run.phase('goals', async () => {
+      for (const userId of userIds) {
         if (userId === process.env.NEXT_PUBLIC_DEMO_USER_ID) {
-          weeklyBudgetEmailResults.skipped++;
+          goalSummary.skipped++;
           continue;
         }
-
         try {
-          const settings = await getSettingsAdmin(userId);
-          if (!settings?.weeklyBudgetEmailEnabled || !settings.monthlyEmailRecipients?.length) {
-            weeklyBudgetEmailResults.skipped++;
-            continue;
-          }
-
-          const sent = await buildAndSendWeeklyBudget(userId, settings.monthlyEmailRecipients, now);
-          if (!sent) {
-            weeklyBudgetEmailResults.skipped++;
+          const result = await evaluateActiveGoals(userId);
+          if (result.skippedReason) {
+            goalSummary.skipped++;
           } else {
-            weeklyBudgetEmailResults.sent++;
-            console.log(`Weekly budget email sent for user ${userId}`);
+            goalSummary.evaluated += result.evaluatedGoals;
+            goalSummary.suggestions += result.suggestionsCreated;
           }
-        } catch (emailError) {
-          console.error(`Weekly budget email failed for user ${userId}:`, emailError);
-          weeklyBudgetEmailResults.errors++;
+        } catch (goalError) {
+          console.error(`Goal re-evaluation failed for user ${userId}:`, goalError);
+          goalSummary.errors++;
         }
       }
-    }
-
-    // Phase 7: Re-evaluate the assistant's structured goals (every day).
-    // Runs after Phase 1 so it reads the snapshot written for the current month a
-    // few lines above. This is what makes a goal reached "by itself" — the market
-    // moved, not the user — surface without anyone opening the assistant.
-    const goalEvaluationResults = { evaluated: 0, suggestions: 0, skipped: 0, errors: 0 };
-    for (const userDoc of usersSnapshot.docs) {
-      const userId = userDoc.id;
-
-      if (userId === process.env.NEXT_PUBLIC_DEMO_USER_ID) {
-        goalEvaluationResults.skipped++;
-        continue;
-      }
-
-      try {
-        const result = await evaluateActiveGoals(userId);
-        if (result.skippedReason) {
-          goalEvaluationResults.skipped++;
-        } else {
-          goalEvaluationResults.evaluated += result.evaluatedGoals;
-          goalEvaluationResults.suggestions += result.suggestionsCreated;
-        }
-      } catch (goalError) {
-        console.error(`Goal re-evaluation failed for user ${userId}:`, goalError);
-        goalEvaluationResults.errors++;
-      }
-    }
-
-    // Phase 8: Capture every budget configuration under the current month (every day).
-    // The Budget tab reads these records to compare a closed month with the ceiling it
-    // had, not with today's; non-fatal like the ECB refresh.
-    let budgetHistorySummary = { captured: 0, skipped: 0, errors: 0 };
-    try {
-      budgetHistorySummary = await captureBudgetHistory(now, process.env.NEXT_PUBLIC_DEMO_USER_ID);
-      console.log(`[cron] budget history captured for ${budgetHistorySummary.captured} users`);
-    } catch (historyError) {
-      console.error('[cron] budget history capture failed (non-blocking):', historyError);
-    }
-
-    // Phase 9: Retry TheBull weeks whose compilation is still owed (every day, up to three
-    // times; doc/ai-open-models-wiki.md § 5.2). Off when the vault is not configured; non-fatal.
-    let wikiRetrySummary: { retried: number; compiled: number } | null = null;
-    const vaultConfig = readVaultConfig();
-    if (vaultConfig) {
-      try {
-        wikiRetrySummary = await retryPendingTheBull({ vault: createVaultClient(vaultConfig) });
-        if (wikiRetrySummary.retried > 0) console.log('[cron] wiki retries', wikiRetrySummary);
-      } catch (wikiError) {
-        console.error('[cron] wiki retry failed (non-blocking):', wikiError);
-      }
-    }
-
-    // Phase 10: The month's numbers to the vault's dati/ (last day of the month only; doc/
-    // ai-open-models-wiki.md § 6.1). One owner, WIKI_EXPORT_UID; off without it; non-fatal.
-    let vaultExportSummary: { written: string[]; skipped: string[] } | null = null;
-    const exportUid = process.env.WIKI_EXPORT_UID;
-    if (vaultConfig && exportUid && isLastDayOfMonthItaly(now)) {
-      try {
-        const { written, skipped } = await exportToVault(exportUid, [getItalyMonthYear(now)], { vault: createVaultClient(vaultConfig) });
-        vaultExportSummary = { written, skipped };
-        console.log('[cron] vault export', vaultExportSummary);
-      } catch (exportError) {
-        console.error('[cron] vault export failed (non-blocking):', exportError);
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: `Monthly snapshots job completed`,
-      timestamp: new Date().toISOString(),
-      snapshotsCreated: results.length,
-      errors: errors.length,
-      results,
-      errorDetails: errors,
-      emailSummary: emailResults,
-      quarterlyEmailSummary: quarterlyEmailResults,
-      semiAnnualEmailSummary: semiAnnualEmailResults,
-      yearlyEmailSummary: yearlyEmailResults,
-      weeklyBudgetEmailSummary: weeklyBudgetEmailResults,
-      goalEvaluationSummary: goalEvaluationResults,
-      budgetHistorySummary,
-      wikiRetrySummary,
-      vaultExportSummary,
+      return { failed: goalSummary.errors > 0, counts: { ...goalSummary } };
     });
+
+    // The Budget tab compares a closed month with the ceiling it had, not today's.
+    await run.phase('budget-history', async () => {
+      budgetHistorySummary = await captureBudgetHistory(run.startedAt, process.env.NEXT_PUBLIC_DEMO_USER_ID);
+      return { failed: budgetHistorySummary.errors > 0, counts: { ...budgetHistorySummary } };
+    });
+
+    await run.phase('prune-runs', async () => ({ counts: { deleted: await pruneCronRuns(run.startedAt) } }));
   } catch (error) {
-    console.error('Error in monthly snapshot cron job:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to execute monthly snapshot job',
-        details: (error as Error).message,
-      },
-      { status: 500 }
-    );
+    console.error('Error in snapshot cron job:', error);
+    run.fail();
   }
+
+  await run.save();
+  return run.respond({
+    message: 'Snapshot job completed',
+    snapshotsCreated: results.length,
+    errors: errors.length,
+    results,
+    errorDetails: errors,
+    goalEvaluationSummary: goalSummary,
+    budgetHistorySummary,
+  });
 }

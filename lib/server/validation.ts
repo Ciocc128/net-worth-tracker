@@ -44,7 +44,6 @@ const isoDateSchema = z.string().min(1).pipe(z.coerce.date());
 export const snapshotRequestSchema = z
   .object({
     userId: z.string().min(1),
-    cronSecret: z.string().optional(),
   })
   .strict();
 

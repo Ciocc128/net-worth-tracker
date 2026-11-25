@@ -17,7 +17,7 @@
 
 import { adminDb } from '@/lib/firebase/admin';
 import { Timestamp } from 'firebase-admin/firestore';
-import { Resend } from 'resend';
+import { sendEmail } from '@/lib/server/emailTransport';
 import {
   escapeHtml,
   emailShell,
@@ -558,26 +558,36 @@ export function buildWeeklyBudgetEmailHtml(data: WeeklyBudgetData): string {
 
 /**
  * Builds and sends the weekly budget email. Returns false when the user has no
- * budgets (email skipped). AI comment failure is non-blocking.
+ * budgets (email skipped). AI comment failure is non-blocking. A comment stored by an earlier
+ * attempt (delivery record, doc/cron-serale § 5.4) is reused, never paid twice.
  */
 export async function buildAndSendWeeklyBudget(
   userId: string,
   recipients: string[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  hooks: { storedAiComment?: string | null; onAiComment?: (comment: string) => Promise<void> } = {}
 ): Promise<boolean> {
   const data = await buildWeeklyBudgetData(userId, now);
   if (!data) return false;
 
-  const aiComment = await generateWeeklyBudgetComment(data);
-  if (aiComment) data.aiComment = aiComment;
+  if (hooks.storedAiComment) {
+    data.aiComment = hooks.storedAiComment;
+  } else {
+    const aiComment = await generateWeeklyBudgetComment(data);
+    if (aiComment) {
+      data.aiComment = aiComment;
+      try {
+        await hooks.onAiComment?.(aiComment);
+      } catch (error) {
+        console.error(`[email] Could not keep the weekly AI comment for user ${userId}:`, error);
+      }
+    }
+  }
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  const { error } = await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL ?? 'noreply@example.com',
+  await sendEmail({
     to: recipients,
     subject: 'Budget — riepilogo settimanale · Net Worth Tracker',
     html: buildWeeklyBudgetEmailHtml(data),
   });
-  if (error) throw new Error(`Resend error: ${error.message}`);
   return true;
 }

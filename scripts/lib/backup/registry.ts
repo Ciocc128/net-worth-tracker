@@ -44,6 +44,7 @@ export const BACKUP_COLLECTIONS: readonly BackupCollection[] = [
   { name: 'costCenters', ownership: 'userField', cache: false, note: 'centri di costo' },
   { name: 'accumulationPlans', ownership: 'userField', cache: false, note: 'piani di accumulo (PAC)' },
   { name: 'assistantThreads', ownership: 'userField', cache: false, subcollections: ['messages'], note: "conversazioni dell'assistente" },
+  { name: 'deliveries', ownership: 'userField', cache: false, note: "consegne delle email e di dati/ per periodo (id {uid}_{periodo}; il commento AI pagato resta qui finché l'invio non riesce)" },
   { name: 'expense-totals', ownership: 'userField', cache: true, note: 'totali mensili delle spese per anno (id {uid}_{anno}; ricostruiti da expense-totals:build)' },
   // ── one document per account, id = uid ─────────────────────────────────────────────────────
   { name: 'users', ownership: 'docId', cache: false, note: 'profilo' },
@@ -63,6 +64,7 @@ export const BACKUP_COLLECTIONS: readonly BackupCollection[] = [
   { name: 'dashboardOverviewSummaries', ownership: 'docId', cache: true, note: 'riepilogo della Panoramica' },
   { name: 'expense-totals-meta', ownership: 'docId', cache: true, note: 'ultima verifica notturna dei totali mensili' },
   // ── shared by every account ─────────────────────────────────────────────────────────────────
+  { name: 'cron-runs', ownership: 'global', cache: true, note: 'esiti dei tre cron serali, un documento per giorno e lavoro (90 giorni)' },
   { name: 'benchmark-cache', ownership: 'global', cache: true, note: 'storico dei benchmark' },
   { name: 'fx-rate-cache', ownership: 'global', cache: true, note: 'cambi' },
   { name: 'ecb-rate-cache', ownership: 'global', cache: true, note: 'tassi e ancore BCE' },

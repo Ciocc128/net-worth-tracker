@@ -336,6 +336,17 @@ service cloud.firestore {
       allow list, write: if false;
     }
 
+    // Collezioni cron-runs e deliveries - solo Admin SDK (doc/cron-serale § 5.4–5.5, C2/C5).
+    // cron-runs/{giorno}_{lavoro}: l'esito di ogni cron. deliveries/{uid}_{periodo}: se l'email del
+    // periodo (o dati/) è partita, col commento AI pagato. Il client non legge né scrive: l'utente
+    // vede il proprio stato dalla route GET /api/user/cron-status.
+    match /cron-runs/{runId} {
+      allow read, write: if false;
+    }
+    match /deliveries/{deliveryId} {
+      allow read, write: if false;
+    }
+
     // Blocca tutto il resto per sicurezza
     match /{document=**} {
       allow read, write: if false;
