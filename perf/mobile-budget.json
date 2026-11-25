@@ -427,24 +427,24 @@
     },
     "allocazione": {
       "390": {
-        "screens": 1.69,
+        "screens": 1.7,
         "tilesAboveFold": 1,
-        "tilesFullyAboveFold": 1,
-        "figuresAboveFold": 17,
+        "tilesFullyAboveFold": 0,
+        "figuresAboveFold": 19,
         "figuresOutsideVerdict": 16,
         "firstClosedRowAbovePill": false,
         "overflowX": false,
-        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.67 → 1.69) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.59 → 1.67, tilesAboveFold 2 → 1); 2026-10-15: Bilanciamento non ha una curva da cedere: la prima riga chiusa (Per classe) finisce sotto la pill a 390; 2026-10-11: deriva del giorno del mese, non del codice — il codice di develop (1629613) misurato lo stesso giorno (11, contro il 10 della prima misura del budget) dà esattamente questi valori; il fixture non è invariante al giorno come la scelta di un fixture deterministico assume (doc/guide/prima-schermata.md § Per-page blind spots)"
+        "raisedBy": "2026-11-25, giro Mac dopo RU8 (#236): la striscia della catena dei pesi (quattro celle con cifra) sta fra le schede e il verdetto e sposta tutto; il misurato fa da tetto/pavimento; da confermare dal proprietario (screens 1.69 → 1.7; figuresAboveFold 17 → 19; tilesFullyAboveFold 1 → 0) · Prima: 2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.67 → 1.69) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.59 → 1.67, tilesAboveFold 2 → 1); 2026-10-15: Bilanciamento non ha una curva da cedere: la prima riga chiusa (Per classe) finisce sotto la pill a 390; 2026-10-11: deriva del giorno del mese, non del codice — il codice di develop (1629613) misurato lo stesso giorno (11, contro il 10 della prima misura del budget) dà esattamente questi valori; il fixture non è invariante al giorno come la scelta di un fixture deterministico assume (doc/guide/prima-schermata.md § Per-page blind spots)"
       },
       "768": {
         "screens": 1.15,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 5,
-        "figuresAboveFold": 18,
-        "figuresOutsideVerdict": 16,
+        "figuresAboveFold": 20,
+        "figuresOutsideVerdict": 18,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.13 → 1.15) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.07 → 1.13); 2026-10-16: la cella «Fuori posizione» stampa lo 0,0% che la lettura stampa (sul fixture la casa e il conto stanno in classi senza target) e dal tablet il KPI resta intero accanto alla striscia: una cifra in più sopra la piega e fuori dal verdetto; a 390 il KPI è sollevato e nulla si muove"
+        "raisedBy": "2026-11-25, giro Mac dopo RU8 (#236): la striscia della catena dei pesi (quattro celle con cifra) sta fra le schede e il verdetto e sposta tutto; il misurato fa da tetto/pavimento; da confermare dal proprietario (figuresAboveFold 18 → 20; figuresOutsideVerdict 16 → 18) · Prima: 2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.13 → 1.15) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.07 → 1.13); 2026-10-16: la cella «Fuori posizione» stampa lo 0,0% che la lettura stampa (sul fixture la casa e il conto stanno in classi senza target) e dal tablet il KPI resta intero accanto alla striscia: una cifra in più sopra la piega e fuori dal verdetto; a 390 il KPI è sollevato e nulla si muove"
       },
       "1024": {
         "screens": 1.17,
@@ -683,34 +683,34 @@
     },
     "impostazioni": {
       "390": {
-        "screens": 2.38,
-        "tilesAboveFold": 2,
-        "tilesFullyAboveFold": 1,
+        "screens": 5.04,
+        "tilesAboveFold": 1,
+        "tilesFullyAboveFold": 0,
         "figuresAboveFold": 5,
         "figuresOutsideVerdict": 4,
         "firstClosedRowAbovePill": null,
         "overflowX": false,
-        "raisedBy": "2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresOutsideVerdict 2 → 4) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresAboveFold 2 → 5) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (screens 2.27 → 2.38) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 2.1 → 2.27); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-25, giro Mac dopo RU8 (#236): senza la scheda Allocazione la pagina si apre su Preferenze, più lunga; la pagina non è composta (target false). Causa non confermata con una misura prima di RU8; il misurato fa da tetto/pavimento; da confermare dal proprietario (screens 2.38 → 5.04; tilesAboveFold 2 → 1; tilesFullyAboveFold 1 → 0) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresOutsideVerdict 2 → 4) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresAboveFold 2 → 5) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (screens 2.27 → 2.38) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 2.1 → 2.27); 2026-10-10: pill a 44 px"
       },
       "768": {
-        "screens": 1.58,
+        "screens": 3.44,
         "tilesAboveFold": 3,
         "tilesFullyAboveFold": 2,
         "figuresAboveFold": 7,
         "figuresOutsideVerdict": 7,
         "firstClosedRowAbovePill": null,
         "overflowX": false,
-        "raisedBy": "2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresOutsideVerdict 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresAboveFold 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (screens 1.52 → 1.58) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.38 → 1.52); 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-25, giro Mac dopo RU8 (#236): senza la scheda Allocazione la pagina si apre su Preferenze, più lunga; la pagina non è composta (target false). Causa non confermata con una misura prima di RU8; il misurato fa da tetto/pavimento; da confermare dal proprietario (screens 1.58 → 3.44) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresOutsideVerdict 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresAboveFold 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (screens 1.52 → 1.58) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.38 → 1.52); 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
       },
       "1024": {
-        "screens": 2,
-        "tilesAboveFold": 3,
-        "tilesFullyAboveFold": 2,
+        "screens": 4.55,
+        "tilesAboveFold": 2,
+        "tilesFullyAboveFold": 0,
         "figuresAboveFold": 7,
         "figuresOutsideVerdict": 7,
         "firstClosedRowAbovePill": null,
         "overflowX": false,
-        "raisedBy": "2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresOutsideVerdict 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresAboveFold 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (screens 1.75 → 2.0) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.56 → 1.75); 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-25, giro Mac dopo RU8 (#236): senza la scheda Allocazione la pagina si apre su Preferenze, più lunga; la pagina non è composta (target false). Causa non confermata con una misura prima di RU8; il misurato fa da tetto/pavimento; da confermare dal proprietario (screens 2 → 4.55; tilesAboveFold 3 → 2; tilesFullyAboveFold 2 → 0) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresOutsideVerdict 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresAboveFold 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (screens 1.75 → 2.0) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.56 → 1.75); 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
       }
     },
     "allocazione-accumulo": {
@@ -718,31 +718,31 @@
         "screens": 1.8,
         "tilesAboveFold": 1,
         "tilesFullyAboveFold": 0,
-        "figuresAboveFold": 11,
-        "figuresOutsideVerdict": 7,
+        "figuresAboveFold": 12,
+        "figuresOutsideVerdict": 8,
         "firstClosedRowAbovePill": false,
         "overflowX": false,
-        "raisedBy": "2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (figuresOutsideVerdict 6 → 7) · Prima: 2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (figuresAboveFold 10 → 11) · Prima: 2026-10-18: prima misura (D-CU19) — Accumulo composto per il telefono (tappa A, doc/contributi-upstream/composizione-mobile.md § 8, D-CU19), sul fixture con un modello di 3 strumenti e un piano attivo di 12 rate"
+        "raisedBy": "2026-11-25, giro Mac dopo RU8 (#236): la striscia della catena dei pesi (quattro celle con cifra) sopra il verdetto; Portafoglio modello e Criteri sono andati in Strategia, restano a Accumulo una sola riga chiusa nel fixture; il misurato fa da tetto/pavimento; da confermare dal proprietario (figuresAboveFold 11 → 12; figuresOutsideVerdict 7 → 8) · Prima: 2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (figuresOutsideVerdict 6 → 7) · Prima: 2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (figuresAboveFold 10 → 11) · Prima: 2026-10-18: prima misura (D-CU19) — Accumulo composto per il telefono (tappa A, doc/contributi-upstream/composizione-mobile.md § 8, D-CU19), sul fixture con un modello di 3 strumenti e un piano attivo di 12 rate"
       },
       "768": {
         "screens": 1.29,
         "tilesAboveFold": 1,
-        "tilesFullyAboveFold": 1,
-        "figuresAboveFold": 13,
+        "tilesFullyAboveFold": 0,
+        "figuresAboveFold": 15,
         "figuresOutsideVerdict": 10,
         "firstClosedRowAbovePill": false,
         "overflowX": false,
-        "raisedBy": "2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (tilesAboveFold 3 → 1) · Prima: 2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (screens 1.27 → 1.29) · Prima: 2026-10-18: prima misura (D-CU19) — Accumulo composto per il telefono (tappa A, doc/contributi-upstream/composizione-mobile.md § 8, D-CU19), sul fixture con un modello di 3 strumenti e un piano attivo di 12 rate"
+        "raisedBy": "2026-11-25, giro Mac dopo RU8 (#236): la striscia della catena dei pesi (quattro celle con cifra) sopra il verdetto; Portafoglio modello e Criteri sono andati in Strategia, restano a Accumulo una sola riga chiusa nel fixture; il misurato fa da tetto/pavimento; da confermare dal proprietario (figuresAboveFold 13 → 15; tilesFullyAboveFold 1 → 0) · Prima: 2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (tilesAboveFold 3 → 1) · Prima: 2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (screens 1.27 → 1.29) · Prima: 2026-10-18: prima misura (D-CU19) — Accumulo composto per il telefono (tappa A, doc/contributi-upstream/composizione-mobile.md § 8, D-CU19), sul fixture con un modello di 3 strumenti e un piano attivo di 12 rate"
       },
       "1024": {
-        "screens": 1.38,
-        "tilesAboveFold": 4,
-        "tilesFullyAboveFold": 3,
+        "screens": 1.48,
+        "tilesAboveFold": 2,
+        "tilesFullyAboveFold": 1,
         "figuresAboveFold": 11,
         "figuresOutsideVerdict": 8,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (screens 1.27 → 1.38) · Prima: 2026-10-18: prima misura (D-CU19) — Accumulo composto per il telefono (tappa A, doc/contributi-upstream/composizione-mobile.md § 8, D-CU19), sul fixture con un modello di 3 strumenti e un piano attivo di 12 rate"
+        "raisedBy": "2026-11-25, giro Mac dopo RU8 (#236): la striscia della catena dei pesi (quattro celle con cifra) sopra il verdetto; Portafoglio modello e Criteri sono andati in Strategia, restano a Accumulo una sola riga chiusa nel fixture; il misurato fa da tetto/pavimento; da confermare dal proprietario (screens 1.38 → 1.48; tilesAboveFold 4 → 2; tilesFullyAboveFold 3 → 1) · Prima: 2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (screens 1.27 → 1.38) · Prima: 2026-10-18: prima misura (D-CU19) — Accumulo composto per il telefono (tappa A, doc/contributi-upstream/composizione-mobile.md § 8, D-CU19), sul fixture con un modello di 3 strumenti e un piano attivo di 12 rate"
       }
     },
     "fire-proiezione": {

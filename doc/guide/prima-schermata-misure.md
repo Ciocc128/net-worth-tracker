@@ -194,6 +194,8 @@ senza riportarlo qui, e il 2026-10-16 le ha riallargate con `raisedBy`: la deriv
 d'ora in poi ogni rimisura riscrive la tabella intera dal file, non la sola riga toccata. La tabella § Baseline storica (mirror, dev
 server, 2026-09-26) non si tocca più.
 
+**Voci allargate il 2026-11-25 (giro Mac dopo RU8, #236, main c47998c6; da confermare dal proprietario).** Allocazione: 390 `screens` 1,69 → 1,70 · figure 17 → 19 · `tilesFullyAboveFold` 1 → 0; 768 figure 18 → 20 e fuori dal verdetto 16 → 18 (la striscia della catena dei pesi). Accumulo: 390 figure 11 → 12 / 7 → 8; 768 figure 13 → 15 e `tilesFullyAboveFold` 1 → 0; 1024 `screens` 1,38 → 1,48 · 4/3 → 2/1. Il pavimento di 3 tessere a 768 resta irraggiungibile col fixture (una sola riga chiusa, «Piani conclusi» manca): la prova di tre colonne per gli acquisti dava 2/2 e il proprietario ha preferito la lista, quindi il criterio 16 del dossier resta aperto. Impostazioni (non composta, `target: false`): 390 `screens` 2,38 → 5,04, 768 1,58 → 3,44, 1024 2 → 4,55; causa non confermata con una misura prima di RU8.
+
 | Superficie | 390 | 768 | 1024 |
 |---|---|---|---|
 | Panoramica (2026-10-11, la pagina composta per il telefono: era 3,56 · 1/0 · 15 / 5 · 2,1 · 3/1 · 39 / 23 · 2,75 · 1/0 · 22 / 7; 2026-10-15: 390 `screens` 1,66 → 1,74 sulla macchina di riferimento; 2026-10-16, il tablet composto: 768 era 1,26 · 7/5 · 15 / 15 · riga `true` · 1024 era 1,6 · 1/0 · 10 / 7; 2026-10-16: 390 `screens` 1,74 → 1,75, la testata con i bersagli a 44 px, non riportato qui allora; 2026-10-16, lo stage in orizzontale: 1024 era 1,13 · 7/7 · 5 / 5 · riga `true`) | 1,75 · 1/1 · 5 / 5 · riga `false` | 1,17 · 8/7 · 5 / 5 · riga `true` | 1 · 8/8 · 10 / 10 · riga `true` |
