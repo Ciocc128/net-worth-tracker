@@ -33,10 +33,12 @@ const YEAR_COLUMN_NUMBERS = new Set([1, 5, 10, 15, 20, 25, 31]);
 const WEEKDAY_HEADERS = ['L', 'M', 'M', 'G', 'V', 'S', 'D'] as const;
 
 /**
- * The year grid is 12 months × 31 days (D-RU35): a cell is square, 28px at most, 10px at least
- * (below it the tile draws one month), 3px apart across and 5px down — room for the weekend dash
- * that sits under a Saturday's and a Sunday's cell.
+ * The year grid is 12 months × 31 days (D-RU35): the 31 columns share the tile's width (10px a cell at
+ * least; below it the tile draws one month), the rows are 28px at most, so a wide tile gets wider
+ * cells, never a gap on the right. 3px apart across and 5px down — room for the weekend dash that
+ * sits under a Saturday's and a Sunday's cell.
  */
+/** The row's height, 28px at most. */
 const YEAR_CELL_MAX = 28;
 const YEAR_CELL_MIN = 10;
 const YEAR_GAP = 3;
@@ -167,7 +169,7 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
     return () => observer.disconnect();
   }, [wrapper]);
 
-  const yearCell = width === null ? null : Math.min(YEAR_CELL_MAX, Math.floor((width - YEAR_LABEL_COLUMN - YEAR_GAP * YEAR_COLUMNS) / YEAR_COLUMNS));
+  const yearCell = width === null ? null : Math.floor((width - YEAR_LABEL_COLUMN - YEAR_GAP * YEAR_COLUMNS) / YEAR_COLUMNS);
   const showYear = calendar.kind === 'year' && yearCell !== null && yearCell >= YEAR_CELL_MIN;
 
   // The month a compact year shows: today's when the period holds it, else its last; moved by ‹ ›.
@@ -358,13 +360,13 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
             role={monthMode ? 'group' : 'grid'}
             aria-label={monthMode ? `Spese di ${monthName.toLowerCase()} ${calendar.year}, giorno per giorno` : `Spese del ${calendar.year}, giorno per giorno`}
             onKeyDown={handleGridKeyDown}
-            className={cn('grid', !monthMode && 'w-max')}
+            className="grid"
             style={
               monthMode
                 ? { gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gridTemplateRows: `auto repeat(${monthWeeks}, auto)`, gap: YEAR_GAP }
                 : {
-                    gridTemplateColumns: `${YEAR_LABEL_COLUMN}px repeat(${YEAR_COLUMNS}, ${yearCell}px)`,
-                    gridTemplateRows: `auto repeat(${yearRows.length}, ${yearCell}px)`,
+                    gridTemplateColumns: `${YEAR_LABEL_COLUMN}px repeat(${YEAR_COLUMNS}, minmax(0, 1fr))`,
+                    gridTemplateRows: `auto repeat(${yearRows.length}, ${Math.min(YEAR_CELL_MAX, yearCell as number)}px)`,
                     columnGap: YEAR_GAP,
                     rowGap: YEAR_ROW_GAP,
                   }

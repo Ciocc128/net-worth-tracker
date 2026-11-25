@@ -91,8 +91,10 @@ Tutte le cifre nascono in un modulo puro nuovo, `lib/utils/spendingCalendar.ts`;
 - Anno (rivisto da D-RU35, `doc/riordino-ui/ondata-3.md` § 5.4): una riga per mese (gennaio in alto; `ytd` fino al mese di
   oggi), una colonna per giorno del mese (1…31), `layoutYearByMonth(calendar)` → `{ month, cells: (Day | null)[31] }[]`;
   i giorni che il mese non ha non hanno cella. Etichetta del mese a sinistra, numeri 1·5·10·15·20·25·31 sopra le colonne.
-  Sabato e domenica: un trattino di 2px in `--muted-foreground` al 40% sotto la cella, mai un colore di fondo. Celle
-  quadrate, 28px al massimo e 10px al minimo (sotto, il mese), 3px di spazio in orizzontale e 5px in verticale.
+  Sabato e domenica: un trattino di 2px in `--muted-foreground` al 40% sotto la cella, mai un colore di fondo. Le 31
+  colonne si dividono la larghezza del tile (10px a cella al minimo, sotto il mese), le righe sono alte 28px al massimo
+  (giudizio di Giorgio, 2026-11-25: con celle quadrate col tetto a 28px restava vuoto a destra); 3px di spazio in
+  orizzontale e 5px in verticale.
 - Mese: 7 colonne lun–dom, il 1° nella colonna del suo giorno.
 - `ytd`: gennaio → fine del mese di oggi; `current` e `year`: l'anno intero.
 
@@ -144,7 +146,7 @@ le spese, euro interi su stime e confronti; ID in doc/unslop/README.md quando sa
 - Tile: eyebrow «Calendario delle spese» (`<h3>`), la pillola «Tutte · Solo variabili» nella testa
   (`SegmentedPill`, chiave `localStorage` `analisi.calendario.filtro`, valori `all | variable`, try/catch come
   `cashflow.andamento.confronto`), la lettura (`NarrativeText`, cifre mono a peso normale), la griglia, la legenda.
-- Celle fino a 28px a 1440 (D-RU35: 12 × 31) con 3px di spazio; nessun titolo nativo al passaggio del mouse oltre al nome accessibile.
+- Celle larghe quanto il tile e alte fino a 28px a 1440 (D-RU35: 12 × 31) con 3px di spazio; nessun titolo nativo al passaggio del mouse oltre al nome accessibile.
 
 ### 6.2 Accessibilità
 - La griglia è UNA fermata di Tab (`useRovingFocus`): nell'anno (D-RU35) ←→ un giorno nello stesso mese, ↑↓ lo stesso
