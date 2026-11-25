@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { formatStripFigure, type StripFigure } from '@/lib/utils/verdictStrip';
+import { formatStripFigure, WIDE_CELL_CHARS, type StripFigure } from '@/lib/utils/verdictStrip';
 import type { NarrativeSegment } from '@/lib/utils/narrative';
 import { NarrativeSegments } from '@/components/ui/narrative-text';
 import { TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
@@ -43,13 +43,6 @@ function StripValue({ figure, landed }: { figure: StripFigure; landed: Narrative
   );
 }
 
-/**
- * A value longer than this takes a row of its own below `tablet:`: «+123.456,78 €» does not fit a
- * third of 358px (2026-10-10); from 768 a third is ~240px and every cell shares the one row
- * (2026-10-16). A `null` cell's `reason` counts the same way («nessuno snapshot prima di questo
- * mese» is a wide cell too; first seen on the Panoramica, 2026-10-11).
- */
-const WIDE_CELL_CHARS = 9;
 
 /**
  * The figures of a phone's first screen, under the verdict's first sentence (The First-Screen

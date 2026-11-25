@@ -95,6 +95,18 @@ function unsignedText(value: number, format: StripFormat, decimals?: number): st
   }
 }
 
+/**
+ * A value longer than this takes a row of its own below `tablet:`: «+123.456,78 €» does not fit a
+ * third of 358px (2026-10-10); from 768 a third is ~240px and every cell shares the one row
+ * (2026-10-16). A `null` cell's `reason` counts the same way («nessuno snapshot prima di questo
+ * mese» is a wide cell too; first seen on the Panoramica, 2026-10-11).
+ */
+export const WIDE_CELL_CHARS = 9;
+
+function isCurrencyFormat(format: StripFormat): boolean {
+  return format === 'signed-currency' || format === 'currency' || format === 'approx-currency';
+}
+
 function isSignedFormat(format: StripFormat): boolean {
   return format === 'signed-currency' || format === 'signed-percent' || format === 'points';
 }
@@ -110,14 +122,25 @@ function isSignedFormat(format: StripFormat): boolean {
 export function formatStripFigure(figure: StripFigure): NarrativeSegment | null {
   if (figure.value === null) return null;
 
-  const { value, format, decimals } = figure;
-  const unsigned = unsignedText(value, format, decimals);
-  if (isPrintedZero(unsigned) || value === 0) return { text: unsigned, mono: true };
-
+  const { value, format } = figure;
+  let { decimals } = figure;
   const negative = value < 0;
   const sign = negative ? MINUS : isSignedFormat(format) ? '+' : '';
-  // «~» precedes the sign: the approximation is of the signed figure, not of its magnitude.
-  const text = format === 'approx-currency' ? `~${sign}${unsigned.slice(1)}` : `${sign}${unsigned}`;
+  const compose = (unsignedFigure: string) =>
+    // «~» precedes the sign: the approximation is of the signed figure, not of its magnitude.
+    format === 'approx-currency' ? `~${sign}${unsignedFigure.slice(1)}` : `${sign}${unsignedFigure}`;
+
+  let unsigned = unsignedText(value, format, decimals);
+  if (isPrintedZero(unsigned) || value === 0) return { text: unsigned, mono: true };
+  let text = compose(unsigned);
+
+  // A currency cell too long for a third of a phone drops its cents (2026-11-25): «23.038 €» keeps
+  // the row of three, «23.038,00 €» used to take a row of its own. The tile keeps its cents.
+  if (isCurrencyFormat(format) && decimals !== undefined && decimals > 0 && text.length > WIDE_CELL_CHARS) {
+    decimals = 0;
+    unsigned = unsignedText(value, format, decimals);
+    if (!isPrintedZero(unsigned)) text = compose(unsigned);
+  }
 
   const toneSign =
     figure.tone === 'neutral'
