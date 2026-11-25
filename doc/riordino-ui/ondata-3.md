@@ -8,7 +8,7 @@
 > RU9 (`ondata-2.md` § 5.2, non ancora in main). Il calendario delle spese ha il suo dossier: `doc/calendario-spese/README.md`
 > (D-CS1…D-CS8), che questa ondata rivede in un punto (D-CS1).
 >
-> **Stato: specifica scritta il 2026-11-25 su main `c47998c`; decisioni D-RU25…D-RU35 PROPOSTE, da confermare da Giorgio (§ 8).**
+> **Stato: specifica scritta il 2026-11-25 su main `c47998c`; decisioni D-RU25…D-RU35 PRESE da Giorgio il 2026-11-25 («ok per tutto») (§ 8).**
 > Schizzi «oggi / proposta» (WORKFLOW.md regola 8): https://claude.ai/artifact/QasTFvrzao8ZLSuYGjkH3r (§ 1.1).
 
 ## 1. In breve
@@ -179,7 +179,7 @@ Rotta, chiavi di cache, `mobile-sections:fire-simulations:*` e `FirePlanContext`
 
 ### 5.3 Hall of Fame (nessuna task, o task RU11 se cambia nome)
 
-- **Proposta (D-RU33): resta una pagina, nel gruppo Storia accanto a Storico.** La review voleva togliere una voce di primo
+- **D-RU33: resta una pagina, nel gruppo Storia accanto a Storico.** La review voleva togliere una voce di primo
   livello per una pagina aperta poche volte l'anno; con la fascia (D-FD14) Hall of Fame **non è più di primo livello**: è la
   seconda linguetta del gruppo Storia, cioè proprio la «scheda di Storico» della review, senza una barra di schede in più dentro
   la pagina. Sul telefono resta una riga del foglio «Altro» sotto Storia.
@@ -274,7 +274,7 @@ __tests__`, `TZ=Europe/Rome npx vitest run` sui file toccati, gli `e2e/*.spec.ts
 | **RU12** | R7 Analisi (§ 5.4) | `AnalisiTab.tsx`, `analisiSummary.ts`, `CalendarioTile.tsx`, `spendingCalendar.ts` (`layoutYearByMonth`), `doc/calendario-spese/README.md`, `doc/guide/cashflow-analisi.md`, spec `analisi*` | — (può partire subito) |
 
 **Ordine con Essenziale e RU9.** RU9 viene prima di RU10 (RU10 sposta un campo dalla scheda Investimenti che RU9 crea e usa gli
-id nuovi di Impostazioni). F17 (ES1, ES2) viene dopo RU9 per D-ES19. Proposta (D-RU25): **RU12 subito**, poi RU9 → ES1 → ES2 →
+id nuovi di Impostazioni). F17 (ES1, ES2) viene dopo RU9 per D-ES19. Ordine (D-RU25): **RU12 subito**, poi RU9 → ES1 → ES2 →
 RU10 → RU11. ES1 nasce con la tabella delle aree sulle sei schede di oggi e con l'eccezione D-ES9; RU10 e RU11 cambiano solo righe
 di quella tabella (Calcolatore + What If → `quando` + `ese`; Coast + Dopo il FIRE + Proiezione → `approfondimenti`; Traguardi voce
 sua, D-ES9 tolta) e `resolveNavGroups` riceve la regola di § 5.2. Alternativa: RU10–RU11 prima di ES1, se l'amico entra più tardi
@@ -285,25 +285,25 @@ chi arriva secondo ripassa l'altro. RU12 non tocca file di altre task aperte.
 
 ## 8. Decisioni
 
-**Proposte il 2026-11-25, da confermare da Giorgio.** La raccomandata è la prima colonna; le alternative sono quelle degli schizzi.
+**Prese da Giorgio il 2026-11-25** («ok per tutto»); le alternative sono quelle degli schizzi. D-RU33: nome «Hall of Fame» invariato.
 
-| ID | Stato | Decisione proposta | Alternative scartate e motivo |
+| ID | Stato | Decisione | Alternative scartate e motivo |
 |----|-------|-----------|-------------------------------|
-| D-RU25 | Proposta | Tre task: RU12 Analisi subito; RU10 FIRE e RU11 Traguardi dopo RU9 ed ES1/ES2, in quest'ordine. | RU10 prima di RU9: «casa» si sposterebbe da una scheda di Impostazioni che RU9 sta per ridisegnare. RU10 prima di ES1: possibile (vedi § 7), ma rimanda l'ingresso dell'amico. Una PR sola: FIRE, menu e Analisi in un diff, tre giri di misura. |
-| D-RU26 | Proposta | FIRE in tre schede **Quando · E se… · Approfondimenti**; Coast, Dopo il FIRE, Proiezione scelti con una pillola nell'**asse** del verdetto di Approfondimenti (`?vista=`), ricordata nella sessione. | Cinque schede piatte (Quando · E se… · Coast · Dopo il FIRE · Proiezione, tolti i Traguardi): meno lavoro, ma restano cinque pari e il metodo pesa quanto la risposta (G7). Pillola come seconda barra di schede: con la fascia sarebbero quattro livelli di navigazione (gruppo, pagina, scheda, sotto-scheda). Approfondimenti come una pagina sola con le tre viste impilate: tre simulazioni montate insieme, peso e calcolo triplicati. |
-| D-RU27 | Proposta | Pagina e voce di menu «FIRE»; id delle schede nuovi (`quando`, `ese`, `approfondimenti`) con alias per i vecchi; `goals` → `/dashboard/traguardi`. | Tenere «FIRE e Simulazioni»: somma un acronimo e un metodo (G7) e le Simulazioni ora sono una scheda. Tenere gli id vecchi come valori: `fire` per «Quando» e `coast` per una vista confondono chi legge il codice. |
-| D-RU28 | Proposta | Parametri di Dopo il FIRE e Proiezione: riga chiusa sopra i risultati, aperta da sola quando il form non è quello della corsa mostrata; senza corsa resta l'unico tile aperto. | Lasciarli in fondo: 600 px sotto i risultati, e chi li cambia non vede il bottone. Aperti in testa: spingono i risultati sotto la piega. Toglierli e spostare tutto in «Il mio piano»: sono prove, non il piano (`ParametriTile`: «la corsa non si salva»). |
-| D-RU29 | Proposta | Traguardi pagina sua `/dashboard/traguardi` in Futuro (FIRE · Traguardi · Previdenza), voce visibile solo con «Traguardi di investimento» acceso; nessun «Il mio piano» sulla pagina, i link della riga d'ambito portano a FIRE. | Voce sempre visibile: un utente senza traguardi vede una pagina vuota nel menu (Centri di Costo e Divisione non lo fanno). «Il mio piano» anche qui: due porte per lo stesso piano, e Traguardi lo legge senza cambiarlo. Traguardi resta in FIRE: chi ha FIRE spenta in Essenziale non li troverebbe (D-ES9 resterebbe un ripiego). |
-| D-RU30 | Proposta | Testata di FIRE «Capitale X su Y di patrimonio · fuori: …» con il capitale delle ipotesi (K1/EF1). | «Portafoglio X su Y» come Allocazione: in FIRE il capitale non è il portafoglio (aggiunge la liquidità oltre il fondo), e due cifre diverse con lo stesso nome sono il difetto di R1. Nessuna testata: la cifra resta dentro il popover delle ipotesi, due clic. |
-| D-RU31 | Proposta | «Casa nel patrimonio FIRE» entra in «Il mio piano» (sezione capitale) ed esce da Impostazioni › Investimenti. | Lasciarla in Investimenti (D-RU24 provvisoria): la legge solo FIRE, quindi per P2 sta sulla pagina. In Patrimonio, nel dialogo della casa: è una scelta del piano, non dello strumento. |
-| D-RU32 | Proposta | P6: solo «Quando» nel JS iniziale di FIRE; la Proiezione diventa un chunk; il tetto scende nella stessa PR. | Lasciare la Proiezione nel JS iniziale: era lì come seconda scheda per frequenza; dentro Approfondimenti non si apre mai per prima. |
-| D-RU33 | Proposta | Hall of Fame resta una pagina, seconda linguetta di Storia; nome invariato. | Scheda «Record» di Storico (review): con la fascia diventano due file di schede per due pagine, e chiavi mobili da rifare. Rinominarla «Record» senza fonderla: più chiaro per chi non conosce l'inglese, ma cambia una parola che c'è da mesi (scelta di gusto: dimmi tu). |
-| D-RU34 | Proposta | Analisi: categorie in prima riga e **spostate nel DOM** (Spese, Entrate prima di Fuori scala e Spese maggiori), anche sul telefono. | Solo con `row-start`/`col-start` (DOM invariato): a 1440 il lettore di schermo legge per prima la seconda riga; sul telefono le righe chiuse resterebbero in un ordine diverso da quello visto a 1440. |
-| D-RU35 | Proposta | Calendario dell'anno 12 mesi × 31 giorni, sabato e domenica con un trattino sotto la cella, frase sul giorno della settimana invariata; col mese e sul telefono com'è (rivede D-CS1). | Tenere le 53 settimane: le spese legate al giorno del mese (affitto, rate, stipendio) restano diagonali. Weekend colorato in fondo: si confonde con i gradini di spesa. Numero del giorno in ogni cella: 372 numeri a 30 px, rumore. |
+| D-RU25 | **Presa** (2026-11-25) | Tre task: RU12 Analisi subito; RU10 FIRE e RU11 Traguardi dopo RU9 ed ES1/ES2, in quest'ordine. | RU10 prima di RU9: «casa» si sposterebbe da una scheda di Impostazioni che RU9 sta per ridisegnare. RU10 prima di ES1: possibile (vedi § 7), ma rimanda l'ingresso dell'amico. Una PR sola: FIRE, menu e Analisi in un diff, tre giri di misura. |
+| D-RU26 | **Presa** (2026-11-25) | FIRE in tre schede **Quando · E se… · Approfondimenti**; Coast, Dopo il FIRE, Proiezione scelti con una pillola nell'**asse** del verdetto di Approfondimenti (`?vista=`), ricordata nella sessione. | Cinque schede piatte (Quando · E se… · Coast · Dopo il FIRE · Proiezione, tolti i Traguardi): meno lavoro, ma restano cinque pari e il metodo pesa quanto la risposta (G7). Pillola come seconda barra di schede: con la fascia sarebbero quattro livelli di navigazione (gruppo, pagina, scheda, sotto-scheda). Approfondimenti come una pagina sola con le tre viste impilate: tre simulazioni montate insieme, peso e calcolo triplicati. |
+| D-RU27 | **Presa** (2026-11-25) | Pagina e voce di menu «FIRE»; id delle schede nuovi (`quando`, `ese`, `approfondimenti`) con alias per i vecchi; `goals` → `/dashboard/traguardi`. | Tenere «FIRE e Simulazioni»: somma un acronimo e un metodo (G7) e le Simulazioni ora sono una scheda. Tenere gli id vecchi come valori: `fire` per «Quando» e `coast` per una vista confondono chi legge il codice. |
+| D-RU28 | **Presa** (2026-11-25) | Parametri di Dopo il FIRE e Proiezione: riga chiusa sopra i risultati, aperta da sola quando il form non è quello della corsa mostrata; senza corsa resta l'unico tile aperto. | Lasciarli in fondo: 600 px sotto i risultati, e chi li cambia non vede il bottone. Aperti in testa: spingono i risultati sotto la piega. Toglierli e spostare tutto in «Il mio piano»: sono prove, non il piano (`ParametriTile`: «la corsa non si salva»). |
+| D-RU29 | **Presa** (2026-11-25) | Traguardi pagina sua `/dashboard/traguardi` in Futuro (FIRE · Traguardi · Previdenza), voce visibile solo con «Traguardi di investimento» acceso; nessun «Il mio piano» sulla pagina, i link della riga d'ambito portano a FIRE. | Voce sempre visibile: un utente senza traguardi vede una pagina vuota nel menu (Centri di Costo e Divisione non lo fanno). «Il mio piano» anche qui: due porte per lo stesso piano, e Traguardi lo legge senza cambiarlo. Traguardi resta in FIRE: chi ha FIRE spenta in Essenziale non li troverebbe (D-ES9 resterebbe un ripiego). |
+| D-RU30 | **Presa** (2026-11-25) | Testata di FIRE «Capitale X su Y di patrimonio · fuori: …» con il capitale delle ipotesi (K1/EF1). | «Portafoglio X su Y» come Allocazione: in FIRE il capitale non è il portafoglio (aggiunge la liquidità oltre il fondo), e due cifre diverse con lo stesso nome sono il difetto di R1. Nessuna testata: la cifra resta dentro il popover delle ipotesi, due clic. |
+| D-RU31 | **Presa** (2026-11-25) | «Casa nel patrimonio FIRE» entra in «Il mio piano» (sezione capitale) ed esce da Impostazioni › Investimenti. | Lasciarla in Investimenti (D-RU24 provvisoria): la legge solo FIRE, quindi per P2 sta sulla pagina. In Patrimonio, nel dialogo della casa: è una scelta del piano, non dello strumento. |
+| D-RU32 | **Presa** (2026-11-25) | P6: solo «Quando» nel JS iniziale di FIRE; la Proiezione diventa un chunk; il tetto scende nella stessa PR. | Lasciare la Proiezione nel JS iniziale: era lì come seconda scheda per frequenza; dentro Approfondimenti non si apre mai per prima. |
+| D-RU33 | **Presa** (2026-11-25) | Hall of Fame resta una pagina, seconda linguetta di Storia; nome invariato. | Scheda «Record» di Storico (review): con la fascia diventano due file di schede per due pagine, e chiavi mobili da rifare. Rinominarla «Record» senza fonderla: più chiaro per chi non conosce l'inglese, ma cambia una parola che c'è da mesi (scelta di gusto: dimmi tu). |
+| D-RU34 | **Presa** (2026-11-25) | Analisi: categorie in prima riga e **spostate nel DOM** (Spese, Entrate prima di Fuori scala e Spese maggiori), anche sul telefono. | Solo con `row-start`/`col-start` (DOM invariato): a 1440 il lettore di schermo legge per prima la seconda riga; sul telefono le righe chiuse resterebbero in un ordine diverso da quello visto a 1440. |
+| D-RU35 | **Presa** (2026-11-25) | Calendario dell'anno 12 mesi × 31 giorni, sabato e domenica con un trattino sotto la cella, frase sul giorno della settimana invariata; col mese e sul telefono com'è (rivede D-CS1). | Tenere le 53 settimane: le spese legate al giorno del mese (affitto, rate, stipendio) restano diagonali. Weekend colorato in fondo: si confonde con i gradini di spesa. Numero del giorno in ogni cella: 372 numeri a 30 px, rumore. |
 
 ## 9. Punti aperti
 
-- **Ordine rispetto a ES1** (D-RU25): dipende da quando entra l'amico; la proposta tiene ES1 prima.
+- **Ordine rispetto a ES1** (D-RU25, presa): ES1/ES2 prima di RU10–RU11; se l'amico entrasse più tardi si può invertire (§ 7).
 - **Render sul census**: le PR li fanno prima della review (Approfondimenti a 1440 e 390, Parametri chiusi, calendario 12 × 31 con
   i dati di `seedAnalisiE2E`).
 - **«E se…» a 390**: tre parole intere nella pillola stanno (stima ~300 px su 358); se la misura le smentisce, `shortLabel`
@@ -339,7 +339,7 @@ Valori inventati e tondi (WORKFLOW.md regola 7).
 11. Il tile Traguardi della Panoramica ha «Apri Traguardi».
 
 **Hall of Fame**
-12. Nessun cambiamento (se D-RU33 resta com'è proposta).
+12. Nessun cambiamento (D-RU33).
 
 **R7 · Analisi**
 13. A 1440 con «Anno corrente»: Spese per categoria e Entrate per categoria hanno lo stesso `top` del Periodo; Spese maggiori sta
