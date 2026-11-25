@@ -6,6 +6,7 @@ import type { Narrative } from '@/lib/utils/narrative';
 import {
   SPENDING_CALENDAR_STEPS,
   daysInMonth,
+  layoutYearByMonth,
   weekdayOf,
   type CalendarDay,
   type SpendingCalendar,
@@ -27,18 +28,32 @@ const FILTER_OPTIONS = [
 ] as const;
 
 const MONTH_LETTERS_SHORT = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'] as const;
-/** Rows of the year grid labelled in the margin: lunedì, mercoledì, venerdì, domenica (D-CS: «L · M · V · D»). */
-const YEAR_ROW_LABELS: Record<number, string> = { 0: 'L', 2: 'M', 4: 'V', 6: 'D' };
+/** The day numbers written above the year grid's columns (D-RU35); the other columns carry no text. */
+const YEAR_COLUMN_NUMBERS = new Set([1, 5, 10, 15, 20, 25, 31]);
 const WEEKDAY_HEADERS = ['L', 'M', 'M', 'G', 'V', 'S', 'D'] as const;
 
-/** The year grid's cell: 18px at most, 10px at least (below it the tile draws one month), 3px apart. */
-const YEAR_CELL_MAX = 18;
+/**
+ * The year grid is 12 months × 31 days (D-RU35): a cell is square, 28px at most, 10px at least
+ * (below it the tile draws one month), 3px apart across and 5px down — room for the weekend dash
+ * that sits under a Saturday's and a Sunday's cell.
+ */
+const YEAR_CELL_MAX = 28;
 const YEAR_CELL_MIN = 10;
 const YEAR_GAP = 3;
-const YEAR_LABEL_COLUMN = 22;
+const YEAR_ROW_GAP = 5;
+const YEAR_LABEL_COLUMN = 32;
+const YEAR_COLUMNS = 31;
 
 const euroCents = (value: number) => cachedFormatCurrencyEUR(value);
 const euroWhole = (value: number) => cachedFormatCurrencyEUR(value, true);
+
+/**
+ * The mark under a Saturday's and a Sunday's cell in the year grid (D-RU35): a 2px dash in the
+ * muted ink at 40%, never a background — the fill stays the spending's.
+ */
+function WeekendDash() {
+  return <span aria-hidden="true" className="pointer-events-none absolute inset-x-[22%] -bottom-[4px] h-0.5 rounded-full bg-muted-foreground/40" />;
+}
 
 /**
  * The cell's fill: `--flow-out` at the step's intensity over the card, so a change of period or
@@ -126,11 +141,12 @@ interface CalendarioTileProps {
 
 /**
  * «In quali giorni spendo, e c'è uno schema?» — one cell per day of the period, coloured by what was
- * spent (doc/calendario-spese/README.md). A year is the 53-week grid (columns = weeks from Monday)
- * when the cell can be 10px at least, otherwise — and always on a month — one calendar month at a
- * time, with ‹ › to move inside the period on a year. The scale is the period's, so two months
- * compare. The grid is ONE Tab stop (`useRovingFocus`): ←→ a day, ↑↓ a week, Enter or Space opens
- * the day in a popover beside the cell.
+ * spent (doc/calendario-spese/README.md). A year is the 12 × 31 grid (a row per month, a column per
+ * day of the month, D-RU35) when the cell can be 10px at least, otherwise — and always on a month —
+ * one calendar month at a time, with ‹ › to move inside the period on a year. The scale is the
+ * period's, so two months compare. The grid is ONE Tab stop (`useRovingFocus`): on the year ←→ a day
+ * and ↑↓ the same day of the month before or after, Home and End the month's first and last day; on
+ * a month ←→ a day and ↑↓ a week; Enter or Space opens the day in a popover beside the cell.
  */
 export function CalendarioTile({ calendar, filter, onFilterChange, reading, today, collapse, asideWhenClosed, className }: CalendarioTileProps) {
   // The wrapper mounts only while the tile is open (a closed row holds no content), so it is state,
@@ -145,11 +161,11 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
     return () => observer.disconnect();
   }, [wrapper]);
 
-  const weekColumns = Math.ceil((calendar.startWeekday + calendar.days.length) / 7);
-  const yearCell = width === null ? null : Math.min(YEAR_CELL_MAX, Math.floor((width - YEAR_LABEL_COLUMN - YEAR_GAP * weekColumns) / weekColumns));
+  const yearCell = width === null ? null : Math.min(YEAR_CELL_MAX, Math.floor((width - YEAR_LABEL_COLUMN - YEAR_GAP * YEAR_COLUMNS) / YEAR_COLUMNS));
   const showYear = calendar.kind === 'year' && yearCell !== null && yearCell >= YEAR_CELL_MIN;
 
   // The month a compact year shows: today's when the period holds it, else its last; moved by ‹ ›.
+  const firstMonth = calendar.days[0].month;
   const lastMonth = calendar.days[calendar.days.length - 1].month;
   const defaultMonth = calendar.year === today.year && today.month <= lastMonth ? today.month : lastMonth;
   const [override, setOverride] = useState<{ year: number; month: number } | null>(null);
@@ -173,9 +189,45 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
   };
   const closePopover = () => setSelected(null);
 
+  const focusDay = (day: CalendarDay | undefined) => {
+    if (!day || !interactiveIndex.has(day.date)) return false;
+    gridRef.current?.querySelector<HTMLElement>(`[data-date="${day.date}"]`)?.focus();
+    return true;
+  };
+
+  // The year grid (D-RU35): ←→ a day inside the month, ↑↓ the same day of the month before or after
+  // (the last day when that month is shorter), Home and End the month's first and last reachable day.
+  const handleYearKeyDown = (event: KeyboardEvent<HTMLElement>, target: HTMLElement) => {
+    const current = calendar.days.find((d) => d.date === target.dataset.date);
+    if (!current) return;
+    const ofMonth = (month: number) => calendar.days.filter((d) => d.month === month);
+    let handled = true;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+      const step = event.key === 'ArrowRight' ? 1 : -1;
+      const days = ofMonth(current.month);
+      for (let i = current.day - 1 + step; i >= 0 && i < days.length; i += step) if (focusDay(days[i])) break;
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      for (let month = current.month + step; month >= firstMonth && month <= lastMonth; month += step) {
+        const days = ofMonth(month);
+        if (focusDay(days[Math.min(current.day, days.length) - 1])) break;
+      }
+    } else if (event.key === 'Home' || event.key === 'End') {
+      const days = ofMonth(current.month);
+      for (const day of event.key === 'Home' ? days : [...days].reverse()) if (focusDay(day)) break;
+    } else {
+      handled = false;
+    }
+    if (handled) event.preventDefault();
+  };
+
   const handleGridKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
     if (!target.hasAttribute(ROVING_ITEM_ATTRIBUTE)) return;
+    if (showYear) {
+      handleYearKeyDown(event, target);
+      return;
+    }
     const delta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowDown' ? 7 : event.key === 'ArrowUp' ? -7 : 0;
     if (delta === 0) {
       roving.containerProps.onKeyDown(event);
@@ -187,11 +239,7 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
     // A week up or down lands on one cell; a day steps over what cannot be reached.
     let index = from + delta;
     while (index >= 0 && index < visibleDays.length) {
-      const day = visibleDays[index];
-      if (interactiveIndex.has(day.date)) {
-        gridRef.current?.querySelector<HTMLElement>(`[data-date="${day.date}"]`)?.focus();
-        return;
-      }
+      if (focusDay(visibleDays[index])) return;
       if (Math.abs(delta) === 7) return;
       index += step;
     }
@@ -206,11 +254,12 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
   const renderCell = (day: CalendarDay, className: string, children?: React.ReactNode) => {
     const props = cellProps(day);
     const style = calendarCellStyle(day);
-    const common = cn('rounded-[3px] motion-safe:transition-colors motion-safe:duration-300', day.isToday && 'ring-2 ring-foreground ring-offset-1 ring-offset-card', className);
+    const common = cn('relative rounded-[3px] motion-safe:transition-colors motion-safe:duration-300', day.isToday && 'ring-2 ring-foreground ring-offset-1 ring-offset-card', className);
     if (!props) {
       return (
         <div key={day.date} data-date={day.date} className={common} style={{ ...style, ...placement(day) }}>
           <span className="sr-only">{describeCalendarCell(day)}</span>
+          {showYear && day.weekday >= 5 && <WeekendDash />}
         </div>
       );
     }
@@ -220,6 +269,7 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
         type="button"
         {...props}
         data-date={day.date}
+        role={showYear ? 'gridcell' : undefined}
         aria-haspopup="dialog"
         aria-expanded={selected === day.date}
         onClick={(event) => select(day, event.currentTarget)}
@@ -227,16 +277,14 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
         style={{ ...style, ...placement(day) }}
       >
         <span className="sr-only">{describeCalendarCell(day)}</span>
+        {showYear && day.weekday >= 5 && <WeekendDash />}
         {children}
       </button>
     );
   };
 
-  // Year: columns are weeks (label column first), rows the weekdays under a row of month names.
-  const yearPlacement = (day: CalendarDay): CSSProperties => {
-    const index = calendar.startWeekday + calendar.days.indexOf(day);
-    return { gridColumn: Math.floor(index / 7) + 2, gridRow: (index % 7) + 2 };
-  };
+  // Year (D-RU35): a row per month under the row of day numbers, a column per day after the label column.
+  const yearPlacement = (day: CalendarDay): CSSProperties => ({ gridColumn: day.day + 1, gridRow: day.month - firstMonth + 2 });
   const monthPlacement = (day: CalendarDay): CSSProperties => {
     const index = weekdayOf(day.year, day.month, 1) + day.day - 1;
     return { gridColumn: (index % 7) + 1, gridRow: Math.floor(index / 7) + 2 };
@@ -245,6 +293,7 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
     return monthMode ? monthPlacement(day) : yearPlacement(day);
   }
 
+  const yearRows = layoutYearByMonth(calendar);
   const hasPlanned = calendar.days.some((d) => d.planned > 0);
   const monthName = MONTH_NAMES[viewMonth - 1];
   const monthWeeks = Math.ceil((weekdayOf(calendar.year, viewMonth, 1) + daysInMonth(calendar.year, viewMonth)) / 7);
@@ -300,7 +349,7 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
         {width !== null && (
           <div
             ref={gridRef}
-            role="group"
+            role={monthMode ? 'group' : 'grid'}
             aria-label={monthMode ? `Spese di ${monthName.toLowerCase()} ${calendar.year}, giorno per giorno` : `Spese del ${calendar.year}, giorno per giorno`}
             onKeyDown={handleGridKeyDown}
             className={cn('grid', !monthMode && 'w-max')}
@@ -308,9 +357,10 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
               monthMode
                 ? { gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gridTemplateRows: `auto repeat(${monthWeeks}, auto)`, gap: YEAR_GAP }
                 : {
-                    gridTemplateColumns: `${YEAR_LABEL_COLUMN}px repeat(${weekColumns}, ${yearCell}px)`,
-                    gridTemplateRows: `auto repeat(7, ${yearCell}px)`,
-                    gap: YEAR_GAP,
+                    gridTemplateColumns: `${YEAR_LABEL_COLUMN}px repeat(${YEAR_COLUMNS}, ${yearCell}px)`,
+                    gridTemplateRows: `auto repeat(${yearRows.length}, ${yearCell}px)`,
+                    columnGap: YEAR_GAP,
+                    rowGap: YEAR_ROW_GAP,
                   }
             }
           >
@@ -322,31 +372,35 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
                 ))
               : (
                 <>
-                  {Object.entries(YEAR_ROW_LABELS).map(([row, letter]) => (
-                    <span key={row} aria-hidden="true" className="flex items-center font-mono text-[11px] text-muted-foreground" style={{ gridColumn: 1, gridRow: Number(row) + 2 }}>
-                      {letter}
-                    </span>
-                  ))}
-                  {calendar.days
-                    .filter((d) => d.day === 1)
-                    .map((d) => (
-                      <span key={d.date} aria-hidden="true" className="whitespace-nowrap font-mono text-[11px] text-muted-foreground" style={{ gridColumn: `${Math.floor((calendar.startWeekday + calendar.days.indexOf(d)) / 7) + 2} / span 3`, gridRow: 1 }}>
-                        {MONTH_LETTERS_SHORT[d.month - 1]}
+                  {Array.from({ length: YEAR_COLUMNS }, (_, i) => i + 1)
+                    .filter((day) => YEAR_COLUMN_NUMBERS.has(day))
+                    .map((day) => (
+                      <span key={day} aria-hidden="true" className="text-center font-mono text-[11px] text-muted-foreground" style={{ gridColumn: day + 1, gridRow: 1 }}>
+                        {day}
                       </span>
                     ))}
+                  {yearRows.map((row) => (
+                    <span key={row.month} aria-hidden="true" className="flex items-center whitespace-nowrap font-mono text-[11px] text-muted-foreground" style={{ gridColumn: 1, gridRow: row.month - firstMonth + 2 }}>
+                      {MONTH_LETTERS_SHORT[row.month - 1]}
+                    </span>
+                  ))}
                 </>
               )}
-            {visibleDays.map((day) =>
-              renderCell(
-                day,
-                monthMode ? 'flex min-h-11 items-start justify-start p-1 text-left font-mono text-[11px] tabular-nums' : '',
-                monthMode ? (
-                  <span aria-hidden="true" className={calendarDayInkClass(day.step)}>
-                    {day.day}
-                  </span>
-                ) : undefined,
-              ),
-            )}
+            {showYear
+              ? yearRows.map((row) => (
+                  <div key={row.month} role="row" aria-label={MONTH_NAMES[row.month - 1].toLowerCase()} className="contents">
+                    {row.cells.map((day) => (day ? renderCell(day, '') : null))}
+                  </div>
+                ))
+              : visibleDays.map((day) =>
+                  renderCell(
+                    day,
+                    'flex min-h-11 items-start justify-start p-1 text-left font-mono text-[11px] tabular-nums',
+                    <span aria-hidden="true" className={calendarDayInkClass(day.step)}>
+                      {day.day}
+                    </span>,
+                  ),
+                )}
           </div>
         )}
 
