@@ -78,7 +78,7 @@ test('a value typed in Cashflow survives a trip to Account and back, unsaved', a
 
   // Account has no slice of the year and Radix unmounts the Cashflow panel's content meanwhile.
   await visibleTab(page, 'Account').click();
-  await expect(page.locator('section[aria-label="Tema colori"]')).toBeVisible();
+  await expect(page.locator('section[aria-label="Aspetto"]')).toBeVisible();
   await expect(yearInput(page)).toHaveCount(0);
 
   await visibleTab(page, /^Cashflow/).click();

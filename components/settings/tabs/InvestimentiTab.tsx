@@ -46,7 +46,7 @@ export function InvestimentiTab({ slice, onChange, cashSubCategories, riskFreeEs
   return (
     <SettingsTabPanel tab="investimenti" label="Investimenti">
       {/* Calcolo dei rendimenti — measurement base + pension-return start month */}
-      <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
+      <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6 desktop:row-span-2')}>
         <Tile
           eyebrow="Calcolo dei rendimenti"
           aside="Rendimenti"

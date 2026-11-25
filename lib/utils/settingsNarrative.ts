@@ -804,24 +804,15 @@ export function describeSharing({ memberNames }: SharingInput): Narrative {
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 /**
- * Modalità — next-themes is per device, and before hydration the theme is unknown: the reading
- * is dropped (null) rather than guessed, the same guard ThemePicker uses for its highlight.
+ * Aspetto — mode (this device) and palette (the account) in ONE sentence (RU9 follow-up): the mode says
+ * what it follows, the palette that it is synced; before hydration the mode is not known and the
+ * sentence names the palette alone.
  */
-export function describeThemeMode(mode: ThemeMode | undefined): Narrative | null {
-  if (mode === undefined) return null;
-  if (mode === 'system') {
-    return [prose('Il tema segue il dispositivo; la scelta vale solo su questo browser.')];
-  }
-  return [
-    prose(
-      `Tema ${mode === 'dark' ? 'scuro' : 'chiaro'} su questo dispositivo; «Sistema» segue le impostazioni del dispositivo.`
-    ),
-  ];
-}
-
-/** Tema colori — the active palette, synced on the account. */
-export function describeColorTheme(themeName: string): Narrative {
-  return [prose(`${themeName} attivo, sincronizzato su tutti i dispositivi.`)];
+export function describeAppearance(mode: ThemeMode | undefined, themeName: string): Narrative {
+  const palette = `${themeName} su tutti i dispositivi`;
+  if (mode === undefined) return [prose(`${palette}.`)];
+  if (mode === 'system') return [prose(`Il tema segue il dispositivo; ${palette}.`)];
+  return [prose(`Sempre ${mode === 'dark' ? 'scuro' : 'chiaro'} su questo dispositivo; ${palette}.`)];
 }
 
 /** The Fascia tile's reading (doc/fascia/README.md): the band's colour in words, or that there is none. */
