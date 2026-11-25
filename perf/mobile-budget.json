@@ -683,34 +683,31 @@
     },
     "impostazioni": {
       "390": {
-        "screens": 5.04,
-        "tilesAboveFold": 1,
-        "tilesFullyAboveFold": 0,
-        "figuresAboveFold": 5,
-        "figuresOutsideVerdict": 4,
+        "screens": 3.01,
+        "tilesAboveFold": 2,
+        "tilesFullyAboveFold": 1,
+        "figuresAboveFold": 0,
+        "figuresOutsideVerdict": 0,
         "firstClosedRowAbovePill": null,
-        "overflowX": false,
-        "raisedBy": "2026-11-25, giro Mac dopo RU8 (#236): senza la scheda Allocazione la pagina si apre su Preferenze, più lunga; la pagina non è composta (target false). Causa non confermata con una misura prima di RU8; il misurato fa da tetto/pavimento; da confermare dal proprietario (screens 2.38 → 5.04; tilesAboveFold 2 → 1; tilesFullyAboveFold 1 → 0) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresOutsideVerdict 2 → 4) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresAboveFold 2 → 5) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (screens 2.27 → 2.38) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 2.1 → 2.27); 2026-10-10: pill a 44 px"
+        "overflowX": false
       },
       "768": {
-        "screens": 3.44,
+        "screens": 2.1,
         "tilesAboveFold": 3,
         "tilesFullyAboveFold": 2,
-        "figuresAboveFold": 7,
-        "figuresOutsideVerdict": 7,
+        "figuresAboveFold": 1,
+        "figuresOutsideVerdict": 1,
         "firstClosedRowAbovePill": null,
-        "overflowX": false,
-        "raisedBy": "2026-11-25, giro Mac dopo RU8 (#236): senza la scheda Allocazione la pagina si apre su Preferenze, più lunga; la pagina non è composta (target false). Causa non confermata con una misura prima di RU8; il misurato fa da tetto/pavimento; da confermare dal proprietario (screens 1.58 → 3.44) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresOutsideVerdict 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresAboveFold 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (screens 1.52 → 1.58) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.38 → 1.52); 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
+        "overflowX": false
       },
       "1024": {
-        "screens": 4.55,
+        "screens": 2.82,
         "tilesAboveFold": 2,
-        "tilesFullyAboveFold": 0,
-        "figuresAboveFold": 7,
-        "figuresOutsideVerdict": 7,
+        "tilesFullyAboveFold": 1,
+        "figuresAboveFold": 0,
+        "figuresOutsideVerdict": 0,
         "firstClosedRowAbovePill": null,
-        "overflowX": false,
-        "raisedBy": "2026-11-25, giro Mac dopo RU8 (#236): senza la scheda Allocazione la pagina si apre su Preferenze, più lunga; la pagina non è composta (target false). Causa non confermata con una misura prima di RU8; il misurato fa da tetto/pavimento; da confermare dal proprietario (screens 2 → 4.55; tilesAboveFold 3 → 2; tilesFullyAboveFold 2 → 0) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresOutsideVerdict 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (figuresAboveFold 4 → 7) · Prima: 2026-11-21, Impostazioni fuori dalla composizione ha cresciuto contenuto (viste, bozza unica): il misurato fa da tetto; la composizione della pagina è un lavoro a parte; da confermare dal proprietario (screens 1.75 → 2.0) · Prima: 2026-10-17 (T5, fork): la composizione di upstream (MOB-01…09) unita alle tessere e ai blocchi del fork sposta la prima schermata di poco; il misurato fa da tetto (screens 1.56 → 1.75); 2026-10-15: la macchina di riferimento è cambiata (il budget ne ha una sola): il budget era stato stretto sull'altra, che misura qualche centesimo in meno; la pill a 44 px dal 2026-10-10"
+        "overflowX": false
       }
     },
     "allocazione-accumulo": {
