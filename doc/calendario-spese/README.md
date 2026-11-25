@@ -8,7 +8,7 @@
 ## 1. In breve
 
 Un tile nuovo in Cashflow › Analisi, **«Calendario delle spese»**: ogni giorno del periodo è una cella colorata per
-quanto hai speso quel giorno. Con un anno è la griglia 12 mesi × 31 giorni (una riga per mese, una colonna per giorno del mese, sabato e domenica con un trattino sotto la cella; rivista da D-RU35, 2026-11-25);
+quanto hai speso quel giorno. Con un anno è la griglia 12 mesi × 31 giorni (una riga per mese, una colonna per giorno del mese, ogni cella con la lettera del suo giorno della settimana; rivista da D-RU35, 2026-11-25);
 con un mese è il calendario del mese. Una lettura dice in quanti giorni hai speso, quale giorno della settimana pesa
 di più e qual è stato il giorno più caro; toccando un giorno un popover accanto alla cella dice il totale e le voci.
 Nessuna lettura nuova dal database.
@@ -91,7 +91,8 @@ Tutte le cifre nascono in un modulo puro nuovo, `lib/utils/spendingCalendar.ts`;
 - Anno (rivisto da D-RU35, `doc/riordino-ui/ondata-3.md` § 5.4): una riga per mese (gennaio in alto; `ytd` fino al mese di
   oggi), una colonna per giorno del mese (1…31), `layoutYearByMonth(calendar)` → `{ month, cells: (Day | null)[31] }[]`;
   i giorni che il mese non ha non hanno cella. Etichetta del mese a sinistra, numeri 1·5·10·15·20·25·31 sopra le colonne.
-  Sabato e domenica: un trattino di 2px in `--muted-foreground` al 40% sotto la cella, mai un colore di fondo. Le 31
+  Ogni cella porta al centro la lettera del giorno della settimana (L M M G V S D, giudizio di Giorgio 2026-11-25: il
+  trattino sotto sabato e domenica non si capiva), nello stesso colore della cella in un'altra tonalità, così segue la heatmap (`calendarLetterStyle`: più scuro sui gradini 1–3, più chiaro sul 4, tenue senza spesa; giudizio di Giorgio 2026-11-25). Le 31
   colonne si dividono la larghezza del tile (10px a cella al minimo, sotto il mese), le righe sono alte 28px al massimo
   (giudizio di Giorgio, 2026-11-25: con celle quadrate col tetto a 28px restava vuoto a destra); 3px di spazio in
   orizzontale e 5px in verticale.

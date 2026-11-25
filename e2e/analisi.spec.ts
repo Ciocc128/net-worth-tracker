@@ -449,7 +449,7 @@ test.describe('Calendario delle spese', () => {
     expect(await calendarTile(page).locator('button[data-date][tabindex="0"]').count()).toBe(1);
   });
 
-  test('the year is a row per month with a dash under Saturday and Sunday', async ({ page }) => {
+  test('the year is a row per month, each cell with its weekday letter', async ({ page }) => {
     await gotoAnalisi(page, `?period=year&year=${PREVIOUS_YEAR}`);
     const grid = calendarTile(page).getByRole('grid');
     await expect(grid.getByRole('row')).toHaveCount(12);
@@ -459,8 +459,13 @@ test.describe('Calendario delle spese', () => {
     const [jan15, feb15] = await Promise.all([dayCell(page, `${PREVIOUS_YEAR}-01-15`).boundingBox(), dayCell(page, `${PREVIOUS_YEAR}-02-15`).boundingBox()]);
     expect(Math.abs(jan15!.x - feb15!.x)).toBeLessThan(1);
     expect(feb15!.y).toBeGreaterThan(jan15!.y);
-    const weekendDashes = await calendarTile(page).locator('button[data-date] > span.bg-muted-foreground\\/40').count();
-    expect(weekendDashes).toBeGreaterThan(90); // 52 weekends × 2 days = 104 or 105
+    // 2 January 2025 was a Thursday, 4 January a Saturday (PREVIOUS_YEAR is the seed's year, 2025 when this was written):
+    // the letter is the cell's own weekday, whatever the year.
+    const letters = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
+    const weekdayOf = (iso: string) => (new Date(`${iso}T12:00:00Z`).getUTCDay() + 6) % 7;
+    for (const iso of [`${PREVIOUS_YEAR}-01-15`, `${PREVIOUS_YEAR}-02-15`, `${PREVIOUS_YEAR}-03-16`]) {
+      await expect(dayCell(page, iso)).toContainText(letters[weekdayOf(iso)]);
+    }
   });
 
   test('remembers «Solo variabili» after a reload', async ({ page }) => {

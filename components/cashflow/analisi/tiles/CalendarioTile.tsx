@@ -35,27 +35,17 @@ const WEEKDAY_HEADERS = ['L', 'M', 'M', 'G', 'V', 'S', 'D'] as const;
 /**
  * The year grid is 12 months × 31 days (D-RU35): the 31 columns share the tile's width (10px a cell at
  * least; below it the tile draws one month), the rows are 28px at most, so a wide tile gets wider
- * cells, never a gap on the right. 3px apart across and 5px down — room for the weekend dash that
- * sits under a Saturday's and a Sunday's cell.
+ * cells, never a gap on the right. 3px apart; each cell carries its weekday's letter, centred.
  */
 /** The row's height, 28px at most. */
 const YEAR_CELL_MAX = 28;
 const YEAR_CELL_MIN = 10;
 const YEAR_GAP = 3;
-const YEAR_ROW_GAP = 5;
 const YEAR_LABEL_COLUMN = 32;
 const YEAR_COLUMNS = 31;
 
 const euroCents = (value: number) => cachedFormatCurrencyEUR(value);
 const euroWhole = (value: number) => cachedFormatCurrencyEUR(value, true);
-
-/**
- * The mark under a Saturday's and a Sunday's cell in the year grid (D-RU35): a 2px dash in the
- * muted ink at 40%, never a background — the fill stays the spending's.
- */
-function WeekendDash() {
-  return <span aria-hidden="true" className="pointer-events-none absolute inset-x-[22%] -bottom-[4px] h-0.5 rounded-full bg-muted-foreground/40" />;
-}
 
 /**
  * The cell's fill: `--flow-out` at the step's intensity over the card, so a change of period or
@@ -92,6 +82,18 @@ export function calendarDayInkClass(step: SpendingStep): string {
   return '';
 }
 
+/**
+ * The weekday letter of a year cell (D-RU35): the cell's own hue in another tone, so it follows the
+ * heatmap — a darker shade of `--flow-out` on the light steps 1–3, a lighter one on the full step 4,
+ * a quiet grey-on-grey on a day with nothing spent, fainter still on a later day.
+ */
+export function calendarLetterStyle(day: Pick<CalendarDay, 'step' | 'isFuture'>): CSSProperties {
+  if (day.isFuture) return { color: 'color-mix(in oklab, var(--muted-foreground) 45%, transparent)' };
+  if (day.step === 0) return { color: 'color-mix(in oklab, var(--muted-foreground) 70%, var(--muted))' };
+  if (day.step === 4) return { color: 'color-mix(in oklab, var(--flow-out) 35%, var(--card))' };
+  return { color: 'color-mix(in oklab, var(--flow-out) 100%, var(--foreground) 55%)' };
+}
+
 function stepSwatchStyle(step: SpendingStep): CSSProperties {
   return calendarCellStyle({ step, isFuture: false, planned: 0 });
 }
@@ -104,7 +106,7 @@ function stepLabel(step: SpendingStep, [q1, q2, q3]: [number, number, number]): 
   return `oltre ${euroWhole(q3)}`;
 }
 
-function Legend({ calendar, hasPlanned, showWeekend }: { calendar: SpendingCalendar; hasPlanned: boolean; showWeekend: boolean }) {
+function Legend({ calendar, hasPlanned }: { calendar: SpendingCalendar; hasPlanned: boolean }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground" aria-hidden="true">
       <span className="flex items-center gap-1 whitespace-nowrap">
@@ -118,12 +120,6 @@ function Legend({ calendar, hasPlanned, showWeekend }: { calendar: SpendingCalen
             <span className="font-mono tabular-nums">{stepLabel(step, calendar.thresholds as [number, number, number])}</span>
           </span>
         ))}
-      {showWeekend && (
-        <span className="flex items-center gap-1 whitespace-nowrap">
-          <span className="inline-block h-0.5 w-3 rounded-full bg-muted-foreground/40" />
-          sabato e domenica
-        </span>
-      )}
       {hasPlanned && (
         <span className="flex items-center gap-1 whitespace-nowrap">
           <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={calendarCellStyle({ step: 0, isFuture: true, planned: 1 })} />
@@ -267,7 +263,6 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
       return (
         <div key={day.date} data-date={day.date} className={common} style={{ ...style, ...placement(day) }}>
           <span className="sr-only">{describeCalendarCell(day)}</span>
-          {showYear && day.weekday >= 5 && <WeekendDash />}
         </div>
       );
     }
@@ -285,7 +280,6 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
         style={{ ...style, ...placement(day) }}
       >
         <span className="sr-only">{describeCalendarCell(day)}</span>
-        {showYear && day.weekday >= 5 && <WeekendDash />}
         {children}
       </button>
     );
@@ -368,7 +362,7 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
                     gridTemplateColumns: `${YEAR_LABEL_COLUMN}px repeat(${YEAR_COLUMNS}, minmax(0, 1fr))`,
                     gridTemplateRows: `auto repeat(${yearRows.length}, ${Math.min(YEAR_CELL_MAX, yearCell as number)}px)`,
                     columnGap: YEAR_GAP,
-                    rowGap: YEAR_ROW_GAP,
+                    rowGap: YEAR_GAP,
                   }
             }
           >
@@ -397,7 +391,17 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
             {showYear
               ? yearRows.map((row) => (
                   <div key={row.month} role="row" aria-label={MONTH_NAMES[row.month - 1].toLowerCase()} className="contents">
-                    {row.cells.map((day) => (day ? renderCell(day, '') : null))}
+                    {row.cells.map((day) =>
+                      day
+                        ? renderCell(
+                            day,
+                            'flex items-center justify-center font-mono text-[10px] leading-none',
+                            <span aria-hidden="true" style={calendarLetterStyle(day)}>
+                              {WEEKDAY_HEADERS[day.weekday]}
+                            </span>,
+                          )
+                        : null,
+                    )}
                   </div>
                 ))
               : visibleDays.map((day) =>
@@ -429,7 +433,7 @@ export function CalendarioTile({ calendar, filter, onFilterChange, reading, toda
         </Popover>
       </div>
 
-      <Legend calendar={calendar} hasPlanned={hasPlanned} showWeekend={showYear} />
+      <Legend calendar={calendar} hasPlanned={hasPlanned} />
     </Tile>
   );
 }
