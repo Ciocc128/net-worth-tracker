@@ -118,7 +118,7 @@ export async function PUT(
 
     console.error('Error updating dividend:', error);
     return NextResponse.json(
-      { error: 'Failed to update dividend', details: (error as Error).message },
+      { error: 'Failed to update dividend' },
       { status: 500 }
     );
   }
@@ -190,7 +190,7 @@ export async function DELETE(
 
     console.error('Error deleting dividend:', error);
     return NextResponse.json(
-      { error: 'Failed to delete dividend', details: (error as Error).message },
+      { error: 'Failed to delete dividend' },
       { status: 500 }
     );
   }

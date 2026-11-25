@@ -76,8 +76,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: 'Failed to create snapshot',
-        details: (error as Error).message
+        error: 'Failed to create snapshot'
       },
       { status: 500 }
     );

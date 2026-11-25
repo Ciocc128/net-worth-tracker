@@ -1,11 +1,11 @@
 /**
  * exposureReport — read-only diagnosis of the Esposizione tile's real coverage, on YOUR real
- * portfolio (Firebase Admin SDK, `giorgiotrentadue@gmail.com`). Prints, per view, the base, the
+ * portfolio (Firebase Admin SDK, the account passed as argument). Prints, per view, the base, the
  * read share, and exactly which instruments are `nonApplicabile` vs `nonLetta` — the same
  * three-bucket breakdown the tile itself shows, so a look here is a preview of what the page will
  * say before you open it.
  *
- * `npm run exposure:report` — never writes anything, Firestore or otherwise (besides the
+ * `npm run exposure:report -- <account email>` — never writes anything, Firestore or otherwise (besides the
  * 30-day instrument-profile-cache and 24h exposure-cache the normal computation already writes as
  * a side effect — this script computes exposure exactly the way the API route does).
  *
@@ -17,6 +17,7 @@
  */
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { resolveTargetEmail } from './lib/targetEmail';
 
 function loadEnvLocal(): void {
   const envPath = path.resolve(process.cwd(), '.env.local');
@@ -29,7 +30,8 @@ function loadEnvLocal(): void {
 }
 loadEnvLocal();
 
-const TARGET_EMAIL = 'giorgiotrentadue@gmail.com';
+// The account comes from the command line, never from the repo.
+const TARGET_EMAIL = resolveTargetEmail(process.argv.slice(2), 'exposure:report');
 
 async function main() {
   const { getAuth } = await import('firebase-admin/auth');

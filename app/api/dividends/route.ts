@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
 
     console.error('Error fetching dividends:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch dividends', details: (error as Error).message },
+      { error: 'Failed to fetch dividends' },
       { status: 500 }
     );
   }
@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
 
     console.error('Error creating dividend:', error);
     return NextResponse.json(
-      { error: 'Failed to create dividend', details: (error as Error).message },
+      { error: 'Failed to create dividend' },
       { status: 500 }
     );
   }

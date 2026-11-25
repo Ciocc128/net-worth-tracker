@@ -22,6 +22,8 @@ const {
   accountAccessDocGetMock: vi.fn(),
 }));
 
+// The server-only guard uses a Next.js internal; stub it so the import succeeds in Vitest.
+vi.mock('server-only', () => ({}));
 vi.mock('@/lib/firebase/admin', () => ({
   adminAuth: {
     verifyIdToken: verifyIdTokenMock,

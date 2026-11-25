@@ -325,7 +325,7 @@ export async function POST(request: NextRequest) {
     }
     console.error('[API /ai/analyze-performance] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to generate AI analysis', details: (error as Error).message },
+      { error: 'Failed to generate AI analysis' },
       { status: 500 }
     );
   }
