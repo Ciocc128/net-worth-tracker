@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     console.error('Error updating prices:', error);
     return NextResponse.json(
-      { error: 'Failed to update prices', details: (error as Error).message },
+      { error: 'Failed to update prices' },
       { status: 500 }
     );
   }

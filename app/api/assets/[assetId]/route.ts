@@ -66,7 +66,7 @@ export async function DELETE(
 
     console.error('Error deleting asset:', error);
     return NextResponse.json(
-      { error: 'Failed to delete asset', details: (error as Error).message },
+      { error: 'Failed to delete asset' },
       { status: 500 }
     );
   }

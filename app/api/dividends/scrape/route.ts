@@ -277,7 +277,7 @@ export async function POST(request: NextRequest) {
 
     console.error('Error scraping dividends:', error);
     return NextResponse.json(
-      { error: 'Failed to scrape dividends', details: (error as Error).message },
+      { error: 'Failed to scrape dividends' },
       { status: 500 }
     );
   }

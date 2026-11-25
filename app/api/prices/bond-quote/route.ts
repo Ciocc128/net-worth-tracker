@@ -50,8 +50,7 @@ export async function GET(request: NextRequest) {
     console.error('Error in bond-quote API:', error);
     return NextResponse.json(
       {
-        error: 'Failed to fetch bond quote',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: 'Failed to fetch bond quote'
       },
       { status: 500 }
     );

@@ -568,7 +568,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, stats: null, dividends: registry });
     }
     return NextResponse.json(
-      { error: 'Failed to calculate dividend statistics', details: (error as Error).message },
+      { error: 'Failed to calculate dividend statistics' },
       { status: 500 }
     );
   }
