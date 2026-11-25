@@ -61,7 +61,7 @@ export function useWhatIfBaseline() {
   const pensionLockedValue = pensionLockState?.totalLockedToday ?? 0;
 
   // The page's hypotheses (doc/fire-ipotesi/README.md): the scenarios are the target portfolio's rates on the
-  // per-class assumptions of Impostazioni › Simulazioni, read through ONE hook in every tab.
+  // per-class assumptions of Impostazioni › Avanzate, read through ONE hook in every tab.
   const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
   const { assumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true });
   // § 12: the SAVED dated flows are the plan both sides run on («prima» = the Calcolatore's); an event of a later year is laid over them.

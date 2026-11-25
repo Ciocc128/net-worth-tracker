@@ -456,7 +456,7 @@ export async function setSettings(
         }
       }
 
-      // The Monte Carlo market assumptions (Impostazioni › Simulazioni): same shape as idealAllocation
+      // The Monte Carlo market assumptions (Impostazioni › Avanzate): same shape as idealAllocation
       // above — this branch writes WITHOUT merge, so a caller that omits the key must not have it dropped.
       if ('monteCarloMarket' in settings) {
         if (settings.monteCarloMarket !== undefined) {

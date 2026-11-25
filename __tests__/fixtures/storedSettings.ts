@@ -36,7 +36,7 @@ export const STORED_DATED_FLOWS: DatedFlow[] = [
   { id: 'f2', label: 'Part-time', kind: 'income', amount: 9_600, indexed: true, start: { anchor: 'fire', afterYears: 0 }, durationYears: 10 },
 ];
 
-/** Gli scaglioni IRPEF di Impostazioni › Simulazioni (RP8). */
+/** Gli scaglioni IRPEF di Impostazioni › Avanzate (RP8). */
 export const STORED_TAX_BRACKETS = [{ id: 'b1', upTo: 28_000, rate: 23 }, { id: 'b2', upTo: null, rate: 43 }];
 
 /** Ogni valore è scelto per essere DIVERSO dal default, così un campo perso si vede. */

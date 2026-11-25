@@ -1,6 +1,6 @@
 /**
  * AL20 (D-AL6): how much of each hedgeable Monte Carlo class the portfolio holds in instruments the owner flagged
- * «Coperto dal cambio in EUR» (`Asset.currencyHedge`), to PROPOSE the class's hedge switch in Impostazioni › Simulazioni
+ * «Coperto dal cambio in EUR» (`Asset.currencyHedge`), to PROPOSE the class's hedge switch in Impostazioni › Avanzate
  * (doc/allineamento/README.md § 9.6). The proposal is a sentence and a button; this module never writes a switch.
  *
  * The share is measured on market value, on the same legs and the same `K` as the Monte Carlo weights

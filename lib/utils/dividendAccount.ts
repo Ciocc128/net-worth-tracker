@@ -3,7 +3,7 @@
  * scrape route and the manual entry through `dividendIncomeService`.
  *
  * The account is chosen per INSTRUMENT (`Asset.dividendCashAssetId`, set in the asset form: two
- * brokers pay into two accounts) and falls back to the default in Impostazioni › Dividendi
+ * brokers pay into two accounts) and falls back to the default in Impostazioni › Cashflow
  * (`dividendCashAssetId`); with neither, the income row is written with no account, as before.
  *
  * Only a payment that is NOT in the past when its income row is created credits the account

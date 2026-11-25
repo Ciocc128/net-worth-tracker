@@ -11,7 +11,7 @@ import { computeDividendAmounts } from '@/lib/utils/dividendEntitlement';
 import { Asset } from '@/types/assets';
 import { ExpenseCategory } from '@/types/expenses';
 
-/** Where a user's dividends land in the cashflow (Impostazioni › Dividendi). */
+/** Where a user's dividends land in the cashflow (Impostazioni › Cashflow). */
 export interface DividendIncomeCategory {
   categoryId: string;
   categoryName: string;

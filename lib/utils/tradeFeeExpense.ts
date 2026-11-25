@@ -4,7 +4,7 @@
  * What a broker charges to execute an order is a cost of its own (owner, 2026-10-21), so it does
  * not ride on the position's cost: the EUR PMC stands on price × quantity alone
  * (`assetTransactionUtils`) and the commission is a spending row in the category chosen in
- * Impostazioni › Spese for fees (`transferFeeCategoryId`, shared with `expenseFee.ts`).
+ * Impostazioni › Cashflow for fees (`transferFeeCategoryId`, shared with `expenseFee.ts`).
  *
  * The row moves NO account: the trade's own cash settlement already debits the account for the
  * fees (`computeCashDelta`), and a second debit would pay them twice. It is on the trade's date,

@@ -108,11 +108,6 @@ export function describeFlowsRow(effect: FlowsEffect): { value: string | null; c
   return { value: String(effect.count), caption: [shift, excluded].filter(Boolean).join(' · ') };
 }
 
-/** Settings › Parametri del piano: «4» or «nessuno». */
-export function describeFlowsDeclaration(count: number): string {
-  return count > 0 ? String(count) : 'nessuno';
-}
-
 /**
  * Monte Carlo and Proiezione › Parametri, under the capital (§ 12.7): the flows the run reads, read-only; they are edited in the
  * Calcolatore. A flow anchored to the FIRE says what it means here: «if I stop today» starts it in year 1, the Proiezione has no FIRE.

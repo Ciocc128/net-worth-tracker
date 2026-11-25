@@ -451,7 +451,7 @@ test('Movimenti sits beside the categories and only its list scrolls (R5)', asyn
   expect(tabs[tabs.length - 1]).toContain('Dividendi');
 
   // The gear on Tracciamento is «Categorie»; on Dividendi it is the dividends' settings; on Budget there is none.
-  await expect(page.getByRole('link', { name: 'Categorie', exact: true })).toHaveAttribute('href', '/dashboard/settings?tab=spese');
+  await expect(page.getByRole('link', { name: 'Categorie', exact: true })).toHaveAttribute('href', '/dashboard/settings?tab=cashflow');
 
   // «Tabella» takes the full width, under the cashflow tile.
   await page.getByRole('tab', { name: 'Tabella' }).click();

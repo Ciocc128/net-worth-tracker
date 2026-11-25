@@ -21,12 +21,20 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tile } from '@/components/ui/tile';
+import { TileMethodNote } from '@/components/ui/tile-method-note';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeSharing } from '@/lib/utils/settingsNarrative';
 import { describeReadFailure } from '@/lib/utils/statesNarrative';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 import { cn } from '@/lib/utils';
+
+// What happens between the invitation and the access (the old «Come funziona» tile, a method note since RU9).
+const HOW_IT_WORKS = [
+  'La persona si registra con la propria email (deve essere abilitata alla registrazione).',
+  'Aggiungi qui la stessa email: l’accesso è completo, non esiste un ruolo «sola lettura».',
+  'Dal suo menu account sceglie quale account vedere; le sue preferenze e il suo tema restano suoi.',
+];
 
 interface Member {
   uid: string;
@@ -296,10 +304,18 @@ export function AccountSharingSection({
         {announcement}
       </span>
 
-      <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-        L&apos;accesso è sempre al TUO account, qualunque account sia attivo nello switcher; le credenziali non si
-        condividono mai e la revoca è immediata.
-      </div>
+      <TileMethodNote
+        subject="Condivisione account"
+        actionLabel="Come funziona"
+        summary="L'accesso è sempre al TUO account, qualunque account sia attivo nello switcher; le credenziali non si condividono mai e la revoca è immediata."
+      >
+        <span>L&apos;invitata si registra prima; poi l&apos;account condiviso appare nel suo switcher.</span>
+        <ol className="list-decimal space-y-1 pl-4">
+          {HOW_IT_WORKS.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+      </TileMethodNote>
     </Tile>
   );
 }

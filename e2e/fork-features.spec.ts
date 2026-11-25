@@ -205,7 +205,7 @@ const IMPORT_CSV = [
 
 test.describe('Import CSV delle spese (solo fork)', () => {
   test('previews, commits and undoes a batch without touching categories', async ({ page }) => {
-    await page.goto('/dashboard/settings?tab=spese');
+    await page.goto('/dashboard/settings?tab=cashflow');
 
     const tile = page.getByRole('region', { name: 'Import CSV' });
     await expect(tile).toBeVisible({ timeout: 30_000 });

@@ -859,8 +859,8 @@ function ExpenseFormBody({
             {feeHint ?? (
               <>
                 {EXPENSE_FEE_NEEDS_CATEGORY}{' '}
-                <Link href="/dashboard/settings?tab=spese" className="underline underline-offset-2 hover:text-foreground">
-                  Impostazioni › Spese
+                <Link href="/dashboard/settings?tab=cashflow" className="underline underline-offset-2 hover:text-foreground">
+                  Impostazioni › Cashflow
                 </Link>
                 .
               </>
@@ -1455,7 +1455,7 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess, returnFocusTo
   const spendingRolesEnabled = settings?.spendingRolesEnabled ?? false;
   const familyMembers = useMemo(() => settings?.familyMembers ?? EMPTY_FAMILY_MEMBERS, [settings]);
   const [personalMemberId, setPersonalMemberId] = useState<string>('');
-  // Where a new fee lands (Impostazioni › Spese), read with the other settings; null until the
+  // Where a new fee lands (Impostazioni › Cashflow), read with the other settings; null until the
   // settings document has answered (the field waits, it does not guess).
   const feeSettings = useMemo<ExpenseFeeSettings | null>(
     () => (settings === undefined ? null : { transferFeeCategoryId: settings?.transferFeeCategoryId, transferFeeSubCategoryId: settings?.transferFeeSubCategoryId }),
@@ -1678,7 +1678,7 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess, returnFocusTo
     }
   }, [expense, reset, open]);
 
-  // A NEW row opens on the default account of its type (Impostazioni › Spese) once the settings
+  // A NEW row opens on the default account of its type (Impostazioni › Cashflow) once the settings
   // have answered. Declared AFTER the reset effect above, so in the commit that opens the dialog
   // the reset clears the field first and this fills it — the order the old async loader had.
   useEffect(() => {

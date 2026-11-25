@@ -394,7 +394,7 @@ export function describeTraiettoriaFooter(t: TrajectoryView): Narrative {
       if (index > 0) out.push(prose(', '));
       out.push(pct(share.pct), prose(` ${share.label.toLowerCase()}`));
     });
-    out.push(prose(`) sulle ipotesi dello scenario Base di Impostazioni › Simulazioni`));
+    out.push(prose(`) sulle ipotesi dello scenario Base di Impostazioni › Avanzate`));
     if (t.returnOutside.length > 0) {
       const labels = t.returnOutside.map((cls) => MONTE_CARLO_EXCLUDED_LABELS[cls]).join(' e ');
       out.push(prose(`; ${labels} fuori dalle ipotesi, il resto riscalato a 100`));
@@ -634,7 +634,7 @@ export const EXPLAINER: { title: string; body: string }[] = [
   {
     title: 'Il rendimento atteso',
     // L3 (doc/fire-ipotesi § 8): the same hypotheses as every FIRE tab — this body described the fixed per-class rates of before until 2026-10-05.
-    body: 'È il rendimento composto dello scenario Base di Impostazioni › Simulazioni, al netto di TER e bollo: sull\'allocazione consigliata del traguardo (cripto e immobili esclusi, il resto riportato a 100) o, senza un\'allocazione utilizzabile, sul portafoglio target, lo stesso delle altre schede FIRE. Si capitalizza al tasso mensile equivalente. È una stima indicativa, non un consiglio finanziario.',
+    body: 'È il rendimento composto dello scenario Base di Impostazioni › Avanzate, al netto di TER e bollo: sull\'allocazione consigliata del traguardo (cripto e immobili esclusi, il resto riportato a 100) o, senza un\'allocazione utilizzabile, sul portafoglio target, lo stesso delle altre schede FIRE. Si capitalizza al tasso mensile equivalente. È una stima indicativa, non un consiglio finanziario.',
   },
   {
     title: 'La probabilità',

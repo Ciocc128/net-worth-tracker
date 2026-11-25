@@ -826,7 +826,7 @@ describe('annualCostRate (RC4, doc/fire-ipotesi § 9)', () => {
 });
 
 describe('S4–S5 — the sustainable withdrawal on the seeded default plan', () => {
-  // Default Impostazioni › Simulazioni, 60/40, 1.000.000 €, 30 years, 10.000 paths, MONTE_CARLO_SEED, no costs.
+  // Default Impostazioni › Avanzate, 60/40, 1.000.000 €, 30 years, 10.000 paths, MONTE_CARLO_SEED, no costs.
   const defaults = getDefaultMonteCarloMarket();
   const plan = (key: 'bear' | 'base' | 'bull', annualWithdrawal = 0): MonteCarloParams => ({
     portfolioSource: 'custom',

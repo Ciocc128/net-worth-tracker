@@ -332,7 +332,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   const pensionLockedValue = pensionLockState?.totalLockedToday ?? 0;
 
   // The page's hypotheses (doc/fire-ipotesi/README.md): the three scenarios are the target portfolio's
-  // rates on the per-class assumptions of Impostazioni › Simulazioni — never typed here. While the
+  // rates on the per-class assumptions of Impostazioni › Avanzate — never typed here. While the
   // data loads the skeleton is shown, so the neutral defaults below are never read as numbers.
   const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
   const { assumptions: savedAssumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true });

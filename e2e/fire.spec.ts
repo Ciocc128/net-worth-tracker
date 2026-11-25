@@ -71,7 +71,7 @@ test('the verdict and the Traguardo render: a rule headline and a well-formed FI
   await expect(details).toContainText(/Spesa /);
   await expect(page.getByRole('dialog')).toContainText(/Capitale/);
   // Rendimenti says where the weights come from and links the settings (RC2).
-  await expect(page.getByTestId('fire-detail-returns').getByRole('link', { name: 'Modifica in Impostazioni › Simulazioni' })).toBeVisible();
+  await expect(page.getByTestId('fire-detail-returns').getByRole('link', { name: 'Modifica in Impostazioni › Avanzate' })).toBeVisible();
   await page.keyboard.press('Escape');
 
   // Four tiles, one question each.

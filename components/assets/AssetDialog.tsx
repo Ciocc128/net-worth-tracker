@@ -1963,7 +1963,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_DIVIDEND_ACCOUNT}>Predefinito (Impostazioni › Dividendi)</SelectItem>
+                  <SelectItem value={NO_DIVIDEND_ACCOUNT}>Predefinito (Impostazioni › Cashflow)</SelectItem>
                   {ledgerCashAssets.map((cash) => (
                     <SelectItem key={cash.id} value={cash.id}>
                       {cash.name}

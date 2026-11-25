@@ -1,25 +1,30 @@
 'use client';
 
 /**
- * Impostazioni › Spese — in the left column the two settings the expense FORM reads (default
- * accounts, the transfer fee's category) and the «Ruoli 50/30/20» switch, then the CSV import
- * and the category inventory.
+ * Impostazioni › Cashflow (`cashflow`) — the rules of the movements: the categories first (the
+ * inventory the others pick from), then the two settings the expense FORM reads (default
+ * accounts, the fee's category), the labor income and the history floor, the dividends' landing
+ * and the CSV import. It gathers what were three tabs (Spese, Dividendi and the Cashflow tile of
+ * Preferenze) under RU9; the switches that turn Centri di Costo, Divisione and the 50/30/20 roles
+ * on are Funzioni's.
  *
- * A controlled view of the `spese` slice: `slice` in, `onChange(patch)` out. The categories are
+ * A controlled view of the `cashflow` slice: `slice` in, `onChange(patch)` out. The categories are
  * NOT the slice's: a category is written where it is edited (the dialogs, the move and the delete
  * below, each invalidating the key every reader shares — `invalidateCategoryCaches`), so what
  * stays local here is dialog state and the list's live region. `CategoryRow` and the category
- * dialog read the DRAFT's `spendingRolesEnabled`, not the saved one: the switch on and not yet
- * saved already colours the badges and opens the role picker, and so it must stay (#400).
+ * dialog read the DRAFT's `spendingRolesEnabled` (Funzioni's switch, handed down), not the saved
+ * one: the switch on and not yet saved already colours the badges and opens the role picker, and
+ * so it must stay (#400).
  */
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowRightLeft, Edit, Plus, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, Coins, Edit, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -30,6 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tile, TILE_CELL_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { TileMethodNote } from '@/components/ui/tile-method-note';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { CategoryManagementDialog, invalidateCategoryCaches } from '@/components/expenses/CategoryManagementDialog';
 import { CategoryDeleteConfirmDialog } from '@/components/expenses/CategoryDeleteConfirmDialog';
@@ -37,6 +43,7 @@ import { CategoryMoveDialog } from '@/components/expenses/CategoryMoveDialog';
 import { LAZY_CATEGORY_ICONS } from '@/components/expenses/IconPickerPopover';
 import ExpenseImportSection from '@/components/settings/ExpenseImportSection';
 import { cn } from '@/lib/utils';
+import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 import { resolveCenteredModalOrigin } from '@/lib/utils/modalOrigin';
 import { deleteCategory, getCategoryById } from '@/lib/services/expenseCategoryService';
@@ -50,16 +57,59 @@ import {
 import { describeReadFailure, type SurfaceState } from '@/lib/utils/statesNarrative';
 import {
   describeDefaultAccounts,
+  describeDividendCategory,
   describeExpenseCategories,
-  describeSpendingRolesSetting,
+  describeIncomeHistory,
   describeTransferFeeCategory,
   summarizeExpenseCategories,
 } from '@/lib/utils/settingsNarrative';
-import { categoryRoleColor, summarizeCategoryClassification } from '@/lib/utils/spendingRoles';
-import { NO_SELECTION, type SpeseSlice } from '@/lib/utils/settingsDraft';
+import { categoryRoleColor } from '@/lib/utils/spendingRoles';
+import { DIVIDENDI_TILE_ID, NO_SELECTION, type CashflowSlice } from '@/lib/utils/settingsDraft';
 import type { Asset } from '@/types/assets';
 import { EXPENSE_TYPE_LABELS, type ExpenseCategory, type ExpenseType } from '@/types/expenses';
-import { INTERACTIVE_CONTROL_CLASS, runGuarded, SettingsTabPanel } from './shared';
+import { ElsewhereLine, INTERACTIVE_CONTROL_CLASS, runGuarded, SettingsTabPanel } from './shared';
+
+interface SyncDividendsButtonProps {
+  disabled: boolean;
+  syncing: boolean;
+  onSync: () => void;
+  /** The tile's live region: the armed and disarmed states are said, not only drawn. */
+  announce: (text: string) => void;
+}
+
+/**
+ * «Sincronizza dividendi esistenti» — a two-click confirm (`useArmedDelete`, no timer). It writes
+ * cashflow rows for every recorded dividend, so the first press asks; it does not destroy
+ * anything, so the armed state is the primary tint, not the destructive one.
+ */
+function SyncDividendsButton({ disabled, syncing, onSync, announce }: SyncDividendsButtonProps) {
+  const ref = useRef<HTMLButtonElement | null>(null);
+  const { armed, onClick, onBlur } = useArmedDelete(ref, onSync);
+  const wasArmed = useRef(false);
+  useEffect(() => {
+    if (armed) {
+      wasArmed.current = true;
+      announce('Premi di nuovo per sincronizzare i dividendi già registrati');
+    } else if (wasArmed.current) {
+      wasArmed.current = false;
+      announce('Sincronizzazione annullata');
+    }
+  }, [armed, announce]);
+
+  return (
+    <Button
+      ref={ref}
+      onClick={onClick}
+      onBlur={onBlur}
+      disabled={disabled}
+      variant={armed ? 'default' : 'outline'}
+      className="h-11 gap-2 desktop:h-9"
+    >
+      <Coins className="h-4 w-4" />
+      {syncing ? 'Sincronizzazione…' : armed ? 'Conferma sincronizzazione' : 'Sincronizza dividendi esistenti'}
+    </Button>
+  );
+}
 
 /** What a first press on a category's delete led to. */
 type CategoryDeleteRequest = 'dialog' | 'arm' | 'failed';
@@ -180,11 +230,16 @@ function CategoryRow({ category, onEdit, onMove, onRequestDelete, onConfirmDelet
   );
 }
 
-export interface SpeseTabProps {
-  slice: SpeseSlice;
-  onChange: (patch: Partial<SpeseSlice>) => void;
-  /** Whose categories the dialogs, the move and the delete write; `undefined` refuses them. */
+export interface CashflowTabProps {
+  slice: CashflowSlice;
+  onChange: (patch: Partial<CashflowSlice>) => void;
+  /** Whose categories the dialogs, the move and the delete write, and whose dividends the sync reads; `undefined` refuses them. */
   ownerId: string | undefined;
+  isDemo: boolean;
+  /** Land on the Dividendi tile (`?focus=dividendi`): scrolled to, the focus on its first control. */
+  focusDividendi: boolean;
+  /** Funzioni's switch as DRAFTED: with it on the badges wear the role and the category dialog opens the role picker. */
+  spendingRolesEnabled: boolean;
   expenseCategories: ExpenseCategory[];
   categoriesState: SurfaceState;
   /** «Riprova» and the re-read after a write here: the invalidation of the categories key. */
@@ -197,10 +252,13 @@ export interface SpeseTabProps {
   onExpenseImported: () => void;
 }
 
-export function SpeseTab({
+export function CashflowTab({
   slice,
   onChange,
   ownerId,
+  isDemo,
+  focusDividendi,
+  spendingRolesEnabled,
   expenseCategories,
   categoriesState,
   onRetryCategories,
@@ -208,9 +266,13 @@ export function SpeseTab({
   accountsState,
   onRetryAccounts,
   onExpenseImported,
-}: SpeseTabProps) {
+}: CashflowTabProps) {
   const queryClient = useQueryClient();
-  const { defaultDebitCashAssetId, defaultCreditCashAssetId, transferFeeCategoryId, transferFeeSubCategoryId, spendingRolesEnabled } = slice;
+  const {
+    defaultDebitCashAssetId, defaultCreditCashAssetId, transferFeeCategoryId, transferFeeSubCategoryId,
+    laborIncomeCategoryIds, cashflowHistoryStartYear,
+    dividendIncomeCategoryId, dividendIncomeSubCategoryId, dividendCashAssetId,
+  } = slice;
 
   // Dialog state — ephemeral, the view's own.
   const [categoryAnnouncement, setCategoryAnnouncement] = useState('');
@@ -230,7 +292,10 @@ export function SpeseTab({
   const debitAccount = cashAssets.find((a) => a.id === defaultDebitCashAssetId);
   const creditAccount = cashAssets.find((a) => a.id === defaultCreditCashAssetId);
   const categoryCounts = summarizeExpenseCategories(expenseCategories);
-  const categoryClassification = summarizeCategoryClassification(expenseCategories);
+  const incomeCategories = expenseCategories.filter((cat) => cat.type === 'income');
+  const laborCategoryNames = incomeCategories.filter((cat) => laborIncomeCategoryIds.includes(cat.id)).map((cat) => cat.name);
+  const dividendCategory = expenseCategories.find((cat) => cat.id === dividendIncomeCategoryId);
+  const dividendSubCategory = dividendCategory?.subCategories.find((sub) => sub.id === dividendIncomeSubCategoryId);
   const transferFeeCategory = expenseCategories.find((cat) => cat.id === transferFeeCategoryId);
   const transferFeeSubCategory = transferFeeCategory?.subCategories.find((sub) => sub.id === transferFeeSubCategoryId);
 
@@ -425,14 +490,142 @@ export function SpeseTab({
     await onRetryCategories();
   };
 
+  // The dividends' sync — ephemeral, the view's own.
+  const [syncingDividends, setSyncingDividends] = useState(false);
+  const [syncAnnouncement, setSyncAnnouncement] = useState('');
+  const announceSync = useCallback((text: string) => setSyncAnnouncement(text), []);
+
+  // `?tab=dividendi` (the old address) and the gear of Cashflow › Dividendi arrive with
+  // `focus=dividendi`: the tab opens on the Dividendi tile, the focus on its first control. Once,
+  // when the tab mounts with the request (a tab change drops it from the URL).
+  useEffect(() => {
+    if (!focusDividendi) return;
+    const frame = requestAnimationFrame(() => {
+      const cell = document.getElementById(DIVIDENDI_TILE_ID);
+      cell?.scrollIntoView({ block: 'start' });
+      cell?.querySelector<HTMLElement>('button, [role="combobox"]')?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusDividendi]);
+
+  // Runs at the SECOND press of SyncDividendsButton.
+  const handleSyncDividends = async () => {
+    if (!ownerId) return;
+
+    if (!dividendIncomeCategoryId) {
+      toast.error('Seleziona prima una categoria per le entrate da dividendi');
+      return;
+    }
+
+    await runGuarded(async () => {
+      setSyncingDividends(true);
+
+      // The server reads the account's dividends and the category itself: the request carries ids
+      // only (doc/sicurezza/README.md RS1–RS3). The category id is the tab's draft, not the saved one.
+      const syncResponse = await authenticatedFetch('/api/dividends/sync-expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: ownerId,
+          categoryId: dividendIncomeCategoryId,
+          subCategoryId: dividendIncomeSubCategoryId || undefined,
+        }),
+      });
+
+      if (syncResponse.status === 400) {
+        toast.error('Categoria non trovata');
+        return;
+      }
+      if (!syncResponse.ok) {
+        throw new Error('Errore nella sincronizzazione');
+      }
+
+      const syncData = await syncResponse.json();
+      const result = syncData.result;
+
+      if (result.failed > 0) {
+        toast.warning(
+          `Sincronizzazione completata con ${result.failed} errori: ${result.created} voci create, ${result.skipped} già presenti.`
+        );
+      } else {
+        toast.success(`Sincronizzazione completata: ${result.created} voci create, ${result.skipped} già presenti.`);
+      }
+    }, (error) => {
+      console.error('Error syncing dividends:', error);
+      toast.error('Errore nella sincronizzazione dei dividendi');
+    }, () => {
+      setSyncingDividends(false);
+    });
+  };
+
   return (
-    <SettingsTabPanel tab="spese" label="Spese">
-      {/* Left column: the two settings the expense FORM reads, then the 50/30/20 switch. Below
-          desktop the wrapper dissolves (`contents`) and each tile is a grid cell; from desktop
-          they stack at their natural height beside the taller import tile. */}
-      <div className="contents desktop:col-span-5 desktop:flex desktop:flex-col desktop:gap-3">
-      {/* Conti di default (moved here from Preferenze: they act in the expense dialog) */}
-      <div className={TILE_CELL_CLASS}>
+    <SettingsTabPanel tab="cashflow" label="Cashflow">
+      {/* Categorie — the inventory every other tile of the tab picks from, so it comes first */}
+      <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
+        {categoriesState === 'failed' ? (
+          <ErrorNotice
+            onRetry={() => void onRetryCategories()}
+            notice={describeReadFailure({
+              subject: 'Categorie',
+              consequence:
+                "Le categorie non sono state lette: l'elenco sembrerebbe vuoto senza esserlo, quindi qui non compare.",
+              canRetry: true,
+            })}
+          />
+        ) : (
+        <Tile
+          eyebrow="Categorie"
+          aside={
+            <Button onClick={handleAddExpenseCategory} variant="outline" size="sm" className="h-11 text-[12px] desktop:h-8">
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              Nuova categoria
+            </Button>
+          }
+          reading={categoriesState === 'loading' ? null : describeExpenseCategories(categoryCounts)}
+        >
+          {categoriesState === 'loading' ? (
+            <p className="mt-3 text-[13px] text-muted-foreground">Caricamento delle categorie…</p>
+          ) : (
+            <div className="mt-1">
+              {(['income', 'fixed', 'variable', 'debt'] as ExpenseType[]).map((type) => {
+                const categories = getCategoriesByType(type);
+                if (categories.length === 0) return null;
+                return (
+                  <div key={type} className="mt-3 first:mt-2">
+                    <p className={TILE_SUB_EYEBROW_CLASS}>{EXPENSE_TYPE_LABELS[type]}</p>
+                    <div className="mt-1 divide-y divide-border">
+                      {categories.map((category) => (
+                        <CategoryRow
+                          key={category.id}
+                          category={category}
+                          onEdit={handleEditExpenseCategory}
+                          onMove={handleMoveExpenseCategory}
+                          onRequestDelete={requestCategoryDelete}
+                          onConfirmDelete={handleConfirmDirectDelete}
+                          announce={announceCategory}
+                          spendingRolesEnabled={spendingRolesEnabled}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {/* The list's one live region: arm and disarm are sentences, spoken here. */}
+          <span className="sr-only" role="status" aria-live="polite">
+            {categoryAnnouncement}
+          </span>
+          <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
+            Elimina chiede la riassegnazione se la categoria ha transazioni (altrimenti conferma al secondo
+            tocco); la freccia sposta tutte le transazioni in un&apos;altra categoria senza eliminarla.
+          </div>
+        </Tile>
+        )}
+      </div>
+
+      {/* Conti di default — they act in the expense dialog */}
+      <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
         {accountsState === 'failed' ? (
           <ErrorNotice
             onRetry={onRetryAccounts}
@@ -504,7 +697,7 @@ export function SpeseTab({
       </div>
 
       {/* Commissioni bancarie — where any row's fee lands (lib/utils/expenseFee.ts; the stored key keeps its transfer-era name) */}
-      <div className={TILE_CELL_CLASS}>
+      <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
         {categoriesState === 'failed' ? (
           <ErrorNotice
             onRetry={() => void onRetryCategories()}
@@ -614,108 +807,251 @@ export function SpeseTab({
         </Tile>
         )}
       </div>
-      {/* Ruoli 50/30/20 — opt-in; the roles themselves are set in the category dialog. Its own
-          tile, not a row of Categorie: that tile gives way to an error notice when the
-          categories fail to load, and the switch and the «non letti» reading must not. */}
-      <div className={TILE_CELL_CLASS}>
+
+      {/* Reddito e storico — what counts as labor income, and since when the history reads */}
+      <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
         <Tile
-          eyebrow="Ruoli 50/30/20"
-          reading={
-            categoriesState === 'loading'
-              ? null
-              : describeSpendingRolesSetting({
-                  enabled: spendingRolesEnabled,
-                  classification: categoryClassification,
-                  categoriesUnread: categoriesState === 'failed',
-                })
-          }
+          eyebrow="Reddito e storico"
+          reading={describeIncomeHistory({
+            laborCategoryNames,
+            historyStartYear: cashflowHistoryStartYear,
+            categoriesUnread: categoriesState === 'failed',
+          })}
         >
-          <div className="mt-1 flex items-center justify-between gap-4 py-3">
-            <div className="min-w-0">
-              <Label htmlFor="spendingRolesEnabled" className="text-[13px] font-medium">Necessità, desideri, risparmi</Label>
-              <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
-                Ogni categoria di spesa riceve un ruolo, e il flusso di Analisi si legge anche per ruolo
+          <div className="mt-3">
+            <p className={TILE_SUB_EYEBROW_CLASS}>Reddito da lavoro</p>
+            {categoriesState === 'failed' ? (
+              <p className="mt-2 text-[11px] leading-[1.4] text-destructive">
+                Categorie non lette: la scelta salvata resta quella di prima.
               </p>
+            ) : categoriesState === 'loading' ? null : incomeCategories.length === 0 ? (
+              <p className="mt-2 text-[11px] leading-[1.4] text-muted-foreground">
+                Nessuna categoria di tipo «Entrate»: creane una in Spese.
+              </p>
+            ) : (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {incomeCategories.map((cat) => {
+                  const checked = laborIncomeCategoryIds.includes(cat.id);
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      aria-pressed={checked}
+                      onClick={() =>
+                        onChange({
+                          laborIncomeCategoryIds: checked
+                            ? laborIncomeCategoryIds.filter((id) => id !== cat.id)
+                            : [...laborIncomeCategoryIds, cat.id],
+                        })
+                      }
+                      className={cn(
+                        'inline-flex h-11 items-center gap-1.5 rounded-full border px-3 text-xs transition-colors desktop:h-8',
+                        checked
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-background text-foreground hover:bg-muted'
+                      )}
+                    >
+                      {checked && (
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                          <path d="M2.5 7L5.5 10L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                      {cat.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div className="mt-3 flex flex-col divide-y divide-border border-t border-border">
+            <div className="flex items-center justify-between gap-4 py-3">
+              <div className="min-w-0">
+                <Label htmlFor="cashflowHistoryStartYear" className="text-[13px] font-medium">
+                  Anno inizio storico cashflow
+                </Label>
+                <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
+                  Esclude i dati importati più vecchi dai grafici dello storico
+                </p>
+              </div>
+              <Input
+                id="cashflowHistoryStartYear"
+                type="number"
+                min="2000"
+                max={new Date().getFullYear()}
+                step="1"
+                value={cashflowHistoryStartYear}
+                onChange={(e) => onChange({ cashflowHistoryStartYear: parseInt(e.target.value, 10) || 2025 })}
+                className={cn('w-24 shrink-0 text-right font-mono', INTERACTIVE_CONTROL_CLASS)}
+              />
             </div>
-            <Switch
-              id="spendingRolesEnabled"
-              checked={spendingRolesEnabled}
-              onCheckedChange={(checked) => onChange({ spendingRolesEnabled: checked })}
-              className={cn('shrink-0', INTERACTIVE_CONTROL_CLASS)}
-            />
           </div>
         </Tile>
       </div>
-      </div>
 
-      {/* Import CSV — the section renders its own tile (preview-first, undo per batch) */}
-      <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-7')}>
-        <ExpenseImportSection onImported={onExpenseImported} />
-      </div>
-
-      {/* Categorie — the management inventory at the tile's cadence */}
-      <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
-        {categoriesState === 'failed' ? (
+      {/* Dividendi — it reads the categories AND the accounts: either failing makes
+          its selects empty for a reason that is not «none», so it steps aside for the notice. */}
+      <div id={DIVIDENDI_TILE_ID} className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
+        {categoriesState === 'failed' || accountsState === 'failed' ? (
           <ErrorNotice
-            onRetry={() => void onRetryCategories()}
+            onRetry={() => {
+              if (categoriesState === 'failed') void onRetryCategories();
+              if (accountsState === 'failed') onRetryAccounts();
+            }}
             notice={describeReadFailure({
-              subject: 'Categorie',
+              subject: 'Dividendi',
               consequence:
-                "Le categorie non sono state lette: l'elenco sembrerebbe vuoto senza esserlo, quindi qui non compare.",
+                'Categorie o conti non letti: la categoria e il conto dei dividendi non si possono mostrare. Quelli salvati restano.',
               canRetry: true,
             })}
           />
         ) : (
         <Tile
-          eyebrow="Categorie"
-          aside={
-            <Button onClick={handleAddExpenseCategory} variant="outline" size="sm" className="h-11 text-[12px] desktop:h-8">
-              <Plus className="mr-1 h-3.5 w-3.5" />
-              Nuova categoria
-            </Button>
-          }
-          reading={categoriesState === 'loading' ? null : describeExpenseCategories(categoryCounts)}
+          eyebrow="Dividendi"
+          reading={describeDividendCategory({
+            categoryName: dividendCategory?.name,
+            subCategoryName: dividendSubCategory?.name,
+            accountName: cashAssets.find((a) => a.id === dividendCashAssetId)?.name,
+          })}
         >
-          {categoriesState === 'loading' ? (
-            <p className="mt-3 text-[13px] text-muted-foreground">Caricamento delle categorie…</p>
-          ) : (
-            <div className="mt-1">
-              {(['income', 'fixed', 'variable', 'debt'] as ExpenseType[]).map((type) => {
-                const categories = getCategoriesByType(type);
-                if (categories.length === 0) return null;
-                return (
-                  <div key={type} className="mt-3 first:mt-2">
-                    <p className={TILE_SUB_EYEBROW_CLASS}>{EXPENSE_TYPE_LABELS[type]}</p>
-                    <div className="mt-1 divide-y divide-border">
-                      {categories.map((category) => (
-                        <CategoryRow
-                          key={category.id}
-                          category={category}
-                          onEdit={handleEditExpenseCategory}
-                          onMove={handleMoveExpenseCategory}
-                          onRequestDelete={requestCategoryDelete}
-                          onConfirmDelete={handleConfirmDirectDelete}
-                          announce={announceCategory}
-                          spendingRolesEnabled={spendingRolesEnabled}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+          <div className="mt-1 flex flex-col divide-y divide-border">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
+              <div className="min-w-0">
+                <p className="text-[13px] font-medium">Categoria</p>
+                <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">Di tipo «Entrate»</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={dividendIncomeCategoryId || undefined}
+                  onValueChange={(value) => onChange({ dividendIncomeCategoryId: value, dividendIncomeSubCategoryId: '' })}
+                >
+                  <SelectTrigger className={cn('w-52', INTERACTIVE_CONTROL_CLASS)} aria-label="Categoria entrate dividendi">
+                    <SelectValue placeholder="Seleziona categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {incomeCategories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {dividendIncomeCategoryId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-11 desktop:h-8"
+                    aria-label="Rimuovi la categoria dei dividendi"
+                    onClick={() => onChange({ dividendIncomeCategoryId: '', dividendIncomeSubCategoryId: '' })}
+                  >
+                    Rimuovi
+                  </Button>
+                )}
+              </div>
             </div>
-          )}
-          {/* The list's one live region: arm and disarm are sentences, spoken here. */}
-          <span className="sr-only" role="status" aria-live="polite">
-            {categoryAnnouncement}
-          </span>
-          <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-            Elimina chiede la riassegnazione se la categoria ha transazioni (altrimenti conferma al secondo
-            tocco); la freccia sposta tutte le transazioni in un&apos;altra categoria senza eliminarla.
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
+              <div className="min-w-0">
+                <p className="text-[13px] font-medium">Sottocategoria</p>
+                <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">Opzionale</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={dividendIncomeSubCategoryId || undefined}
+                  onValueChange={(value) => onChange({ dividendIncomeSubCategoryId: value })}
+                  disabled={!dividendIncomeCategoryId}
+                >
+                  <SelectTrigger className={cn('w-52', INTERACTIVE_CONTROL_CLASS)} aria-label="Sottocategoria entrate dividendi">
+                    <SelectValue placeholder="Seleziona sottocategoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dividendCategory?.subCategories.map((sub) => (
+                      <SelectItem key={sub.id} value={sub.id}>
+                        {sub.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {dividendIncomeSubCategoryId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-11 desktop:h-8"
+                    aria-label="Rimuovi la sottocategoria dei dividendi"
+                    onClick={() => onChange({ dividendIncomeSubCategoryId: '' })}
+                  >
+                    Rimuovi
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
+              <div className="min-w-0">
+                <p className="text-[13px] font-medium">Conto di accredito</p>
+                <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
+                  Predefinito: uno strumento può averne uno suo
+                </p>
+              </div>
+              <Select value={dividendCashAssetId} onValueChange={(value) => onChange({ dividendCashAssetId: value })}>
+                <SelectTrigger className={cn('w-56', INTERACTIVE_CONTROL_CLASS)} aria-label="Conto di accredito dei dividendi">
+                  <SelectValue placeholder="Nessun conto" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_SELECTION}>Nessun conto</SelectItem>
+                  {cashAssets.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name} ({a.currency})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+
+          <div className="mt-3.5">
+            <SyncDividendsButton
+              disabled={isDemo || syncingDividends || !dividendIncomeCategoryId}
+              syncing={syncingDividends}
+              onSync={() => void handleSyncDividends()}
+              announce={announceSync}
+            />
+            <span className="sr-only" role="status" aria-live="polite">
+              {syncAnnouncement}
+            </span>
+            {!dividendIncomeCategoryId && (
+              <p className="mt-2 text-[11px] leading-[1.4] text-warning-foreground">
+                Scegli una categoria per abilitare la sincronizzazione dei dividendi già registrati.
+              </p>
+            )}
+          </div>
+
+          {/* BTP Italia — the old declaration tile is the method note of this one (D-RU20) */}
+          <TileMethodNote
+            subject="Dividendi: BTP Italia"
+            actionLabel="BTP Italia"
+            summary="La sincronizzazione chiede conferma al secondo tocco e salta i dividendi già sincronizzati; la categoria si salva con il Salva della pagina."
+          >
+            <span>
+              Le cedole indicizzate attendono il FOI del periodo: lo annunci dal calendario di{' '}
+              <Link href="/dashboard/cashflow?tab=dividends" className="text-foreground underline underline-offset-2">
+                Cashflow › Dividendi
+              </Link>
+              , cedola per cedola.
+            </span>
+            <span>Cedola indicizzata: fisso + FOI del semestre. FOI non ancora annunciato: cedola provvisoria, solo fisso. Deflazione: FOI negativo contato 0.</span>
+          </TileMethodNote>
         </Tile>
         )}
       </div>
+
+      {/* Import CSV — the section renders its own tile (preview-first, undo per batch) */}
+      <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
+        <ExpenseImportSection onImported={onExpenseImported} />
+      </div>
+
+      <ElsewhereLine
+        items={[{ what: 'Tetto e avvisi del budget', where: 'Cashflow › Budget', href: '/dashboard/cashflow?tab=budget' }]}
+      />
 
       {/* The three category dialogs live with the list that opens them. */}
       <CategoryManagementDialog

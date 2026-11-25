@@ -11,7 +11,7 @@ import { dividendSyncRequestSchema, parseOr400 } from '@/lib/server/validation';
  * POST /api/dividends/sync-expenses
  *
  * Write the income row of every dividend of the account that is already paid and has none yet
- * (Impostazioni › Dividendi › «Sincronizza»).
+ * (Impostazioni › Cashflow › «Sincronizza»).
  *
  * Request Body:
  *   {

@@ -211,7 +211,7 @@ export function MonteCarloTab() {
     [pensionLockState],
   );
 
-  // The market assumptions, saved in Impostazioni › Simulazioni (the legacy field migrated, else the defaults).
+  // The market assumptions, saved in Impostazioni › Avanzate (the legacy field migrated, else the defaults).
   const anchors = useMarketAnchors();
   const market = useMemo(() => resolveMonteCarloMarketForPortfolio(settings, assets, anchors), [settings, assets, anchors]);
   const scenarios = market.scenarios;
@@ -375,7 +375,7 @@ export function MonteCarloTab() {
       market: scenarios.base,
       // The classes move together through the matrix saved in Impostazioni (one matrix for the three scenarios).
       correlations: market.correlations,
-      // R4: the debt of a leveraged portfolio costs the Liquidità return plus this (Impostazioni › Simulazioni).
+      // R4: the debt of a leveraged portfolio costs the Liquidità return plus this (Impostazioni › Avanzate).
       leverageSpread: market.leverageSpread,
       // RC3/RC4: the costs of the weights of THIS run (the user may have moved them), on the page's per-class costs.
       annualCostRate: portfolioCost(monteCarloClassRecord((cls) => parseFloatField(form.weights[cls])), assumptions?.costs).total,

@@ -198,7 +198,7 @@ export function describeVentaglioFooter(inflationPct: number, threshold: Ventagl
   return [
     prose('Euro di oggi, inflazione '),
     figure(`${inflationPct.toLocaleString('it-IT', { maximumFractionDigits: 2 })}%`),
-    prose(' (Impostazioni › Simulazioni). Bande 10°–90° e 25°–75° percentile, linea piena la mediana'),
+    prose(' (Impostazioni › Avanzate). Bande 10°–90° e 25°–75° percentile, linea piena la mediana'),
     prose(threshold === 'fire' ? '; la linea tratteggiata è il tuo numero FIRE anno per anno (Calcolatore).' : threshold === 'fixed' ? '; la linea tratteggiata è la soglia.' : '.'),
     ...(costPct > 0
       ? [prose(' Al netto di TER e bollo ('), figure(`${costPct.toLocaleString('it-IT', { maximumFractionDigits: 2 })}%`), prose(" l'anno); lordi della tassa sulla vendita.")]

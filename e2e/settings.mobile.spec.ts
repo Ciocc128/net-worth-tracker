@@ -4,7 +4,7 @@
  *  1. «Salva» usciva dallo schermo: il navbar compatto di `PageHeader` era `sticky` dentro un
  *     contenitore alto quanto lui, quindi non restava mai fermo (misurato a −817px dopo lo scroll).
  *     Il difetto era del PRIMITIVO, su ogni pagina: la prima prova lo dimostra qui, dove la pagina è
- *     più lunga (Preferenze, ~4 schermi).
+ *     più lunga (Account, ~4 schermi).
  *  2. Il chip «modifiche non salvate» era `hidden sm:inline-flex`: sotto 640px non esisteva. Ora la
  *     barra in fondo dice quali tab e sta sopra la pillola di navigazione, mai sotto.
  *  3. «Ripristina default» era un pulsante senza nome (l'etichetta visibile era `hidden sm:inline`);
@@ -31,7 +31,7 @@ async function openSettings(page: Page, tab: string) {
 const visibleSave = (page: Page) => page.locator('button:visible', { hasText: /^Salva$/ }).first();
 
 test('il navbar con «Salva» resta in cima mentre la pagina scorre', async ({ page }) => {
-  await openSettings(page, 'generale');
+  await openSettings(page, 'account');
   await expect(page.locator('section[aria-label="Email periodiche"]')).toBeVisible();
 
   // `<main>` is the scroll container (AGENTS.md → Tailwind Breakpoints), not the document.
@@ -46,11 +46,11 @@ test('il navbar con «Salva» resta in cima mentre la pagina scorre', async ({ p
 });
 
 test('la barra delle modifiche non salvate sta sopra la pillola di navigazione', async ({ page }) => {
-  await openSettings(page, 'generale');
+  await openSettings(page, 'funzioni');
   await page.getByRole('switch', { name: 'Centri di Costo' }).click();
 
   const bar = page.getByRole('region', { name: 'Modifiche non salvate' });
-  await expect(bar).toContainText('Modifiche non salvate in Preferenze');
+  await expect(bar).toContainText('Modifiche non salvate in Funzioni');
   await page.locator('main').evaluate((main) => main.scrollTo({ top: main.scrollHeight / 3 }));
 
   const barBox = await bar.boundingBox();
@@ -70,9 +70,23 @@ test('la barra delle modifiche non salvate sta sopra la pillola di navigazione',
 });
 
 test('nessun tab scorre di lato', async ({ page }) => {
-  for (const tab of ['generale', 'spese', 'dividendi', 'simulazioni', 'condivisione', 'aspetto']) {
+  for (const tab of ['account', 'funzioni', 'cashflow', 'investimenti', 'avanzate']) {
     await openSettings(page, tab);
     const overflow = await page.locator('main').evaluate((main) => main.scrollWidth - main.clientWidth);
     expect(overflow, tab).toBe(0);
+  }
+});
+
+// RU9 criterion 16: five tabs fit the bar at 390 without it scrolling sideways.
+test('le cinque schede stanno nella barra senza scorrere', async ({ page }) => {
+  await openSettings(page, 'account');
+  const tabs = page.locator('[role="tablist"]:visible').getByRole('tab');
+  await expect(tabs).toHaveCount(5);
+  const viewport = page.viewportSize()!;
+  for (let i = 0; i < 5; i++) {
+    const box = await tabs.nth(i).boundingBox();
+    expect(box, `scheda ${i}`).not.toBeNull();
+    expect(box!.x, `scheda ${i}`).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width, `scheda ${i}`).toBeLessThanOrEqual(viewport.width);
   }
 });

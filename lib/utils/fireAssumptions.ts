@@ -2,13 +2,13 @@
  * The hypotheses of the FIRE page — ONE reading every tab goes through (doc/fire-ipotesi/README.md § 4.1).
  *
  * The deterministic tabs (Calcolatore, Coast, What If) used to run on three hand-typed rates, the
- * Monte Carlo on the per-class assumptions of Impostazioni › Simulazioni. Now all of them read the
+ * Monte Carlo on the per-class assumptions of Impostazioni › Avanzate. Now all of them read the
  * rate of the TARGET portfolio computed on those per-class assumptions:
  *
  *   RP1  `portfolioCompoundReturn`: the compound (median) return of the portfolio per scenario — R2
  *        applied to the portfolio, so a 100% class returns exactly its CAGR and the volatility drag is in.
  *   RP2  `realReturn`: Fisher, `(1 + g) / (1 + π) − 1`, never the subtraction.
- *   RP3  the inflation of the scenario is the one of Impostazioni › Simulazioni.
+ *   RP3  the inflation of the scenario is the one of Impostazioni › Avanzate.
  *   RP4  the weights: the effective targets of Allocazione (R6), else the portfolio held today.
  *   RP5  the capital: the PORTFOLIO plus the share of the cash to invest the user chose (K1, `fireCapital.ts`);
  *        the net worth is declared, what stays out is declared, never simulated (replaces `K` of L2, D4).

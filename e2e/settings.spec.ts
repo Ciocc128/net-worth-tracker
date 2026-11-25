@@ -36,7 +36,7 @@ async function settingsUpdateTime(): Promise<string> {
   return doc.updateTime;
 }
 
-async function openSettings(page: Page, tab = 'generale') {
+async function openSettings(page: Page, tab = 'account') {
   await page.goto(`/dashboard/settings?tab=${tab}`, { waitUntil: 'load' });
   await expect(page.locator('h1:visible')).toContainText('Impostazioni', { timeout: 60_000 });
   // The opened tab's panel, with a tile in it, is the load's positive anchor (Radix unmounts the
@@ -60,10 +60,10 @@ test('ogni aria-controls dei tab nomina un pannello che esiste', async ({ page }
   expect(dangling).toEqual([]);
 });
 
-test('il risk-free sta in Preferenze › Calcolo dei rendimenti; i target non sono più qui', async ({ page }) => {
-  await openSettings(page);
+test('il risk-free sta in Investimenti › Calcolo dei rendimenti; i target non sono più qui', async ({ page }) => {
+  await openSettings(page, 'investimenti');
 
-  // RU8 (D-ST4): the rate is a preference, read by Strategia's formula, by Sharpe and Sortino.
+  // RU8 (D-ST4): the rate is a setting, read by Strategia's formula, by Sharpe and Sortino.
   const returns = page.locator('section[aria-label="Calcolo dei rendimenti"]');
   await expect(returns.locator('#riskFreeRate')).toBeVisible();
   // The seed has no typed rate: the field follows the ECB estimate and says so, with no way back to
@@ -75,6 +75,7 @@ test('il risk-free sta in Preferenze › Calcolo dei rendimenti; i target non so
   await returns.getByRole('button', { name: 'Torna alla stima' }).click();
   await expect(returns.locator('#riskFreeRate')).toHaveValue('');
   await expect(unsavedBar(page)).toHaveCount(0);
+  await expect(visibleTab(page, 'Investimenti, modifiche non salvate')).toHaveCount(0);
 
   // The Allocazione tab is gone (D-ST1): the targets live in Allocazione › Strategia.
   await expect(visibleTab(page, /^Allocazione/)).toHaveCount(0);
@@ -82,7 +83,7 @@ test('il risk-free sta in Preferenze › Calcolo dei rendimenti; i target non so
 });
 
 test('le modifiche non salvate si vedono per tab e «Annulla modifiche» torna al salvato senza scrivere', async ({ page }) => {
-  await openSettings(page);
+  await openSettings(page, 'funzioni');
   const before = await settingsUpdateTime();
   const costCenters = page.getByRole('switch', { name: 'Centri di Costo' });
   const saved = await costCenters.getAttribute('aria-checked');
@@ -90,26 +91,76 @@ test('le modifiche non salvate si vedono per tab e «Annulla modifiche» torna a
   await expect(unsavedBar(page)).toHaveCount(0);
   await costCenters.click();
 
-  await expect(visibleTab(page, 'Preferenze, modifiche non salvate')).toBeVisible();
-  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Preferenze');
+  await expect(visibleTab(page, 'Funzioni, modifiche non salvate')).toBeVisible();
+  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Funzioni');
 
-  await visibleTab(page, 'Spese').click();
-  await page.getByRole('switch', { name: 'Necessità, desideri, risparmi' }).click();
-  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Preferenze e Spese');
-  await expect(visibleTab(page, 'Spese, modifiche non salvate')).toBeVisible();
+  await visibleTab(page, 'Cashflow').click();
+  const year = page.getByRole('spinbutton', { name: 'Anno inizio storico cashflow' });
+  await year.fill(String(Number(await year.inputValue()) - 1));
+  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Funzioni e Cashflow');
+  await expect(visibleTab(page, 'Cashflow, modifiche non salvate')).toBeVisible();
 
   await unsavedBar(page).getByRole('button', { name: 'Annulla modifiche' }).click();
 
   await expect(unsavedBar(page)).toHaveCount(0);
-  await expect(visibleTab(page, 'Spese')).toBeVisible();
-  await visibleTab(page, 'Preferenze').click();
+  await expect(visibleTab(page, 'Cashflow')).toBeVisible();
+  await visibleTab(page, 'Funzioni').click();
   await expect(page.getByRole('switch', { name: 'Centri di Costo' })).toHaveAttribute('aria-checked', saved!);
   expect(await settingsUpdateTime()).toBe(before);
 });
 
+/** RU9 (D-RU21, criteria 9, 10, 16): five tabs in this order, and the seven old ids still arrive somewhere. */
+test('cinque schede nell\'ordine, e i vecchi ?tab= arrivano alla scheda giusta', async ({ page }) => {
+  await openSettings(page);
+  await expect(page.locator('[role="tablist"]:visible').getByRole('tab')).toHaveText(['Account', 'Funzioni', 'Cashflow', 'Investimenti', 'Avanzate']);
+
+  const aliases: [string, string][] = [
+    ['generale', 'account'],
+    ['condivisione', 'account'],
+    ['aspetto', 'account'],
+    ['spese', 'cashflow'],
+    ['dividendi', 'cashflow'],
+    ['simulazioni', 'avanzate'],
+  ];
+  for (const [old, canonical] of aliases) {
+    await page.goto(`/dashboard/settings?tab=${old}`, { waitUntil: 'load' });
+    await expect(page.locator(`#settings-tab-pill-panel-${canonical} section`).first()).toBeVisible({ timeout: 60_000 });
+    await expect(page).toHaveURL(new RegExp(`tab=${canonical}`));
+  }
+
+  // The targets moved to Allocazione › Strategia; the back button returns to where the reader was.
+  await page.goto('/dashboard/settings?tab=account', { waitUntil: 'load' });
+  await page.goto('/dashboard/settings?tab=allocazione', { waitUntil: 'load' });
+  await expect(page).toHaveURL(/\/dashboard\/allocation\?tab=strategia#target$/, { timeout: 60_000 });
+  await page.goBack();
+  await expect(page).toHaveURL(/\/dashboard\/settings\?tab=account/);
+});
+
+/** RU9 criterion 15: the read-only declarations are gone; what belongs elsewhere is a line with a working link. */
+test('niente tile di sola lettura: «Si regola altrove» con il link che apre la destinazione', async ({ page }) => {
+  await openSettings(page);
+  const gone = ['Parametri del piano', 'Assistente', 'Allocazione target', 'Criteri del modello', 'Dove si usano', 'BTP Italia'];
+  for (const tab of ['Account', 'Funzioni', 'Cashflow', 'Investimenti', 'Avanzate']) {
+    await visibleTab(page, tab).click();
+    await expect(page.locator(`#settings-tab-pill-panel-${tab.toLowerCase()} section`).first()).toBeVisible({ timeout: 30_000 });
+    for (const eyebrow of gone) {
+      await expect(page.getByRole('region', { name: eyebrow, exact: true }), `${eyebrow} in ${tab}`).toHaveCount(0);
+    }
+  }
+
+  await openSettings(page, 'investimenti');
+  const elsewhere = page.locator('p', { hasText: 'Si regola altrove' });
+  await expect(elsewhere).toBeVisible();
+  const link = elsewhere.getByRole('link').first();
+  const href = await link.getAttribute('href');
+  expect(href).toMatch(/^\/dashboard\//);
+  await link.click();
+  await expect(page).toHaveURL(new RegExp(href!.split('#')[0].replace(/[?]/g, '\\?')));
+});
+
 test('una lettura fallita degli accessi non diventa «nessun accesso»', async ({ page }) => {
   // Positive control first: the members read works and the tile reads.
-  await openSettings(page, 'condivisione');
+  await openSettings(page, 'account');
   const tile = page.locator('section[aria-label="Condivisione account"]');
   // The count in the aside appears only once the read has come back.
   await expect(tile).toContainText(/\d+ access[oi]/);
@@ -117,7 +168,7 @@ test('una lettura fallita degli accessi non diventa «nessun accesso»', async (
 
   // The same page with the read cut.
   await page.route('**/api/account/members', (route) => route.abort());
-  await openSettings(page, 'condivisione');
+  await openSettings(page, 'account');
   const notice = page.getByRole('alert').filter({ hasText: 'Condivisione account · lettura fallita' });
   await expect(notice).toBeVisible();
   await expect(notice).toContainText('non vuol dire che non ce l');
@@ -156,9 +207,9 @@ test('un documento nel formato vecchio si riscrive come v2 al primo «Salva» e 
     ['monteCarloScenarios'],
   );
   try {
-    await openSettings(page, 'simulazioni');
+    await openSettings(page, 'avanzate');
     await expect(page.locator('section[aria-label="Ipotesi di mercato delle simulazioni"]')).toContainText('convertite in termini reali');
-    await expect(visibleTab(page, 'Simulazioni, modifiche non salvate')).toBeVisible();
+    await expect(visibleTab(page, 'Avanzate, modifiche non salvate')).toBeVisible();
     expect((await read()).monteCarloMarket).toBeUndefined();
 
     await unsavedBar(page).getByRole('button', { name: 'Salva' }).click();
@@ -166,7 +217,7 @@ test('un documento nel formato vecchio si riscrive come v2 al primo «Salva» e 
     const market = (await read()).monteCarloMarket as { mapValue: { fields: { version: { integerValue: string } } } };
     expect(market.mapValue.fields.version.integerValue).toBe('2');
 
-    await openSettings(page, 'simulazioni');
+    await openSettings(page, 'avanzate');
     await expect(page.locator('section[aria-label="Ipotesi di mercato delle simulazioni"]')).not.toContainText('convertite in termini reali');
     // The typed values stay tinted, the research's estimates do not.
     await expect(page.getByRole('textbox', { name: 'Volatilità Azioni (%)' })).toHaveAttribute('data-written', 'true');
@@ -239,7 +290,7 @@ test('«Sincronizza dividendi esistenti» scrive la riga del dividendo pagato ne
   });
 
   try {
-    await openSettings(page, 'dividendi');
+    await openSettings(page, 'cashflow');
     const button = page.getByRole('button', { name: 'Sincronizza dividendi esistenti' });
     await button.click();
     await page.getByRole('button', { name: 'Conferma sincronizzazione' }).click();

@@ -29,7 +29,7 @@ import { monteCarloClassRecord, type MonteCarloClass } from '@/lib/constants/mon
 import { portfolioCompoundReturn, type FireAssumptions, type PortfolioReturn } from '@/lib/utils/fireAssumptions';
 import { portfolioCost } from '@/lib/utils/fireCosts';
 
-/** The slice of the page's hypotheses a goal needs: the market of Impostazioni › Simulazioni and the target portfolio's scenarios. */
+/** The slice of the page's hypotheses a goal needs: the market of Impostazioni › Avanzate and the target portfolio's scenarios. */
 export type GoalAssumptions = Pick<FireAssumptions, 'scenarios' | 'market'> & Partial<Pick<FireAssumptions, 'costs' | 'weights'>>;
 
 // Priority multipliers for the cross-goal contribution split. Mirrors the
@@ -98,7 +98,7 @@ export interface GoalReturn {
 }
 
 /**
- * D8: the return of a goal is RP1 on the Base scenario of Impostazioni › Simulazioni. With a
+ * D8: the return of a goal is RP1 on the Base scenario of Impostazioni › Avanzate. With a
  * recommended allocation, that allocation (crypto and real estate out, the rest rescaled to 100);
  * without a usable one, the target portfolio's own Base return — the figure every other FIRE tab uses.
  * Both are net of the recurring costs (TER, stamp duty) when `assumptions.costs` is there (RC5).

@@ -329,7 +329,7 @@ export function describeProbabilitaFooter(run: MonteCarloRun, lock: FireLock): N
     out.push(prose(' Il gradino nel '), year(lock.unlockCalendarYear), prose(' è il fondo pensione che entra, al valore di oggi.'));
   }
   if (run.todayEuros && run.inflationRate !== null) {
-    out.push(prose(' Euro di oggi, inflazione '), figure(formatPercentage(run.inflationRate, 2)), prose(' (Impostazioni › Simulazioni): il prelievo resta costante in potere d\'acquisto.'));
+    out.push(prose(' Euro di oggi, inflazione '), figure(formatPercentage(run.inflationRate, 2)), prose(' (Impostazioni › Avanzate): il prelievo resta costante in potere d\'acquisto.'));
   } else {
     out.push(prose(" Valori nominali: il prelievo cresce con l'inflazione."));
   }
@@ -566,7 +566,7 @@ export function describeMarketDeclaration(market: Pick<ResolvedMonteCarloMarket,
 function describeMarketOrigin(market: Pick<ResolvedMonteCarloMarket, 'origin' | 'editedClasses'>): Narrative {
   if (market.origin === 'default') return [prose('Ipotesi di mercato: '), figure('valori predefiniti'), prose(', in euro e reali.')];
   if (market.origin === 'migrated') {
-    return [prose('Ipotesi di mercato: '), figure('convertite in termini reali dal vecchio formato'), prose(': fissale con «Salva» in Impostazioni › Simulazioni.')];
+    return [prose('Ipotesi di mercato: '), figure('convertite in termini reali dal vecchio formato'), prose(': fissale con «Salva» in Impostazioni › Avanzate.')];
   }
   const edited = market.editedClasses.length;
   if (edited === 0) return [prose('Ipotesi di mercato: '), figure('salvate'), prose(', uguali ai valori predefiniti.')];

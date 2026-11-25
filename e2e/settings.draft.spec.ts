@@ -68,29 +68,29 @@ test.afterAll(async () => {
   expect(res.ok).toBe(true);
 });
 
-test('a value typed in Preferenze survives a trip to Aspetto and back, unsaved', async ({ page }) => {
-  await openSettings(page, 'generale');
+test('a value typed in Cashflow survives a trip to Account and back, unsaved', async ({ page }) => {
+  await openSettings(page, 'cashflow');
   const saved = await yearInput(page).inputValue();
   const typed = String(Number(saved) - 3);
 
   await yearInput(page).fill(typed);
-  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Preferenze');
+  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Cashflow');
 
-  // Aspetto has no slice and Radix unmounts the Preferenze panel's content meanwhile.
-  await visibleTab(page, 'Aspetto').click();
+  // Account has no slice of the year and Radix unmounts the Cashflow panel's content meanwhile.
+  await visibleTab(page, 'Account').click();
   await expect(page.locator('section[aria-label="Tema colori"]')).toBeVisible();
   await expect(yearInput(page)).toHaveCount(0);
 
-  await visibleTab(page, /^Preferenze/).click();
+  await visibleTab(page, /^Cashflow/).click();
   await expect(yearInput(page)).toHaveValue(typed);
-  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Preferenze');
+  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Cashflow');
 
   await unsavedBar(page).getByRole('button', { name: 'Annulla modifiche' }).click();
   await expect(unsavedBar(page)).toHaveCount(0);
   await expect(yearInput(page)).toHaveValue(saved);
 });
 
-test('a save from Preferenze keeps every other tab’s fields — read back after a hard refresh', async ({ page }) => {
+test('a save from Cashflow keeps every other tab’s fields — read back after a hard refresh', async ({ page }) => {
   // The seed's equity sub-targets (World / Single Stock) are the 2026-09-25 casualty: positive
   // anchor first. The seed keeps them with the subcategories OFF, and a page «Salva» writes the
   // rows of an enabled group only — so the group is switched on in the document first, or the
@@ -109,7 +109,7 @@ test('a save from Preferenze keeps every other tab’s fields — read back afte
   const cryptoTarget = before.targets?.mapValue?.fields?.crypto?.mapValue?.fields?.targetPercentage;
   expect(cryptoTarget).toBeDefined();
 
-  // A Dividendi and a Spese field planted through the emulator, so the save has something of
+  // A Dividendi and a Funzioni field planted through the emulator, so the save has something of
   // theirs to lose: the seed's first cash account and a flag the base seed leaves off.
   const cashAccountId = await page.evaluate(async () => {
     const res = await fetch(
@@ -144,11 +144,11 @@ test('a save from Preferenze keeps every other tab’s fields — read back afte
   });
   expect(plant.ok).toBe(true);
 
-  await openSettings(page, 'generale');
+  await openSettings(page, 'cashflow');
   const savedYear = await yearInput(page).inputValue();
   const newYear = String(Number(savedYear) - 1);
   await yearInput(page).fill(newYear);
-  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Preferenze');
+  await expect(unsavedBar(page)).toContainText('Modifiche non salvate in Cashflow');
   await unsavedBar(page).getByRole('button', { name: 'Salva' }).click();
   await expect(unsavedBar(page)).toHaveCount(0);
 
@@ -167,8 +167,7 @@ test('a save from Preferenze keeps every other tab’s fields — read back afte
   await expect(yearInput(page)).toHaveValue(newYear);
   // The targets are not a view of this page since RU8 (Allocazione › Strategia): the document check above
   // proves a Preferenze save kept them; the form round trip of the targets is e2e/allocation.spec.ts.
-  await visibleTab(page, 'Dividendi').click();
   await expect(page.getByRole('combobox', { name: 'Conto di accredito dei dividendi' })).not.toContainText('Nessun conto');
-  await visibleTab(page, 'Spese').click();
-  await expect(page.getByRole('switch', { name: 'Necessità, desideri, risparmi' })).toHaveAttribute('aria-checked', 'true');
+  await visibleTab(page, 'Funzioni').click();
+  await expect(page.getByRole('switch', { name: 'Ruoli 50/30/20' })).toHaveAttribute('aria-checked', 'true');
 });
