@@ -43,5 +43,5 @@ a CI step (card F06 «CI step 1»); validation of asset derived fields (product 
 
 ## 6. Punti aperti
 
-- The CI step for `test:rules`: card F06.
+- ~~The CI step for `test:rules`~~: done, job `rules` in `.github/workflows/ci.yml` (Java 21, emulator cached, `npm run test:rules`).
 - A bulk client write that sets `amount` as a string would now be refused: the audit of the writers found numbers only, the Mac `test:e2e` is the proof.
