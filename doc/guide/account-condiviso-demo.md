@@ -26,6 +26,9 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   reading beside it, visible at EVERY width. It used to hide below 640px, which is exactly where a
   reader needs to be told why a button does nothing.
 
+- **The view in the demo** (F17, D-ES16): the demo reads Completa (`ViewAreasContext` writes Completa to the storage
+  at its sign-in, reads no document); the quick choice works for the browser and is never saved.
+
 ## Shared Account / Delegated Access
 - **Viewer vs owner**: `useAuth().user` is the viewer and never changes; `useActiveAccount().ownerId` is whose data is
   displayed. Pass `ownerId` in data-scoped hooks and pages; keep `user.uid` only for theme, profile, PDF author,
@@ -40,6 +43,11 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   a member without `allowed-users/{uid}` sees nothing of the shared account and gets 403 on every route; a member taken
   off the list keeps their inert entry in `memberUids` until the owner revokes it. A deployment with a demo account
   admits its user like any other (`npm run users:allow -- <demo email>`): there is no branch for the demo uid.
+- **The Essenziale view is the VIEWER's** (F17, 2026-11-26, D-ES7): `userPreferences/{user.uid}.viewPreset` and
+  `viewAreaOverrides`, read by `ViewAreasContext` — a co-owner in Essenziale and the owner in Completa see the same
+  account with two menus, and the account switcher keeps the viewer's view. The account's switches (Traguardi, Centri,
+  Divisione, Ruoli) stay the owner's. The first admission in production (`/api/auth/activate`, `npm run users:allow`)
+  writes `essenziale` when the viewer has no view yet; `--completa` writes `completa`.
 - **Switching gotcha**: React Query keys namespace by the id passed in, but manual `useEffect` loaders (settings, history,
   performance, allocation, hall of fame) must include `ownerId` in their deps. The switcher must exist in BOTH the
   Sidebar and the `SecondaryMenuDrawer`, since portrait has no Sidebar.

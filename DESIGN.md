@@ -423,6 +423,8 @@ other). None is declared; a linter that flags them is right.
 
 **The Adjust-Where-You-Look Rule.** What tunes an object on a page is changed ON that page, by a pencil on the tile that shows it (a `ResponsiveModal`, The Modal-Is-A-Tile Rule). Impostazioni holds only what concerns the account or several pages; a gear in a page header opens that page's settings and nothing else.
 
+**The Door-Not-Room Rule** (F17 Essenziale, 2026-11-26, doc/essenziale/README.md D-ES18). A view area hides doors (a menu entry, a tab, a link with its sentence); it never changes what a tile shows or what a figure counts. Nothing exists only in one view, except where a decision in `doc/essenziale/README.md` names it (the «Verso il FIRE» tile, D-ES2). A door reads `useViewArea('<id>')` and goes whole with its sentence; a help sentence that names the area which reads a field stays (D-ES13). The areas are ONE table, `lib/constants/viewAreas.ts`.
+
 **The Frequent-First Rule.** A page reads: verdict, then the most frequent work, then context, then the closed deep-dive; tiles of one theme sit together. It is applied with `desktop:col-start-*` / `row-start-*`, never with `order` (The First-Screen Rule: the DOM is the reading order at every width).
 
 ## 3. Typography
