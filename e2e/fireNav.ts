@@ -1,11 +1,11 @@
 /**
- * FIRE's navigation since RU10 (doc/riordino-ui/ondata-3.md § 5.1): three tabs — Quando · E se… · Approfondimenti (and, until
- * RU11, Traguardi) — and, inside Approfondimenti, a pill that picks Coast FIRE · Dopo il FIRE · Proiezione. The specs of the
+ * FIRE's navigation since RU10 (doc/riordino-ui/ondata-3.md § 5.1): three tabs — Quando · E se… · Approfondimenti (the Traguardi
+ * have their own page since RU11) — and, inside Approfondimenti, a pill that picks Coast FIRE · Dopo il FIRE · Proiezione. The specs of the
  * six tabs of before go through these two helpers, so the next change of the bar is one edit.
  */
 import { expect, type Page } from '@playwright/test';
 
-export type FireTabName = 'Quando' | 'E se…' | 'Approfondimenti' | 'Traguardi';
+export type FireTabName = 'Quando' | 'E se…' | 'Approfondimenti';
 export type FireViewName = 'Coast FIRE' | 'Dopo il FIRE' | 'Proiezione';
 
 export async function openFireTab(page: Page, name: FireTabName): Promise<void> {

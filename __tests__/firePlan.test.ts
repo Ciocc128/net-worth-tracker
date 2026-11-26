@@ -12,6 +12,8 @@ vi.mock('@/lib/firebase/config', () => ({ db: {} }));
 
 import {
   FIRE_PLAN_AFFECTS,
+  GOALS_PAGE_HREF,
+  isGoalsTabAlias,
   FIRE_PLAN_FIELD_IDS,
   applyPlanOverlay,
   buildPlanOverlay,
@@ -212,7 +214,13 @@ describe('«Agisce su» (RP1, T12) and the links (RP10)', () => {
     for (const field of Object.keys(FIRE_PLAN_FIELD_IDS)) expect(isFirePlanField(field)).toBe(true);
     expect(isFirePlanField('aperto')).toBe(false);
     expect(isFirePlanField(null)).toBe(false);
-    for (const tab of ['quando', 'ese', 'approfondimenti', 'goals']) expect(isFireTab(tab)).toBe(true);
+    for (const tab of ['quando', 'ese', 'approfondimenti']) expect(isFireTab(tab)).toBe(true);
+    // The Traguardi are a page of their own (RU11): `goals` is a redirect, not a tab.
+    expect(isFireTab('goals')).toBe(false);
+    expect(isGoalsTabAlias('goals')).toBe(true);
+    expect(isGoalsTabAlias('quando')).toBe(false);
+    expect(isGoalsTabAlias(null)).toBe(false);
+    expect(GOALS_PAGE_HREF).toBe('/dashboard/traguardi');
     // The old ids are not tabs any more: they are aliases (`resolveFireTab`).
     for (const tab of ['fire', 'coast', 'whatif', 'montecarlo', 'proiezione']) expect(isFireTab(tab)).toBe(false);
     expect(isFireTab('piano')).toBe(false);
@@ -254,8 +262,8 @@ describe('resolveFireTab — the tabs of RU10 and the old ids as aliases (D-RU27
     expect(resolveFireTab('proiezione')).toEqual({ tab: 'approfondimenti', vista: 'proiezione' });
   });
 
-  it('keeps the new ids and, until RU11, the Traguardi tab', () => {
-    for (const tab of ['quando', 'ese', 'goals'] as const) expect(resolveFireTab(tab).tab).toBe(tab);
+  it('keeps the new ids', () => {
+    for (const tab of ['quando', 'ese'] as const) expect(resolveFireTab(tab).tab).toBe(tab);
     expect(resolveFireTab('approfondimenti', 'proiezione')).toEqual({ tab: 'approfondimenti', vista: 'proiezione' });
   });
 

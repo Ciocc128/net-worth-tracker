@@ -44,7 +44,7 @@ export function FunzioniTab({ slice, onChange, familyMemberCount, classification
     {
       id: 'goalBasedInvesting',
       label: 'Traguardi di investimento',
-      help: 'Compare FIRE › Traguardi con le assegnazioni del portafoglio, e in Allocazione › Strategia i target possono venire da lì',
+      help: 'Compare «Traguardi» nel menu, sotto Futuro, con le assegnazioni del portafoglio, e in Allocazione › Strategia i target possono venire da lì',
       checked: goalBasedInvestingEnabled,
       patch: (checked: boolean) => ({ goalBasedInvestingEnabled: checked }),
     },

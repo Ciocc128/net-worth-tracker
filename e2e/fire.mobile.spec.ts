@@ -228,15 +228,15 @@ test.describe('FIRE, composto per un telefono', () => {
   });
 
   test('Traguardi spento: una tessera sola, nessun «Il resto della pagina»', async ({ page }) => {
-    await gotoFire(page);
-    await page.getByRole('tab', { name: 'Traguardi' }).click();
+    // RU11: the Traguardi are the page `/dashboard/traguardi`, not a tab of FIRE.
+    await page.goto('/dashboard/traguardi');
     const verdict = page.getByRole('region', { name: 'Verdetto sui traguardi' });
     await expect(verdict.getByRole('heading', { level: 2, name: 'I traguardi non sono attivi' })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole('region', { name: 'Traguardi', exact: true })).toBeVisible();
-    const panel = page.getByRole('tabpanel', { name: 'Traguardi' });
-    await expect(panel.getByRole('heading', { level: 2, name: 'Il resto della pagina' })).toHaveCount(0);
-    await expect(panel.locator('[id$="-trigger"]')).toHaveCount(0);
-    await expect(panel.getByRole('button', { name: 'Apri tutte' })).toHaveCount(0);
+    const main = page.locator('main');
+    await expect(main.getByRole('heading', { level: 2, name: 'Il resto della pagina' })).toHaveCount(0);
+    await expect(main.locator('[id$="-trigger"]')).toHaveCount(0);
+    await expect(main.getByRole('button', { name: 'Apri tutte' })).toHaveCount(0);
   });
 
   test('What If: l\'Evento è la prima tessera del DOM, le altre righe chiuse', async ({ page }) => {

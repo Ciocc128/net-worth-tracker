@@ -87,11 +87,20 @@ describe('resolveNavGroups (acceptance 2)', () => {
   const names = (groups: ReturnType<typeof resolveNavGroups>) => groups.map((g) => [g.label, g.items.map((i) => i.name)]);
 
   it('Completa → navGroups entry for entry', () => {
-    const groups = resolveNavGroups(COMPLETA, { goalsEnabled: false });
+    // With the account's goals on (RU11, D-RU29): Traguardi is the account's entry, not an area's.
+    const groups = resolveNavGroups(COMPLETA, { goalsEnabled: true });
     expect(names(groups)).toEqual(names(navGroups));
     expect(groups.flatMap((g) => g.items.map((i) => i.href))).toEqual(navGroups.flatMap((g) => g.items.map((i) => i.href)));
-    // 10 grouped entries + Assistente + Impostazioni = 12, as today.
-    expect(countMenuEntries(groups, true)).toBe(12);
+    // 11 grouped entries + Assistente + Impostazioni = 13.
+    expect(countMenuEntries(groups, true)).toBe(13);
+  });
+
+  it('Completa with the goals off hides Traguardi alone, unless the reader is on its page', () => {
+    const futuro = (goalsEnabled: boolean, pathname?: string) =>
+      resolveNavGroups(COMPLETA, { goalsEnabled }, pathname).find((g) => g.label === 'Futuro')?.items.map((i) => i.name);
+    expect(futuro(false)).toEqual(['FIRE', 'Previdenza']);
+    expect(futuro(true)).toEqual(['FIRE', 'Traguardi', 'Previdenza']);
+    expect(futuro(false, '/dashboard/traguardi')).toEqual(['FIRE', 'Traguardi', 'Previdenza']);
   });
 
   it('Essenziale without Traguardi → 6 entries in the groups + Assistente + Impostazioni = 8, no empty group', () => {
@@ -105,13 +114,12 @@ describe('resolveNavGroups (acceptance 2)', () => {
     expect(countMenuEntries(groups, true)).toBe(8);
   });
 
-  it('Essenziale with the account\'s goals → + Futuro › «Traguardi» on its tab = 9', () => {
+  it('Essenziale with the account\'s goals → + Futuro › «Traguardi», its own page = 9 (D-ES9 is gone)', () => {
     const groups = resolveNavGroups(ESSENZIALE, { goalsEnabled: true });
     const futuro = groups.find((g) => g.label === 'Futuro');
-    expect(futuro?.items.map((i) => [i.name, i.href])).toEqual([['Traguardi', '/dashboard/fire-simulations?tab=goals']]);
+    expect(futuro?.items.map((i) => [i.name, i.href])).toEqual([['Traguardi', '/dashboard/traguardi']]);
     expect(countMenuEntries(groups, true)).toBe(9);
-    // The entry is active on its page whatever the tab (navUtils strips the query).
-    expect(isNavItemActive('/dashboard/fire-simulations?tab=goals', '/dashboard/fire-simulations')).toBe(true);
+    expect(isNavItemActive('/dashboard/traguardi', '/dashboard/traguardi')).toBe(true);
   });
 
   it('the page the reader is on stays in its group, without the attribute that hides it before hydration', () => {
@@ -143,11 +151,11 @@ describe('resolveNavGroups (acceptance 2)', () => {
 });
 
 describe('tabs (§ 5.4)', () => {
-  const FIRE_TABS = ['quando', 'ese', 'approfondimenti', 'goals'].map((value) => ({ value }));
+  const FIRE_TABS = ['quando', 'ese', 'approfondimenti'].map((value) => ({ value }));
   const values = (tabs: { value: string }[]) => tabs.map((t) => t.value);
 
-  it('Essenziale: FIRE keeps Traguardi alone; Cashflow loses Dividendi; Impostazioni loses Avanzate; Allocazione loses Accumulo', () => {
-    expect(values(filterTabsByArea('/dashboard/fire-simulations', FIRE_TABS, ESSENZIALE, 'goals'))).toEqual(['goals']);
+  it('Essenziale: FIRE has no tab in the bar; Cashflow loses Dividendi; Impostazioni loses Avanzate; Allocazione loses Accumulo', () => {
+    expect(values(filterTabsByArea('/dashboard/fire-simulations', FIRE_TABS, ESSENZIALE, 'quando'))).toEqual(['quando']);
     expect(values(filterTabsByArea('/dashboard/cashflow', [{ value: 'tracking' }, { value: 'budget' }, { value: 'dividends' }], ESSENZIALE, 'tracking'))).toEqual(['tracking', 'budget']);
     expect(values(filterTabsByArea('/dashboard/settings', ['account', 'funzioni', 'cashflow', 'investimenti', 'avanzate'].map((value) => ({ value })), ESSENZIALE, 'account'))).toEqual(['account', 'funzioni', 'cashflow', 'investimenti']);
     const withAllocazione = resolveViewAreas({ viewPreset: 'essenziale', viewAreaOverrides: { allocazione: true } });
@@ -179,13 +187,13 @@ describe('hiddenAreaAt — the «non è nel tuo menu» line (§ 5.6)', () => {
     expect(hiddenAreaAt('/dashboard/allocation', 'accumulo', ESSENZIALE)).toBe('accumulo');
   });
 
-  it('says nothing where everything is on, on a page that is always on, or on FIRE › Traguardi', () => {
+  it('says nothing where everything is on, on a page that is always on, or on the Traguardi page', () => {
     expect(hiddenAreaAt('/dashboard/allocation', null, COMPLETA)).toBeNull();
     expect(hiddenAreaAt('/dashboard/cashflow', 'tracking', ESSENZIALE)).toBeNull();
     expect(hiddenAreaAt('/dashboard/cashflow', null, ESSENZIALE)).toBeNull();
     expect(hiddenAreaAt('/dashboard', null, ESSENZIALE)).toBeNull();
     expect(hiddenAreaAt('/dashboard/settings', 'funzioni', ESSENZIALE)).toBeNull();
-    expect(hiddenAreaAt('/dashboard/fire-simulations', 'goals', ESSENZIALE)).toBeNull();
+    expect(hiddenAreaAt('/dashboard/traguardi', null, ESSENZIALE)).toBeNull();
   });
 });
 
