@@ -4,6 +4,8 @@ import { SceneLink } from '@/components/layout/SceneLink';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { LogoutDialog } from '@/components/layout/LogoutDialog';
 import { ThemePicker } from '@/components/layout/ThemePicker';
+import { ViewPicker } from '@/components/layout/ViewPicker';
+import { useViewAreas } from '@/contexts/ViewAreasContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +18,7 @@ import {
 import { useLogout } from '@/lib/hooks/useLogout';
 import { useAuth } from '@/contexts/AuthContext';
 import { getAccountLabel, getDisplayInfo } from '@/lib/utils/userDisplayUtils';
-import { Settings, LogOut, Check, Users } from 'lucide-react';
+import { Settings, LogOut, Check, Users, SlidersHorizontal } from 'lucide-react';
 
 interface AccountMenuProps {
   /** The trigger: ONE element, it receives the menu's `asChild` props. */
@@ -32,13 +34,15 @@ interface AccountMenuProps {
 /**
  * The account menu, ONE copy for both places that open it: the sidebar's footer (the phone's sheet) and the
  * person in the desktop band (D-FD8): the account switcher when the viewer reaches more than one account,
- * Impostazioni first, the theme, «Esci» behind its confirm.
+ * Impostazioni first, the theme, the view («Essenziale · Completa» and «Scegli le aree…», doc/essenziale § 5.3),
+ * «Esci» behind its confirm.
  */
 export function AccountMenu({ children, side = 'bottom', align = 'end', identity = false, onNavigate }: AccountMenuProps) {
   const { user } = useAuth();
   const { displayName } = getDisplayInfo(user);
   const { ownerId, accessibleAccounts, switchAccount } = useActiveAccount();
   const { confirmLogout, setConfirmLogout, handleSignOut } = useLogout();
+  const { personalized } = useViewAreas();
 
   return (
     <>
@@ -93,6 +97,17 @@ export function AccountMenu({ children, side = 'bottom', align = 'end', identity
             <span className="text-sm">Tema</span>
             <ThemePicker />
           </div>
+          {/* The viewer's view, a second door beside the theme (doc/essenziale/README.md § 5.3, D-ES5). */}
+          <div className="flex items-center justify-between gap-2 px-2 py-1.5" data-view-row="">
+            <span className="text-sm">{personalized ? 'Vista: personalizzata' : 'Vista'}</span>
+            <ViewPicker />
+          </div>
+          <DropdownMenuItem asChild>
+            <SceneLink href="/dashboard/settings?tab=funzioni" onClick={onNavigate}>
+              <SlidersHorizontal className="size-4" />
+              Scegli le aree…
+            </SceneLink>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setConfirmLogout(true)}>
             <LogOut className="size-4" />

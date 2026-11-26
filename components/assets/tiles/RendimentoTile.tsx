@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useViewArea } from '@/contexts/ViewAreasContext';
 import type { DashboardOverviewTopAsset } from '@/types/dashboardOverview';
 import { cachedFormatCurrencyEUR, formatSignedEuro, printedSign } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
@@ -61,6 +62,8 @@ export function RendimentoTile({ gains, ranking, rankedFrom, collapse, asideWhen
   const best = ranking.best[0]
     ? { name: ranking.best[0].name, returnPercent: ranking.best[0].returnPercent ?? 0 }
     : null;
+  // Door P4 (doc/essenziale/README.md § 5.5): «TWR e benchmark in Rendimenti.» goes whole when Rendimenti is off.
+  const showRendimenti = useViewArea('rendimenti');
   const subject = gains.count === 1 ? 'strumento con costo' : 'strumenti con costo';
   // A row keeps a TEXT aside beside its eyebrow (`Tile`): the same words there, without the mono span.
   const aside =
@@ -137,14 +140,21 @@ export function RendimentoTile({ gains, ranking, rankedFrom, collapse, asideWhen
           )}
         </>
       )}
-      <p className="mt-auto border-t border-border pt-3.5 text-[11px] text-muted-foreground">
-        {ranking.measuredCount > 0 && `Tra ${pluralArticleFor(rankedFrom)} ${rankedFrom} strumenti maggiori · `}
-        TWR e benchmark in{' '}
-        <Link href="/dashboard/performance" className={TILE_FOOTER_ACTION_CLASS}>
-          Rendimenti
-        </Link>
-        .
-      </p>
+      {(ranking.measuredCount > 0 || showRendimenti) && (
+        <p className="mt-auto border-t border-border pt-3.5 text-[11px] text-muted-foreground">
+          {ranking.measuredCount > 0 &&
+            `Tra ${pluralArticleFor(rankedFrom)} ${rankedFrom} strumenti maggiori${showRendimenti ? ' · ' : '.'}`}
+          {showRendimenti && (
+            <>
+              TWR e benchmark in{' '}
+              <Link href="/dashboard/performance" className={TILE_FOOTER_ACTION_CLASS}>
+                Rendimenti
+              </Link>
+              .
+            </>
+          )}
+        </p>
+      )}
     </Tile>
   );
 }

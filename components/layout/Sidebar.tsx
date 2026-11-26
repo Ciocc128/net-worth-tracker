@@ -26,14 +26,12 @@ import { SIDEBAR_AVATAR_CLASS } from '@/components/layout/shellStyles';
 import { cn } from '@/lib/utils';
 import { isNavItemActive } from '@/lib/utils/navUtils';
 import { getAccountLabel, getDisplayInfo } from '@/lib/utils/userDisplayUtils';
-import {
-  navGroups,
-  assistantNavItem,
-  type NavItem,
-} from '@/lib/constants/navigation';
+import { assistantNavItem } from '@/lib/constants/navigation';
+import { useViewNavGroups } from '@/lib/hooks/useViewNavGroups';
+import type { ViewNavItem } from '@/lib/utils/viewAreas';
 import { ChevronsUpDown } from 'lucide-react';
 
-function NavItems({ items }: { items: NavItem[] }) {
+function NavItems({ items }: { items: ViewNavItem[] }) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
 
@@ -46,7 +44,7 @@ function NavItems({ items }: { items: NavItem[] }) {
       {items.map((item) => {
         const isActive = isNavItemActive(item.href, pathname);
         return (
-          <SidebarMenuItem key={item.name}>
+          <SidebarMenuItem key={item.name} data-view-area={item.viewArea}>
             {isActive && (
               <motion.div
                 layoutId="sidebar-active-pill"
@@ -94,6 +92,8 @@ export function AppSidebar() {
   const activeAccount = accessibleAccounts.find((a) => a.ownerId === ownerId);
 
   const showAssistant = process.env.NEXT_PUBLIC_ASSISTANT_AI_ENABLED !== 'false';
+  // The view's groups (doc/essenziale/README.md § 5.4): Completa is `navGroups` whole.
+  const navGroups = useViewNavGroups();
 
   // From `desktop:` and on a tablet in landscape the navigation is the shell's band (`ShellBand`, D-FD16):
   // this sidebar is now only the Sheet of a phone turned sideways.

@@ -8,6 +8,8 @@
  * and a view holding its own fields would lose them at the first tab change.
  */
 
+import { useViewAreas } from '@/contexts/ViewAreasContext';
+import type { ViewAreaId } from '@/lib/constants/viewAreas';
 import Link from 'next/link';
 import { TabsContent } from '@/components/ui/tabs';
 import { pageTabPanelId } from '@/components/layout/PageTabBar';
@@ -74,6 +76,8 @@ export interface ElsewhereItem {
   /** The destination, spelled out as the page's name («FIRE › Il mio piano»); it is the link's text. */
   where: string;
   href: string;
+  /** The viewer's area the destination belongs to: the pointer goes when it is off (door P8, doc/essenziale § 5.5). */
+  area?: ViewAreaId;
 }
 
 /**
@@ -81,7 +85,9 @@ export interface ElsewhereItem {
  * is named here with its link, never copied into a read-only tile. A line, not a tile — it has no
  * values to show. A real `<p>` with real links; each link says where it goes in full.
  */
-export function ElsewhereLine({ items }: { items: ElsewhereItem[] }) {
+export function ElsewhereLine({ items: allItems }: { items: ElsewhereItem[] }) {
+  const { areas } = useViewAreas();
+  const items = allItems.filter((item) => !item.area || areas[item.area]);
   if (items.length === 0) return null;
   return (
     <p className="flex flex-col gap-1 pt-1 text-[12px] leading-[1.5] text-muted-foreground tablet:col-span-2 desktop:col-span-12">

@@ -19,6 +19,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useViewArea } from '@/contexts/ViewAreasContext';
 import { LayoutGroup, motion } from 'framer-motion';
 import { Info } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from '@/components/ui/charts/recharts';
@@ -187,6 +188,8 @@ interface ComposizioneTileProps {
 }
 
 export function ComposizioneTile({ assetClassHistory, liquidityHistory, hasPensionFunds, scrub = null, collapse, asideWhenClosed, className }: ComposizioneTileProps) {
+  // Door P3 (doc/essenziale/README.md § 5.5): «Vai all'Allocazione» goes when Allocazione is off.
+  const showAllocazione = useViewArea('allocazione');
   const chartMotion = useChartMotion();
   const [cut, setCut] = useState<CompositionCut>('assetClass');
   const chartColors = useChartColors();
@@ -303,6 +306,7 @@ export function ComposizioneTile({ assetClassHistory, liquidityHistory, hasPensi
         </>
       )}
 
+      {(hasData || showAllocazione) && (
       <p className="mt-auto border-t border-border pt-3.5 text-[11px] leading-[1.45] text-muted-foreground">
         {hasData && (
           <>
@@ -317,10 +321,13 @@ export function ComposizioneTile({ assetClassHistory, liquidityHistory, hasPensi
         )}
         {/* The footer action's target (32px on a pointer, 44px on touch) and `inline-flex`: as a bare inline
             link it wrapped over two 13px fragments on a phone, and the centre of its box was not clickable. */}
-        <Link href="/dashboard/allocation" className={cn(TILE_FOOTER_ACTION_CLASS, 'whitespace-nowrap')}>
-          Vai all&apos;Allocazione
-        </Link>
+        {showAllocazione && (
+          <Link href="/dashboard/allocation" className={cn(TILE_FOOTER_ACTION_CLASS, 'whitespace-nowrap')}>
+            Vai all&apos;Allocazione
+          </Link>
+        )}
       </p>
+      )}
     </Tile>
   );
 }

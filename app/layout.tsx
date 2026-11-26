@@ -34,6 +34,9 @@ import { ColorThemeProvider } from "@/contexts/ColorThemeContext";
 import { AgentationToolbar } from "@/components/providers/AgentationToolbar";
 import { COLOR_THEME_INIT_SCRIPT } from "@/lib/constants/colorTheme";
 import { TOP_BAND_INIT_SCRIPT } from "@/lib/constants/topBand";
+import { buildViewAreasStyle, VIEW_AREAS_INIT_SCRIPT } from "@/lib/constants/viewAreas";
+import { navAreaCombinations } from "@/lib/utils/viewAreas";
+import { ViewAreasProvider } from "@/contexts/ViewAreasContext";
 import { ThemeColorSync } from "@/components/providers/ThemeColorSync";
 import { DEFAULT_THEME_COLORS } from "@/lib/utils/themeColor";
 
@@ -69,6 +72,9 @@ export const viewport: Viewport = {
   ],
 };
 
+/** Built once, on the server: one rule per area and per band group of areas (lib/constants/viewAreas.ts). */
+const VIEW_AREAS_STYLE = buildViewAreasStyle(navAreaCombinations());
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -87,6 +93,11 @@ export default function RootLayout({
         {/* The phone's top band of that theme (`data-band`), read after the theme is on <html>:
             lib/constants/topBand.ts, doc/fascia/README.md. */}
         <script dangerouslySetInnerHTML={{ __html: TOP_BAND_INIT_SCRIPT }} />
+        {/* The «Essenziale · Completa» view (doc/essenziale/README.md D-ES15): the areas that are off onto <html>
+            (`data-view-off`) and the rules that hide their doors, so a reader in Essenziale never sees an entry
+            flash in the menu. The script, the attribute and the rules: lib/constants/viewAreas.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: VIEW_AREAS_INIT_SCRIPT }} />
+        <style dangerouslySetInnerHTML={{ __html: VIEW_AREAS_STYLE }} />
       </head>
       <body
         className={`${geistSans.variable} antialiased`}
@@ -100,10 +111,12 @@ export default function RootLayout({
               <ActiveAccountProvider>
                 <ColorThemeProvider>
                   <ThemeColorSync />
-                  <QueryClientProvider>
-                    {children}
-                    <Toaster />
-                  </QueryClientProvider>
+                  <ViewAreasProvider>
+                    <QueryClientProvider>
+                      {children}
+                      <Toaster />
+                    </QueryClientProvider>
+                  </ViewAreasProvider>
                 </ColorThemeProvider>
               </ActiveAccountProvider>
             </AuthProvider>

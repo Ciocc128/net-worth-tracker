@@ -21,7 +21,9 @@ import { useLogout } from '@/lib/hooks/useLogout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { getAccountLabel, getDisplayInfo } from '@/lib/utils/userDisplayUtils';
-import { navGroups, primaryNav, assistantNavItem } from '@/lib/constants/navigation';
+import { primaryNav, assistantNavItem } from '@/lib/constants/navigation';
+import { useViewNavGroups } from '@/lib/hooks/useViewNavGroups';
+import { isNavItemActive } from '@/lib/utils/navUtils';
 import { SIDEBAR_AVATAR_CLASS } from '@/components/layout/shellStyles';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TILE_EYEBROW_CLASS } from '@/components/ui/tile';
@@ -109,8 +111,9 @@ export function SecondaryMenuDrawer({ open, onOpenChange }: SecondaryMenuDrawerP
     return () => window.removeEventListener('keydown', trapTab);
   }, [open]);
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + '/');
+  const isActive = (href: string) => isNavItemActive(href, pathname);
+  // The view's groups (doc/essenziale/README.md § 5.4): a group left with no entry here goes with its label.
+  const navGroups = useViewNavGroups();
 
   const { displayName, initials } = getDisplayInfo(user);
   const activeAccount = accessibleAccounts.find((a) => a.ownerId === ownerId);
@@ -189,7 +192,7 @@ export function SecondaryMenuDrawer({ open, onOpenChange }: SecondaryMenuDrawerP
                       {/* The inner Link keeps aria-current, Next.js prefetching, and right-click semantics. */}
                       <ul className="m-0 list-none p-0">
                         {items.map((nav) => (
-                          <li key={nav.href}>
+                          <li key={nav.href} data-view-area={nav.viewArea}>
                             <SceneLink
                               href={nav.href}
                               aria-current={isActive(nav.href) ? 'page' : undefined}

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { CircleUserRound } from 'lucide-react';
 import { ShellBandPortals, useInShellBand } from '@/components/layout/ShellBandSlots';
+import { HiddenAreaNotice } from '@/components/layout/HiddenAreaNotice';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -140,15 +141,16 @@ export function PageHeader({ title, description, actions, freshness, className }
     </>
   );
 
+  // `page-header`: the page scene morphs this line into the next page's (globals.css → Page scene).
+  // The STICKY box is this wrapper, not the navbar inside it: `position: sticky` travels only
+  // within its containing block, and the navbar's was this div — exactly as tall as the
+  // navbar, so it never stuck and «Salva» scrolled away on every page (measured on
+  // Impostazioni, 2026-09-22). The wrapper's containing block is the page, so it stays for
+  // the whole scroll. `-top-4` cancels `<main>`'s 16px padding below `desktop:`: a sticky
+  // offset is measured from the scroller's content edge, and at `top-0` the rows scrolling
+  // past would show through a 16px strip above the bar.
   return (
-    // `page-header`: the page scene morphs this line into the next page's (globals.css → Page scene).
-    // The STICKY box is this wrapper, not the navbar inside it: `position: sticky` travels only
-    // within its containing block, and the navbar's was this div — exactly as tall as the
-    // navbar, so it never stuck and «Salva» scrolled away on every page (measured on
-    // Impostazioni, 2026-09-22). The wrapper's containing block is the page, so it stays for
-    // the whole scroll. `-top-4` cancels `<main>`'s 16px padding below `desktop:`: a sticky
-    // offset is measured from the scroller's content edge, and at `top-0` the rows scrolling
-    // past would show through a 16px strip above the bar.
+    <>
     <div
       ref={headerRef}
       data-page-header=""
@@ -214,6 +216,10 @@ export function PageHeader({ title, description, actions, freshness, className }
       </div>
       )}
     </div>
+    {/* «{Area} non è nel tuo menu.» under the header, above the verdict, on a page of an area the viewer's view hides
+        (doc/essenziale/README.md § 5.6) — outside the sticky box, so it scrolls with the page. Dashboard only. */}
+    {inShell && <HiddenAreaNotice />}
+    </>
   );
 }
 

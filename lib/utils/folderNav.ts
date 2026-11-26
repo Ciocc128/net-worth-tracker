@@ -1,5 +1,6 @@
 import { assistantNavItem, navGroups, type NavGroup, type NavItem } from '@/lib/constants/navigation';
 import { isNavItemActive } from '@/lib/utils/navUtils';
+import { groupViewAreas, type ViewNavGroup, type ViewNavItem } from '@/lib/utils/viewAreas';
 
 /**
  * The folder row of the desktop shell (doc/fascia-desktop/README.md): one folder per group of `navGroups`
@@ -14,18 +15,28 @@ export type Folder = {
   icon: NavItem['icon'];
   /** The group's pages in order (one for a loose route). */
   items: NavItem[];
+  /**
+   * The areas the folder hides with before hydration (`data-view-area`, doc/essenziale/README.md D-ES15): set only
+   * when every page of the group belongs to an area.
+   */
+  viewArea?: string;
 };
 
-const toFolder = (group: NavGroup): Folder => ({
-  key: group.items[0].href,
+const toFolder = (group: NavGroup | ViewNavGroup): Folder => ({
+  // The key is the group's FIRST page in `navGroups`, so it stays the same when the view hides that page.
+  key: (navGroups.find((g) => g.label !== null && g.label === group.label) ?? group).items[0].href,
   label: group.label ?? group.items[0].name,
   icon: group.items[0].icon,
   items: group.items,
+  viewArea: groupViewAreas(group)?.join(' '),
 });
 
-/** The folders in order; the Assistente is the last, shown at the right end by the row. */
-export function buildFolders(showAssistant: boolean): Folder[] {
-  const folders = navGroups.map(toFolder);
+/**
+ * The folders in order; the Assistente is the last, shown at the right end by the row. `groups` are the view's
+ * (`useViewNavGroups`, doc/essenziale/README.md § 5.4); `navGroups` whole by default.
+ */
+export function buildFolders(showAssistant: boolean, groups: readonly (NavGroup | ViewNavGroup)[] = navGroups): Folder[] {
+  const folders = groups.map(toFolder);
   if (showAssistant) folders.push(toFolder({ label: null, items: [assistantNavItem] }));
   return folders;
 }
@@ -78,7 +89,7 @@ export function folderTarget(folder: Folder, storage?: StorageLike): string {
   return folder.items[0].href;
 }
 
-export type BandPage = { href: string; name: string };
+export type BandPage = { href: string; name: string; viewArea?: string };
 
 /** The pages outside the groups, each its own single tab on the band's edge (D-FD14). */
 const LOOSE_PAGES: BandPage[] = [{ href: '/dashboard/settings', name: 'Impostazioni' }];
@@ -89,6 +100,11 @@ const LOOSE_PAGES: BandPage[] = [{ href: '/dashboard/settings', name: 'Impostazi
  * groups (Impostazioni), that page alone. Nothing on a route neither knows.
  */
 export function bandPages(openFolder: Folder | undefined, pathname: string): BandPage[] {
-  if (openFolder) return openFolder.items.map((item) => ({ href: item.href, name: item.name }));
+  if (openFolder) {
+    return openFolder.items.map((item) => {
+      const viewArea = (item as ViewNavItem).viewArea;
+      return viewArea ? { href: item.href, name: item.name, viewArea } : { href: item.href, name: item.name };
+    });
+  }
   return LOOSE_PAGES.filter((page) => isNavItemActive(page.href, pathname));
 }

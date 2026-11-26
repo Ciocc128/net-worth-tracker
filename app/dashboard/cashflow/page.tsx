@@ -56,6 +56,8 @@ import { type Period, currentMonthPeriod } from '@/lib/utils/period';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { PageTabs } from '@/components/layout/PageTabs';
+import { usePublishOpenTab, useViewAreas } from '@/contexts/ViewAreasContext';
+import { filterTabsByArea } from '@/lib/utils/viewAreas';
 import { pageTabPanelId } from '@/components/layout/PageTabBar';
 import type { TabDef } from '@/components/layout/PageTabs';
 
@@ -250,6 +252,11 @@ export default function CashflowPage() {
   const settingsLoaded = costCentersEnabled !== null && expenseSplitEnabled !== null;
   const effectiveTab =
     settingsLoaded && !allTabs.some((tab) => tab.value === activeTab) ? 'tracking' : activeTab;
+  // The viewer's view (doc/essenziale/README.md § 5.4): Dividendi leaves the bar when its area is off, and still opens
+  // from `?tab=dividends` — the «non è nel tuo menu» line under the header says why it is not in the bar.
+  const { areas } = useViewAreas();
+  const shownTabs = filterTabsByArea('/dashboard/cashflow', allTabs, areas, effectiveTab);
+  usePublishOpenTab('/dashboard/cashflow', effectiveTab);
 
   return (
     <PageContainer>
@@ -372,7 +379,7 @@ export default function CashflowPage() {
       />
 
       <PageTabs
-        tabs={allTabs}
+        tabs={shownTabs}
         value={effectiveTab}
         onValueChange={handleTabChange}
         layoutId="cashflow-tab"

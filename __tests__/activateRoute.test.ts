@@ -86,4 +86,32 @@ describe('POST /api/auth/activate', () => {
     expect(response.status).toBe(403);
     expect(fake.writes).toEqual([]);
   });
+
+  // doc/essenziale/README.md § 5.2, D-ES3, acceptance 3: the FIRST admission starts the viewer in Essenziale.
+  it('ES1 — a new uid is admitted in the Essenziale view', async () => {
+    whitelistOnly('outsider@example.com');
+    await call(bearer('outsider'));
+    expect(fake.get('userPreferences/outsider')).toEqual({ viewPreset: 'essenziale' });
+  });
+
+  it('ES1 — the view the viewer already chose is kept, the theme beside it too', async () => {
+    whitelistOnly('outsider@example.com');
+    fake.set('userPreferences/outsider', { viewPreset: 'completa', colorTheme: 'graphite' });
+    await call(bearer('outsider'));
+    expect(fake.get('userPreferences/outsider')).toEqual({ viewPreset: 'completa', colorTheme: 'graphite' });
+  });
+
+  it('ES1 — preferences without a view get it, merged beside the theme', async () => {
+    whitelistOnly('outsider@example.com');
+    fake.set('userPreferences/outsider', { colorTheme: 'graphite' });
+    await call(bearer('outsider'));
+    expect(fake.get('userPreferences/outsider')).toEqual({ colorTheme: 'graphite', viewPreset: 'essenziale' });
+  });
+
+  it('ES1 — an uid already admitted gets no view (who was here stays in Completa)', async () => {
+    whitelistOnly();
+    fake.allow('owner-1');
+    await call(bearer('owner-1'));
+    expect(fake.get('userPreferences/owner-1')).toBeUndefined();
+  });
 });

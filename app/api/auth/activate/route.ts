@@ -3,6 +3,11 @@ import { adminDb } from '@/lib/firebase/admin';
 import { getApiAuthErrorResponse, verifyFirebaseToken } from '@/lib/server/apiAuth';
 import { isRegistrationAllowed } from '@/lib/server/registrationPolicy';
 import { ALLOWED_USERS_COLLECTION, type AllowedUser } from '@/types/account';
+import {
+  FIRST_ADMISSION_VIEW_PRESET,
+  USER_PREFERENCES_COLLECTION,
+  shouldWriteInitialViewPreset,
+} from '@/lib/constants/viewAreas';
 
 /**
  * POST /api/auth/activate — how a user enters `allowed-users` at registration
@@ -13,7 +18,8 @@ import { ALLOWED_USERS_COLLECTION, type AllowedUser } from '@/types/account';
  * caller cannot name someone else's whitelisted address.
  *
  * - 200 `{ allowed: true }`: already admitted (nothing written), or admitted now
- *   (`source: 'registration'`).
+ *   (`source: 'registration'`). The first admission also starts the viewer in the Essenziale view
+ *   (`userPreferences/{uid}.viewPreset`, doc/essenziale/README.md § 5.2, D-ES3) unless they already chose one.
  * - 403 `{ allowed: false, code: 'registration/not-allowed' }`: the token has no email, or the
  *   registration policy refuses it; nothing is written.
  * - 401: no token, or an invalid one.
@@ -48,6 +54,12 @@ export async function POST(request: NextRequest) {
       source: 'registration',
     };
     await ref.set(document);
+    // D-ES3: a new account starts in Essenziale — written here, in the branch that admits, never in «già ammesso».
+    const preferencesRef = adminDb.collection(USER_PREFERENCES_COLLECTION).doc(decodedToken.uid);
+    const preferences = await preferencesRef.get();
+    if (shouldWriteInitialViewPreset(preferences.exists ? preferences.data() : undefined)) {
+      await preferencesRef.set({ viewPreset: FIRST_ADMISSION_VIEW_PRESET }, { merge: true });
+    }
     return NextResponse.json({ allowed: true });
   } catch (error) {
     const authResponse = getApiAuthErrorResponse(error);

@@ -6,8 +6,8 @@
  * or a control on or off; the stamp duty changes a calculation, so it stays with its rate in
  * Investimenti › Costi. Budget and the Assistant have no switch and get none here (F17 decides).
  *
- * The head of this tab is reserved for the Essenziale · Completa choice (F17); until it lands the
- * tile is the first thing on the tab.
+ * The head of this tab is the viewer's «Essenziale · Completa» view (`CosaVediTile`, doc/essenziale/README.md § 5.3):
+ * it saves itself and stays out of the draft; the account's switches below enter «Salva» as before.
  *
  * A controlled view of the `funzioni` slice: `slice` in, `onChange(patch)` out. Turning «Traguardi
  * di investimento» off turns the goal-driven targets of Allocazione › Strategia off with it — the
@@ -24,6 +24,7 @@ import type { SurfaceState } from '@/lib/utils/statesNarrative';
 import type { CategoryClassificationCounts } from '@/lib/utils/spendingRoles';
 import type { FunzioniSlice } from '@/lib/utils/settingsDraft';
 import { INTERACTIVE_CONTROL_CLASS, SettingsTabPanel } from './shared';
+import { CosaVediTile } from './CosaVediTile';
 
 export interface FunzioniTabProps {
   slice: FunzioniSlice;
@@ -72,9 +73,10 @@ export function FunzioniTab({ slice, onChange, familyMemberCount, classification
 
   return (
     <SettingsTabPanel tab="funzioni" label="Funzioni">
+      <CosaVediTile />
       <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
         <Tile
-          eyebrow="Funzioni"
+          eyebrow="Funzioni dell'account"
           reading={describeFunctions({
             goalBasedInvesting: goalBasedInvestingEnabled,
             costCenters: costCentersEnabled,
@@ -83,6 +85,9 @@ export function FunzioniTab({ slice, onChange, familyMemberCount, classification
             familyMemberCount,
           })}
         >
+          <p className="mt-1 text-[12px] leading-[1.45] text-muted-foreground">
+            Valgono per tutti quelli che usano l&apos;account.
+          </p>
           <div className="mt-1 flex flex-col divide-y divide-border">
             {rows.map((row) => (
               <div key={row.id} className="py-3">

@@ -9,6 +9,8 @@ import { ShellBandContext } from '@/components/layout/ShellBandSlots';
 import { SceneLink } from '@/components/layout/SceneLink';
 import { buttonVariants } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useViewNavGroups } from '@/lib/hooks/useViewNavGroups';
+import { stripQuery } from '@/lib/utils/viewAreas';
 import { cn } from '@/lib/utils';
 import {
   bandPages,
@@ -44,7 +46,9 @@ export function ShellBand() {
   const context = useContext(ShellBandContext);
   const reduced = useReducedMotion();
   const showAssistant = process.env.NEXT_PUBLIC_ASSISTANT_AI_ENABLED !== 'false';
-  const folders = useMemo(() => buildFolders(showAssistant), [showAssistant]);
+  // The view's groups (doc/essenziale/README.md § 5.4): Completa is `navGroups` whole.
+  const groups = useViewNavGroups();
+  const folders = useMemo(() => buildFolders(showAssistant, groups), [showAssistant, groups]);
 
   // The link just clicked, until its route lands: the indicators slide at the click, not 140 ms + a fetch later.
   const [pending, setPending] = useState<string | null>(null);
@@ -93,7 +97,9 @@ export function ShellBand() {
   const factRef = useCallback((el: HTMLElement | null) => setSlot?.('fact', el), [setSlot]);
   const actionsRef = useCallback((el: HTMLElement | null) => setSlot?.('actions', el), [setSlot]);
   const go = (href: string) => {
-    if (href !== pathname) setPending(href);
+    // A page entry may carry a tab (FIRE's «Traguardi»); the band follows the page, not the query.
+    const path = stripQuery(href);
+    if (path !== pathname) setPending(path);
   };
 
   return (
@@ -164,7 +170,8 @@ export function ShellBand() {
                   href={page.href}
                   name={page.name}
                   open={page.href === (openPage?.href ?? shownPath)}
-                  current={page.href === pathname}
+                  current={stripQuery(page.href) === pathname}
+                  viewArea={page.viewArea}
                   layoutId={`band-page-${openFolder?.key ?? 'none'}`}
                   onNavigate={go}
                   reduced={!!reduced}
@@ -213,6 +220,7 @@ function GroupLink({
       onClick={() => onNavigate(href)}
       aria-current={open ? (currentPage ? 'page' : 'true') : undefined}
       data-folder={open ? 'open' : 'closed'}
+      data-view-area={folder.viewArea}
       className={cn(
         'relative flex h-[60px] items-center px-3.5 text-[15px] whitespace-nowrap transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
         open ? 'font-semibold text-foreground' : 'font-medium text-[var(--band-ink-closed)] hover:text-foreground',
@@ -244,12 +252,15 @@ function PageTab({
   layoutId,
   onNavigate,
   reduced,
+  viewArea,
 }: {
   href: string;
   name: string;
   open: boolean;
   current: boolean;
   layoutId: string;
+  /** The area that hides this tab before hydration (doc/essenziale/README.md D-ES15). */
+  viewArea?: string;
   onNavigate: (href: string) => void;
   reduced: boolean;
 }) {
@@ -259,6 +270,7 @@ function PageTab({
       onClick={() => onNavigate(href)}
       aria-current={current ? 'page' : undefined}
       data-band-page={open ? 'open' : 'closed'}
+      data-view-area={viewArea}
       className={cn(
         'relative flex items-center whitespace-nowrap px-[18px] transition-[color,font-size] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
         open

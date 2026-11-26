@@ -61,6 +61,8 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { PageTabs } from '@/components/layout/PageTabs';
 import { pageTabPanelId } from '@/components/layout/PageTabBar';
 import type { TabDef } from '@/components/layout/PageTabs';
+import { usePublishOpenTab, useViewAreas } from '@/contexts/ViewAreasContext';
+import { filterTabsByArea } from '@/lib/utils/viewAreas';
 
 // The four tabs the page does not open on, one chunk each (see the header): `lazyComponent` at module
 // level (AGENTS.md § Dynamic Imports and Module Hygiene), preloaded once the page is idle, so a tab
@@ -130,6 +132,12 @@ function FireSimulationsContent() {
     return () => clearTimeout(timer);
   }, [tabParam, pianoParam, setPlanOpen, focusField]);
 
+  // The viewer's view (doc/essenziale/README.md § 5.4, D-ES9): with FIRE off the bar keeps Traguardi (the account's
+  // switch) and the tab asked for by a link; a bar left with one tab is not drawn. The panels stay all mounted.
+  const { areas } = useViewAreas();
+  const shownTabs = filterTabsByArea('/dashboard/fire-simulations', TABS, areas, activeTab);
+  usePublishOpenTab('/dashboard/fire-simulations', activeTab);
+
   return (
     <PageContainer>
       <PageHeader
@@ -141,7 +149,7 @@ function FireSimulationsContent() {
       <FirePlanBlock />
 
       <PageTabs
-        tabs={TABS}
+        tabs={shownTabs}
         value={activeTab}
         onValueChange={(v) => setActiveTab(v as TabValue)}
         layoutId="fire-tab-pill"
