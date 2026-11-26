@@ -90,4 +90,10 @@ export default async function globalSetup(): Promise<void> {
   if (hofSeed.status !== 0) {
     throw new Error('The Hall of Fame E2E fixture failed to seed — see the output above.');
   }
+
+  // The Essenziale view (doc/essenziale/README.md): its own account in Essenziale, seeded before its session is parked.
+  const essenzialeSeed = spawnSync('npm', ['run', 'e2e:seed:essenziale'], { stdio: 'inherit', shell: true });
+  if (essenzialeSeed.status !== 0) {
+    throw new Error('The Essenziale E2E fixture failed to seed — see the output above.');
+  }
 }

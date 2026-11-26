@@ -59,6 +59,11 @@ export const SPLIT_STORAGE_STATE = 'e2e/.auth/split.json';
  * account would move every figure the other specs assert.
  */
 export const HOF_STORAGE_STATE = 'e2e/.auth/hof.json';
+/**
+ * Session of the Essenziale view's fixture account (scripts/seedEssenzialeE2E.mts, doc/essenziale/README.md): the view
+ * is the viewer's, and putting the base account in Essenziale would take four areas out of every other spec's menu.
+ */
+export const ESSENZIALE_STORAGE_STATE = 'e2e/.auth/essenziale.json';
 
 /** The `desktop:` width, where the sidebar — and the profile the setups wait for — is a fixed column. */
 const SETUP_VIEWPORT = { viewport: { width: 1440, height: 900 } };
@@ -89,6 +94,7 @@ export default defineConfig({
     { name: 'setup-centri', testMatch: /auth\.centri\.setup\.ts/, use: SETUP_VIEWPORT },
     { name: 'setup-split', testMatch: /auth\.split\.setup\.ts/, use: SETUP_VIEWPORT },
     { name: 'setup-hof', testMatch: /auth\.hof\.setup\.ts/, use: SETUP_VIEWPORT },
+    { name: 'setup-essenziale', testMatch: /auth\.essenziale\.setup\.ts/, use: SETUP_VIEWPORT },
     {
       name: 'desktop',
       // 1440px is the project's `desktop:` breakpoint — the width where the layout switches.
@@ -96,7 +102,26 @@ export default defineConfig({
       dependencies: ['setup'],
       // analisi.* runs in its own projects on the dedicated fixture account; *.tablet.* in the two
       // tablet projects only (since 2026-10-16), or it would run at 1440 as well.
-      testIgnore: [/\.(mobile|degraded|tablet)\.spec\.ts/, /analisi\./, /centri\./, /split\./, /hof\./],
+      testIgnore: [/\.(mobile|degraded|tablet)\.spec\.ts/, /analisi\./, /centri\./, /split\./, /hof\./, /essenziale\./],
+    },
+    {
+      // The Essenziale view on its own fixture account (doc/essenziale/README.md acceptance 4–6), 1440 and 390.
+      name: 'essenziale',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, storageState: ESSENZIALE_STORAGE_STATE },
+      dependencies: ['setup-essenziale'],
+      testMatch: /essenziale\.spec\.ts/,
+    },
+    {
+      name: 'essenziale-mobile',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 390, height: 844 },
+        hasTouch: true,
+        isMobile: true,
+        storageState: ESSENZIALE_STORAGE_STATE,
+      },
+      dependencies: ['setup-essenziale'],
+      testMatch: /essenziale\.mobile\.spec\.ts/,
     },
     {
       // Hall of Fame on its own fixture account. Listed BEFORE its mobile twin: with `workers: 1`
@@ -219,7 +244,7 @@ export default defineConfig({
       },
       dependencies: ['setup'],
       testMatch: /\.mobile\.spec\.ts/,
-      testIgnore: [/analisi\./, /centri\./, /split\./, /hof\./, /degraded\./],
+      testIgnore: [/analisi\./, /centri\./, /split\./, /hof\./, /degraded\./, /essenziale\./],
     },
     {
       // The small-screen composition on a tablet (since 2026-10-16): 768 in portrait, two
@@ -235,7 +260,7 @@ export default defineConfig({
       },
       dependencies: ['setup'],
       testMatch: /\.tablet\.spec\.ts/,
-      testIgnore: [/analisi\./, /centri\./, /split\./, /hof\./, /degraded\./],
+      testIgnore: [/analisi\./, /centri\./, /split\./, /hof\./, /degraded\./, /essenziale\./],
     },
     {
       // 1024 in landscape: the stage (the answer on the left, the index on the right), the icon rail, no pill and no bar.
@@ -249,7 +274,7 @@ export default defineConfig({
       },
       dependencies: ['setup'],
       testMatch: /\.tablet\.spec\.ts/,
-      testIgnore: [/analisi\./, /centri\./, /split\./, /hof\./, /degraded\./],
+      testIgnore: [/analisi\./, /centri\./, /split\./, /hof\./, /degraded\./, /essenziale\./],
     },
   ],
 
