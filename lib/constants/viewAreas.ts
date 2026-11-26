@@ -47,7 +47,7 @@ export const VIEW_AREA_BY_ID: Readonly<Record<ViewAreaId, ViewAreaDef>> = Object
 
 /**
  * The routes whose doors belong to an area (§ 5.1). `area` is the page's; `tabs` the tabs that differ from it —
- * `null` means a tab that is never hidden (FIRE › Traguardi follows the account's switch, D-ES9); `defaultTab` is
+ * `null` means a tab that is never hidden (FIRE › Traguardi follows the account's switch, D-ES9, until RU11); `defaultTab` is
  * what the page opens on without `?tab=`. A route absent from here is always on.
  */
 export interface ViewRoute {
@@ -63,8 +63,9 @@ export const VIEW_ROUTES: readonly ViewRoute[] = [
   {
     href: '/dashboard/fire-simulations',
     area: 'fire',
-    tabs: { coast: 'simulazioni', montecarlo: 'simulazioni', proiezione: 'simulazioni', goals: null },
-    defaultTab: 'fire',
+    // The old ids (`coast`, `montecarlo`, `proiezione`) stay for a bookmark: `hiddenAreaAt` reads `?tab=` as it is.
+    tabs: { approfondimenti: 'simulazioni', coast: 'simulazioni', montecarlo: 'simulazioni', proiezione: 'simulazioni', goals: null },
+    defaultTab: 'quando',
   },
   { href: '/dashboard/pension', area: 'previdenza' },
   { href: '/dashboard/cashflow', tabs: { dividends: 'dividendi' }, defaultTab: 'tracking' },

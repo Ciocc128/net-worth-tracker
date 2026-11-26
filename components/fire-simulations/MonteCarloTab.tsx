@@ -67,6 +67,7 @@ import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { summarizeLock } from '@/lib/utils/fireSummary';
 import { describeFireLockScope } from '@/lib/utils/fireNarrative';
 import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
+import { useStaleOpenCollapse } from '@/lib/hooks/useStaleOpenCollapse';
 import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
 import {
   COMPACT_GRID_CLASS,
@@ -161,6 +162,9 @@ const MONTE_CARLO_SECTIONS: readonly SectionSpec[] = [
   // The fork's Spesa sostenibile, the last row (D-CU17): a plain tile after the stage until 2026-10-18 (D-UP4).
   { id: MONTE_CARLO_SECTION_IDS.spesa, eyebrow: 'Spesa sostenibile' },
 ];
+/** RU10: Parametri is a row at 1440 too. */
+const PARAMETRI_AT_DESKTOP = [MONTE_CARLO_SECTION_IDS.parametri] as const;
+
 /** Without a run Parametri is the one tile and not a row: the controller sees no row at all. */
 const NO_SECTIONS: readonly SectionSpec[] = [];
 
@@ -469,7 +473,9 @@ export function MonteCarloTab() {
   // ─── The phone composition (2026-10-15) ──────────────────────────────────────
   // The rows exist only with a run shown (Parametri alone is open); the strip is the SHOWN run's
   // until «Esegui» (The Stale-Run Rule: a stale form moves the Parametri aside, not the cells).
-  const sections = useMobileSections({ route: 'fire-simulations', tab: 'montecarlo', sections: run ? MONTE_CARLO_SECTIONS : NO_SECTIONS });
+  const sections = useMobileSections({ route: 'fire-simulations', tab: 'montecarlo', sections: run ? MONTE_CARLO_SECTIONS : NO_SECTIONS, rowsAtDesktop: PARAMETRI_AT_DESKTOP });
+  // RU10 (D-RU28): a closed row under the verdict at every width, open by itself while the form is not the run's.
+  const parametriCollapse = useStaleOpenCollapse(run ? sections.collapse(MONTE_CARLO_SECTION_IDS.parametri) : undefined, stale);
   // At 768 the rows on two columns, on a tablet in landscape the index beside the verdict and THE
   // tile (lib/utils/tabletComposition.ts): the ones the run renders, in DOM order (Scenari a
   // confronto only with a comparison). Without a run the grid of before, Parametri alone, and no
@@ -581,10 +587,10 @@ export function MonteCarloTab() {
         )}
 
         <div
-          className={cn(run ? TILE_ROW_CELL_CLASS : TILE_CELL_CLASS, run ? tablet.cellClass(MONTE_CARLO_SECTION_IDS.parametri) : 'tablet:col-span-2', 'desktop:col-span-12')}
+          className={cn(run ? TILE_ROW_CELL_CLASS : TILE_CELL_CLASS, run ? tablet.cellClass(MONTE_CARLO_SECTION_IDS.parametri) : 'tablet:col-span-2', 'desktop:col-span-12', run && 'desktop:order-first')}
         >
           <ParametriTile
-            collapse={run ? sections.collapse(MONTE_CARLO_SECTION_IDS.parametri) : undefined}
+            collapse={parametriCollapse}
             asideWhenClosed={describeParametriClosedAside(stale)}
             reading={describeParametri(typedPlan)}
             aside={PARAMETRI_ASIDE}

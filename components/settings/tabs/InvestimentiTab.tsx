@@ -3,8 +3,8 @@
 /**
  * Impostazioni › Investimenti (`investimenti`) — the rules the wealth is MEASURED with: which
  * capital the returns count, the risk-free rate (Sharpe's, Sortino's and the age formula of
- * Allocazione › Strategia read it from here, D-RU24), the stamp duty, and whether the home sits in
- * the wealth the FIRE plan simulates. The class targets and the model's criteria are Strategia's
+ * Allocazione › Strategia read it from here, D-RU24) and the stamp duty. Whether the home sits in the wealth the
+ * FIRE plan simulates is FIRE › Il mio piano's since RU10 (D-RU31). The class targets and the model's criteria are Strategia's
  * and the plan is FIRE › Il mio piano's: they are named in «Si regola altrove», never copied
  * into a read-only tile (D-RU20).
  *
@@ -19,14 +19,14 @@ import { Switch } from '@/components/ui/switch';
 import { Tile, TILE_CELL_CLASS, TILE_FOOTER_ACTION_CLASS } from '@/components/ui/tile';
 import { cn } from '@/lib/utils';
 import type { RiskFreeResolution } from '@/lib/utils/riskFreeRate';
-import { describeCosts, describeFireWealth, describePerformanceBase, describeRiskFreeSource } from '@/lib/utils/settingsNarrative';
+import { describeCosts, describePerformanceBase, describeRiskFreeSource } from '@/lib/utils/settingsNarrative';
 import { NO_SELECTION, STRATEGIA_TARGETS_HREF, type InvestimentiSlice } from '@/lib/utils/settingsDraft';
 import { ElsewhereLine, INTERACTIVE_CONTROL_CLASS, SettingsTabPanel, type ElsewhereItem } from './shared';
 
 // Door P8: each pointer goes when its area is off in the viewer's view (`area`, doc/essenziale/README.md § 5.5).
 const ELSEWHERE: ElsewhereItem[] = [
   { what: 'Target per classe e criteri del modello', where: 'Allocazione › Strategia', href: STRATEGIA_TARGETS_HREF, area: 'allocazione' },
-  { what: 'Piano FIRE (età, spesa, SWR, fondo, flussi, pensioni)', where: 'FIRE › Il mio piano', href: '/dashboard/fire-simulations?piano=aperto', area: 'fire' },
+  { what: 'Piano FIRE (età, spesa, SWR, fondo, casa, flussi, pensioni)', where: 'FIRE › Il mio piano', href: '/dashboard/fire-simulations?piano=aperto', area: 'fire' },
 ];
 
 export interface InvestimentiTabProps {
@@ -41,7 +41,7 @@ export interface InvestimentiTabProps {
 export function InvestimentiTab({ slice, onChange, cashSubCategories, riskFreeEstimate }: InvestimentiTabProps) {
   const {
     performanceIncludesPensionFunds, performanceIncludesExcludedAssets, performanceExcludesCash, pensionReturnStartMonth,
-    riskFreeRate, stampDutyEnabled, stampDutyRate, checkingAccountSubCategory, includePrimaryResidenceInFIRE,
+    riskFreeRate, stampDutyEnabled, stampDutyRate, checkingAccountSubCategory,
   } = slice;
 
   return (
@@ -237,28 +237,6 @@ export function InvestimentiTab({ slice, onChange, cashSubCategories, riskFreeEs
           </div>
           <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
             Gli asset esenti si marcano dalla scheda dello strumento, in Patrimonio.
-          </div>
-        </Tile>
-      </div>
-
-      {/* Patrimonio nel FIRE — the one switch of the plan that stays here: the home in the capital */}
-      <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
-        <Tile eyebrow="Patrimonio nel FIRE" reading={describeFireWealth({ includePrimaryResidenceInFIRE })}>
-          <div className="mt-1 flex flex-col divide-y divide-border">
-            <div className="flex items-center justify-between gap-4 py-3">
-              <div className="min-w-0">
-                <Label htmlFor="firePrimaryResidence" className="text-[13px] font-medium">
-                  Casa nel patrimonio FIRE
-                </Label>
-                <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">Lo standard FIRE la esclude</p>
-              </div>
-              <Switch
-                id="firePrimaryResidence"
-                checked={includePrimaryResidenceInFIRE}
-                onCheckedChange={(checked) => onChange({ includePrimaryResidenceInFIRE: checked })}
-                className={cn('shrink-0', INTERACTIVE_CONTROL_CLASS)}
-              />
-            </div>
           </div>
         </Tile>
       </div>

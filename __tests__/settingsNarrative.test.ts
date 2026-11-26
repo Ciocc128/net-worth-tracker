@@ -33,7 +33,6 @@ import {
   describeExpenseCategories,
   describeEmails,
   describeFamily,
-  describeFireWealth,
   describeFunctions,
   describeIncomeHistory,
   buildIdealAllocationInput,
@@ -168,17 +167,6 @@ describe('describeCosts', () => {
     expect(
       plain(describeCosts({ stampDutyEnabled: false, stampDutyRate: 0.2, checkingAccountSubCategory: '__none__' }))
     ).toBe('Imposta di bollo spenta: non entra nel costo annuo del portafoglio.');
-  });
-});
-
-describe('describeFireWealth', () => {
-  it('reads the home out (the standard) and in', () => {
-    expect(plain(describeFireWealth({ includePrimaryResidenceInFIRE: false }))).toBe(
-      'La casa resta fuori dal patrimonio FIRE, come vuole lo standard.'
-    );
-    expect(plain(describeFireWealth({ includePrimaryResidenceInFIRE: true }))).toBe(
-      'La casa è dentro il patrimonio FIRE: il piano la conta come capitale da cui prelevare.'
-    );
   });
 });
 

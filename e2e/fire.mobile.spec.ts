@@ -38,6 +38,7 @@
  */
 
 import { test, expect, type Page } from '@playwright/test';
+import { openFireTab, openFireView } from './fireNav';
 
 /** Le disclosure del tab: contenuto che l'owner aprirà, quindi contenuto da misurare. */
 const DISCLOSURES = [/^Il mio piano/, /^Dettaglio/] as const;
@@ -189,7 +190,7 @@ test.describe('FIRE, composto per un telefono', () => {
     await expect(piano).toHaveAttribute('aria-expanded', 'true');
     expect(await page.evaluate(() => localStorage.getItem('mobile-sections:fire-simulations:piano'))).toBe('["fire-piano"]');
     // La memoria è una sola per i sei tab: cambiando tab la riga resta com'è.
-    await page.getByRole('tab', { name: 'Coast FIRE' }).click();
+    await openFireView(page, 'Coast FIRE');
     await expect(page.getByRole('region', { name: 'Verdetto sul Coast FIRE' })).toBeVisible({ timeout: 30_000 });
     await expect(piano).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByTestId('fire-assumptions-scope').locator('visible=true')).toBeVisible();
@@ -197,7 +198,7 @@ test.describe('FIRE, composto per un telefono', () => {
 
   test('il Calcolatore legge Traguardo, Base, Reddito, Scenari dall\'alto in basso, e nessun order-* resta', async ({ page }) => {
     await gotoFire(page);
-    const { order, orderClasses } = await readOrderAndClasses(page, 'Calcolatore FIRE');
+    const { order, orderClasses } = await readOrderAndClasses(page, 'Quando');
     expect(order.map((section) => section.name).slice(0, 4)).toEqual(['Verso il FIRE', 'Base di calcolo del FIRE', 'Reddito passivo sostenibile', 'Scenari di mercato']);
     expect(isSorted(order.map((section) => section.top)), JSON.stringify(order)).toBe(true);
     expect(orderClasses).toEqual([]);
@@ -209,7 +210,7 @@ test.describe('FIRE, composto per un telefono', () => {
     await expect(trigger(page, 'fire-base')).toHaveAttribute('aria-expanded', 'true');
     expect(await page.evaluate(() => localStorage.getItem('mobile-sections:fire-simulations:fire'))).toBe('["fire-base"]');
 
-    await page.getByRole('tab', { name: 'Coast FIRE' }).click();
+    await openFireView(page, 'Coast FIRE');
     await expect(page.getByRole('region', { name: 'Verdetto sul Coast FIRE' })).toBeVisible({ timeout: 30_000 });
     // Una memoria per tab: Coast parte chiusa, la chiave è la sua.
     await expect(trigger(page, 'coast-scenari')).toHaveAttribute('aria-expanded', 'false');
@@ -220,7 +221,7 @@ test.describe('FIRE, composto per un telefono', () => {
     expect(await page.evaluate(() => localStorage.getItem('mobile-sections:fire-simulations:fire'))).toBe('["fire-base"]');
 
     // Tornando, la tab smontata rilegge solo `localStorage`: la Base è aperta, le altre no.
-    await page.getByRole('tab', { name: 'Calcolatore FIRE' }).click();
+    await openFireTab(page, 'Quando');
     await expect(trigger(page, 'fire-base')).toHaveAttribute('aria-expanded', 'true', { timeout: 30_000 });
     await expect(trigger(page, 'fire-reddito')).toHaveAttribute('aria-expanded', 'false');
     await expect(trigger(page, 'fire-scenari')).toHaveAttribute('aria-expanded', 'false');
@@ -240,14 +241,14 @@ test.describe('FIRE, composto per un telefono', () => {
 
   test('What If: l\'Evento è la prima tessera del DOM, le altre righe chiuse', async ({ page }) => {
     await gotoFire(page);
-    await page.getByRole('tab', { name: 'What If' }).click();
+    await openFireTab(page, 'E se…');
     await expect(page.getByRole('region', { name: 'Verdetto sul What If' })).toBeVisible({ timeout: 30_000 });
-    const panel = page.getByRole('tabpanel', { name: 'What If' });
+    const panel = page.getByRole('tabpanel', { name: 'E se…' });
     const names = await panel.locator('section.rounded-2xl').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')));
     // Il fork tiene la Sensibilità nel Calcolatore: What If ha Evento, Prima e dopo, Delta.
     expect(names.slice(0, 3)).toEqual(['Evento simulato', "Prima e dopo l'evento", "Delta dell'evento"]);
     // Il DOM è anche l'ordine verticale (un `order-1` rimesso sull'Evento lo porterebbe in fondo a schermo con lo stesso DOM).
-    const { order, orderClasses } = await readOrderAndClasses(page, 'What If');
+    const { order, orderClasses } = await readOrderAndClasses(page, 'E se…');
     expect(isSorted(order.map((section) => section.top)), JSON.stringify(order)).toBe(true);
     expect(orderClasses).toEqual([]);
     for (const id of ['whatif-prima-dopo', 'whatif-delta']) {
@@ -267,7 +268,7 @@ test.describe('FIRE, tappa C: le righe del fork', () => {
 
   test('Calcolatore: Età obiettivo e Sensibilità sono le ultime due righe, chiuse, dopo Scenari', async ({ page }) => {
     await gotoFire(page);
-    const { order, orderClasses } = await readOrderAndClasses(page, 'Calcolatore FIRE');
+    const { order, orderClasses } = await readOrderAndClasses(page, 'Quando');
     expect(order.map((section) => section.name).slice(0, 6)).toEqual([
       'Verso il FIRE',
       'Base di calcolo del FIRE',
@@ -291,7 +292,7 @@ test.describe('FIRE, tappa C: le righe del fork', () => {
 
   test('Dopo il FIRE: la terza cella «Spesa al 90%» apre l\'ultima riga, Spesa sostenibile, con il fuoco sul suo trigger', async ({ page }) => {
     await gotoFire(page);
-    await page.getByRole('tab', { name: 'Dopo il FIRE' }).click();
+    await openFireView(page, 'Dopo il FIRE');
     const verdict = page.getByRole('region', { name: 'Verdetto su Dopo il FIRE' });
     await expect(verdict.getByRole('heading', { level: 2 })).toBeVisible({ timeout: 60_000 });
     const cells = stripOf(page).getByRole('button');
@@ -312,7 +313,7 @@ test.describe('FIRE, tappa C: le righe del fork', () => {
 
   test('Proiezione: Tappe aperta, due celle, Ventaglio · Scenari · Parametri righe chiuse; la cella Soglia apre Scenari', async ({ page }) => {
     await gotoFire(page);
-    await page.getByRole('tab', { name: 'Proiezione' }).click();
+    await openFireView(page, 'Proiezione');
     const verdict = page.getByRole('region', { name: 'Verdetto sulla proiezione' });
     await expect(verdict.getByRole('heading', { level: 2 })).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole('region', { name: 'Valore del portafoglio per tappa' })).toBeVisible();
@@ -352,7 +353,7 @@ test.describe('FIRE, tappa C: le righe del fork', () => {
 
   test('Proiezione: nessun overflow orizzontale con tutte le righe aperte', async ({ page }) => {
     await gotoFire(page);
-    await page.getByRole('tab', { name: 'Proiezione' }).click();
+    await openFireView(page, 'Proiezione');
     await expect(page.getByRole('region', { name: 'Verdetto sulla proiezione' }).getByRole('heading', { level: 2 })).toBeVisible({ timeout: 60_000 });
     await page.getByRole('button', { name: 'Apri tutte' }).click();
     await expect(trigger(page, 'proj-parametri')).toHaveAttribute('aria-expanded', 'true');

@@ -20,13 +20,14 @@
  */
 
 import { test, expect, type Page } from '@playwright/test';
+import { openFireTab, openFireView } from './fireNav';
 
 /** A compact euro amount as the tiles print it: dot-grouped or plain up to four digits, no cents. */
 const EURO_COMPACT = /^(\d{1,3}(\.\d{3})+|\d{1,4})[\s ]*€$/;
 
 async function gotoCoast(page: Page): Promise<void> {
   await page.goto('/dashboard/fire-simulations', { waitUntil: 'load' });
-  await page.getByRole('tab', { name: 'Coast FIRE' }).click();
+  await openFireView(page, 'Coast FIRE');
   // The verdict is the first thing the tab paints once the three queries settle.
   await expect(page.getByRole('region', { name: 'Verdetto sul Coast FIRE' })).toBeVisible({ timeout: 30_000 });
 }
@@ -193,9 +194,9 @@ test('a preview typed in «Il mio piano» survives a tab switch and «Annulla» 
   await expect(page.getByRole('button', { name: /^Il mio piano/ })).toContainText('Anteprima non salvata');
 
   // The draft belongs to the page: it is still there after a trip to the Calcolatore and back.
-  await page.getByRole('tab', { name: /Calcolatore FIRE/ }).click();
+  await openFireTab(page, 'Quando');
   await expect(page.getByRole('region', { name: 'Reddito passivo sostenibile' })).toBeVisible({ timeout: 30_000 });
-  await page.getByRole('tab', { name: 'Coast FIRE' }).click();
+  await openFireView(page, 'Coast FIRE');
   await expect(page.getByLabel(/Spesa del piano/)).toHaveValue('31234');
   await expect(page.getByRole('button', { name: /^Il mio piano/ })).toContainText('Anteprima non salvata');
 

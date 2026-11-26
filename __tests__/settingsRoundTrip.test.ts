@@ -255,6 +255,7 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
     ['fireCashToInvestPct', 35],
     ['fireDatedFlows', STORED_DATED_FLOWS],
     ['coastFireCustomExpenses', 29_000],
+    ['includePrimaryResidenceInFIRE', true],
   ])('leaves an untouched %s alone when the key is absent from the update', async (field, stored) => {
     vi.mocked(getDoc).mockResolvedValue({
       exists: () => true,

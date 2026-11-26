@@ -334,7 +334,16 @@ async function openSurface(page, base, surface) {
   const selected = await page.locator('main [role="tab"][aria-selected="true"]').evaluateAll((els) =>
     els.filter((el) => el.checkVisibility()).map((el) => el.getAttribute('aria-label')),
   );
-  return selected.includes(surface.tab) ? 'ok' : 'missing';
+  if (!selected.includes(surface.tab)) return 'missing';
+  // RU10: FIRE › Approfondimenti holds three views behind a pill (a radiogroup): `vista` is the radio's accessible name.
+  if (surface.vista) {
+    const radio = page.locator('main [role="radiogroup"][aria-label="Vista di Approfondimenti"] [role="radio"]', { hasText: surface.vista });
+    if (!(await radio.first().isVisible())) return 'missing';
+    await radio.first().click();
+    if (!(await waitForSettled(page))) return 'unsettled';
+    return (await radio.first().getAttribute('aria-checked')) === 'true' ? 'ok' : 'missing';
+  }
+  return 'ok';
 }
 
 async function newContext(browser, viewport) {

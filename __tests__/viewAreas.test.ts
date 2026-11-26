@@ -143,7 +143,7 @@ describe('resolveNavGroups (acceptance 2)', () => {
 });
 
 describe('tabs (§ 5.4)', () => {
-  const FIRE_TABS = ['fire', 'coast', 'whatif', 'montecarlo', 'proiezione', 'goals'].map((value) => ({ value }));
+  const FIRE_TABS = ['quando', 'ese', 'approfondimenti', 'goals'].map((value) => ({ value }));
   const values = (tabs: { value: string }[]) => tabs.map((t) => t.value);
 
   it('Essenziale: FIRE keeps Traguardi alone; Cashflow loses Dividendi; Impostazioni loses Avanzate; Allocazione loses Accumulo', () => {
@@ -159,7 +159,7 @@ describe('tabs (§ 5.4)', () => {
   });
 
   it('Completa: every tab', () => {
-    expect(values(filterTabsByArea('/dashboard/fire-simulations', FIRE_TABS, COMPLETA, 'fire'))).toEqual(values(FIRE_TABS));
+    expect(values(filterTabsByArea('/dashboard/fire-simulations', FIRE_TABS, COMPLETA, 'quando'))).toEqual(values(FIRE_TABS));
   });
 });
 
@@ -171,6 +171,9 @@ describe('hiddenAreaAt — the «non è nel tuo menu» line (§ 5.6)', () => {
     expect(hiddenAreaAt('/dashboard/cashflow', 'dividends', ESSENZIALE)).toBe('dividendi');
     expect(hiddenAreaAt('/dashboard/settings', 'avanzate', ESSENZIALE)).toBe('simulazioni');
     expect(hiddenAreaAt('/dashboard/fire-simulations', null, ESSENZIALE)).toBe('fire');
+    expect(hiddenAreaAt('/dashboard/fire-simulations', 'approfondimenti', ESSENZIALE)).toBe('simulazioni');
+    expect(hiddenAreaAt('/dashboard/fire-simulations', 'ese', ESSENZIALE)).toBe('fire');
+    // The old ids of a bookmark name the same area.
     expect(hiddenAreaAt('/dashboard/fire-simulations', 'coast', ESSENZIALE)).toBe('simulazioni');
     // A dependant names itself: «Mostrala nel menu» turns its head on with it.
     expect(hiddenAreaAt('/dashboard/allocation', 'accumulo', ESSENZIALE)).toBe('accumulo');

@@ -16,12 +16,13 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { openFireView } from './fireNav';
 
 const DISCLOSURES = [/^Il mio piano/, /^Dettaglio/] as const;
 
 test('il tab Coast FIRE non scorre in orizzontale a 390px', async ({ page }) => {
   await page.goto('/dashboard/fire-simulations', { waitUntil: 'load' });
-  await page.getByRole('tab', { name: 'Coast FIRE' }).click();
+  await openFireView(page, 'Coast FIRE');
   await expect(page.getByRole('region', { name: 'Verso il FIRE (Coast)' })).toBeVisible({ timeout: 30_000 });
 
   // Il verdetto è la prima cosa letta, sopra le tessere; le due righe seguono nell'ordine del DOM,

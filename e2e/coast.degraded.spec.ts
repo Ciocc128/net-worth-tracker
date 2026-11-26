@@ -13,10 +13,11 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { openFireView } from './fireNav';
 
 test('without a projection the three tiles keep their question and only the Traguardo acts', async ({ page }) => {
   await page.goto('/dashboard/fire-simulations', { waitUntil: 'load' });
-  await page.getByRole('tab', { name: 'Coast FIRE' }).click();
+  await openFireView(page, 'Coast FIRE');
   const verdict = page.getByRole('region', { name: 'Verdetto sul Coast FIRE' });
   await expect(verdict.getByRole('heading', { level: 2 })).toHaveText('Coast FIRE non calcolabile.', { timeout: 30_000 });
 

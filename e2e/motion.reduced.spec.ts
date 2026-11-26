@@ -14,6 +14,7 @@
  */
 
 import { test, expect, type Page } from '@playwright/test';
+import { openFireTab, openFireView } from './fireNav';
 
 /** The animations running inside `main`, as `{ name, duration }`. */
 const runningAnimations = (page: Page) =>
@@ -42,8 +43,8 @@ test.describe('with «riduci movimento»', () => {
 
     await page.goto('/dashboard/fire-simulations');
     await waitForPage(page);
-    await page.getByRole('tab', { name: 'Coast FIRE' }).click();
-    await expect(page.getByRole('tabpanel', { name: 'Coast FIRE' })).toBeVisible();
+    await openFireView(page, 'Coast FIRE');
+    await expect(page.getByRole('tabpanel', { name: 'Approfondimenti' })).toBeVisible();
     await expect.poll(() => runningAnimations(page), { timeout: 5_000 }).toEqual([]);
   });
 });
@@ -55,7 +56,7 @@ test.describe('without the preference (the positive control)', () => {
     const panelFades = async () => (await runningAnimations(page)).filter((animation) => animation.name === 'tab-panel-in');
     expect(await panelFades()).toEqual([]);
 
-    await page.getByRole('tab', { name: 'Coast FIRE' }).click();
+    await openFireTab(page, 'Approfondimenti');
     await expect.poll(panelFades, { timeout: 2_000 }).toEqual([{ name: 'tab-panel-in', duration: 200 }]);
   });
 

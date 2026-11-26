@@ -205,3 +205,41 @@ export function describeFireScopeLine(assumptions: FireAssumptions, view: 'goals
   if (costs) parts.push(costs.label.charAt(0).toLowerCase() + costs.label.slice(1));
   return `Ipotesi: ${parts.join(', ')}`;
 }
+
+/** What the capital leaves out, by name and value — `listFireOutside` builds it from the capital, the header names the heaviest. */
+export interface FireOutsideItem {
+  name: string;
+  value: number;
+}
+
+/**
+ * RU10 (D-RU30): what the plan does NOT count, heaviest first: the home (real estate), the pension fund the lock keeps
+ * closed (`lockedValue`, which is in the net worth but in neither the capital nor `outside`), crypto, the cash kept as the
+ * emergency fund (or left out), the other excluded instruments. Zero entries are dropped.
+ */
+export function listFireOutside(capital: FireCapital, lockedValue: number): FireOutsideItem[] {
+  const { outside } = capital;
+  const items: FireOutsideItem[] = [
+    { name: 'Casa', value: outside.realestate },
+    { name: 'Fondo pensione', value: lockedValue },
+    { name: 'Crypto', value: outside.crypto },
+    { name: outside.cashIsFund ? 'Fondo di emergenza' : 'Liquidità', value: outside.cash },
+    { name: 'Altri strumenti', value: outside.otherExcluded },
+  ];
+  return items.filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
+}
+
+/**
+ * «Capitale 116.000 € su 400.000 € di patrimonio · fuori: Casa, Fondo pensione» — the FIRE page's header description on
+ * every tab (RU10, D-RU30). The capital is the one of the hypotheses' popover (K1/EF1: the portfolio plus the cash outside it
+ * beyond the emergency fund), NOT Allocazione's portfolio; the two heaviest things left out are named, «e un altro» /
+ * «e altri N» beyond. Undefined until the capital is read (no description, never a zero).
+ */
+export function describeFireHeader(input: { capital: number; netWorth: number; outside: readonly FireOutsideItem[] }): string | undefined {
+  if (input.capital <= 0 && input.netWorth <= 0) return undefined;
+  const head = `Capitale ${euro(input.capital)} su ${euro(input.netWorth)} di patrimonio`;
+  if (input.outside.length === 0) return head;
+  const named = input.outside.slice(0, 2).map((item) => item.name).join(', ');
+  const others = input.outside.length - 2;
+  return `${head} · fuori: ${named}${others > 0 ? ` e ${others === 1 ? 'un altro' : `altri ${others}`}` : ''}`;
+}
