@@ -303,7 +303,7 @@ export function GoalBasedInvestingTab() {
   const hasGoalRows = isEnabled && overview.counts.total > 0;
   const hasDerived = derivedAllocation !== null;
   const sectionSpecs = useMemo(() => resolveGoalsSections({ hasGoals: hasGoalRows, hasDerived }), [hasGoalRows, hasDerived]);
-  const sections = useMobileSections({ route: 'fire-simulations', tab: 'goals', sections: sectionSpecs });
+  const sections = useMobileSections({ route: 'traguardi', sections: sectionSpecs });
   // At 768 the rows on two columns, on a tablet in landscape the index beside the verdict and THE
   // tile (lib/utils/tabletComposition.ts): those the tab renders, in DOM order — the Traiettoria
   // only with a goal selected and its trajectory read.
@@ -407,7 +407,7 @@ export function GoalBasedInvestingTab() {
               <p className="mt-3 text-[13px] leading-[1.45] text-muted-foreground">
                 Assegna quote del portafoglio a traguardi come una casa, la pensione o un fondo emergenza, e la pagina dirà se ogni scadenza è in rotta.
               </p>
-              <Link href="/dashboard/settings" className={cn(ASIDE_BUTTON_CLASS, 'mt-4 w-fit')}>
+              <Link href="/dashboard/settings?tab=funzioni" className={cn(ASIDE_BUTTON_CLASS, 'mt-4 w-fit')}>
                 <Settings className="h-3.5 w-3.5" aria-hidden="true" />
                 Abilita nelle Impostazioni
               </Link>

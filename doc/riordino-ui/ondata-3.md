@@ -9,7 +9,7 @@
 > (D-CS1…D-CS8), che questa ondata rivede in un punto (D-CS1).
 >
 > **Stato: specifica scritta il 2026-11-25 su main `c47998c`; decisioni D-RU25…D-RU35 PRESE da Giorgio il 2026-11-25 («ok per tutto») (§ 8).**
-> **RU10 (2026-11-26): implementata** (§ 11). Schizzi «oggi / proposta» (WORKFLOW.md regola 8): https://claude.ai/artifact/QasTFvrzao8ZLSuYGjkH3r (§ 1.1).
+> **RU10 (2026-11-26): implementata** (§ 11). **RU11 (2026-11-26): implementata** (§ 12). Schizzi «oggi / proposta» (WORKFLOW.md regola 8): https://claude.ai/artifact/QasTFvrzao8ZLSuYGjkH3r (§ 1.1).
 
 ## 1. In breve
 
@@ -363,3 +363,17 @@ Fatto come da § 5.1, § 5.5 e § 5.6, con queste scelte di esecuzione (guida: `
 - **Lo stato stale apre la riga da sé a ogni larghezza** (anche sul telefono, dove oggi mostrava solo l'aside): `useStaleOpenCollapse`.
 - **Alias in `VIEW_ROUTES`** anche per `coast`/`montecarlo`/`proiezione`, così la riga «non è nel tuo menu» di un vecchio segnalibro nomina ancora `simulazioni`.
 - **Da fare sul Mac** (WORKFLOW § 3): `perf:build` + `perf:budget` (il tetto di `/dashboard/fire-simulations`, 878,4 KB, scende; `raisedBy` «abbassato»), `mobile:census` + `mobile:budget` per le cinque voci `fire-*` (con `vista`) e il pavimento `fire-calcolatore` @768 (§ 5.6), il giudizio visivo a 1440 e 390 (pillola a destra del verdetto, riga Parametri chiusa, testata, «Casa» in Il mio piano, «E se…» a 390 — se non sta, `shortLabel` «Approf.»).
+
+## 12. RU11 — come è andata (2026-11-26)
+
+Fatto come da § 5.2 e D-RU29 (guida: `doc/guide/fire-obiettivi.md`, testa), con queste scelte di esecuzione:
+
+- **La voce è un filtro dell'account dentro `resolveNavGroups`**, non una funzione `visibleNavGroups` a parte: tutti i lettori del menu (Sidebar, foglio «Altro», fascia, announcer di Essenziale) già passano da lì, quindi la regola è una sola. `navGroups` resta la lista completa (`GOALS_NAV_ITEM`); la pagina aperta tiene la voce anche a interruttore spento. `useViewNavGroups` legge ora sempre le impostazioni (chiave condivisa, nessuna lettura nuova per le pagine che già le leggono).
+- **D-ES9 caduta**: tolti `GOALS_NAV_HREF`, il ramo «FIRE spenta e Traguardi accesi» e `goals: null` da `VIEW_ROUTES`; con FIRE spenta la voce FIRE sparisce e Traguardi resta (test in `viewAreas.test.ts`).
+- **Il redirect** è `router.replace` nella pagina FIRE (`isGoalsTabAlias`, `GOALS_PAGE_HREF`), che non disegna nulla finché parte; `goals` non è più un id di scheda né un alias di `resolveFireTab`.
+- **Intestazione della pagina** con `useFreshness` su impostazioni, strumenti e traguardi (le tre letture del tab); titolo «Traguardi», nessuna descrizione.
+- **Testo di Impostazioni › Funzioni** aggiornato: «Compare «Traguardi» nel menu, sotto Futuro…».
+- **`perf/budget.json`**: la rotta entra con un tetto **PROVVISORIO di 800 KB** (non misurato: il cloud non misura il gzip); `/dashboard/fire-simulations` non cambia in cloud (il suo tetto scende sul Mac, come RU10). `perf/routes.json` ha la riga Traguardi.
+- **Census**: voce `fire-obiettivi` → `traguardi` (`path: /dashboard/traguardi`, senza `tab`) in entrambe le sezioni di `perf/mobile-budget.json`; le misure restano quelle del 390/768/1024 di prima fino al giro Mac.
+- **Verifiche in cloud**: tsc, eslint, Vitest (392 file, 8314 test) e gli e2e `traguardi`, `fire.approfondimenti`, `fire.mobile`, `fire`, `overview`, `essenziale`, `shell.boot` verdi sugli emulatori. Non coperto in cloud: la voce di menu con l'interruttore ACCESO in un browser (account census) e il «Apri Traguardi» della Panoramica.
+- **Da fare sul Mac** (WORKFLOW § 3): `perf:build` + `perf:budget` (misura di `/dashboard/traguardi`, tetto provvisorio da sostituire; il tetto di FIRE scende), `mobile:census` + `mobile:budget` per `traguardi` (e i giorni 5–29 del mese), giudizio visivo a 1440 e 390 su un account con traguardi (voce nel menu e nella fascia, pagina, «Apri Traguardi» nel tile della Panoramica).

@@ -4,8 +4,7 @@
  * and prefix match for all other routes so nested paths stay highlighted.
  */
 export function isNavItemActive(href: string, pathname: string): boolean {
-  // An entry may carry a tab (`/dashboard/fire-simulations?tab=goals`, the «Traguardi» entry of the Essenziale view,
-  // doc/essenziale/README.md D-ES9): it is active on its page, whatever the tab.
+  // An entry may carry a query: it is active on its page, whatever the query.
   const path = href.includes('?') ? href.slice(0, href.indexOf('?')) : href;
   if (path === '/dashboard') return pathname === path;
   return pathname === path || pathname.startsWith(path + '/');

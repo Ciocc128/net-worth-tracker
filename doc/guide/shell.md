@@ -208,8 +208,9 @@ The viewer's «Essenziale · Completa» view hides DOORS, never rooms (DESIGN �
   `ShellBand` (through `buildFolders(showAssistant, groups)`), `AppSidebar` and `SecondaryMenuDrawer` read
   `useViewNavGroups()`. `secondaryHrefs` stays whole on purpose: a hidden page opened from a link is still «Altro».
 - **The open page stays in its group** while the reader is on it (`resolveNavGroups(…, pathname)`), and never carries
-  `data-view-area`; with FIRE off and the account's goals on, FIRE's entry is «Traguardi» on
-  `/dashboard/fire-simulations?tab=goals` (`isNavItemActive` ignores the query since 2026-11-26).
+  `data-view-area`; «Traguardi» (`GOALS_NAV_ITEM`, `/dashboard/traguardi`, RU11) is the account's entry, not an
+  area's: `resolveNavGroups` shows it with `goalBasedInvestingEnabled` on, in every view, and hides it with the switch off
+  (unless the reader is on its page). `useViewNavGroups` always reads the settings for it.
 - **First paint** (D-ES15), as the theme: `localStorage['view-areas']` → `VIEW_AREAS_INIT_SCRIPT` in `<head>` puts
   `data-view-off="…"` on `<html>`; every entry, band tab and band folder of an area carries `data-view-area`, and the
   inline `<style>` from `buildViewAreasStyle` hides it with `display:none` before hydration (a folder hides only when

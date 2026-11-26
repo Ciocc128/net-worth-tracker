@@ -4,11 +4,9 @@
  * Firestore — `contexts/ViewAreasContext.tsx` does, and hands these functions what it read.
  */
 
-import { Target } from 'lucide-react';
-import { navGroups, type NavGroup, type NavItem } from '@/lib/constants/navigation';
+import { GOALS_NAV_ITEM, navGroups, type NavGroup, type NavItem } from '@/lib/constants/navigation';
 import {
   DEFAULT_VIEW_PRESET,
-  GOALS_NAV_HREF,
   VIEW_AREAS,
   VIEW_AREA_BY_ID,
   VIEW_AREA_IDS,
@@ -119,11 +117,10 @@ export function stripQuery(href: string): string {
   return index === -1 ? href : href.slice(0, index);
 }
 
-const GOALS_NAV_ITEM: NavItem = { name: 'Traguardi', href: GOALS_NAV_HREF, icon: Target };
-
 /**
  * The menu's groups for this view (§ 5.4, acceptance 2): `navGroups` without the entries of the areas that are off; a
- * group left empty goes. With FIRE off and the account's goals on, FIRE's entry is «Traguardi» on its tab (D-ES9). The
+ * group left empty goes. «Traguardi» is the account's, not an area's (RU11, D-RU29): it shows with the goals switch on, in
+ * every view, and hides with it off. The
  * page the reader is on stays in its group while they are on it (`pathname`), so a link to a hidden page does not lose
  * where they are. In Completa the result is `navGroups` entry for entry.
  */
@@ -138,13 +135,13 @@ export function resolveNavGroups(
     for (const item of group.items) {
       const area = routeArea(item.href);
       const isOpen = !!pathname && isNavItemActive(item.href, pathname);
+      if (item.href === GOALS_NAV_ITEM.href) {
+        if (account.goalsEnabled || isOpen) items.push(item);
+        continue;
+      }
       if (!area || areas[area]) {
         // The open page never carries the attribute: the pre-hydration CSS must not hide where the reader is.
         items.push(area && !isOpen ? { ...item, viewArea: area } : item);
-        continue;
-      }
-      if (area === 'fire' && account.goalsEnabled) {
-        items.push(GOALS_NAV_ITEM);
         continue;
       }
       // The open page stays, without the attribute that would hide it.

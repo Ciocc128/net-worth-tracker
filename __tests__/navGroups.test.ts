@@ -7,7 +7,7 @@ describe('navGroups — the one source of the menu groups (RU1)', () => {
       [null, ['Panoramica']],
       ['Entrate e spese', ['Cashflow', 'Analisi spese']],
       ['Investimenti', ['Patrimonio', 'Allocazione', 'Rendimenti']],
-      ['Futuro', ['FIRE', 'Previdenza']],
+      ['Futuro', ['FIRE', 'Traguardi', 'Previdenza']],
       ['Storia', ['Storico', 'Hall of Fame']],
     ]);
   });

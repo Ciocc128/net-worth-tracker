@@ -2,7 +2,8 @@ import type { DashboardOverviewGoalProgress } from '@/types/dashboardOverview';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { describeGoal } from '@/lib/utils/overviewNarrative';
 import { cn } from '@/lib/utils';
-import type { TileCollapse } from '@/components/ui/tile';
+import Link from 'next/link';
+import { TILE_FOOTER_ACTION_CLASS, type TileCollapse } from '@/components/ui/tile';
 import { OverviewTile } from './OverviewTile';
 
 /** How many goals fit the tile at desktop height without scrolling. */
@@ -99,6 +100,12 @@ export function ObiettivoTile({ goals, collapse, asideWhenClosed, className }: O
             <GoalRow goal={goal} hero={false} />
           </div>
         ))}
+      </div>
+      {/* RU11, P1: the summary points at the page that owns the depth. */}
+      <div className="mt-auto border-t border-border pt-3.5 text-[11px] text-muted-foreground">
+        <Link href="/dashboard/traguardi" className={TILE_FOOTER_ACTION_CLASS}>
+          Apri Traguardi
+        </Link>
       </div>
     </OverviewTile>
   );

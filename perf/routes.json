@@ -10,6 +10,7 @@
     { "name": "Hall of Fame", "href": "/dashboard/hall-of-fame" },
     { "name": "Allocazione", "href": "/dashboard/allocation" },
     { "name": "FIRE", "href": "/dashboard/fire-simulations" },
+    { "name": "Traguardi", "href": "/dashboard/traguardi" },
     { "name": "Previdenza", "href": "/dashboard/pension" },
     {
       "name": "Assistente AI",

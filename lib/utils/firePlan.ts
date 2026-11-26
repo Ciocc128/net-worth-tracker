@@ -50,13 +50,20 @@ export function isFirePlanField(value: string | null | undefined): value is Fire
 /**
  * The tab names the page reads from `?tab=` (RP10), in the bar's order. RU10 (D-RU26/D-RU27): the answer first
  * (`quando`), the what-ifs (`ese`), and the method behind ONE door (`approfondimenti`: Coast FIRE, Dopo il FIRE,
- * Proiezione). `goals` stays as a temporary fourth tab until RU11 gives the Traguardi their own page.
+ * Proiezione). The Traguardi are a page of their own since RU11 (`GOALS_PAGE_HREF`).
  */
-export const FIRE_TAB_VALUES = ['quando', 'ese', 'approfondimenti', 'goals'] as const;
+export const FIRE_TAB_VALUES = ['quando', 'ese', 'approfondimenti'] as const;
 export type FireTabValue = (typeof FIRE_TAB_VALUES)[number];
 
 export function isFireTab(value: string | null | undefined): value is FireTabValue {
   return value !== null && value !== undefined && (FIRE_TAB_VALUES as readonly string[]).includes(value);
+}
+
+/** The Traguardi page (RU11, D-RU29) and the old `?tab=` of the FIRE page that led to it. */
+export const GOALS_PAGE_HREF = '/dashboard/traguardi';
+
+export function isGoalsTabAlias(tab: string | null | undefined): boolean {
+  return tab === 'goals';
 }
 
 /** The three views of Approfondimenti, behind the pill of its axis (`?vista=`). */
@@ -71,8 +78,8 @@ export function isFireVista(value: string | null | undefined): value is FireVist
 /**
  * Where a link lands (D-RU27): the new tab ids, the old ones as aliases for the bookmarks and for the Calcolatore's
  * «Vai a Coast». `vista` is the `?vista=` asked for and `sessionVista` the last one picked in this session; an
- * Approfondimenti without either opens on Coast. An unknown tab is `quando`. `goals` stays a tab of the page until RU11
- * (then it becomes a redirect to the Traguardi page).
+ * Approfondimenti without either opens on Coast. An unknown tab is `quando`; `goals` is the old Traguardi tab, a redirect
+ * the page does with `isGoalsTabAlias` before it reads this.
  */
 export function resolveFireTab(
   tab: string | null | undefined,
@@ -95,7 +102,6 @@ export function resolveFireTab(
       return { tab: 'approfondimenti', vista: isFireVista(vista) ? vista : fallback };
     case 'quando':
     case 'ese':
-    case 'goals':
       return { tab, vista: fallback };
     default:
       return { tab: 'quando', vista: fallback };

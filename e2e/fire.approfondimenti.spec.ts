@@ -14,12 +14,13 @@ async function gotoFire(page: Page, query = ''): Promise<void> {
   await expect(page.getByRole('heading', { level: 2 }).first()).toBeVisible({ timeout: 30_000 });
 }
 
-test('the page is «FIRE» and its tabs are Quando · E se… · Approfondimenti (and Traguardi until RU11), Quando first', async ({ page }) => {
+test('the page is «FIRE» and its tabs are Quando · E se… · Approfondimenti, Quando first (Traguardi is a page, RU11)', async ({ page }) => {
   await gotoFire(page);
   const tabs = page.locator('main [role="tab"], [role="tablist"] [role="tab"]').filter({ visible: true });
   await expect(tabs.first()).toBeVisible();
   const names = await tabs.evaluateAll((els) => els.map((el) => el.getAttribute('aria-label') ?? el.textContent?.trim() ?? ''));
-  expect(names.slice(0, 4)).toEqual(['Quando', 'E se…', 'Approfondimenti', 'Traguardi']);
+  expect(names.slice(0, 3)).toEqual(['Quando', 'E se…', 'Approfondimenti']);
+  expect(names).not.toContain('Traguardi');
   await expect(page.getByRole('tab', { name: 'Quando', exact: true }).first()).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('region', { name: 'Verdetto sul FIRE' })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('link', { name: 'FIRE', exact: true }).first()).toBeVisible();

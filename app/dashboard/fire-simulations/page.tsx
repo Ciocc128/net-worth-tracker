@@ -10,9 +10,9 @@
  * - E se… (`ese`): What If — life events and their impact on FIRE and Coast FIRE
  * - Approfondimenti (`approfondimenti`): a pill on the tab's axis (`?vista=`) picks Coast FIRE, Dopo il FIRE (Monte Carlo)
  *   or Proiezione (`ApprofondimentiTab`)
- * - Traguardi (`goals`): goal-based investing — a TEMPORARY fourth tab until RU11 gives it its own page
  *
- * The old ids (`fire`, `whatif`, `coast`, `montecarlo`, `proiezione`) stay accepted from `?tab=` (`resolveFireTab`).
+ * The old ids (`fire`, `whatif`, `coast`, `montecarlo`, `proiezione`) stay accepted from `?tab=` (`resolveFireTab`);
+ * `?tab=goals` goes to the Traguardi page (RU11), by `router.replace`, so Back returns to where the reader was.
  *
  * «Il mio piano» (components/fire-simulations/plan/FirePlanBlock.tsx) sits between the header and the tab bar,
  * outside the panels: the plan's ONE draft is owned here (`useFirePlanDraft`) and read by every tab over the saved
@@ -24,7 +24,7 @@
  * inactive tabs). Desktop (`desktop:`): standard TabsList with icons.
  *
  * Only Quando — the tab the page opens on — is in the page's initial JavaScript (P6, D-RU32); What If, the three views
- * of Approfondimenti and Traguardi are a chunk each, fetched once the page is idle or when their tab is opened,
+ * of Approfondimenti are a chunk each, fetched once the page is idle or when their tab is opened,
  * whichever comes first (2026-09-30). Only the active panel mounts either way (Radix `TabsContent`),
  * so what the lazy tabs save is their CODE on the page's critical path. If a tab is opened before its chunk,
  * the panel shows that tab's own `TileGridSkeleton` (`tabSkeletons.ts`), the same one it shows while its data
@@ -38,11 +38,11 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Flame, Layers, Target, Lightbulb } from 'lucide-react';
+import { Flame, Layers, Lightbulb } from 'lucide-react';
 import { TabsContent } from '@/components/ui/tabs';
 import { FireCalculatorTab } from '@/components/fire-simulations/FireCalculatorTab';
 import { ApprofondimentiTab, APPROFONDIMENTI_LAZY } from '@/components/fire-simulations/ApprofondimentiTab';
-import { GOALS_TAB_SKELETON_CELLS, WHAT_IF_TAB_SKELETON_CELLS } from '@/components/fire-simulations/tabSkeletons';
+import { WHAT_IF_TAB_SKELETON_CELLS } from '@/components/fire-simulations/tabSkeletons';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { lazyComponent, usePreloadWhenIdle } from '@/components/ui/lazy-component';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
@@ -58,7 +58,7 @@ import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { DEFAULT_INPS_RETIREMENT_AGE, resolvePensionLockState } from '@/lib/utils/pensionUnlock';
 import { describeFireHeader, listFireOutside } from '@/lib/utils/fireAssumptionsNarrative';
-import { isFirePlanField, resolveFireTab, type FireTabValue, type FireVista } from '@/lib/utils/firePlan';
+import { GOALS_PAGE_HREF, isFirePlanField, isGoalsTabAlias, resolveFireTab, type FireTabValue, type FireVista } from '@/lib/utils/firePlan';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { PageTabs } from '@/components/layout/PageTabs';
@@ -72,8 +72,7 @@ import { filterTabsByArea } from '@/lib/utils/viewAreas';
 // opened later is drawn at once — no Suspense fallback held on screen. The three views of Approfondimenti are theirs
 // (`APPROFONDIMENTI_LAZY`).
 const WhatIfAnalysisTab = lazyComponent(() => import('@/components/fire-simulations/WhatIfAnalysisTab').then((m) => m.WhatIfAnalysisTab));
-const GoalBasedInvestingTab = lazyComponent(() => import('@/components/fire-simulations/GoalBasedInvestingTab').then((m) => m.GoalBasedInvestingTab));
-const LAZY_TABS = [WhatIfAnalysisTab, GoalBasedInvestingTab, ...APPROFONDIMENTI_LAZY];
+const LAZY_TABS = [WhatIfAnalysisTab, ...APPROFONDIMENTI_LAZY];
 
 type TabValue = FireTabValue;
 
@@ -81,7 +80,6 @@ const TABS: TabDef[] = [
   { value: 'quando',          label: 'Quando',          icon: Flame },
   { value: 'ese',             label: 'E se…',           icon: Lightbulb },
   { value: 'approfondimenti', label: 'Approfondimenti', icon: Layers },
-  { value: 'goals',           label: 'Traguardi',       icon: Target },
 ];
 
 /** The last view picked in Approfondimenti in this session (try/catch: storage can be missing or refuse). */
@@ -146,9 +144,15 @@ function FireSimulationsContent() {
   // RP10: a link inside the page (the URL changes, the page does not reload) acts like a first visit: `?tab=` moves to the
   // tab (an old id lands on its new place, `?vista=` on its view), `?piano=` opens the block and, with a field name, puts
   // the focus on it. The timer is the repo's idiom against set-state-in-effect.
+  // RU11: the old Traguardi tab is a page of its own; `replace` keeps Back on the page the reader came from.
+  const goesToGoals = isGoalsTabAlias(tabParam);
+  useEffect(() => {
+    if (goesToGoals) router.replace(GOALS_PAGE_HREF);
+  }, [goesToGoals, router]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (tabParam !== null) {
+      if (tabParam !== null && !goesToGoals) {
         const next = resolveFireTab(tabParam, vistaParam, readSessionVista());
         setActiveTab(next.tab);
         if (next.tab === 'approfondimenti') setVista(next.vista);
@@ -157,7 +161,7 @@ function FireSimulationsContent() {
       else if (isFirePlanField(pianoParam)) focusField(pianoParam);
     }, 0);
     return () => clearTimeout(timer);
-  }, [tabParam, vistaParam, pianoParam, setPlanOpen, focusField]);
+  }, [tabParam, vistaParam, pianoParam, goesToGoals, setPlanOpen, focusField]);
 
   // Changing the view `replace`s the URL (the back button does not walk the three views) and is remembered in the session.
   const changeVista = useCallback(
@@ -173,11 +177,14 @@ function FireSimulationsContent() {
     [pathname, router, searchParams],
   );
 
-  // The viewer's view (doc/essenziale/README.md § 5.4, D-ES9): with FIRE off the bar keeps Traguardi (the account's
-  // switch) and the tab asked for by a link; a bar left with one tab is not drawn. The panels stay all mounted.
+  // The viewer's view (doc/essenziale/README.md § 5.4): the bar keeps the tab asked for by a link; a bar left with one
+  // tab is not drawn. The panels stay all mounted.
   const { areas } = useViewAreas();
   const shownTabs = filterTabsByArea('/dashboard/fire-simulations', TABS, areas, activeTab);
   usePublishOpenTab('/dashboard/fire-simulations', activeTab);
+
+  // The redirect is on its way: draw nothing of FIRE meanwhile (the Traguardi page shows its own skeleton).
+  if (goesToGoals) return null;
 
   return (
     <PageContainer>
@@ -213,7 +220,6 @@ function FireSimulationsContent() {
             )}
             {tab.value === 'ese' && <WhatIfAnalysisTab fallback={<TileGridSkeleton cells={WHAT_IF_TAB_SKELETON_CELLS} />} />}
             {tab.value === 'approfondimenti' && <ApprofondimentiTab vista={vista} onVistaChange={changeVista} />}
-            {tab.value === 'goals' && <GoalBasedInvestingTab fallback={<TileGridSkeleton cells={GOALS_TAB_SKELETON_CELLS} />} />}
           </TabsContent>
         ))}
       </PageTabs>

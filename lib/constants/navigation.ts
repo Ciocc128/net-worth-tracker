@@ -8,6 +8,7 @@ import {
   CalendarRange,
   Trophy,
   Flame,
+  Target,
   PiggyBank,
   Bot,
 } from 'lucide-react';
@@ -27,12 +28,15 @@ export const primaryNav: NavItem[] = [
 
 // Menu groups by object (RU1, doc/riordino-ui/README.md § 5.3) — THE one source of the groups: Sidebar,
 // SecondaryMenuDrawer and the shell's band (ShellBand) read it. `null` label = a loose route.
-// Traguardi and Hall of Fame as a Storico tab are wave 3: Hall of Fame still sits alone under STORIA.
+// Hall of Fame stays a page of STORIA next to Storico (D-RU33).
 export type NavGroup = { label: string | null; items: NavItem[] };
 
 const panoramica = primaryNav[0];
 const patrimonio = primaryNav[1];
 const cashflow = primaryNav[2];
+
+/** The Traguardi page's entry (RU11, D-RU29): an account switch decides whether the menu shows it, not a view area. */
+export const GOALS_NAV_ITEM: NavItem = { name: 'Traguardi', href: '/dashboard/traguardi', icon: Target };
 
 export const navGroups: NavGroup[] = [
   { label: null, items: [panoramica] },
@@ -56,6 +60,8 @@ export const navGroups: NavGroup[] = [
     label: 'Futuro',
     items: [
       { name: 'FIRE', href: '/dashboard/fire-simulations', icon: Flame },
+      // Only with «Traguardi di investimento» on (D-RU29): `navGroups` is the whole list, `resolveNavGroups` filters it.
+      GOALS_NAV_ITEM,
       { name: 'Previdenza', href: '/dashboard/pension', icon: PiggyBank },
     ],
   },
