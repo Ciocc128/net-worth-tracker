@@ -1,5 +1,5 @@
 {
-  "measuredAt": "2026-10-18",
+  "measuredAt": "2026-11-27",
   "account": "census@example.com",
   "tolerance": {},
   "informational": {},
@@ -496,21 +496,21 @@
         "screens": 1.96,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
-        "figuresAboveFold": 14,
-        "figuresOutsideVerdict": 10,
+        "figuresAboveFold": 16,
+        "figuresOutsideVerdict": 12,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.94 → 1.96) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.81 → 3.94, figuresAboveFold 13 → 17, figuresOutsideVerdict 10 → 13); 2026-10-15: la prima riga chiusa (Base di calcolo) finisce sotto la pill a 390 con il grafico del Traguardo già a 120 px; le cifre fuori dal verdetto sono le due celle, il numero FIRE, il chip e la didascalia del Traguardo («≤ 5» non raggiunto, dichiarato e registrato come misurato); la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (figuresAboveFold 14 → 16, figuresOutsideVerdict 10 → 12); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario · Prima: 2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.94 → 1.96) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.81 → 3.94, figuresAboveFold 13 → 17, figuresOutsideVerdict 10 → 13); 2026-10-15: la prima riga chiusa (Base di calcolo) finisce sotto la pill a 390 con il grafico del Traguardo già a 120 px; le cifre fuori dal verdetto sono le due celle, il numero FIRE, il chip e la didascalia del Traguardo («≤ 5» non raggiunto, dichiarato e registrato come misurato); la pill a 44 px dal 2026-10-10"
       },
       "768": {
         "screens": 1.35,
         "tilesAboveFold": 4,
         "tilesFullyAboveFold": 2,
-        "figuresAboveFold": 18,
-        "figuresOutsideVerdict": 14,
+        "figuresAboveFold": 20,
+        "figuresOutsideVerdict": 16,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (tilesFullyAboveFold 4 → 2) · Prima: 2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.34 → 1.35) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.22 → 2.56, figuresAboveFold 18 → 24, figuresOutsideVerdict 11 → 21, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 1, firstClosedRowAbovePill True → False); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (figuresAboveFold 18 → 20, figuresOutsideVerdict 14 → 16); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario · Prima: 2026-11-21, pavimento/tetto di Accumulo e Calcolatore sotto il budget: il misurato fa da tetto in attesa di una correzione del codice (seguito); da confermare dal proprietario (tilesFullyAboveFold 4 → 2) · Prima: 2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.34 → 1.35) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.22 → 2.56, figuresAboveFold 18 → 24, figuresOutsideVerdict 11 → 21, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 1, firstClosedRowAbovePill True → False); 2026-10-10: pill a 44 px"
       },
       "1024": {
         "screens": 1.4,
@@ -525,34 +525,34 @@
     },
     "fire-coast": {
       "390": {
-        "screens": 1.95,
+        "screens": 2.03,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
         "figuresAboveFold": 17,
         "figuresOutsideVerdict": 10,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.92 → 1.95) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.8 → 2.12, figuresAboveFold 17 → 19, figuresOutsideVerdict 12 → 14); 2026-10-15: la prima riga chiusa (Afflussi) finisce sotto la pill a 390 con il grafico del Traguardo già a 120 px; le cifre fuori dal verdetto sono le due celle, l'eroe, il chip e la didascalia del Traguardo e le etichette del grafico («≤ 5» non raggiunto, dichiarato e registrato come misurato); la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (screens 1.95 → 2.03); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario · Prima: 2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.92 → 1.95) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.8 → 2.12, figuresAboveFold 17 → 19, figuresOutsideVerdict 12 → 14); 2026-10-15: la prima riga chiusa (Afflussi) finisce sotto la pill a 390 con il grafico del Traguardo già a 120 px; le cifre fuori dal verdetto sono le due celle, l'eroe, il chip e la didascalia del Traguardo e le etichette del grafico («≤ 5» non raggiunto, dichiarato e registrato come misurato); la pill a 44 px dal 2026-10-10"
       },
       "768": {
-        "screens": 1.34,
+        "screens": 1.4,
         "tilesAboveFold": 2,
-        "tilesFullyAboveFold": 2,
+        "tilesFullyAboveFold": 1,
         "figuresAboveFold": 23,
-        "figuresOutsideVerdict": 17,
+        "figuresOutsideVerdict": 18,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.32 → 1.34) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.21 → 1.35, figuresAboveFold 22 → 29, figuresOutsideVerdict 14 → 24, tilesAboveFold 3 → 1, tilesFullyAboveFold 3 → 0, firstClosedRowAbovePill True → False); 2026-10-16: figuresOutsideVerdict 12 → 14 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (screens 1.34 → 1.4, figuresOutsideVerdict 17 → 18, tilesFullyAboveFold 2 → 1); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario · Prima: 2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.32 → 1.34) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.21 → 1.35, figuresAboveFold 22 → 29, figuresOutsideVerdict 14 → 24, tilesAboveFold 3 → 1, tilesFullyAboveFold 3 → 0, firstClosedRowAbovePill True → False); 2026-10-16: figuresOutsideVerdict 12 → 14 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
       },
       "1024": {
-        "screens": 1.54,
+        "screens": 1.64,
         "tilesAboveFold": 3,
         "tilesFullyAboveFold": 2,
         "figuresAboveFold": 22,
         "figuresOutsideVerdict": 17,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.42 → 1.54) · Prima: 2026-11-05: figuresOutsideVerdict 15 → 17 — D-AS30: Geist Sans tabulare è più larga della mono; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.25 → 1.55, figuresAboveFold 18 → 22, figuresOutsideVerdict 14 → 18, tilesAboveFold 3 → 2, tilesFullyAboveFold 2 → 1); 2026-10-16: figuresAboveFold 17 → 18, figuresOutsideVerdict 13 → 14 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 11 → 13 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (screens 1.54 → 1.64); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario · Prima: 2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.42 → 1.54) · Prima: 2026-11-05: figuresOutsideVerdict 15 → 17 — D-AS30: Geist Sans tabulare è più larga della mono; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.25 → 1.55, figuresAboveFold 18 → 22, figuresOutsideVerdict 14 → 18, tilesAboveFold 3 → 2, tilesFullyAboveFold 2 → 1); 2026-10-16: figuresAboveFold 17 → 18, figuresOutsideVerdict 13 → 14 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 11 → 13 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
       }
     },
     "fire-what-if": {
@@ -560,21 +560,21 @@
         "screens": 1.91,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
-        "figuresAboveFold": 17,
-        "figuresOutsideVerdict": 5,
+        "figuresAboveFold": 19,
+        "figuresOutsideVerdict": 7,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.89 → 1.91) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.73 → 2.08, figuresAboveFold 15 → 23, figuresOutsideVerdict 5 → 9); 2026-10-15: Evento è un modulo senza curva da cedere: la prima riga chiusa (Prima e dopo) finisce sotto la pill a 390; la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (figuresAboveFold 17 → 19, figuresOutsideVerdict 5 → 7); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario · Prima: 2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.89 → 1.91) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.73 → 2.08, figuresAboveFold 15 → 23, figuresOutsideVerdict 5 → 9); 2026-10-15: Evento è un modulo senza curva da cedere: la prima riga chiusa (Prima e dopo) finisce sotto la pill a 390; la pill a 44 px dal 2026-10-10"
       },
       "768": {
         "screens": 1.38,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
-        "figuresAboveFold": 18,
-        "figuresOutsideVerdict": 5,
+        "figuresAboveFold": 20,
+        "figuresOutsideVerdict": 7,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.36 → 1.38) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.26 → 1.38, figuresAboveFold 21 → 24, tilesAboveFold 3 → 1, tilesFullyAboveFold 1 → 0); 2026-10-16: riga null → false — la prima riga chiusa finisce 113 px sotto la pill a 947 — a 768 LA tessera — Evento, un modulo senza curva da accorciare — sta a tutta larghezza dopo il verdetto (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (figuresAboveFold 18 → 20, figuresOutsideVerdict 5 → 7); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario · Prima: 2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.36 → 1.38) · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.26 → 1.38, figuresAboveFold 21 → 24, tilesAboveFold 3 → 1, tilesFullyAboveFold 1 → 0); 2026-10-16: riga null → false — la prima riga chiusa finisce 113 px sotto la pill a 947 — a 768 LA tessera — Evento, un modulo senza curva da accorciare — sta a tutta larghezza dopo il verdetto (la riga sotto la pill registrata false, estesa a 768; a 1024 è sopra il fondo di main); 2026-10-10: pill a 44 px"
       },
       "1024": {
         "screens": 1.64,
@@ -589,34 +589,34 @@
     },
     "fire-monte-carlo": {
       "390": {
-        "screens": 2.07,
+        "screens": 2.14,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
-        "figuresAboveFold": 12,
-        "figuresOutsideVerdict": 4,
+        "figuresAboveFold": 14,
+        "figuresOutsideVerdict": 6,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 2.04 → 2.07) · Prima: 2026-10-18: figuresAboveFold 10 → 12, figuresOutsideVerdict 2 → 4 — la terza cella «Spesa al 90%» della striscia di Dopo il FIRE (D-CU17) e Spesa sostenibile come ultima riga chiusa con la sua risposta (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.83 → 2.69, figuresAboveFold 5 → 15, figuresOutsideVerdict 2 → 9); 2026-10-15: la prima riga chiusa (Distribuzione) finisce sotto la pill a 390 con il ventaglio già a 120 px; le cifre fuori dal verdetto sono le due celle; 2026-10-12: screens oscilla fra 4,87 e 4,89 a parità di codice — due corse consecutive sulla stessa build di develop (e450d00e, 2026-10-12, ritiro) leggono prima l'uno e poi l'altro; il --tighten della sessione aveva scritto 4,87 come deriva del giorno; la composizione di Monte Carlo (2026-10-15) rimisura; la pill a 44 px dal 2026-10-10"
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (screens 2.07 → 2.14, figuresAboveFold 12 → 14, figuresOutsideVerdict 4 → 6); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario · Prima: 2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 2.04 → 2.07) · Prima: 2026-10-18: figuresAboveFold 10 → 12, figuresOutsideVerdict 2 → 4 — la terza cella «Spesa al 90%» della striscia di Dopo il FIRE (D-CU17) e Spesa sostenibile come ultima riga chiusa con la sua risposta (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.83 → 2.69, figuresAboveFold 5 → 15, figuresOutsideVerdict 2 → 9); 2026-10-15: la prima riga chiusa (Distribuzione) finisce sotto la pill a 390 con il ventaglio già a 120 px; le cifre fuori dal verdetto sono le due celle; 2026-10-12: screens oscilla fra 4,87 e 4,89 a parità di codice — due corse consecutive sulla stessa build di develop (e450d00e, 2026-10-12, ritiro) leggono prima l'uno e poi l'altro; il --tighten della sessione aveva scritto 4,87 come deriva del giorno; la composizione di Monte Carlo (2026-10-15) rimisura; la pill a 44 px dal 2026-10-10"
       },
       "768": {
-        "screens": 1.33,
-        "tilesAboveFold": 4,
+        "screens": 1.39,
+        "tilesAboveFold": 2,
         "tilesFullyAboveFold": 2,
-        "figuresAboveFold": 14,
+        "figuresAboveFold": 15,
         "figuresOutsideVerdict": 7,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.31 → 1.33) · Prima: 2026-10-18: figuresAboveFold 12 → 14, figuresOutsideVerdict 5 → 7 — la terza cella «Spesa al 90%» della striscia di Dopo il FIRE (D-CU17) e Spesa sostenibile come ultima riga chiusa con la sua risposta (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.18 → 1.57, figuresAboveFold 6 → 18, figuresOutsideVerdict 3 → 12, tilesAboveFold 4 → 1, tilesFullyAboveFold 4 → 1, firstClosedRowAbovePill True → False); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (screens 1.33 → 1.39, figuresAboveFold 14 → 15, tilesAboveFold 4 → 2); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario · Prima: 2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.31 → 1.33) · Prima: 2026-10-18: figuresAboveFold 12 → 14, figuresOutsideVerdict 5 → 7 — la terza cella «Spesa al 90%» della striscia di Dopo il FIRE (D-CU17) e Spesa sostenibile come ultima riga chiusa con la sua risposta (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.18 → 1.57, figuresAboveFold 6 → 18, figuresOutsideVerdict 3 → 12, tilesAboveFold 4 → 1, tilesFullyAboveFold 4 → 1, firstClosedRowAbovePill True → False); 2026-10-10: pill a 44 px"
       },
       "1024": {
-        "screens": 1.43,
+        "screens": 1.52,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 4,
         "figuresAboveFold": 17,
         "figuresOutsideVerdict": 9,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.29 → 1.43) · Prima: 2026-10-18: figuresAboveFold 13 → 17, figuresOutsideVerdict 5 → 9 — la terza cella «Spesa al 90%» della striscia di Dopo il FIRE (D-CU17) e Spesa sostenibile come ultima riga chiusa con la sua risposta (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.1 → 1.79, figuresAboveFold 8 → 18, figuresOutsideVerdict 5 → 12, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 2); 2026-10-16: figuresAboveFold 6 → 8, figuresOutsideVerdict 3 → 5 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 2 → 3 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (screens 1.43 → 1.52); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario · Prima: 2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.29 → 1.43) · Prima: 2026-10-18: figuresAboveFold 13 → 17, figuresOutsideVerdict 5 → 9 — la terza cella «Spesa al 90%» della striscia di Dopo il FIRE (D-CU17) e Spesa sostenibile come ultima riga chiusa con la sua risposta (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.1 → 1.79, figuresAboveFold 8 → 18, figuresOutsideVerdict 5 → 12, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 2); 2026-10-16: figuresAboveFold 6 → 8, figuresOutsideVerdict 3 → 5 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 2 → 3 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
       }
     },
     "traguardi": {
@@ -632,23 +632,23 @@
       },
       "768": {
         "screens": 1,
-        "tilesAboveFold": 4,
-        "tilesFullyAboveFold": 4,
+        "tilesAboveFold": 3,
+        "tilesFullyAboveFold": 3,
         "figuresAboveFold": 11,
         "figuresOutsideVerdict": 10,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1 → 1.04, figuresAboveFold 9 → 17, figuresOutsideVerdict 9 → 17, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 3); 2026-10-16: figuresOutsideVerdict 0 → 9 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule)"
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 3); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1 → 1.04, figuresAboveFold 9 → 17, figuresOutsideVerdict 9 → 17, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 3); 2026-10-16: figuresOutsideVerdict 0 → 9 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule)"
       },
       "1024": {
         "screens": 1.09,
-        "tilesAboveFold": 4,
+        "tilesAboveFold": 3,
         "tilesFullyAboveFold": 3,
         "figuresAboveFold": 13,
         "figuresOutsideVerdict": 12,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.08 → 1.09) · Prima: 2026-11-21 (fascia desktop, PR #197): tilesFullyAboveFold 4 → 3 a 1024 — la fascia (110px) prende altezza alla prima schermata del tablet orizzontale; il misurato fa da pavimento · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.08 → 1.1, figuresAboveFold 11 → 19, figuresOutsideVerdict 11 → 19, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 3); 2026-10-16: screens 1 → 1,08, figuresAboveFold 9 → 11, figuresOutsideVerdict 9 → 11 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; LA tessera arriva alla piega sotto il verdetto: la colonna sinistra è alta quanto lo schermo e ciò che segue lo stage parte sotto; 2026-10-16: figuresOutsideVerdict 0 → 9 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule)"
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (tilesAboveFold 4 → 3); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario · Prima: 2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.08 → 1.09) · Prima: 2026-11-21 (fascia desktop, PR #197): tilesFullyAboveFold 4 → 3 a 1024 — la fascia (110px) prende altezza alla prima schermata del tablet orizzontale; il misurato fa da pavimento · Prima: 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.08 → 1.1, figuresAboveFold 11 → 19, figuresOutsideVerdict 11 → 19, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 3); 2026-10-16: screens 1 → 1,08, figuresAboveFold 9 → 11, figuresOutsideVerdict 9 → 11 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; LA tessera arriva alla piega sotto il verdetto: la colonna sinistra è alta quanto lo schermo e ciò che segue lo stage parte sotto; 2026-10-16: figuresOutsideVerdict 0 → 9 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule)"
       }
     },
     "hall-of-fame": {
@@ -685,31 +685,34 @@
     },
     "impostazioni": {
       "390": {
-        "screens": 3.01,
-        "tilesAboveFold": 2,
-        "tilesFullyAboveFold": 1,
+        "screens": 3.63,
+        "tilesAboveFold": 1,
+        "tilesFullyAboveFold": 0,
         "figuresAboveFold": 0,
         "figuresOutsideVerdict": 0,
         "firstClosedRowAbovePill": null,
-        "overflowX": false
+        "overflowX": false,
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (screens 3.01 → 3.63, tilesAboveFold 2 → 1, tilesFullyAboveFold 1 → 0); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario"
       },
       "768": {
-        "screens": 2.1,
-        "tilesAboveFold": 3,
-        "tilesFullyAboveFold": 2,
+        "screens": 2.5,
+        "tilesAboveFold": 2,
+        "tilesFullyAboveFold": 1,
         "figuresAboveFold": 1,
         "figuresOutsideVerdict": 1,
         "firstClosedRowAbovePill": null,
-        "overflowX": false
+        "overflowX": false,
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (screens 2.1 → 2.5, tilesAboveFold 3 → 2, tilesFullyAboveFold 2 → 1); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario"
       },
       "1024": {
-        "screens": 2.82,
+        "screens": 3.37,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
-        "figuresAboveFold": 0,
-        "figuresOutsideVerdict": 0,
+        "figuresAboveFold": 1,
+        "figuresOutsideVerdict": 1,
         "firstClosedRowAbovePill": null,
-        "overflowX": false
+        "overflowX": false,
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (screens 2.82 → 3.37, figuresAboveFold 0 → 1, figuresOutsideVerdict 0 → 1); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario"
       }
     },
     "allocazione-accumulo": {
@@ -746,34 +749,34 @@
     },
     "fire-proiezione": {
       "390": {
-        "screens": 2,
+        "screens": 2.08,
         "tilesAboveFold": 2,
         "tilesFullyAboveFold": 1,
         "figuresAboveFold": 22,
         "figuresOutsideVerdict": 11,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.96 → 2.0) · Prima: 2026-11-05: figuresAboveFold 20 → 22, figuresOutsideVerdict 8 → 11 — D-AS30: le cifre in Geist Sans tabulare, più larga della mono, cambiano a-capo e conteggio; 2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (screens 2 → 2.08); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario · Prima: 2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.96 → 2.0) · Prima: 2026-11-05: figuresAboveFold 20 → 22, figuresOutsideVerdict 8 → 11 — D-AS30: le cifre in Geist Sans tabulare, più larga della mono, cambiano a-capo e conteggio; 2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
       },
       "768": {
-        "screens": 1.33,
-        "tilesAboveFold": 4,
+        "screens": 1.4,
+        "tilesAboveFold": 2,
         "tilesFullyAboveFold": 2,
-        "figuresAboveFold": 40,
-        "figuresOutsideVerdict": 35,
+        "figuresAboveFold": 42,
+        "figuresOutsideVerdict": 37,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.31 → 1.33) · Prima: 2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (screens 1.33 → 1.4, figuresAboveFold 40 → 42, figuresOutsideVerdict 35 → 37, tilesAboveFold 4 → 2); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario · Prima: 2026-11-21, deriva a 390/768 dall'ultima revisione (05/11, Geist tabulare) sullo stesso fixture, build Next 16.4.6 (che non pesa sul mobile: 57 → 56 voci); il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.31 → 1.33) · Prima: 2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
       },
       "1024": {
-        "screens": 1.44,
+        "screens": 1.54,
         "tilesAboveFold": 5,
         "tilesFullyAboveFold": 4,
         "figuresAboveFold": 36,
         "figuresOutsideVerdict": 27,
         "firstClosedRowAbovePill": true,
         "overflowX": false,
-        "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.29 → 1.44) · Prima: 2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
+        "raisedBy": "2026-11-27, giro Mac dopo RU10/RU11/ES1/ES2 (main c0cfdb13, build con il lazy di «Verso il FIRE» a parte): il misurato fa da tetto (screens 1.44 → 1.54); FIRE in tre schede con la pillola, Parametri come riga e testata «Capitale X su Y» (RU10), Traguardi pagina a sé (RU11), «Funzioni» in Impostazioni (ES1); da confermare dal proprietario · Prima: 2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.29 → 1.44) · Prima: 2026-10-18, tappa B: riga d’ambito Ipotesi — la Proiezione sarà ricomposta nella tappa C; prima: 2026-10-18: prima misura (D-CU19) — la Proiezione non è ancora composta (tessere semplici dopo lo stage, D-UP4): 21 cifre sopra la piega a 390 contro le 5 del criterio di § 9, dichiarate qui e non nascoste"
       }
     },
     "allocazione-strategia": {
