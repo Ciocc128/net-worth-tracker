@@ -28,4 +28,8 @@ const db = getFirestore();
 
 await db.collection('userPreferences').doc(ESSENZIALE_UID).set({ viewPreset: 'essenziale' });
 console.info('  ✓ userPreferences: viewPreset essenziale');
+
+// A FIRE plan written (age and withdrawal rate): with FIRE off this is what shows «Verso il FIRE» in Panoramica (ES2, § 5.7).
+await db.collection('assetAllocationTargets').doc(ESSENZIALE_UID).set({ userAge: 40, withdrawalRate: 4 }, { merge: true });
+console.info('  ✓ settings: userAge 40, withdrawalRate 4 (the FIRE plan «Verso il FIRE» stands on)');
 process.exit(0);

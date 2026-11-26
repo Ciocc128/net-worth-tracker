@@ -515,3 +515,13 @@ Composed on 2026-10-15 (its spec, retired on 2026-10-16, is in `git log -- doc/m
 - **Età obiettivo, «per 9 percorsi su 10»**: when RS8's lever needs no extra saving (`tail.extra === 0`) the figure is today's saving and the caption says «il tuo risparmio di oggi basta»; with an extra the caption stays «l'anno, 9 percorsi su 10».
 
 - **«Ipotesi usate» since 2026-11-02 (D-AS9, doc/unslop/README.md § Session 3)**: on the six tabs it is ONLY the verdict's scope line («Ipotesi: …» + «Dettagli» popover with the capital and the chips' entries) at every width; the capital row and the four mono chips above the verdict are gone, so a spec reads `fire-assumptions-scope` / `fire-assumptions-details` / `fire-detail-<chip>`, never `fire-assumptions-row` or `fire-chip-*`. The older paragraphs above that say «row» or «chips» describe the content, not the surface.
+
+## ES2 — `useFireProgress`, one derivation for the Calculator and Panoramica (2026-11-26, doc/essenziale/README.md § 12)
+
+The first half of `FireCalculatorTab` (settings with the plan's draft, assets, snapshots, the recent expenses window, the plan's
+expenses, the dated flows, the pension lock, the capital `K`, `requirementToday`, `displayedFireMetrics`, `honestSummary`, the Base
+projection) lives in `lib/hooks/useFireProgress.ts` and the tab destructures what it uses; Panoramica's «Verso il FIRE» tile reads
+the same hook for a viewer with FIRE off. Moved whole: the same query keys, the same memos in the same order. The history of the
+«Dettaglio» (the older expenses window, `buildFIREData`, the runway) and everything from `flowsEffect` down stay in the tab. A change
+to the Calculator's capital or requirement is a change to the hook, and the tile follows (`__tests__/fireProgress.test.ts` pins 24.000 € at
+4% = 600.000 € = 25% of 150.000 €). `PROJECTION_HORIZON_YEARS` is exported from the hook.

@@ -64,6 +64,10 @@ import { CashflowTile } from '@/components/dashboard/overview/CashflowTile';
 import { ComposizioneTile } from '@/components/dashboard/overview/ComposizioneTile';
 import { CostiTile } from '@/components/dashboard/overview/CostiTile';
 import { ObiettivoTile } from '@/components/dashboard/overview/ObiettivoTile';
+import { VersoIlFireTileSkeleton } from '@/components/dashboard/overview/VersoIlFireTile';
+import { lazyComponent } from '@/components/ui/lazy-component';
+import { useSettings } from '@/lib/hooks/useSettings';
+import { isFirePlanFilled } from '@/lib/utils/fireProgress';
 import { CategoryTile } from '@/components/dashboard/overview/CategoryTile';
 import { AssetPrincipaliTile } from '@/components/dashboard/overview/AssetPrincipaliTile';
 import { IntestatariTile } from '@/components/dashboard/overview/IntestatariTile';
@@ -125,6 +129,18 @@ const ITALIAN_LONG_DATE = new Intl.DateTimeFormat('it-IT', {
 const CELL_CLASS = TILE_CELL_CLASS;
 
 /**
+ * «Verso il FIRE» (doc/essenziale/README.md § 5.7): a chunk of its own, loaded only when the page mounts it — a viewer with
+ * FIRE on, or with no plan written, never downloads it nor reads what it reads. Module level, as `lazyComponent` asks.
+ */
+const VersoIlFireTile = lazyComponent<{ collapse?: TileCollapse; asideWhenClosed?: string }>(() =>
+  import('@/components/dashboard/overview/VersoIlFireTile').then((module) => module.VersoIlFireTile),
+);
+
+/** Row 5 of the 1440 grid holds seven columns: Sintesi, then the tiles beside it share the other four. */
+const ROW5_SPAN = { 4: 'desktop:col-span-4', 2: 'desktop:col-span-2' } as const;
+const ROW5_START = { 4: 'desktop:col-start-4', 6: 'desktop:col-start-6' } as const;
+
+/**
  * Every row of the phone composition, in the DOM's order (The Closed-Row Rule): every tile but
  * Patrimonio, which is THE tile and never closes (The First-Screen Rule). Module-level, as the controller
  * asks; the page hands it the rows PRESENT (`resolveOverviewSections`), because Costi, Obiettivo
@@ -137,6 +153,7 @@ const OVERVIEW_SECTIONS: readonly SectionSpec[] = [
   { id: OVERVIEW_SECTION_IDS.composizione, eyebrow: 'Composizione' },
   { id: OVERVIEW_SECTION_IDS.costi, eyebrow: 'Costi' },
   { id: OVERVIEW_SECTION_IDS.obiettivo, eyebrow: 'Obiettivi' },
+  { id: OVERVIEW_SECTION_IDS.fire, eyebrow: 'Verso il FIRE' },
   { id: OVERVIEW_SECTION_IDS.spese, eyebrow: 'Spese per categoria' },
   { id: OVERVIEW_SECTION_IDS.entrate, eyebrow: 'Entrate per categoria' },
   { id: OVERVIEW_SECTION_IDS.asset, eyebrow: 'Asset principali' },
@@ -144,10 +161,11 @@ const OVERVIEW_SECTIONS: readonly SectionSpec[] = [
 ];
 
 /** The rows the payload renders — one `SectionSpec` per tile present, the DOM's order kept. */
-function resolveOverviewSections(present: { costs: boolean; goals: boolean; expenseStats: boolean; ownership: boolean }): readonly SectionSpec[] {
+function resolveOverviewSections(present: { costs: boolean; goals: boolean; fire: boolean; expenseStats: boolean; ownership: boolean }): readonly SectionSpec[] {
   return OVERVIEW_SECTIONS.filter((section) => {
     if (section.id === OVERVIEW_SECTION_IDS.costi) return present.costs;
     if (section.id === OVERVIEW_SECTION_IDS.obiettivo) return present.goals;
+    if (section.id === OVERVIEW_SECTION_IDS.fire) return present.fire;
     if (section.id === OVERVIEW_SECTION_IDS.spese || section.id === OVERVIEW_SECTION_IDS.entrate) return present.expenseStats;
     if (section.id === OVERVIEW_SECTION_IDS.intestatari) return present.ownership;
     return true;
@@ -180,6 +198,7 @@ function resolveSnapshotDialogOrigin(reducedMotion: boolean | null, trigger: HTM
 export default function DashboardPage() {
   // The viewer's view: a door to an area that is off goes with its sentence (DESIGN.md → The Door-Not-Room Rule).
   const showAllocazione = useViewArea('allocazione');
+  const showFireArea = useViewArea('fire');
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
@@ -269,11 +288,22 @@ export default function DashboardPage() {
   );
   const hasExpenseStats = Boolean(overview?.expenseStats);
   const hasGoals = goals.length > 0;
+  // «Verso il FIRE»: FIRE off AND a plan written (§ 5.7). The settings are read only for a viewer with FIRE off — with it on,
+  // Panoramica reads what it always did.
+  const { data: planSettings } = useSettings(ownerId, { enabled: !showFireArea });
+  const hasVersoIlFire = !showFireArea && isFirePlanFilled(planSettings);
+  // Four tiles do not fit the row's four columns: Costi gives way to «Verso il FIRE» at 1440 (it stays a closed row below).
+  const costsShownAtDesktop = costsVisible && !(hasGoals && hasVersoIlFire);
+  const row5Tiles = [costsShownAtDesktop, hasGoals, hasVersoIlFire].filter(Boolean).length;
+  const row5Span = row5Tiles === 1 ? 4 : 2;
+  const row5Start = (position: number) => (position === 0 ? 4 : 6) as 4 | 6;
+  const goalsPosition = costsShownAtDesktop ? 1 : 0;
+  const firePosition = (costsShownAtDesktop ? 1 : 0) + (hasGoals ? 1 : 0);
   // The Intestatari tile exists only when a held asset names a person (2026-10-17).
   const hasOwnership = Boolean(overview?.ownership);
   const overviewSections = useMemo(
-    () => resolveOverviewSections({ costs: costsVisible, goals: hasGoals, expenseStats: hasExpenseStats, ownership: hasOwnership }),
-    [costsVisible, hasGoals, hasExpenseStats, hasOwnership],
+    () => resolveOverviewSections({ costs: costsVisible, goals: hasGoals, fire: hasVersoIlFire, expenseStats: hasExpenseStats, ownership: hasOwnership }),
+    [costsVisible, hasGoals, hasVersoIlFire, hasExpenseStats, hasOwnership],
   );
   const sections = useMobileSections({ route: 'panoramica', sections: overviewSections });
   // At 768 the same rows on two columns, in landscape in the index (since 2026-10-16): the rows present ARE the order.
@@ -573,7 +603,7 @@ export default function DashboardPage() {
           <PageRest sections={sections} className={REST_CELL_CLASS} />
 
           <div
-            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.sintesi), 'desktop:col-start-1 desktop:row-start-5', costsVisible || hasGoals ? 'desktop:col-span-3' : 'desktop:col-span-7')}
+            className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.sintesi), 'desktop:col-start-1 desktop:row-start-5', row5Tiles > 0 ? 'desktop:col-span-3' : 'desktop:col-span-7')}
           >
             <SintesiTile
               metrics={overview.metrics}
@@ -623,7 +653,7 @@ export default function DashboardPage() {
 
           {costsVisible && (
             <div
-              className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.costi), 'desktop:col-start-4 desktop:row-start-5', hasGoals ? 'desktop:col-span-2' : 'desktop:col-span-4')}
+              className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.costi), 'desktop:row-start-5', !costsShownAtDesktop && 'desktop:hidden', ROW5_START[row5Start(0)], ROW5_SPAN[row5Span])}
             >
               <CostiTile
                 metrics={overview.metrics}
@@ -637,12 +667,24 @@ export default function DashboardPage() {
 
           {hasGoals && (
             <div
-              className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.obiettivo), 'desktop:row-start-5', costsVisible ? 'desktop:col-span-2 desktop:col-start-6' : 'desktop:col-span-4 desktop:col-start-4')}
+              className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.obiettivo), 'desktop:row-start-5', ROW5_START[row5Start(goalsPosition)], ROW5_SPAN[row5Span])}
             >
               <ObiettivoTile
                 goals={goals}
                 collapse={sections.collapse(OVERVIEW_SECTION_IDS.obiettivo)}
                 asideWhenClosed={asides[OVERVIEW_SECTION_IDS.obiettivo]}
+              />
+            </div>
+          )}
+
+          {hasVersoIlFire && (
+            <div
+              className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(OVERVIEW_SECTION_IDS.fire), 'desktop:row-start-5', ROW5_START[row5Start(firePosition)], ROW5_SPAN[row5Span])}
+            >
+              <VersoIlFireTile
+                collapse={sections.collapse(OVERVIEW_SECTION_IDS.fire)}
+                asideWhenClosed={asides[OVERVIEW_SECTION_IDS.fire]}
+                fallback={<VersoIlFireTileSkeleton collapse={sections.collapse(OVERVIEW_SECTION_IDS.fire)} asideWhenClosed={asides[OVERVIEW_SECTION_IDS.fire]} />}
               />
             </div>
           )}

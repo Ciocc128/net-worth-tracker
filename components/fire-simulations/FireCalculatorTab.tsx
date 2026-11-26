@@ -61,31 +61,16 @@
 
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { useExpenseFlows } from '@/lib/hooks/useExpenseFlows';
-import { fireWindows } from '@/lib/utils/expenseWindows';
-import { useSnapshots } from '@/lib/hooks/useSnapshots';
-import { useAssets } from '@/lib/hooks/useAssets';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { calculateAssetValue } from '@/lib/services/assetService';
-import { resolveGainShare } from '@/lib/utils/withdrawalTax';
-import { getItalyYear } from '@/lib/utils/dateHelpers';
-import { DEFAULT_INPS_RETIREMENT_AGE, resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
+import { resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import {
   calculateCoastFireNetRealAnnualPension,
-  calculateFIREMetrics,
   calculateFIREProjection,
   calculateFIRESensitivityMatrix,
   rescaleMonthlyAllowance,
-  computeAnnualCashflowData,
-  getDefaultScenarios,
   buildFIREData,
-  normalizeCoastFirePensions,
-  normalizeCoastFireTaxBrackets,
   prepareRunwaySummaryLabel,
   resolveFanFireTargets,
-  resolveFireRequirement,
-  type FireFlowsInput,
-  type FireHonestInputs,
-  type FireProjectionPensionBridge,
 } from '@/lib/services/fireService';
 import { runAccumulationSimulation, type AccumulationSimulationParams } from '@/lib/services/monteCarloService';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
@@ -94,7 +79,7 @@ import { marketUncertainty } from '@/lib/utils/monteCarloMarket';
 import { targetYearsOf, findDepletion, depletionCause } from '@/lib/utils/fireDepletion';
 import { summarizeTargetAge, yearsToTargetAge, type FireWalk } from '@/lib/utils/fireTargetAge';
 import { DEFAULT_FIRE_TARGET_AGE } from '@/lib/utils/firePlan';
-import { useFireSettings } from '@/lib/hooks/useFirePlan';
+import { PROJECTION_HORIZON_YEARS, useFireProgress } from '@/lib/hooks/useFireProgress';
 import { resolveLeverCap, solveSavingsForTail, summarizeFireYearDistribution, summarizeRetirementSurvival } from '@/lib/utils/fireDistribution';
 import {
   FIRE_SECTION_IDS,
@@ -106,7 +91,6 @@ import {
   summarizeScenarios,
   summarizeTarget,
   summarizeTimeline,
-  type FireTargetHonest,
 } from '@/lib/utils/fireSummary';
 import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
 import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
@@ -153,16 +137,11 @@ import {
 } from '@/lib/utils/fireNarrative';
 import { describeSensitivity, SENSITIVITY_ASIDE, SENSITIVITY_FOOTER } from '@/lib/utils/whatIfNarrative';
 import { summarizeSensitivity } from '@/lib/utils/whatIfSummary';
-import type { FIREProjectionScenarios } from '@/types/assets';
-import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
-import { buildFlowSchedule, lumpMarkersOf } from '@/lib/utils/datedFlows';
+import { lumpMarkersOf } from '@/lib/utils/datedFlows';
 import type { FlowsEffect } from '@/lib/utils/datedFlowsNarrative';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
-import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
 import { FireVerdictScope } from '@/components/fire-simulations/FireAssumptionsRow';
-import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
-import { resolvePlanExpenses, type FireAssumptions } from '@/lib/utils/fireAssumptions';
 import { VerdictStrip } from '@/components/ui/verdict-strip';
 import { PageRest } from '@/components/ui/page-rest';
 import { Tile, TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
@@ -188,8 +167,6 @@ import { FireYearDistributionView } from '@/components/fire-simulations/FireYear
 const FAN_SIMULATION_COUNT = 1000;
 /** Fan horizon cap: the deterministic projection's years, at most 40. */
 const FAN_MAX_YEARS = 40;
-/** The deterministic projection's horizon. */
-const PROJECTION_HORIZON_YEARS = 50;
 /**
  * The fan's seed («FIRE» in ASCII), fixed on purpose: the same base gives the same thousand
  * paths at every opening, and every lever comparison re-runs on the same shocks
@@ -265,136 +242,63 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   // The Sensibilità's reference expenses — a local override, empty = the plan's expenses.
   const [sensitivityBaselineInput, setSensitivityBaselineInput] = useState('');
 
-  // ─── Queries ─────────────────────────────────────────────────────────────────
-  // The saved settings with the plan's draft over them (RP3): «Il mio piano» is previewed here, and every figure below
-  // reads the same plan the other five tabs do. `saved` is the stored document, for the one query that must not refetch while typing.
-  const { data: settings, saved: savedSettings, isLoading: isLoadingSettings, isError: settingsError } = useFireSettings();
-
-  // Assets from the key every page shares (2026-09-29).
-  const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useAssets(ownerId);
-
-  // The cashflow figures — the last full year, else the running year annualised — computed in
-  // memory from the page's RECENT expenses window (January of last year → this December: the key
-  // Coast FIRE and What If read too), in parallel with the assets, the settings and the snapshots.
-  // The history behind the «Dettaglio» also needs the rows before that window, back to eleven
-  // months before the first snapshot: a second, OLDER window that can only be asked for once the
-  // snapshots are in, and that the grid does not wait for (2026-09-30; until then the tab read
-  // the account's whole expense list for it).
-  const readAt = useMemo(() => new Date(), []);
-  const { data: snapshots, isLoading: isLoadingSnapshots } = useSnapshots(ownerId);
-  const expenseWindows = useMemo(() => fireWindows(readAt, snapshots?.[0] ?? null), [readAt, snapshots]);
-  // Both as MOVEMENTS since the monthly totals (doc/totali-mensili/README.md § 6.3): the closed
-  // months as the aggregated rows of their totals, the running one from its rows — the builders sum
-  // by month, type and category, so the figures are the rows' (CA5). The history is ONE list from
-  // its first month to this December; with no older window it is the recent list itself.
-  const { data: recentExpenses, isLoading: isLoadingCashflow, isError: recentExpensesError } = useExpenseFlows(ownerId, {
-    from: expenseWindows.recent.from,
-    to: expenseWindows.recent.to,
-  });
+  // The shared derivation (the Calculator and the Panoramica tile read ONE): lib/hooks/useFireProgress.ts.
+  const {
+    settings,
+    isLoadingSettings,
+    settingsError,
+    assets,
+    isLoadingAssets,
+    assetsError,
+    readAt,
+    snapshots,
+    isLoadingSnapshots,
+    expenseWindows,
+    recentExpenses,
+    isLoadingCashflow,
+    recentExpensesError,
+    annualSavings,
+    previewWithdrawalRate,
+    withdrawalRate,
+    previewInpsRetirementAge,
+    ritaLongUnemployment,
+    userAge,
+    pensionLockState,
+    scenarios,
+    expenses,
+    resolvedFlows,
+    excludedFlows,
+    flowsInput,
+    assumptions,
+    projectionAnnualExpenses,
+    capital,
+    pensionUnlockYears,
+    pensionBridge,
+    currentYearForFan,
+    currentNetWorth,
+    now,
+    honest,
+    gainShareToday,
+    requirementToday,
+    displayedFireMetrics,
+    honestSummary,
+    projectionBridge,
+    projection,
+    cashflowData,
+  } = useFireProgress();
   const { data: olderAndRecentExpenses, isLoading: isLoadingOlderExpenses, isError: olderExpensesError } = useExpenseFlows(ownerId, {
     from: expenseWindows.older?.from ?? null,
     to: expenseWindows.recent.to,
     enabled: expenseWindows.older !== null,
   });
   const cashflowError = recentExpensesError || olderExpensesError;
-  const cashflowData = useMemo(() => (recentExpenses ? computeAnnualCashflowData(recentExpenses, readAt) : undefined), [recentExpenses, readAt]);
   // The history's rows. Undefined until every list it needs is in.
   const historyExpenses = useMemo(() => {
     if (!snapshots || !recentExpenses) return undefined;
     if (expenseWindows.older === null) return recentExpenses;
     return olderAndRecentExpenses;
   }, [snapshots, recentExpenses, olderAndRecentExpenses, expenseWindows.older]);
-  const annualSavings = cashflowData?.annualSavings ?? 0;
-
-  const previewWithdrawalRate = settings?.withdrawalRate ?? 4.0;
-  // The saved rate drives the history: typing in the plan must not recompute it.
-  const withdrawalRate = savedSettings?.withdrawalRate ?? 4.0;
-
-  // ─── Pension lock (preview inputs: the RITA controls update the estimate instantly) ─────
-  const respectPensionLockIn = settings?.respectPensionLockInFire ?? false;
-  const previewInpsRetirementAge = settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE;
-  const ritaLongUnemployment = settings?.pensionRitaLongUnemployment ?? false;
-  const userAge = settings?.userAge;
-
-  // Locked pension capital (unlock resolved by pensionUnlock.ts: per-fund override > RITA rule
-  // from userAge > not modellable) stays in the app's total net worth everywhere else — it only
-  // leaves what THIS calculator treats as spendable now. Memoized because the fan inputs (and
-  // the projection memo) key on its identity.
-  const pensionLockState = useMemo(() => {
-    if (!respectPensionLockIn || !assets) return null;
-    return resolvePensionLockState(
-      assets,
-      { userAge, pensionInpsRetirementAge: previewInpsRetirementAge, pensionRitaLongUnemployment: ritaLongUnemployment },
-      new Date(),
-      calculateAssetValue,
-    );
-  }, [respectPensionLockIn, assets, userAge, previewInpsRetirementAge, ritaLongUnemployment]);
-  const pensionLockedValue = pensionLockState?.totalLockedToday ?? 0;
-
-  // The page's hypotheses (doc/fire-ipotesi/README.md): the three scenarios are the target portfolio's
-  // rates on the per-class assumptions of Impostazioni › Avanzate — never typed here. While the
-  // data loads the skeleton is shown, so the neutral defaults below are never read as numbers.
-  const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
-  const { assumptions: savedAssumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true });
-  const scenarios = useMemo<FIREProjectionScenarios>(() => savedAssumptions?.scenarios ?? getDefaultScenarios(), [savedAssumptions]);
-
-  // RP6: the plan's expenses (the typed one is already over `settings`, RP3; empty = from the Cashflow).
-  const expenses = useMemo(() => (cashflowData ? resolvePlanExpenses(settings ?? {}, cashflowData) : null), [cashflowData, settings]);
-  // § 12 (F1): the dated flows, placed on the calendar with the age and the linked mortgages (the plan's preview included).
-  const { resolved: resolvedFlows, excluded: excludedFlows } = useFireDatedFlows({ lockedAssetIds: assumptionLockedIds });
-  const flowsInput = useMemo<FireFlowsInput | undefined>(
-    () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow: (expenses?.origin ?? 'cashflow') === 'cashflow' } : undefined),
-    [resolvedFlows, expenses?.origin],
-  );
-  const assumptions = useMemo<FireAssumptions | null>(
-    () => (savedAssumptions ? { ...withFlowsDetail(savedAssumptions, resolvedFlows, excludedFlows), expenses: expenses ?? undefined } : null),
-    [savedAssumptions, expenses, resolvedFlows, excludedFlows],
-  );
-  const projectionAnnualExpenses = expenses?.annual ?? 0;
-  // RP5 (D4): ONE capital for every tab — `K`, net of the closed pension funds; real estate and crypto stay out, declared in the line.
-  const capital = assumptions?.capital ?? null;
-
-  // Bridge model inputs. Funds with different unlock years are aggregated on the LATEST year —
-  // conservative when the floor binds, and neutral otherwise because the fund grows and is
-  // discounted at the same scenario real return. The PREVIEW base scenario, the one the
-  // projection runs on: the number and the year must move together while a parameter is edited.
-  const pensionUnlockYears =
-    pensionLockState && pensionLockState.inflows.length > 0 ? Math.max(...pensionLockState.inflows.map((inflow) => inflow.yearsFromNow)) : 0;
-  const pensionBridge = useMemo<FireProjectionPensionBridge | null>(
-    () => (pensionLockedValue > 0 && pensionUnlockYears > 0 ? { valueToday: pensionLockedValue, yearsToUnlock: pensionUnlockYears } : null),
-    [pensionLockedValue, pensionUnlockYears],
-  );
-  // Primitive mirrors of pensionBridge so the memos below can depend on stable values.
-  const pensionBridgeValueToday = pensionBridge?.valueToday ?? 0;
-  const pensionBridgeYearsToUnlock = pensionBridge?.yearsToUnlock ?? 0;
-
-  // The residence rule of Impostazioni stays on the history of the runway only (facts, not hypotheses — D4).
   const includePrimaryResidence = settings?.includePrimaryResidenceInFIRE ?? false;
-  // Read once here: the fan's memos above the render's `currentYear` need it too.
-  const currentYearForFan = getItalyYear();
-  const currentNetWorth = capital?.total ?? 0;
-
-  // ─── What makes the number honest (2026-09-24) ────────────────────────────────
-  // The tax profile of the capital the plan withdraws from — `K`, the same set `currentNetWorth` is — and
-  // the state pensions saved in Coast FIRE, dated by the saved age. Null profile = no EUR cost basis anywhere: tax not modelled.
-  const now = useMemo(() => new Date(), []);
-  const taxProfile = capital?.taxProfile ?? null;
-  const savedPensions = settings?.coastFirePensions;
-  const savedTaxBrackets = settings?.coastFireTaxBrackets;
-  const honest = useMemo<FireHonestInputs>(
-    () => ({
-      userAge,
-      pensions: normalizeCoastFirePensions(savedPensions),
-      taxBrackets: normalizeCoastFireTaxBrackets(savedTaxBrackets),
-      withdrawalTax: taxProfile ? { basisToday: taxProfile.basisToday, rate: taxProfile.rate } : undefined,
-      now,
-    }),
-    [userAge, savedPensions, savedTaxBrackets, taxProfile, now],
-  );
-  const gainShareToday = taxProfile ? resolveGainShare(currentNetWorth, taxProfile.basisToday) : 0;
-  const liquidNetWorth = capital?.liquid ?? 0;
-  const illiquidNetWorth = capital?.illiquid ?? 0;
-
   // Derived, not queried: a lock flip or the residence switch moves `currentNetWorth` and the
   // history recomputes in the same render — no key that moves, no skeleton mid-interaction (the
   // `keepPreviousData` the query needed until 2026-09-29). Nothing without a positive net worth.
@@ -411,79 +315,6 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   const chartData = useMemo(() => rescaleMonthlyAllowance(fireData?.chartData ?? [], previewWithdrawalRate), [fireData, previewWithdrawalRate]);
   const rawRunwayData = useMemo(() => fireData?.runwayData ?? [], [fireData]);
 
-  // ─── The numbers (pure layer over the existing engines) ──────────────────────
-  // The metrics on the PREVIEW withdrawal rate, with the bridge override when the lock is on:
-  // free assets must cover the spending bridge until the unlock, then the fund tops up the
-  // standard requirement. The expenses are the projection's (`getAnnualCashflowData`: the last
-  // full year, else the running year annualized and said so in the Base di calcolo aside) —
-  // ONE basis for the number, the verdict and the chart (The Same-Basis Rule). `getFIREData`'s
-  // own metrics read the last full year only, which on a fresh account is a 0 that would call
-  // the number «non calcolabile» while the projection kept drawing.
-  // The requirement of TODAY (`resolveFireRequirement`, the ONE rule the walk runs year by
-  // year): the bridge while the unlock is ahead, the pensions from their start, the tax on what
-  // the portfolio funds. `withoutBridge` is the same number with the fund free — the caption's
-  // «senza il vincolo sarebbe».
-  const requirementToday = useMemo(() => {
-    if (!cashflowData || currentNetWorth <= 0 || projectionAnnualExpenses <= 0 || previewWithdrawalRate <= 0) return null;
-    const flows = flowsInput ? buildFlowSchedule(flowsInput.resolved, { inflationRate: scenarios.base.inflationRate, planExpensesFromCashflow: flowsInput.planExpensesFromCashflow }) : undefined;
-    const shared = { annualExpenses: projectionAnnualExpenses, withdrawalRate: previewWithdrawalRate, scenario: scenarios.base, yearsElapsed: 0, honest, gainShare: gainShareToday, flows };
-    const bridge = pensionBridgeValueToday > 0 && pensionBridgeYearsToUnlock > 0 ? { compartmentValue: pensionBridgeValueToday, yearsToUnlock: pensionBridgeYearsToUnlock } : undefined;
-    return { withBridge: resolveFireRequirement({ ...shared, bridge }), withoutBridge: resolveFireRequirement(shared), flows, bridge };
-  }, [cashflowData, currentNetWorth, projectionAnnualExpenses, previewWithdrawalRate, scenarios.base, honest, gainShareToday, pensionBridgeValueToday, pensionBridgeYearsToUnlock, flowsInput]);
-
-  const displayedFireMetrics = useMemo(() => {
-    if (!cashflowData || currentNetWorth <= 0) return null;
-    const metrics = calculateFIREMetrics(currentNetWorth, projectionAnnualExpenses, previewWithdrawalRate, liquidNetWorth, illiquidNetWorth);
-    if (!requirementToday) return metrics;
-    const { requirement } = requirementToday.withBridge;
-    return {
-      ...metrics,
-      fireNumber: requirement,
-      progressToFI: requirement > 0 ? (currentNetWorth / requirement) * 100 : 0,
-    };
-  }, [cashflowData, currentNetWorth, projectionAnnualExpenses, liquidNetWorth, previewWithdrawalRate, illiquidNetWorth, requirementToday]);
-
-  // What is inside the number, for the rows, the caption and the verdict (declared when out).
-  const honestSummary = useMemo<FireTargetHonest>(() => {
-    const req = requirementToday?.withBridge;
-    const pensionsConsidered = req?.pensionsConsidered ?? false;
-    return {
-      pensionsConsidered,
-      pensionNetAnnual: req?.pensionNetAnnual ?? 0,
-      pensionStartCalendarYear:
-        pensionsConsidered && req?.pensionLatestStartAge !== null && req?.pensionLatestStartAge !== undefined && userAge !== undefined
-          ? currentYearForFan + Math.max(0, Math.ceil(req.pensionLatestStartAge - userAge))
-          : null,
-      pensionCount: req?.pensionCount ?? 0,
-      pensionsSkipped: pensionsConsidered ? null : honest.pensions.length === 0 ? 'none-saved' : 'no-age',
-      taxConsidered: taxProfile !== null,
-      taxRate: taxProfile?.rate ?? 0,
-      gainSharePct: gainShareToday * 100,
-      taxSkipped: taxProfile ? null : 'no-basis',
-    };
-  }, [requirementToday, userAge, currentYearForFan, honest.pensions.length, taxProfile, gainShareToday]);
-
-  const projectionBridge = useMemo<FireProjectionPensionBridge | undefined>(
-    () => (pensionBridgeValueToday > 0 && pensionBridgeYearsToUnlock > 0 ? { valueToday: pensionBridgeValueToday, yearsToUnlock: pensionBridgeYearsToUnlock } : undefined),
-    [pensionBridgeValueToday, pensionBridgeYearsToUnlock],
-  );
-  // The deterministic projection — the verdict, the Traguardo and the Scenari share it.
-  const projection = useMemo(() => {
-    if (currentNetWorth <= 0 || projectionAnnualExpenses <= 0 || previewWithdrawalRate <= 0) return null;
-    return calculateFIREProjection(
-      currentNetWorth,
-      projectionAnnualExpenses,
-      annualSavings,
-      previewWithdrawalRate,
-      scenarios,
-      PROJECTION_HORIZON_YEARS,
-      projectionBridge,
-      honest,
-      // RP7 (D6): the saving grows with the scenario's inflation, the pace Coast already keeps.
-      true,
-      flowsInput,
-    );
-  }, [currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios, projectionBridge, honest, flowsInput]);
   // D-F12: the same walk with the list empty — the Base di calcolo says how far the flows move the FIRE year.
   const flowsEffect = useMemo<FlowsEffect>(() => {
     const yearOf = (years: number | null | undefined): number | null => (years === null || years === undefined ? null : currentYearForFan + years);

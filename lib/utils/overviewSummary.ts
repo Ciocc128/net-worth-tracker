@@ -38,6 +38,8 @@ export const OVERVIEW_SECTION_IDS = {
   composizione: 'panoramica-composizione',
   costi: 'panoramica-costi',
   obiettivo: 'panoramica-obiettivo',
+  // «Verso il FIRE» (ES2, 2026-11-26): only for a viewer with FIRE off and a plan written (doc/essenziale/README.md § 5.7).
+  fire: 'panoramica-fire',
   spese: 'panoramica-spese',
   entrate: 'panoramica-entrate',
   asset: 'panoramica-asset',
@@ -152,6 +154,7 @@ export function describeOverviewAsides(overview: DashboardOverviewPayload): Reco
     [OVERVIEW_SECTION_IDS.composizione]: classes.length > 0 ? 'per asset class' : 'nessun asset',
     [OVERVIEW_SECTION_IDS.costi]: 'stima annua',
     [OVERVIEW_SECTION_IDS.obiettivo]: goals.some((goal) => goal.currentValue < goal.targetAmount) ? 'in corso' : 'raggiunto',
+    [OVERVIEW_SECTION_IDS.fire]: 'a che punto sono',
     [OVERVIEW_SECTION_IDS.spese]: stats && stats.topExpenseCategories.length > 0 ? 'le prime del mese' : 'nessuna spesa questo mese',
     [OVERVIEW_SECTION_IDS.entrate]: stats && stats.topIncomeCategories.length > 0 ? 'le prime del mese' : 'nessuna entrata questo mese',
     [OVERVIEW_SECTION_IDS.asset]: (overview.topAssets ?? []).length > 0 ? 'valore, peso, rendimento' : 'nessun asset in portafoglio',
@@ -232,6 +235,8 @@ export function describeOverviewClosedAnswers(
     [OVERVIEW_SECTION_IDS.composizione]: composizione,
     [OVERVIEW_SECTION_IDS.costi]: costi,
     [OVERVIEW_SECTION_IDS.obiettivo]: obiettivo,
+    // The figures come from the FIRE hook inside the tile, not from the payload: the row keeps its aside.
+    [OVERVIEW_SECTION_IDS.fire]: null,
     [OVERVIEW_SECTION_IDS.spese]: stats ? describeLeadingCategory(stats.topExpenseCategories, 'expenses') : null,
     [OVERVIEW_SECTION_IDS.entrate]: stats ? describeLeadingCategory(stats.topIncomeCategories, 'income') : null,
     [OVERVIEW_SECTION_IDS.asset]: asset,
