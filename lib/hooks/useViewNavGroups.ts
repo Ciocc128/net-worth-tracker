@@ -12,15 +12,15 @@ import { countMenuEntries, describeViewChange, resolveNavGroups, type ViewAreas,
 
 /**
  * The menu's groups for the viewer's view (doc/essenziale/README.md § 5.4) — what Sidebar, the «Altro» sheet and the
- * shell's band draw. The account's goals switch is read only while FIRE is off (it names the «Traguardi» entry,
- * D-ES9): for a reader in Completa the shell reads nothing it did not read before.
+ * shell's band draw. The account's goals switch (it names the «Traguardi» entry, RU11) comes from the settings the shell
+ * and every page already read through the same key.
  */
 export function useViewNavGroups(): ViewNavGroup[] {
   const pathname = usePathname() ?? '';
   const { areas } = useViewAreas();
   const { ownerId } = useActiveAccount();
-  const { data: settings } = useSettings(ownerId, { enabled: !areas.fire });
-  const goalsEnabled = !areas.fire && settings?.goalBasedInvestingEnabled === true;
+  const { data: settings } = useSettings(ownerId);
+  const goalsEnabled = settings?.goalBasedInvestingEnabled === true;
   return useMemo(() => resolveNavGroups(areas, { goalsEnabled }, pathname), [areas, goalsEnabled, pathname]);
 }
 
@@ -36,7 +36,7 @@ export function useViewChangeAnnouncer() {
   return (areas: ViewAreas, label: string) => {
     // From the cache only: the account menu is in the shell, and the shell reads nothing new for this sentence.
     const settings = ownerId ? queryClient.getQueryData<AssetAllocationSettings | null>(queryKeys.settings.all(ownerId)) : undefined;
-    const groups = resolveNavGroups(areas, { goalsEnabled: !areas.fire && settings?.goalBasedInvestingEnabled === true });
+    const groups = resolveNavGroups(areas, { goalsEnabled: settings?.goalBasedInvestingEnabled === true });
     announce(describeViewChange(label, countMenuEntries(groups, showAssistant)));
   };
 }

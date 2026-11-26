@@ -64,16 +64,13 @@ export const VIEW_ROUTES: readonly ViewRoute[] = [
     href: '/dashboard/fire-simulations',
     area: 'fire',
     // The old ids (`coast`, `montecarlo`, `proiezione`) stay for a bookmark: `hiddenAreaAt` reads `?tab=` as it is.
-    tabs: { approfondimenti: 'simulazioni', coast: 'simulazioni', montecarlo: 'simulazioni', proiezione: 'simulazioni', goals: null },
+    tabs: { approfondimenti: 'simulazioni', coast: 'simulazioni', montecarlo: 'simulazioni', proiezione: 'simulazioni' },
     defaultTab: 'quando',
   },
   { href: '/dashboard/pension', area: 'previdenza' },
   { href: '/dashboard/cashflow', tabs: { dividends: 'dividendi' }, defaultTab: 'tracking' },
   { href: '/dashboard/settings', tabs: { avanzate: 'simulazioni' }, defaultTab: 'account' },
 ];
-
-/** FIRE › Traguardi as a menu entry of its own while FIRE is off and the account has the goals on (D-ES9). */
-export const GOALS_NAV_HREF = '/dashboard/fire-simulations?tab=goals';
 
 // ─── First paint (D-ES15) ────────────────────────────────────────────────────
 

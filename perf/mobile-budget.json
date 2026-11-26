@@ -89,9 +89,8 @@
       "vista": "Dopo il FIRE",
       "target": true
     },
-    "fire-obiettivi": {
-      "path": "/dashboard/fire-simulations",
-      "tab": "Traguardi",
+    "traguardi": {
+      "path": "/dashboard/traguardi",
       "target": true
     },
     "fire-proiezione": {
@@ -620,7 +619,7 @@
         "raisedBy": "2026-11-21, deriva a 1024 orizzontale dall'ultima revisione (05/11), già rossa prima della fascia desktop; il misurato fa da tetto, causa non bisecata; da confermare dal proprietario (screens 1.29 → 1.43) · Prima: 2026-10-18: figuresAboveFold 13 → 17, figuresOutsideVerdict 5 → 9 — la terza cella «Spesa al 90%» della striscia di Dopo il FIRE (D-CU17) e Spesa sostenibile come ultima riga chiusa con la sua risposta (D-CU10); OK del proprietario sulla card; 2026-10-17 (T5, fork): «Il mio piano» in testa alla pagina FIRE e le superfici del fork fuori dalla composizione (D-UP4: Accumulo, Proiezione, Simulazioni; nei tab Età obiettivo, Sensibilità, Spesa sostenibile come tessere piane) spostano la prima schermata; il misurato fa da tetto (screens 1.1 → 1.79, figuresAboveFold 8 → 18, figuresOutsideVerdict 5 → 12, tilesAboveFold 4 → 3, tilesFullyAboveFold 4 → 2); 2026-10-16: figuresAboveFold 6 → 8, figuresOutsideVerdict 3 → 5 — lo stage in orizzontale: ogni riga chiusa dell'indice stampa la sua risposta (DESIGN.md → The Closed-Row Rule), una cifra che il censimento conta sopra la piega; 2026-10-16: figuresOutsideVerdict 2 → 3 — il misurato fa da tetto — a 768/1024 la metrica era informativa e l'obiettivo è il misurato del 2026-10-16 (DESIGN.md → The First-Screen Rule); 2026-10-10: pill a 44 px"
       }
     },
-    "fire-obiettivi": {
+    "traguardi": {
       "390": {
         "screens": 1.44,
         "tilesAboveFold": 3,
