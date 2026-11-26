@@ -137,3 +137,29 @@ test('the doors go with their area (P1–P4, P8) and come back in Completa', asy
     await expect(page.locator(`main ${door}`), `${path} → ${door} in Essenziale`).toHaveCount(0);
   }
 });
+
+test('«Verso il FIRE» is in Panoramica with FIRE off and a plan written; «Mostra FIRE nel menu» brings FIRE back and takes it away', async ({ page }) => {
+  await page.goto('/dashboard');
+  await pageReady(page, 'Panoramica');
+  const tile = page.getByRole('region', { name: 'Verso il FIRE' });
+  await expect(tile).toBeVisible({ timeout: 60_000 });
+  // The figures are the Calculator's: the hero is a whole percent, the line says «{capitale} di {numero FIRE}» and a year.
+  await expect(tile).toContainText(/\d+%/);
+  await expect(tile).toContainText(/ di .*€/);
+  await expect(tile).toContainText(/FIRE (previsto nel \d{4}|già raggiunto|oltre l.orizzonte)/);
+
+  await tile.getByRole('button', { name: 'Mostra FIRE nel menu' }).click();
+  await expect(tile).toHaveCount(0);
+  await expect(bandGroups(page)).toHaveText(['Panoramica', 'Entrate e spese', 'Investimenti', 'Futuro', 'Storia']);
+  await expect.poll(async () => (await readView()).overrides).toEqual({ fire: true });
+});
+
+test('in Completa «Verso il FIRE» is not in Panoramica', async ({ page }) => {
+  await page.goto('/dashboard');
+  await pageReady(page, 'Panoramica');
+  const menu = await openAccountMenu(page);
+  await menu.getByRole('radio', { name: 'Completa' }).click();
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => (await readView()).viewPreset).toBe('completa');
+  await expect(page.getByRole('region', { name: 'Verso il FIRE' })).toHaveCount(0);
+});

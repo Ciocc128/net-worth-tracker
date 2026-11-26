@@ -337,3 +337,21 @@ The hero (`OverviewAnimatedCurrency`, shared with Patrimonio and Previdenza › 
 ## AL1 — un tasso senza senso dice gli euro (2026-10-16)
 
 Quando il tasso di risparmio vissuto è sotto −100% (77 € di entrate, 1559 € di spese: «−1926%») o non c'è entrata ma il risparmio vissuto è negativo, la clausola del verdetto dice «Finora le spese superano le entrate di 1482 €» e nomina il calendario come sempre (`overspendInEuro`, `overviewNarrative.ts`); il titolo resta «cresce, ma le spese superano le entrate». Sopra −100% la percentuale resta.
+
+## Verso il FIRE (ES2, 2026-11-26, doc/essenziale/README.md § 5.7, § 12)
+
+A tile for a viewer with FIRE off (the Essenziale view) AND a FIRE plan written in the account (`userAge`, `withdrawalRate`):
+the capital over the Calculator's number as a whole percent, a bar, «{capitale} di {numero FIRE} · FIRE previsto nel {anno}»
+(or «già raggiunto», «oltre l'orizzonte»), and «Mostra FIRE nel menu» in the footer (turns the area on). With FIRE on it is
+not there: the number's home is the Calculator (DESIGN.md → The Door-Not-Room Rule).
+
+- **Same figures, one derivation**: `useFireProgress` (`lib/hooks/useFireProgress.ts`), the first half of
+  `FireCalculatorTab`, read by both. «Numero FIRE» is the Calculator's requirement and nothing else (NF1).
+- **Chunk and reads**: `VersoIlFireTile` is a `lazyComponent` mounted only when the condition holds; a viewer with FIRE on
+  reads and downloads nothing more. For one with FIRE off the page reads the settings (the shared query) and, when the plan is
+  written, what the Calculator reads (assets, snapshots, the recent expenses window, the dated flows).
+- **Place**: row 5 at 1440 beside Sintesi, Costi and Obiettivi share four columns; with all three present Costi gives way
+  (still a closed row below `desktop:`). Below `desktop:` a closed row `panoramica-fire`, aside «a che punto sono», after
+  Obiettivi; the landscape index keeps the aside (no answer: the figures are not in the payload).
+- **Blind spot**: the Traguardo tile of the Calculator also carries the name «Verso il FIRE» (its own region); they are never on
+  the same page.

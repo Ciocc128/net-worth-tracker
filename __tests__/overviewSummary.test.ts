@@ -255,6 +255,7 @@ describe('describeOverviewAsides', () => {
       [OVERVIEW_SECTION_IDS.composizione]: 'per asset class',
       [OVERVIEW_SECTION_IDS.costi]: 'stima annua',
       [OVERVIEW_SECTION_IDS.obiettivo]: 'in corso',
+      [OVERVIEW_SECTION_IDS.fire]: 'a che punto sono',
       [OVERVIEW_SECTION_IDS.spese]: 'le prime del mese',
       [OVERVIEW_SECTION_IDS.entrate]: 'le prime del mese',
       [OVERVIEW_SECTION_IDS.asset]: 'valore, peso, rendimento',
@@ -310,6 +311,8 @@ describe('describeOverviewClosedAnswers (the landscape index)', () => {
       [OVERVIEW_SECTION_IDS.composizione]: 'Azioni 68,4%',
       [OVERVIEW_SECTION_IDS.costi]: 'costo annuo 680 €',
       [OVERVIEW_SECTION_IDS.obiettivo]: 'Casa 40%',
+      // «Verso il FIRE» takes its figures from the FIRE hook inside the tile, not from the payload: the row keeps its aside.
+      [OVERVIEW_SECTION_IDS.fire]: null,
       [OVERVIEW_SECTION_IDS.spese]: 'tutto in Casa',
       [OVERVIEW_SECTION_IDS.entrate]: 'tutto da Stipendio',
       [OVERVIEW_SECTION_IDS.asset]: 'VWCE 40,0%',

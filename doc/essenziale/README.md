@@ -10,7 +10,7 @@
 > Pagina «oggi / proposta» (WORKFLOW.md regola 8): § 1.1.
 >
 > **ES1 implementata il 2026-11-26** (branch `claude/project-thread-gmm1te`): § 11 dice cosa è entrato e dove.
-> ES2 («Verso il FIRE») segue in una PR sua.
+> **ES2 implementata il 2026-11-26** (branch `claude/project-thread-gmm1te`, dopo il merge di ES1): § 12.
 
 ## 1. In breve
 
@@ -378,3 +378,30 @@ Valori inventati e tondi (WORKFLOW.md regola 7).
 - **Sul Mac, nella PR**: `perf:build` + `perf:budget` (la shell cresce di qualche KB), `mobile:budget` per la voce di
   Impostazioni › Funzioni (la scheda si allunga del tile «Cosa vedi»), il giudizio visivo.
 
+## 12. ES2 — com'è stata fatta (2026-11-26)
+
+- **Codice**: `lib/hooks/useFireProgress.ts` (la derivazione che era la prima metà di `FireCalculatorTab`, spostata intera, non
+  rifatta: impostazioni, strumenti, snapshot, finestra delle spese recente → il capitale `K`, `requirementToday`,
+  `displayedFireMetrics`, la proiezione Base), `lib/utils/fireProgress.ts` (`isFirePlanFilled`, `describeFireProgress`, pure),
+  `components/dashboard/overview/VersoIlFireTile.tsx` (+ il suo scheletro), `app/dashboard/page.tsx` (la condizione, il chunk
+  `lazyComponent`, la riga 5 della griglia), `overviewSummary.ts` (`OVERVIEW_SECTION_IDS.fire`).
+- **Il Calcolatore non cambia**: stesse query key, stessi memo, nello stesso ordine; la storia del «Dettaglio» (la finestra
+  delle spese più vecchia, `buildFIREData`) resta nella scheda. Le spec FIRE (desktop, mobile, degraded) e Panoramica sono verdi.
+- **Quando**: area `fire` spenta e `userAge` + `withdrawalRate` salvati. Con FIRE accesa Panoramica non legge le impostazioni
+  in più (`useSettings(..., { enabled: !showFireArea })`) e il chunk non si scarica; con FIRE spenta e il piano non scritto
+  il tile non c'è e non si legge altro oltre alle impostazioni (la query condivisa, una volta per sessione).
+- **Scelte prese scrivendo il codice** (nessuna cambia una decisione):
+  - la riga 5 della griglia a 1440 ha sette colonne: Sintesi 3, gli altri si dividono le quattro. Con Costi, Obiettivi e
+    «Verso il FIRE» tutti presenti Costi cede (`desktop:hidden`, resta riga chiusa sotto `desktop:`); in ogni altro caso la
+    griglia è quella di prima, colonna per colonna;
+  - la riga chiusa dice «a che punto sono» (la parola); la risposta nell'indice orizzontale resta `null`, perché le cifre
+    nascono dall'hook dentro il tile e non dal payload della Panoramica (leggerle nella pagina vorrebbe dire le stesse
+    letture per chi non vede il tile);
+  - la barra di avanzamento scende a 0–100 anche se il capitale supera il numero (la cifra eroe no: «117%»);
+  - la fixture `essenziale@example.com` riceve `userAge 40` e `withdrawalRate 4` (il piano che il tile richiede).
+- **Prove**: `__tests__/fireProgress.test.ts` (il criterio 8 col motore vero: 24.000 € al 4% = 600.000 €, 150.000 € = 25%; il
+  criterio 9, la condizione), `e2e/essenziale.spec.ts` (il tile c'è con FIRE spenta, «Mostra FIRE nel menu» lo toglie e riporta
+  «Futuro»; in Completa non c'è).
+- **Sul Mac, nella PR**: `perf:build` + `perf:budget`, `mobile:budget` di Panoramica (invariato sul census, che è in
+  Completa), le letture Firestore aggiunte a una Panoramica fredda per chi ha FIRE spenta e il piano scritto (capacità Spark,
+  § 8 «Letture»), il giudizio visivo della riga 5 a 1440 con quattro tile e con tre.
