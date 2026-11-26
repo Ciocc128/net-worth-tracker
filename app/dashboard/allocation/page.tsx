@@ -157,6 +157,8 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { PageTabs, type TabDef } from '@/components/layout/PageTabs';
+import { usePublishOpenTab, useViewAreas } from '@/contexts/ViewAreasContext';
+import { filterTabsByArea } from '@/lib/utils/viewAreas';
 import { pageTabPanelId } from '@/components/layout/PageTabBar';
 import { TabsContent } from '@/components/ui/tabs';
 import { VerdictStrip } from '@/components/ui/verdict-strip';
@@ -269,7 +271,17 @@ export default function AllocationPage() {
     riskFreeEstimate: riskFreeEstimate.value,
   });
   const targetsDirty = targetsController.dirty;
-  const allocationTabs = useMemo(() => ALLOCATION_TABS.map((tab) => (tab.value === 'strategia' ? { ...tab, unsaved: targetsDirty } : tab)), [targetsDirty]);
+  // The viewer's view (doc/essenziale/README.md § 5.4): Accumulo leaves the bar when its area is off, and still opens
+  // from `?tab=accumulo`, with the «non è nel tuo menu» line under the header.
+  const { areas: viewAreas } = useViewAreas();
+  const allocationTabs = useMemo(
+    () =>
+      filterTabsByArea('/dashboard/allocation', ALLOCATION_TABS, viewAreas, activeTab).map((tab) =>
+        tab.value === 'strategia' ? { ...tab, unsaved: targetsDirty } : tab,
+      ),
+    [targetsDirty, viewAreas, activeTab],
+  );
+  usePublishOpenTab('/dashboard/allocation', activeTab);
 
   // A reload or a closed tab with the targets' draft pending asks first (the browser's own prompt);
   // an in-app link does not (the App Router has no guard), so the bar on Strategia is the reminder.

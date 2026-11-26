@@ -101,7 +101,9 @@ async function openTab(page: Page, tab: 'funzioni' | 'cashflow') {
 const openFunzioni = (page: Page) => openTab(page, 'funzioni');
 const openCashflow = (page: Page) => openTab(page, 'cashflow');
 
-const rolesTile = (page: Page) => page.locator('#settings-tab-pill-panel-funzioni section').first();
+// The tile of the account's switches: since F17 the tab opens on «Cosa vedi» (the viewer's view), so not `.first()`.
+const rolesTile = (page: Page) =>
+  page.locator('#settings-tab-pill-panel-funzioni section').filter({ has: page.getByRole('switch', { name: 'Ruoli 50/30/20' }) });
 const unsavedBar = (page: Page) => page.getByRole('region', { name: 'Modifiche non salvate' });
 const dialog = (page: Page) => page.getByRole('dialog');
 

@@ -69,6 +69,8 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { PageTabs } from '@/components/layout/PageTabs';
 import type { TabDef } from '@/components/layout/PageTabBar';
+import { usePublishOpenTab, useViewAreas } from '@/contexts/ViewAreasContext';
+import { filterTabsByArea } from '@/lib/utils/viewAreas';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
@@ -208,6 +210,12 @@ export default function SettingsPage() {
     const unsaved = new Set(unsavedKey.split(','));
     return SETTINGS_TABS.map((tab) => ({ ...tab, unsaved: unsaved.has(tab.value) }));
   }, [unsavedKey]);
+  // The viewer's view (doc/essenziale/README.md D-ES12): Avanzate follows Simulazioni; the other four tabs always. A
+  // hidden tab with unsaved edits still counts in the sentence below (the draft is the page's, not the bar's).
+  const { areas: viewAreas } = useViewAreas();
+  const shownSettingsTabs = filterTabsByArea('/dashboard/settings', settingsTabs, viewAreas, activeTab);
+  const shownLoadingTabs = filterTabsByArea('/dashboard/settings', SETTINGS_TABS, viewAreas, activeTab);
+  usePublishOpenTab('/dashboard/settings', activeTab);
   const unsavedSentence = describeUnsavedChanges(settingsTabs.filter((tab) => tab.unsaved).map((tab) => tab.label));
   const hasUnsavedChanges = unsavedSentence !== null;
 
@@ -331,7 +339,7 @@ export default function SettingsPage() {
       <PageContainer>
         <PageHeader {...PAGE_HEADER} freshness={freshness} />
         <PageTabs
-          tabs={SETTINGS_TABS}
+          tabs={shownLoadingTabs}
           value={activeTab}
           onValueChange={handleTabChange}
           layoutId={SETTINGS_TABS_LAYOUT_ID}
@@ -397,7 +405,7 @@ export default function SettingsPage() {
       />
 
       <PageTabs
-        tabs={settingsTabs}
+        tabs={shownSettingsTabs}
         value={activeTab}
         onValueChange={handleTabChange}
         layoutId={SETTINGS_TABS_LAYOUT_ID}

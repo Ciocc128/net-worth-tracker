@@ -196,3 +196,34 @@ above) and the `Switch` its 44×44 hit box on 2026-10-08, and the `CLAUDE.md` �
 ## Il fascicolo (the shell's band, 2026-11-20)
 
 Dossier `doc/fascia-desktop/README.md` (D-FD1–D-FD22; § Seconda versione wins), DESIGN.md → The Folder-Row Rule. `ShellBand` (above `<main>`, under the demo banner, `hidden band:block`) reads `navGroups` through `lib/utils/folderNav.ts` (`buildFolders`, `findOpenFolder`, `bandPages` — the tabs by their menu names, D-FD19 —, `folderTarget`: a group opens on the last page read in it, `sessionStorage`, D-FD11); `ShellBandProvider` (`components/layout/ShellBandSlots.tsx`, light on purpose: the landing's `PageHeader` imports it; in `app/dashboard/layout.tsx`, around the band and `<main>`) holds the band's two slots, and `PageHeader` portals the page's fact (description + freshness) and actions into them (`ShellBandPortals`, keyed by path so they fade in with the page), keeping an `sr-only` `h1` in `<main>`; outside the provider (the landing) `PageHeader` keeps its compact row. The variant `band:`/`max-band:` and `BAND_QUERY` (`lib/constants/navigation.ts`, `PILL_VISIBLE_QUERY` derives from it) pick the shell; `desktop:` still picks the page's composition (D-FD17). At `band:` a navigation is the soft scene (`useSceneNavigation`, D-FD22): the band is live DOM, so its group bar and open tab (`layoutId` `band-group-bar`, `band-page-<group>`) slide at the click on an optimistic `pending` href. Tokens in `app/globals.css` (`--page-ground`, `--page-ink`, `--shell-band-fill`, `--folder-rule`, `--folder-bar` on the root; `--band-ink-closed`, `--band-hover` on `.shell-band`; `.band-page-joint` and `.band-tab-closed:hover` — the open tab's silhouette and the hover's, same geometry, held by `__tests__/bandTabSilhouette.test.ts` —, `.shell-band-in`; the hidden scrollbar of `#page-main`). `AppSidebar` returns `null` outside the Sheet's width. Blind spots: at 960–1439 CSS px with a mouse the band is the desktop's while the page under it is still the compact composition (D-FD17, by choice); the person shows no email on the button, the menu does; the account button is a box of its size until Auth answers (`e2e/account.ts` waits on it).
+
+## La vista Essenziale (F17 ES1, 2026-11-26, `doc/essenziale/README.md`)
+
+The viewer's «Essenziale · Completa» view hides DOORS, never rooms (DESIGN → The Door-Not-Room Rule).
+
+- **One table, one resolver.** `lib/constants/viewAreas.ts` lists the seven areas (`VIEW_AREAS`, a dependant right
+  under its head) and which routes and tabs belong to them (`VIEW_ROUTES`); `lib/utils/viewAreas.ts` resolves
+  (`resolveViewAreas`: preset → overrides → dependencies), builds the menu (`resolveNavGroups`, the ONE filter of
+  `navGroups`), the tabs (`filterTabsByArea`) and the line (`hiddenAreaAt`). `navGroups` stays the whole list:
+  `ShellBand` (through `buildFolders(showAssistant, groups)`), `AppSidebar` and `SecondaryMenuDrawer` read
+  `useViewNavGroups()`. `secondaryHrefs` stays whole on purpose: a hidden page opened from a link is still «Altro».
+- **The open page stays in its group** while the reader is on it (`resolveNavGroups(…, pathname)`), and never carries
+  `data-view-area`; with FIRE off and the account's goals on, FIRE's entry is «Traguardi» on
+  `/dashboard/fire-simulations?tab=goals` (`isNavItemActive` ignores the query since 2026-11-26).
+- **First paint** (D-ES15), as the theme: `localStorage['view-areas']` → `VIEW_AREAS_INIT_SCRIPT` in `<head>` puts
+  `data-view-off="…"` on `<html>`; every entry, band tab and band folder of an area carries `data-view-area`, and the
+  inline `<style>` from `buildViewAreasStyle` hides it with `display:none` before hydration (a folder hides only when
+  ALL its areas are off: one rule per group combination, from `navAreaCombinations`). The server's snapshot is
+  Completa; `ViewAreasContext` re-renders with the stored view and, after the authentication, aligns it with
+  `userPreferences/{uid}` once per uid (the document wins; absent = Completa). On a new device the first load shows
+  the full menu for the length of that read: declared. `__tests__/viewAreas.test.ts` runs the inline script against
+  the TypeScript; `e2e/essenziale.spec.ts` samples every frame of a reload.
+- **Tabs**: the four tabbed pages pass `filterTabsByArea(route, tabs, areas, activeTab)` to `PageTabs` and publish
+  their open tab (`usePublishOpenTab`: FIRE keeps it in state, not in the URL). A hidden tab asked for by `?tab=`
+  opens and keeps its place in the bar while open. `PageTabs` draws no bar under two tabs (FIRE reduced to Traguardi).
+- **«{Area} non è nel tuo menu.»** (`HiddenAreaNotice`) is rendered by `PageHeader` inside the dashboard, after the
+  sticky box; «Mostrala nel menu» turns that area (and its head) on. A `role="status"`, an outline button.
+- **The account menu** holds «Vista» (`ViewPicker`, a `radiogroup`) and «Scegli le aree…» under the theme.
+- **Fixture**: `essenziale@example.com` (`npm run e2e:seed:essenziale`: the base portfolio under ids prefixed with the
+  uid, then `viewPreset: 'essenziale'`), projects `essenziale` and `essenziale-mobile`. Every other fixture and the
+  census stay in Completa (`allowUser` writes no view).

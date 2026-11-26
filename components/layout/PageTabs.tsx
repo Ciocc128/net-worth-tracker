@@ -32,7 +32,9 @@ export function PageTabs({ tabs, value, onValueChange, layoutId, ariaLabel, rend
   };
   return (
     <Tabs value={value} onValueChange={handleValueChange} className="w-full" data-tab-switched={switched ? '' : undefined}>
-      {loading ? (
+      {/* A page left with ONE visible tab by the viewer's view (FIRE reduced to Traguardi, doc/essenziale/README.md
+          § 5.4) draws no bar: a bar of one tab switches nothing. */}
+      {tabs.length < 2 && !loading ? null : loading ? (
         // Same height as the desktop underline bar (13px label + py-2.5) so nothing jumps.
         <Skeleton className="h-10 w-full rounded-none border-b border-border/50 bg-muted/30" />
       ) : (

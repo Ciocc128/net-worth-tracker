@@ -31,9 +31,13 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
 }
 
 const PROJECT_ID = process.env.GCLOUD_PROJECT || 'demo-net-worth';
-const TEST_UID = 'test-user-1';
-const TEST_EMAIL = 'test@example.com';
+// The base account by default. `SEED_UID`/`SEED_EMAIL` seed the same portfolio for ANOTHER fixture account (the
+// Essenziale view's, `npm run e2e:seed:essenziale`): every document id then carries the uid, so the base account's
+// `seed-*` documents are never overwritten.
+const TEST_UID = process.env.SEED_UID || 'test-user-1';
+const TEST_EMAIL = process.env.SEED_EMAIL || 'test@example.com';
 const TEST_PASSWORD = 'test1234';
+const sid = (id: string) => (process.env.SEED_UID ? `${process.env.SEED_UID}-${id}` : id);
 
 const app = initializeApp({ projectId: PROJECT_ID });
 const db = getFirestore(app);
@@ -70,7 +74,7 @@ async function seedAuthUser(): Promise<void> {
 async function seedAssets(): Promise<void> {
   const assets: { id: string; data: Record<string, unknown> }[] = [
     {
-      id: 'seed-vwce',
+      id: sid('seed-vwce'),
       data: {
         ...assetBase(),
         ticker: 'VWCE.DE',
@@ -88,7 +92,7 @@ async function seedAssets(): Promise<void> {
       },
     },
     {
-      id: 'seed-aapl',
+      id: sid('seed-aapl'),
       data: {
         ...assetBase(),
         ticker: 'AAPL',
@@ -104,7 +108,7 @@ async function seedAssets(): Promise<void> {
       },
     },
     {
-      id: 'seed-btp',
+      id: sid('seed-btp'),
       data: {
         ...assetBase(),
         ticker: 'BTP',
@@ -122,7 +126,7 @@ async function seedAssets(): Promise<void> {
       },
     },
     {
-      id: 'seed-btc',
+      id: sid('seed-btc'),
       data: {
         ...assetBase(),
         ticker: 'BTC',
@@ -145,7 +149,7 @@ async function seedAssets(): Promise<void> {
       // orphan baseline is the whole point of the fixture: it survives the conversion. It is an
       // opening position, not a purchase — `computeInvestedCapital` skips every baseline since
       // 2026-09-20, whatever the asset type.
-      id: 'seed-pension-legacy',
+      id: sid('seed-pension-legacy'),
       data: {
         ...assetBase(),
         ticker: 'FONDOPENSIONE',
@@ -162,7 +166,7 @@ async function seedAssets(): Promise<void> {
       },
     },
     {
-      id: 'seed-cash',
+      id: sid('seed-cash'),
       data: {
         ...assetBase(),
         ticker: 'CASH',
@@ -176,7 +180,7 @@ async function seedAssets(): Promise<void> {
       },
     },
     {
-      id: 'seed-home',
+      id: sid('seed-home'),
       data: {
         ...assetBase(),
         ticker: 'CASA',
@@ -199,7 +203,7 @@ async function seedAssets(): Promise<void> {
 async function seedSettings(): Promise<void> {
   await db.collection('assetAllocationTargets').doc(TEST_UID).set({
     userId: TEST_UID,
-    laborIncomeCategoryIds: ['seed-cat-income'],
+    laborIncomeCategoryIds: [sid('seed-cat-income')],
     targets: {
       // Sub-targets on equity ONLY: Allocazione's plans descend class → sub-category → instrument,
       // and a fixture with no sub-target can only ever prove the class level (the reason the page
@@ -215,9 +219,9 @@ async function seedSettings(): Promise<void> {
 
 async function seedCategoriesAndExpenses(): Promise<void> {
   const categories = [
-    { id: 'seed-cat-income', name: 'Stipendio', type: 'income', subCategories: [{ id: 'sub-salary', name: 'Salario' }] },
-    { id: 'seed-cat-food', name: 'Alimentari', type: 'variable', subCategories: [] },
-    { id: 'seed-cat-home', name: 'Casa', type: 'fixed', subCategories: [] },
+    { id: sid('seed-cat-income'), name: 'Stipendio', type: 'income', subCategories: [{ id: 'sub-salary', name: 'Salario' }] },
+    { id: sid('seed-cat-food'), name: 'Alimentari', type: 'variable', subCategories: [] },
+    { id: sid('seed-cat-home'), name: 'Casa', type: 'fixed', subCategories: [] },
   ];
   await Promise.all(
     categories.map((c) =>
@@ -233,9 +237,9 @@ async function seedCategoriesAndExpenses(): Promise<void> {
   );
 
   const expenses = [
-    { id: 'seed-exp-income', type: 'income', categoryId: 'seed-cat-income', categoryName: 'Stipendio', amount: 2500 },
-    { id: 'seed-exp-food', type: 'variable', categoryId: 'seed-cat-food', categoryName: 'Alimentari', amount: -320 },
-    { id: 'seed-exp-rent', type: 'fixed', categoryId: 'seed-cat-home', categoryName: 'Casa', amount: -800 },
+    { id: sid('seed-exp-income'), type: 'income', categoryId: sid('seed-cat-income'), categoryName: 'Stipendio', amount: 2500 },
+    { id: sid('seed-exp-food'), type: 'variable', categoryId: sid('seed-cat-food'), categoryName: 'Alimentari', amount: -320 },
+    { id: sid('seed-exp-rent'), type: 'fixed', categoryId: sid('seed-cat-home'), categoryName: 'Casa', amount: -800 },
   ];
   await Promise.all(
     expenses.map((e) =>
@@ -260,13 +264,13 @@ async function seedCategoriesAndExpenses(): Promise<void> {
 
 async function seedSnapshots(): Promise<void> {
   const byAsset = [
-    { assetId: 'seed-vwce', ticker: 'VWCE.DE', name: 'Vanguard FTSE All-World', quantity: 20, price: 110, totalValue: 2200 },
-    { assetId: 'seed-aapl', ticker: 'AAPL', name: 'Apple Inc.', quantity: 10, price: 175, totalValue: 1750 },
-    { assetId: 'seed-btp', ticker: 'BTP', name: 'BTP Valore 2030', quantity: 5, price: 101, totalValue: 505 },
-    { assetId: 'seed-btc', ticker: 'BTC', name: 'Bitcoin', quantity: 0.5, price: 55000, totalValue: 27500 },
-    { assetId: 'seed-pension-legacy', ticker: 'FONDOPENSIONE', name: 'Fondo Pensione Aperto (tracciato come ETF)', quantity: 12000, price: 1, totalValue: 12000 },
-    { assetId: 'seed-cash', ticker: 'CASH', name: 'Conto Corrente', quantity: 8000, price: 1, totalValue: 8000 },
-    { assetId: 'seed-home', ticker: 'CASA', name: 'Abitazione principale', quantity: 1, price: 250000, totalValue: 250000 },
+    { assetId: sid('seed-vwce'), ticker: 'VWCE.DE', name: 'Vanguard FTSE All-World', quantity: 20, price: 110, totalValue: 2200 },
+    { assetId: sid('seed-aapl'), ticker: 'AAPL', name: 'Apple Inc.', quantity: 10, price: 175, totalValue: 1750 },
+    { assetId: sid('seed-btp'), ticker: 'BTP', name: 'BTP Valore 2030', quantity: 5, price: 101, totalValue: 505 },
+    { assetId: sid('seed-btc'), ticker: 'BTC', name: 'Bitcoin', quantity: 0.5, price: 55000, totalValue: 27500 },
+    { assetId: sid('seed-pension-legacy'), ticker: 'FONDOPENSIONE', name: 'Fondo Pensione Aperto (tracciato come ETF)', quantity: 12000, price: 1, totalValue: 12000 },
+    { assetId: sid('seed-cash'), ticker: 'CASH', name: 'Conto Corrente', quantity: 8000, price: 1, totalValue: 8000 },
+    { assetId: sid('seed-home'), ticker: 'CASA', name: 'Abitazione principale', quantity: 1, price: 250000, totalValue: 250000 },
   ];
   const total = byAsset.reduce((s, a) => s + a.totalValue, 0);
   const illiquid = 250000;

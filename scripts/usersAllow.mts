@@ -1,7 +1,9 @@
 /**
  * The owner's script for the list of admitted users (doc/sicurezza/S2-utenti-ammessi.md RU6).
  *
- *   npm run users:allow -- <email>            # admit the Auth user with that email (source: 'script')
+ *   npm run users:allow -- <email>            # admit the Auth user with that email (source: 'script');
+ *                                             # a user not admitted before starts in the Essenziale view
+ *   npm run users:allow -- <email> --completa # the same, starting in the Completa view
  *   npm run users:allow -- --remove <email>   # take them off the list
  *   npm run users:allow -- --list             # uid, email, date, source of every admitted user
  *
@@ -13,10 +15,11 @@
  */
 import { allowUser, disallowUser } from './lib/allowUser';
 import { ALLOWED_USERS_COLLECTION } from '../types/account';
+import { USER_PREFERENCES_COLLECTION, shouldWriteInitialViewPreset } from '../lib/constants/viewAreas';
 import { confirmProductionWrite } from './lib/confirmProduction';
 
 const args = process.argv.slice(2);
-const USAGE = 'usage: npm run users:allow -- <email> | --remove <email> | --list';
+const USAGE = 'usage: npm run users:allow -- <email> [--completa] | --remove <email> | --list';
 
 async function adminApp() {
   const { initializeApp, cert } = await import('firebase-admin/app');
@@ -58,6 +61,7 @@ async function main() {
   }
 
   const remove = first === '--remove';
+  const completa = args.includes('--completa');
   const email = (remove ? second : first)?.trim().toLowerCase();
   if (!email || email.startsWith('--')) throw new Error(USAGE);
 
@@ -70,8 +74,21 @@ async function main() {
     await disallowUser(db, user.uid);
     console.info(`✓ tolto dalla lista: ${email} (${user.uid})`);
   } else {
+    const wasAllowed = (await db.collection(ALLOWED_USERS_COLLECTION).doc(user.uid).get()).exists;
     await allowUser(db, user.uid, email, 'script');
     console.info(`✓ ammesso: ${email} (${user.uid})`);
+    // D-ES3 (doc/essenziale/README.md § 5.2): the FIRST admission starts the viewer in Essenziale (`--completa`: in
+    // Completa); a user already admitted, or one who already chose a view, keeps theirs. `allowUser` alone (the seeds)
+    // writes no view, so the fixtures stay in Completa.
+    if (!wasAllowed) {
+      const preferencesRef = db.collection(USER_PREFERENCES_COLLECTION).doc(user.uid);
+      const preferences = await preferencesRef.get();
+      if (shouldWriteInitialViewPreset(preferences.exists ? preferences.data() : undefined)) {
+        const viewPreset = completa ? 'completa' : 'essenziale';
+        await preferencesRef.set({ viewPreset }, { merge: true });
+        console.info(`✓ vista iniziale: ${viewPreset === 'essenziale' ? 'Essenziale' : 'Completa'}`);
+      }
+    }
   }
 }
 

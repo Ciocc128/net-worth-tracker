@@ -8,6 +8,9 @@
 > **Stato: specifica scritta il 2026-11-24 su main `cd8d56a` (RU8 unita, RU9 non ancora). Decisioni D-ES1…D-ES7 PRESE da
 > Giorgio il 2026-11-14 (strada C e i cinque default); D-ES8…D-ES19 PRESE da Giorgio il 2026-11-24 («Ok a tutto») (§ 8).**
 > Pagina «oggi / proposta» (WORKFLOW.md regola 8): § 1.1.
+>
+> **ES1 implementata il 2026-11-26** (branch `claude/project-thread-gmm1te`): § 11 dice cosa è entrato e dove.
+> ES2 («Verso il FIRE») segue in una PR sua.
 
 ## 1. In breve
 
@@ -347,3 +350,31 @@ Valori inventati e tondi (WORKFLOW.md regola 7).
    stesso numero (`useFireProgress` letto da tutti e due).
 9. Con FIRE accesa, o senza `userAge`/`withdrawalRate` salvati, il tile non c'è e il suo chunk non si carica (rete).
 10. `mobile:budget` di Panoramica invariato sul census (Completa).
+
+## 11. ES1 — com'è stata fatta (2026-11-26)
+
+- **Codice**: `lib/constants/viewAreas.ts` (la tabella, lo script e lo stile della prima pittura, la prima ammissione),
+  `lib/utils/viewAreas.ts` (le funzioni pure), `contexts/ViewAreasContext.tsx` (lo store, la lettura da `userPreferences`,
+  la regione `polite`), `lib/hooks/useViewNavGroups.ts`, `components/layout/{HiddenAreaNotice,ViewPicker}.tsx`,
+  `components/settings/tabs/CosaVediTile.tsx`; il resto sono modifiche alle letture di § 7.
+- **Scelte prese scrivendo il codice** (nessuna cambia una decisione):
+  - la riga «non è nel tuo menu» la disegna `PageHeader` (una copia nel codice, sotto la testata in ogni pagina della
+    dashboard) invece del layout: il layout non sa dove finisce la testata della pagina;
+  - FIRE tiene la scheda aperta nello stato, non nell'URL: le quattro pagine a schede pubblicano la loro
+    (`usePublishOpenTab`) e la riga legge quella, poi `?tab=`;
+  - una dipendente spenta (Accumulo) dà la riga col SUO nome («Piano di accumulo non è nel tuo menu.»), e «Mostrala nel
+    menu» accende anche il capo: un tocco solo;
+  - `secondaryHrefs` resta intero: una pagina nascosta aperta da un link accende ancora «Altro» nella pillola;
+  - l'annuncio «Vista Essenziale: 8 voci nel menu» conta i Traguardi dalla cache delle impostazioni, senza una lettura
+    in più nella shell;
+  - `scripts/seedEmulator.ts` accetta `SEED_UID`/`SEED_EMAIL` per seminare lo stesso portafoglio su un altro account
+    (gli id prendono il prefisso dell'uid).
+- **Le porte**: P1–P4 nascoste con la loro frase (in Patrimonio il piè di «Guadagno sul costo» resta «Tra gli N
+  strumenti maggiori.»), P8 come `area` di un `ElsewhereItem`; P5, P6, P9 restano (D-ES10, § 5.5); le frasi d'aiuto
+  che nominano Strategia dentro un tile di Investimenti restano (D-ES13).
+- **Prove**: `__tests__/viewAreas.test.ts` (criteri 1–2, le schede, la riga, lo script della prima pittura eseguito
+  contro il TypeScript), `__tests__/activateRoute.test.ts` (criterio 3), `e2e/essenziale.spec.ts` e
+  `e2e/essenziale.mobile.spec.ts` (criteri 4–6, viste rosse rompendo la porta P2 e togliendo lo stile).
+- **Sul Mac, nella PR**: `perf:build` + `perf:budget` (la shell cresce di qualche KB), `mobile:budget` per la voce di
+  Impostazioni › Funzioni (la scheda si allunga del tile «Cosa vedi»), il giudizio visivo.
+

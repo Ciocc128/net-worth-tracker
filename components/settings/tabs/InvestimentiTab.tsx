@@ -21,11 +21,12 @@ import { cn } from '@/lib/utils';
 import type { RiskFreeResolution } from '@/lib/utils/riskFreeRate';
 import { describeCosts, describeFireWealth, describePerformanceBase, describeRiskFreeSource } from '@/lib/utils/settingsNarrative';
 import { NO_SELECTION, STRATEGIA_TARGETS_HREF, type InvestimentiSlice } from '@/lib/utils/settingsDraft';
-import { ElsewhereLine, INTERACTIVE_CONTROL_CLASS, SettingsTabPanel } from './shared';
+import { ElsewhereLine, INTERACTIVE_CONTROL_CLASS, SettingsTabPanel, type ElsewhereItem } from './shared';
 
-const ELSEWHERE = [
-  { what: 'Target per classe e criteri del modello', where: 'Allocazione › Strategia', href: STRATEGIA_TARGETS_HREF },
-  { what: 'Piano FIRE (età, spesa, SWR, fondo, flussi, pensioni)', where: 'FIRE › Il mio piano', href: '/dashboard/fire-simulations?piano=aperto' },
+// Door P8: each pointer goes when its area is off in the viewer's view (`area`, doc/essenziale/README.md § 5.5).
+const ELSEWHERE: ElsewhereItem[] = [
+  { what: 'Target per classe e criteri del modello', where: 'Allocazione › Strategia', href: STRATEGIA_TARGETS_HREF, area: 'allocazione' },
+  { what: 'Piano FIRE (età, spesa, SWR, fondo, flussi, pensioni)', where: 'FIRE › Il mio piano', href: '/dashboard/fire-simulations?piano=aperto', area: 'fire' },
 ];
 
 export interface InvestimentiTabProps {

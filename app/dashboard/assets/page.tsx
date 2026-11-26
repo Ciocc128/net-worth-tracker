@@ -127,6 +127,7 @@ import { TaxCalculatorModal } from '@/components/assets/TaxCalculatorModal';
 import { CashAccountDialog } from '@/components/assets/CashAccountDialog';
 import { AssetDeleteDialog } from '@/components/assets/AssetDeleteDialog';
 import Link from 'next/link';
+import { useViewArea } from '@/contexts/ViewAreasContext';
 
 /** The page's own skeleton spans — the grid above, no numbers. */
 const SKELETON_CELLS = [
@@ -192,6 +193,8 @@ function describePriceUpdate(data: { updated: number; failed: unknown[] }): stri
 }
 
 export default function AssetsPage() {
+  // The viewer's view: door P2 goes with its sentence when Allocazione is off (doc/essenziale/README.md § 5.5).
+  const showAllocazione = useViewArea('allocazione');
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
@@ -834,13 +837,15 @@ export default function AssetsPage() {
                   asideWhenClosed="per asset class"
                   data={assetClassData}
                   footer={
-                    <>
-                      Target e ribilanciamento in{' '}
-                      <Link href="/dashboard/allocation" className={TILE_FOOTER_ACTION_CLASS}>
-                        Allocazione
-                      </Link>
-                      .
-                    </>
+                    showAllocazione ? (
+                      <>
+                        Target e ribilanciamento in{' '}
+                        <Link href="/dashboard/allocation" className={TILE_FOOTER_ACTION_CLASS}>
+                          Allocazione
+                        </Link>
+                        .
+                      </>
+                    ) : undefined
                   }
                 />
               </div>

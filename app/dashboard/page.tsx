@@ -2,6 +2,7 @@
 
 import { type MouseEvent, useCallback, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useViewArea } from '@/contexts/ViewAreasContext';
 import { useRouter } from 'next/navigation';
 import { useReducedMotion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -177,6 +178,8 @@ function resolveSnapshotDialogOrigin(reducedMotion: boolean | null, trigger: HTM
 }
 
 export default function DashboardPage() {
+  // The viewer's view: a door to an area that is off goes with its sentence (DESIGN.md → The Door-Not-Room Rule).
+  const showAllocazione = useViewArea('allocazione');
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
@@ -501,7 +504,8 @@ export default function DashboardPage() {
       .
     </>
   );
-  const allocazioneFooter = (
+  // Door P1 (doc/essenziale/README.md § 5.5): the sentence with its link goes whole when Allocazione is off.
+  const allocazioneFooter = showAllocazione ? (
     <>
       Il piano in{' '}
       <Link href="/dashboard/allocation" className="text-foreground underline-offset-2 hover:underline">
@@ -509,7 +513,7 @@ export default function DashboardPage() {
       </Link>
       .
     </>
-  );
+  ) : undefined;
   // ─── Render ───────────────────────────────────────────────────────────────────
   return (
     <PageContainer>
