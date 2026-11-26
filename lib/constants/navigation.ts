@@ -55,7 +55,7 @@ export const navGroups: NavGroup[] = [
   {
     label: 'Futuro',
     items: [
-      { name: 'FIRE e Simulazioni', href: '/dashboard/fire-simulations', icon: Flame },
+      { name: 'FIRE', href: '/dashboard/fire-simulations', icon: Flame },
       { name: 'Previdenza', href: '/dashboard/pension', icon: PiggyBank },
     ],
   },

@@ -90,6 +90,12 @@ export interface UseMobileSectionsOptions {
   defaultOpen?: readonly string[];
   /** The id of the verdict's «Il perché»; `<prefisso>-perche` where two verdicts share a DOM. */
   restId?: string;
+  /**
+   * Rows that are a closed row at EVERY width, not only below `desktop:` (RU10, D-RU28: Parametri of Dopo il FIRE and of
+   * the Proiezione sit closed under the verdict at 1440). Their `collapse()` is answered at 1440 too; everything else
+   * stays as it was. A module-level constant, like `defaultOpen`.
+   */
+  rowsAtDesktop?: readonly string[];
 }
 
 type SetIds = Dispatch<SetStateAction<ReadonlySet<string>>>;
@@ -181,6 +187,7 @@ export function useMobileSections({
   sections,
   defaultOpen = NO_DEFAULTS,
   restId = VERDICT_REST_SECTION,
+  rowsAtDesktop = NO_DEFAULTS,
 }: UseMobileSectionsOptions): MobileSections {
   const compact = useCompactLayout();
   const key = mobileSectionsKey(route, tab);
@@ -204,7 +211,7 @@ export function useMobileSections({
   const current = rebuildRows(rowsCache, { known, open, visited, failed, key, defaults: defaultOpen, setVisited, setDismissed });
   if (current !== rowsCache) setRowsCache(current);
 
-  const collapse = (id: string): TileCollapse | undefined => (compact ? current.get(id)?.collapse : undefined);
+  const collapse = (id: string): TileCollapse | undefined => (compact || rowsAtDesktop.includes(id) ? current.get(id)?.collapse : undefined);
 
   // `reveal` closes over nothing that changes on a tap (not `open`, not the cache): a page hands it
   // to its strip as `onOpen`, and a handler reborn on every tap would re-render the verdict and the

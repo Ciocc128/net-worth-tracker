@@ -21,6 +21,9 @@ import {
   describePlanYou,
   isFirePlanField,
   isFireTab,
+  isFireVista,
+  resolveFireTab,
+  describePlanHome,
   isPlanDirty,
   planFormFromSettings,
   planSeedKey,
@@ -158,13 +161,14 @@ describe('buildPlanPayload — the one save (RP4, T8)', () => {
       fireDatedFlows: [FLOW],
       coastFireCustomExpenses: undefined,
       respectPensionLockInFire: true,
+      includePrimaryResidenceInFIRE: false,
       pensionInpsRetirementAge: 67,
       pensionRitaLongUnemployment: false,
     });
     expect(Object.keys(result.payload!).sort()).toEqual(
       [
         'coastFireCustomExpenses', 'coastFirePensions', 'coastFireRetirementAge', 'fireCashToInvestPct', 'fireDatedFlows', 'fireEmergencyFund',
-        'pensionInpsRetirementAge', 'pensionRitaLongUnemployment', 'plannedAnnualExpenses', 'respectPensionLockInFire', 'userAge', 'withdrawalRate',
+        'includePrimaryResidenceInFIRE', 'pensionInpsRetirementAge', 'pensionRitaLongUnemployment', 'plannedAnnualExpenses', 'respectPensionLockInFire', 'userAge', 'withdrawalRate',
       ].sort(),
     );
     expect(result.payload!.coastFirePensions).toHaveLength(1);
@@ -197,9 +201,10 @@ describe('buildPlanPayload — the one save (RP4, T8)', () => {
 describe('«Agisce su» (RP1, T12) and the links (RP10)', () => {
   it('says on which tabs each field acts, word for word', () => {
     expect(FIRE_PLAN_AFFECTS.age).toBe('Agisce su: tutte le schede');
-    expect(FIRE_PLAN_AFFECTS.targetAge).toBe('Agisce su: Calcolatore, Coast FIRE, What If');
+    expect(FIRE_PLAN_AFFECTS.targetAge).toBe('Agisce su: Quando, E se…, Coast FIRE');
+    expect(FIRE_PLAN_AFFECTS.home).toBe('Agisce su: Quando');
     expect(FIRE_PLAN_AFFECTS.expenses).toBe('Agisce su: tutte le schede');
-    expect(FIRE_PLAN_AFFECTS.pensions).toBe("Agisce su: Calcolatore, Coast FIRE, What If, Dopo il FIRE (nei Traguardi solo l'Effetto sul FIRE)");
+    expect(FIRE_PLAN_AFFECTS.pensions).toBe("Agisce su: Quando, E se…, Coast FIRE, Dopo il FIRE (nei Traguardi solo l'Effetto sul FIRE)");
     expect(FIRE_PLAN_AFFECTS.flows).toBe("Agisce su: tutte le schede (nei Traguardi solo l'Effetto sul FIRE)");
   });
 
@@ -207,7 +212,9 @@ describe('«Agisce su» (RP1, T12) and the links (RP10)', () => {
     for (const field of Object.keys(FIRE_PLAN_FIELD_IDS)) expect(isFirePlanField(field)).toBe(true);
     expect(isFirePlanField('aperto')).toBe(false);
     expect(isFirePlanField(null)).toBe(false);
-    for (const tab of ['fire', 'coast', 'whatif', 'montecarlo', 'proiezione', 'goals']) expect(isFireTab(tab)).toBe(true);
+    for (const tab of ['quando', 'ese', 'approfondimenti', 'goals']) expect(isFireTab(tab)).toBe(true);
+    // The old ids are not tabs any more: they are aliases (`resolveFireTab`).
+    for (const tab of ['fire', 'coast', 'whatif', 'montecarlo', 'proiezione']) expect(isFireTab(tab)).toBe(false);
     expect(isFireTab('piano')).toBe(false);
   });
 
@@ -234,5 +241,61 @@ describe('the tiles\' readings (RP2)', () => {
     expect(narrativeToText(describePlanFlows(0, 0))).toContain('Nessun flusso');
     expect(narrativeToText(describePlanFlows(4, 0))).toBe('4 flussi in uso.');
     expect(narrativeToText(describePlanFlows(1, 1))).toBe('1 flusso in uso, uno escluso: il motivo è sulla riga.');
+  });
+});
+
+
+describe('resolveFireTab — the tabs of RU10 and the old ids as aliases (D-RU27)', () => {
+  it('maps every old id to its new place', () => {
+    expect(resolveFireTab('fire').tab).toBe('quando');
+    expect(resolveFireTab('whatif').tab).toBe('ese');
+    expect(resolveFireTab('coast')).toEqual({ tab: 'approfondimenti', vista: 'coast' });
+    expect(resolveFireTab('montecarlo')).toEqual({ tab: 'approfondimenti', vista: 'dopo' });
+    expect(resolveFireTab('proiezione')).toEqual({ tab: 'approfondimenti', vista: 'proiezione' });
+  });
+
+  it('keeps the new ids and, until RU11, the Traguardi tab', () => {
+    for (const tab of ['quando', 'ese', 'goals'] as const) expect(resolveFireTab(tab).tab).toBe(tab);
+    expect(resolveFireTab('approfondimenti', 'proiezione')).toEqual({ tab: 'approfondimenti', vista: 'proiezione' });
+  });
+
+  it('an unknown or missing tab opens Quando', () => {
+    expect(resolveFireTab(null).tab).toBe('quando');
+    expect(resolveFireTab(undefined).tab).toBe('quando');
+    expect(resolveFireTab('piano').tab).toBe('quando');
+  });
+
+  it('Approfondimenti without a view takes the session\'s last one, else Coast; a wrong view is ignored', () => {
+    expect(resolveFireTab('approfondimenti', null, 'dopo').vista).toBe('dopo');
+    expect(resolveFireTab('approfondimenti', 'x', 'proiezione').vista).toBe('proiezione');
+    expect(resolveFireTab('approfondimenti').vista).toBe('coast');
+    expect(resolveFireTab('approfondimenti', null, 'nonsense').vista).toBe('coast');
+    // A view asked for beats the session's.
+    expect(resolveFireTab('approfondimenti', 'coast', 'dopo').vista).toBe('coast');
+  });
+
+  it('knows the three views', () => {
+    for (const vista of ['coast', 'dopo', 'proiezione']) expect(isFireVista(vista)).toBe(true);
+    expect(isFireVista('montecarlo')).toBe(false);
+    expect(isFireVista(null)).toBe(false);
+  });
+});
+
+describe('«Casa nel patrimonio FIRE» in the plan (RU10, D-RU31)', () => {
+  it('reads the saved switch, previews it, is dirty and saves it with the plan', () => {
+    const seed = planFormFromSettings({ withdrawalRate: 4 } as Settings);
+    expect(seed.includePrimaryResidence).toBe(false);
+    const form = { ...seed, includePrimaryResidence: true };
+    expect(isPlanDirty(form, seed)).toBe(true);
+    expect(buildPlanOverlay(form, seed)).toMatchObject({ includePrimaryResidenceInFIRE: true });
+    expect(planFormFromSettings({ includePrimaryResidenceInFIRE: true } as Settings).includePrimaryResidence).toBe(true);
+    expect(planSeedKey({ includePrimaryResidenceInFIRE: true } as Settings)).not.toBe(planSeedKey({} as Settings));
+    const result = buildPlanPayload({ ...form, userAge: '40', targetAge: '60' }, { derivedFund: null, currentYear: 2026 });
+    expect(result.payload?.includePrimaryResidenceInFIRE).toBe(true);
+  });
+
+  it('says what each state means', () => {
+    expect(narrativeToText(describePlanHome(false))).toBe('La casa resta fuori dal patrimonio FIRE, come vuole lo standard.');
+    expect(narrativeToText(describePlanHome(true))).toBe('La casa è dentro il patrimonio FIRE: il piano la conta come capitale da cui prelevare.');
   });
 });

@@ -86,6 +86,7 @@ const PAYLOAD: FirePlanPayload = {
   coastFireCustomExpenses: undefined,
   coastFirePensions: [],
   respectPensionLockInFire: true,
+  includePrimaryResidenceInFIRE: true,
   pensionInpsRetirementAge: 67,
   pensionRitaLongUnemployment: false,
 };

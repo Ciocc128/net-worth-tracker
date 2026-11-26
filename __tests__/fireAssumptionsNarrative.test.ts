@@ -8,7 +8,7 @@ vi.mock('firebase/firestore', () => ({ doc: vi.fn(), getDoc: vi.fn(), setDoc: vi
 
 import { monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
 import { buildPortfolioScenarios, type FireAssumptions } from '@/lib/utils/fireAssumptions';
-import { describeCapitalRow, describeCostsChip, describeExpensesChip, describeFireChips, describeFireScopeLine, describeReturnsChip } from '@/lib/utils/fireAssumptionsNarrative';
+import { describeCapitalRow, describeFireHeader, listFireOutside, describeCostsChip, describeExpensesChip, describeFireChips, describeFireScopeLine, describeReturnsChip } from '@/lib/utils/fireAssumptionsNarrative';
 import { resolveMonteCarloMarket } from '@/lib/utils/monteCarloMarket';
 
 const market = resolveMonteCarloMarket(null);
@@ -106,5 +106,52 @@ describe('the scope line below desktop: (D-CU14)', () => {
 
   it('the Traguardi read the return only', () => {
     expect(describeFireScopeLine(withCosts(true, true), 'goals')).toBe('Ipotesi: Base 4,5% reale');
+  });
+});
+
+
+/** The euro format prints a no-break space before «€»: compared as a plain one. */
+const plain = (text: string | undefined): string => (text ?? '').replace(/\u00a0/g, ' ');
+
+describe('describeFireHeader — «Capitale X su Y di patrimonio · fuori: …» (RU10, D-RU30)', () => {
+  // By hand (criterion 5 of the dossier): capital = portfolio 100.000 + cash outside the portfolio 26.000 − emergency fund 10.000
+  // = 116.000; net worth 400.000; left out: the home 250.000 and the locked pension fund 34.000, the two heaviest.
+  const outside = [
+    { name: 'Casa', value: 250_000 },
+    { name: 'Fondo pensione', value: 34_000 },
+  ];
+
+  it('names the capital, the net worth and the two things left out', () => {
+    expect(plain(describeFireHeader({ capital: 116_000, netWorth: 400_000, outside }))).toBe('Capitale 116.000 € su 400.000 € di patrimonio · fuori: Casa, Fondo pensione');
+  });
+
+  it('says «e un altro» with three left out and «altri N» beyond', () => {
+    const three = [...outside, { name: 'Crypto', value: 5_000 }];
+    expect(plain(describeFireHeader({ capital: 116_000, netWorth: 400_000, outside: three }))).toBe('Capitale 116.000 € su 400.000 € di patrimonio · fuori: Casa, Fondo pensione e un altro');
+    const four = [...three, { name: 'Liquidità', value: 1_000 }];
+    expect(plain(describeFireHeader({ capital: 116_000, netWorth: 400_000, outside: four }))).toContain('e altri 2');
+  });
+
+  it('with nothing left out it has no «fuori», and with no capital read no description at all', () => {
+    expect(plain(describeFireHeader({ capital: 100_000, netWorth: 100_000, outside: [] }))).toBe('Capitale 100.000 € su 100.000 € di patrimonio');
+    expect(describeFireHeader({ capital: 0, netWorth: 0, outside: [] })).toBeUndefined();
+  });
+});
+
+describe('listFireOutside — what the capital leaves out, heaviest first', () => {
+  const capital = {
+    total: 116_000, liquid: 0, illiquid: 0, portfolio: 100_000, netWorth: 400_000,
+    outside: { realestate: 250_000, crypto: 5_000, cash: 10_000, otherExcluded: 0, cashIsFund: true },
+  } as unknown as Parameters<typeof listFireOutside>[0];
+
+  it('orders by value, drops zeros, adds the locked pension fund and names the cash by what it is', () => {
+    expect(listFireOutside(capital, 34_000).map((item) => [item.name, item.value])).toEqual([
+      ['Casa', 250_000],
+      ['Fondo pensione', 34_000],
+      ['Fondo di emergenza', 10_000],
+      ['Crypto', 5_000],
+    ]);
+    expect(listFireOutside(capital, 0).map((item) => item.name)).not.toContain('Fondo pensione');
+    expect(listFireOutside({ ...capital, outside: { ...capital.outside, cashIsFund: false } } as typeof capital, 0).map((item) => item.name)).toContain('Liquidità');
   });
 });

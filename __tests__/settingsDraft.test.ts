@@ -321,6 +321,19 @@ describe('«Salva» keeps the fork’s fields (gate S1)', () => {
     expect(document.idealAllocation).toEqual(STORED_IDEAL_ALLOCATION);
   });
 
+  it('RU10 (D-RU31): the home in the FIRE wealth is the plan’s — a «Salva» of a page opened before never brings it back', () => {
+    // Reference by hand: the page loaded with the switch OFF; «Il mio piano» then saved it ON; the document read just before the
+    // write says true, and the write must say true — the slice no longer holds the field, so nothing of the old copy can win.
+    const stale = { ...STORED_SETTINGS, includePrimaryResidenceInFIRE: false } as AssetAllocationSettings;
+    const slices = loadedFrom(stale);
+    expect('includePrimaryResidenceInFIRE' in slices.investimenti).toBe(false);
+    const { document } = composeOk(slices, { ...STORED_SETTINGS, includePrimaryResidenceInFIRE: true } as AssetAllocationSettings);
+    expect(document.includePrimaryResidenceInFIRE).toBe(true);
+    // And with the switch off in the document, off: the page never turns it on.
+    const off = composeOk(slices, { ...STORED_SETTINGS, includePrimaryResidenceInFIRE: false } as AssetAllocationSettings);
+    expect(off.document.includePrimaryResidenceInFIRE).toBe(false);
+  });
+
   it('writes neither the market nor the brackets from another tab’s save', () => {
     const saved = loadedFrom(STORED_SETTINGS as AssetAllocationSettings);
     const edited = settingsDraftReducer(

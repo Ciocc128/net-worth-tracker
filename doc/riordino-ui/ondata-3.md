@@ -9,7 +9,7 @@
 > (D-CS1…D-CS8), che questa ondata rivede in un punto (D-CS1).
 >
 > **Stato: specifica scritta il 2026-11-25 su main `c47998c`; decisioni D-RU25…D-RU35 PRESE da Giorgio il 2026-11-25 («ok per tutto») (§ 8).**
-> Schizzi «oggi / proposta» (WORKFLOW.md regola 8): https://claude.ai/artifact/QasTFvrzao8ZLSuYGjkH3r (§ 1.1).
+> **RU10 (2026-11-26): implementata** (§ 11). Schizzi «oggi / proposta» (WORKFLOW.md regola 8): https://claude.ai/artifact/QasTFvrzao8ZLSuYGjkH3r (§ 1.1).
 
 ## 1. In breve
 
@@ -351,3 +351,15 @@ Valori inventati e tondi (WORKFLOW.md regola 7).
 16. Sabato e domenica hanno il trattino, gli altri giorni no; il fondo della cella dipende solo dalla spesa.
 17. Col mese scelto il calendario del mese è identico a oggi; a 390 la riga chiusa e ‹ › sono identiche a oggi; `mobile:budget`
     di `analisi` verde con l'ordine nuovo delle righe chiuse.
+
+## 11. RU10 — come è andata (2026-11-26)
+
+Fatto come da § 5.1, § 5.5 e § 5.6, con queste scelte di esecuzione (guida: `doc/guide/fire.md` § RU10):
+
+- **Traguardi resta una quarta scheda finché RU11 non è in main** (Giorgio, 2026-11-26): senza, tra le due PR i Traguardi non avrebbero avuto una porta. Gli id `goals`, la voce D-ES9 di Essenziale e la riga `fire-obiettivi` del census restano come sono; RU11 li toglie. `resolveFireTab('goals')` oggi ritorna la scheda, non il redirect del criterio 2.
+- **Parametri a 1440 senza `order-*`**: la cella usa `desktop:row-start-1` (la regola «nessun `order-*`» è nel codice e in `fire.mobile.spec.ts`); il DOM e le righe del telefono non cambiano, a 1440 il bottone della riga viene dopo i risultati nell'ordine del Tab. Spostare la cella nel DOM cambierebbe l'ordine delle righe del telefono: tema per un giro di giudizio, non deciso qui.
+- **La pillola la disegna `ApprofondimentiTab`, non il verdetto** di ogni vista: una sola istanza a ogni larghezza (sopra il verdetto sul telefono, a destra da `desktop:`), presente anche mentre la vista carica e senza perdere il fuoco al cambio. Lo slot `axis` di `PageVerdict` non è usato.
+- **«Casa nel patrimonio FIRE»**: «Agisce su: Quando» e non «tutte le schede», perché oggi solo il patrimonio del Calcolatore la legge (`FireCalculatorTab`, PDF, Panoramica); `?piano=casa` apre il campo.
+- **Lo stato stale apre la riga da sé a ogni larghezza** (anche sul telefono, dove oggi mostrava solo l'aside): `useStaleOpenCollapse`.
+- **Alias in `VIEW_ROUTES`** anche per `coast`/`montecarlo`/`proiezione`, così la riga «non è nel tuo menu» di un vecchio segnalibro nomina ancora `simulazioni`.
+- **Da fare sul Mac** (WORKFLOW § 3): `perf:build` + `perf:budget` (il tetto di `/dashboard/fire-simulations`, 878,4 KB, scende; `raisedBy` «abbassato»), `mobile:census` + `mobile:budget` per le cinque voci `fire-*` (con `vista`) e il pavimento `fire-calcolatore` @768 (§ 5.6), il giudizio visivo a 1440 e 390 (pillola a destra del verdetto, riga Parametri chiusa, testata, «Casa» in Il mio piano, «E se…» a 390 — se non sta, `shortLabel` «Approf.»).

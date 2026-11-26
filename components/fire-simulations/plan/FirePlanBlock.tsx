@@ -37,7 +37,7 @@ import { describeEmergencyFund } from '@/lib/utils/fireAssumptionsNarrative';
 import { describeLock, describePersonalSwr, describeRitaPreview, formatRate } from '@/lib/utils/fireNarrative';
 import { addYearsToDate, createPensionDraft, describePensioniStatali, isValidAge, parseOptionalInteger, type PensionDraftIssue } from '@/lib/utils/coastFireView';
 import { resolvePersonalSwrHorizon, solvePersonalSwr } from '@/lib/utils/sustainableWithdrawal';
-import { DEFAULT_FIRE_TARGET_AGE, FIRE_PLAN_AFFECTS, describePlanFlows, describePlanSpending, describePlanYou } from '@/lib/utils/firePlan';
+import { DEFAULT_FIRE_TARGET_AGE, FIRE_PLAN_AFFECTS, describePlanFlows, describePlanHome, describePlanSpending, describePlanYou } from '@/lib/utils/firePlan';
 import { getItalyDateIso, getItalyYear } from '@/lib/utils/dateHelpers';
 import { cn } from '@/lib/utils';
 import { FireDatedFlowsSection } from '@/components/fire-simulations/FireDatedFlowsSection';
@@ -317,6 +317,22 @@ export function FirePlanBlock() {
                   >
                     {problems.emergencyFund ?? (cashToInvest ? describeEmergencyFund(cashToInvest, annualExpense) : 'Nessuna liquidità fuori dal portafoglio.')} {FIRE_PLAN_AFFECTS.fund}.
                   </p>
+                </div>
+
+                {/* RU10 (D-RU31): the home in the wealth the Calcolatore reads — it was Impostazioni › Investimenti's. */}
+                <div className="flex items-start justify-between gap-3 border-t border-border pt-3.5">
+                  <label htmlFor="includePrimaryResidenceInFIRE" className="min-w-0 cursor-pointer">
+                    <span className="block text-[13px] text-foreground">Casa nel patrimonio FIRE</span>
+                    <NarrativeText segments={describePlanHome(form.includePrimaryResidence)} className="text-[11px] leading-[1.4] text-muted-foreground" />
+                    <span className="block text-[11px] leading-[1.4] text-muted-foreground">{FIRE_PLAN_AFFECTS.home}.</span>
+                  </label>
+                  <Switch
+                    id="includePrimaryResidenceInFIRE"
+                    checked={form.includePrimaryResidence}
+                    onCheckedChange={(checked) => onFormChange({ includePrimaryResidence: checked })}
+                    aria-label="Conta la casa di abitazione nel patrimonio FIRE"
+                    className="mt-0.5 shrink-0"
+                  />
                 </div>
               </div>
             </Tile>

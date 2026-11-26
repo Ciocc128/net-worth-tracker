@@ -38,6 +38,7 @@ export const FIRE_PLAN_FIELD_IDS = {
   flussi: 'plan-add-flow',
   pensioni: 'plan-add-pension',
   vincolo: 'respectPensionLockInFire',
+  casa: 'includePrimaryResidenceInFIRE',
 } as const;
 
 export type FirePlanField = keyof typeof FIRE_PLAN_FIELD_IDS;
@@ -46,23 +47,71 @@ export function isFirePlanField(value: string | null | undefined): value is Fire
   return value !== null && value !== undefined && Object.prototype.hasOwnProperty.call(FIRE_PLAN_FIELD_IDS, value);
 }
 
-/** The five tab names the page reads from `?tab=` (RP10), in the bar's order. */
-export const FIRE_TAB_VALUES = ['fire', 'coast', 'whatif', 'montecarlo', 'proiezione', 'goals'] as const;
+/**
+ * The tab names the page reads from `?tab=` (RP10), in the bar's order. RU10 (D-RU26/D-RU27): the answer first
+ * (`quando`), the what-ifs (`ese`), and the method behind ONE door (`approfondimenti`: Coast FIRE, Dopo il FIRE,
+ * Proiezione). `goals` stays as a temporary fourth tab until RU11 gives the Traguardi their own page.
+ */
+export const FIRE_TAB_VALUES = ['quando', 'ese', 'approfondimenti', 'goals'] as const;
 export type FireTabValue = (typeof FIRE_TAB_VALUES)[number];
 
 export function isFireTab(value: string | null | undefined): value is FireTabValue {
   return value !== null && value !== undefined && (FIRE_TAB_VALUES as readonly string[]).includes(value);
 }
 
+/** The three views of Approfondimenti, behind the pill of its axis (`?vista=`). */
+export const FIRE_VISTA_VALUES = ['coast', 'dopo', 'proiezione'] as const;
+export type FireVista = (typeof FIRE_VISTA_VALUES)[number];
+export const DEFAULT_FIRE_VISTA: FireVista = 'coast';
+
+export function isFireVista(value: string | null | undefined): value is FireVista {
+  return value !== null && value !== undefined && (FIRE_VISTA_VALUES as readonly string[]).includes(value);
+}
+
+/**
+ * Where a link lands (D-RU27): the new tab ids, the old ones as aliases for the bookmarks and for the Calcolatore's
+ * «Vai a Coast». `vista` is the `?vista=` asked for and `sessionVista` the last one picked in this session; an
+ * Approfondimenti without either opens on Coast. An unknown tab is `quando`. `goals` stays a tab of the page until RU11
+ * (then it becomes a redirect to the Traguardi page).
+ */
+export function resolveFireTab(
+  tab: string | null | undefined,
+  vista?: string | null,
+  sessionVista?: string | null,
+): { tab: FireTabValue; vista: FireVista } {
+  const fallback = isFireVista(sessionVista) ? sessionVista : DEFAULT_FIRE_VISTA;
+  switch (tab) {
+    case 'fire':
+      return { tab: 'quando', vista: fallback };
+    case 'whatif':
+      return { tab: 'ese', vista: fallback };
+    case 'coast':
+      return { tab: 'approfondimenti', vista: 'coast' };
+    case 'montecarlo':
+      return { tab: 'approfondimenti', vista: 'dopo' };
+    case 'proiezione':
+      return { tab: 'approfondimenti', vista: 'proiezione' };
+    case 'approfondimenti':
+      return { tab: 'approfondimenti', vista: isFireVista(vista) ? vista : fallback };
+    case 'quando':
+    case 'ese':
+    case 'goals':
+      return { tab, vista: fallback };
+    default:
+      return { tab: 'quando', vista: fallback };
+  }
+}
+
 /** RP1: «Agisce su», the fixed line under a field — tab names as in the bar. */
 export const FIRE_PLAN_AFFECTS = {
   age: 'Agisce su: tutte le schede',
-  targetAge: 'Agisce su: Calcolatore, Coast FIRE, What If',
+  targetAge: 'Agisce su: Quando, E se…, Coast FIRE',
   expenses: 'Agisce su: tutte le schede',
   swr: 'Agisce su: tutte le schede',
   fund: 'Agisce su: tutte le schede',
+  home: 'Agisce su: Quando',
   flows: 'Agisce su: tutte le schede (nei Traguardi solo l\'Effetto sul FIRE)',
-  pensions: 'Agisce su: Calcolatore, Coast FIRE, What If, Dopo il FIRE (nei Traguardi solo l\'Effetto sul FIRE)',
+  pensions: 'Agisce su: Quando, E se…, Coast FIRE, Dopo il FIRE (nei Traguardi solo l\'Effetto sul FIRE)',
   lock: 'Agisce su: tutte le schede',
   rita: 'Agisce su: tutte le schede, con il vincolo attivo',
 } as const;
@@ -80,6 +129,8 @@ export interface FirePlanForm {
   datedFlows: DatedFlow[];
   pensions: CoastFirePensionDraft[];
   respectPensionLock: boolean;
+  /** RU10 (D-RU31): the primary residence counts in the wealth the Calcolatore reads. */
+  includePrimaryResidence: boolean;
   inpsRetirementAge: string;
   ritaLongUnemployment: boolean;
 }
@@ -97,6 +148,7 @@ export function planFormFromSettings(settings: Settings | null | undefined): Fir
     datedFlows: settings?.fireDatedFlows ?? [],
     pensions: toPensionDrafts(settings?.coastFirePensions, settings?.userAge),
     respectPensionLock: settings?.respectPensionLockInFire ?? false,
+    includePrimaryResidence: settings?.includePrimaryResidenceInFIRE ?? false,
     inpsRetirementAge: (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString(),
     ritaLongUnemployment: settings?.pensionRitaLongUnemployment ?? false,
   };
@@ -115,6 +167,7 @@ export function planSeedKey(settings: Settings | null | undefined): string {
     settings?.fireDatedFlows ?? null,
     buildPensionSnapshotKey(normalizeCoastFirePensions(settings?.coastFirePensions)),
     settings?.respectPensionLockInFire ?? null,
+    settings?.includePrimaryResidenceInFIRE ?? null,
     settings?.pensionInpsRetirementAge ?? null,
     settings?.pensionRitaLongUnemployment ?? null,
   ]);
@@ -134,6 +187,7 @@ export function isPlanDirty(form: FirePlanForm, seed: FirePlanForm): boolean {
     JSON.stringify(form.datedFlows) !== JSON.stringify(seed.datedFlows) ||
     pensionsKey(form.pensions) !== pensionsKey(seed.pensions) ||
     form.respectPensionLock !== seed.respectPensionLock ||
+    form.includePrimaryResidence !== seed.includePrimaryResidence ||
     form.inpsRetirementAge !== seed.inpsRetirementAge ||
     form.ritaLongUnemployment !== seed.ritaLongUnemployment
   );
@@ -220,6 +274,7 @@ export function buildPlanOverlay(form: FirePlanForm, seed: FirePlanForm): Partia
   if (changed('datedFlows')) overlay.fireDatedFlows = form.datedFlows;
   if (pensionsKey(form.pensions) !== pensionsKey(seed.pensions)) overlay.coastFirePensions = parsePensionDrafts(form.pensions);
   if (changed('respectPensionLock')) overlay.respectPensionLockInFire = form.respectPensionLock;
+  if (changed('includePrimaryResidence')) overlay.includePrimaryResidenceInFIRE = form.includePrimaryResidence;
   if (changed('inpsRetirementAge') && !problems.inpsRetirementAge) overlay.pensionInpsRetirementAge = Number.parseInt(form.inpsRetirementAge, 10);
   if (changed('ritaLongUnemployment')) overlay.pensionRitaLongUnemployment = form.ritaLongUnemployment;
   return overlay;
@@ -242,6 +297,7 @@ export interface FirePlanPayload {
   coastFireCustomExpenses: undefined;
   coastFirePensions: CoastFirePensionInput[];
   respectPensionLockInFire: boolean;
+  includePrimaryResidenceInFIRE: boolean;
   pensionInpsRetirementAge: number;
   pensionRitaLongUnemployment: boolean;
 }
@@ -289,6 +345,7 @@ export function buildPlanPayload(
       coastFireCustomExpenses: undefined,
       coastFirePensions: parsePensionDrafts(form.pensions),
       respectPensionLockInFire: form.respectPensionLock,
+      includePrimaryResidenceInFIRE: form.includePrimaryResidence,
       pensionInpsRetirementAge: Number.parseInt(form.inpsRetirementAge, 10),
       pensionRitaLongUnemployment: form.ritaLongUnemployment,
     },
@@ -311,6 +368,17 @@ export function buildFirePlanWrite(payload: FirePlanPayload): AssetAllocationSet
 
 const prose = (text: string): NarrativeSegment => ({ text });
 const figure = (text: string): NarrativeSegment => ({ text, mono: true });
+
+/** The home in the wealth the Calcolatore reads (moved here from Impostazioni › Investimenti, RU10 D-RU31). */
+export function describePlanHome(include: boolean): Narrative {
+  return [
+    prose(
+      include
+        ? 'La casa è dentro il patrimonio FIRE: il piano la conta come capitale da cui prelevare.'
+        : 'La casa resta fuori dal patrimonio FIRE, come vuole lo standard.',
+    ),
+  ];
+}
 
 /** «45 anni oggi, obiettivo 60» — or what is missing. */
 export function describePlanYou(age: number | null, targetAge: number | null): Narrative {

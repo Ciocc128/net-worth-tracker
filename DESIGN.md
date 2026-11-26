@@ -681,7 +681,7 @@ an `AlertDialog` on purpose because it interrupts.
 
 `variant="legacy"` — **superseded, and deleted on 2026-08-26 with Previdenza, the last page that declared it**: `PageHeader` has one variant. The pre-redesign desktop header (2xl/3xl title, description under it, optional `border-b`) survives only in `git log`.
 
-**With section tabs** (Cashflow, FIRE e Simulazioni, Impostazioni): `PageTabBar` sits directly under the compact header row — from `desktop:` an underline bar of 13px `font-medium` tabs whose `border-b` is the header's only separator; below `desktop:` the segmented pill. The header keeps the page title, the tab keeps the section: no title is printed twice. Every tab carries `aria-label` unconditionally (the icon-only pill had no accessible name below 1440px) and the tablist is named after what it switches ("Sezioni di Cashflow").
+**With section tabs** (Cashflow, FIRE, Impostazioni): `PageTabBar` sits directly under the compact header row — from `desktop:` an underline bar of 13px `font-medium` tabs whose `border-b` is the header's only separator; below `desktop:` the segmented pill. The header keeps the page title, the tab keeps the section: no title is printed twice. Every tab carries `aria-label` unconditionally (the icon-only pill had no accessible name below 1440px) and the tablist is named after what it switches ("Sezioni di Cashflow").
 
 ### Tile Grid Skeleton
 

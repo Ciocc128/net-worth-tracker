@@ -46,7 +46,7 @@ Three further behaviours are visible in the product and are *consequences* of th
 
 ## Capabilities and Constraints
 
-Twelve dashboard routes in three named tiers — primary (Panoramica, Patrimonio, Cashflow), Analisi (Analisi, Rendimenti, Storico, Hall of Fame), Pianificazione (Allocazione, FIRE e Simulazioni, Previdenza) — plus Assistente and Impostazioni. On top of those: the asset trade ledger, expense CSV import with a mandatory preview and one-tap undo, a 7-section PDF export, periodic emails, the conversational AI Assistant and a separate on-demand AI performance report.
+Twelve dashboard routes in three named tiers — primary (Panoramica, Patrimonio, Cashflow), Analisi (Analisi, Rendimenti, Storico, Hall of Fame), Pianificazione (Allocazione, FIRE, Previdenza) — plus Assistente and Impostazioni. On top of those: the asset trade ledger, expense CSV import with a mandatory preview and one-tap undo, a 7-section PDF export, periodic emails, the conversational AI Assistant and a separate on-demand AI performance report.
 
 **Terminology** is settled and Italian-facing: TWR / IRR / XIRR / CAGR / Max Drawdown / Sharpe / Sortino; YOC / DPS / cedole / BTP Italia FOI; TFR / Volontario / Datoriale, RAL, risparmio IRPEF; Ribilancia / Versa / Preleva, `allocationRole` tradable|frozen|excluded, `leverageRatio`; imposta di bollo, TER. Page and feature names stay Italian permanently — they are the labels the product shows.
 

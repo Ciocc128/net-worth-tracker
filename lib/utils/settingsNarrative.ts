@@ -150,25 +150,6 @@ export function describeCosts({ stampDutyEnabled, stampDutyRate, checkingAccount
   ];
 }
 
-export interface FireWealthInput {
-  includePrimaryResidenceInFIRE: boolean;
-}
-
-/**
- * Patrimonio nel FIRE (Investimenti) — the one switch this page keeps for the FIRE plan: whether the
- * home counts in the wealth the plan simulates. The plan itself (age, expense, SWR, fund, flows,
- * pensions) is FIRE › Il mio piano's, named in the tab's «Si regola altrove» line (D-RU20).
- */
-export function describeFireWealth({ includePrimaryResidenceInFIRE }: FireWealthInput): Narrative {
-  return [
-    prose(
-      includePrimaryResidenceInFIRE
-        ? 'La casa è dentro il patrimonio FIRE: il piano la conta come capitale da cui prelevare.'
-        : 'La casa resta fuori dal patrimonio FIRE, come vuole lo standard.'
-    ),
-  ];
-}
-
 export interface IncomeHistoryInput {
   laborCategoryNames: string[];
   historyStartYear: number;

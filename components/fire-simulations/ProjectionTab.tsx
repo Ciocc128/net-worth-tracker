@@ -98,6 +98,7 @@ import { type DatedFlowsInput } from '@/lib/utils/datedFlows';
 import { describeSimulationFlowsRow } from '@/lib/utils/datedFlowsNarrative';
 import { TILE_CELL_CLASS, TILE_ROW_CELL_CLASS } from '@/components/ui/tile';
 import { useMobileSections, type SectionSpec } from '@/lib/hooks/useMobileSections';
+import { useStaleOpenCollapse } from '@/lib/hooks/useStaleOpenCollapse';
 import { useTabletComposition, useTabletStage } from '@/lib/hooks/useTabletComposition';
 import {
   COMPACT_GRID_CLASS,
@@ -138,6 +139,9 @@ const PROJECTION_SECTIONS: readonly SectionSpec[] = [
   { id: PROJECTION_SECTION_IDS.scenari, eyebrow: 'Scenari a confronto' },
   { id: PROJECTION_SECTION_IDS.parametri, eyebrow: 'Parametri' },
 ];
+/** RU10: Parametri is a row at 1440 too. */
+const PARAMETRI_AT_DESKTOP = [PROJECTION_SECTION_IDS.parametri] as const;
+
 /** Without a run Parametri is the one tile and not a row: the controller sees no row at all. */
 const NO_SECTIONS: readonly SectionSpec[] = [];
 const PROJECTION_ORDER = PROJECTION_SECTIONS.map((section) => section.id);
@@ -366,7 +370,9 @@ export function ProjectionTab() {
   // until «Prova» (The Stale-Run Rule: a stale form moves the Parametri aside, not the cells). The
   // median opens the Ventaglio that draws it, the probability Scenari, which carries it per scenario.
   const run = summary !== null && lastRun !== null;
-  const sections = useMobileSections({ route: 'fire-simulations', tab: 'proiezione', sections: run ? PROJECTION_SECTIONS : NO_SECTIONS });
+  const sections = useMobileSections({ route: 'fire-simulations', tab: 'proiezione', sections: run ? PROJECTION_SECTIONS : NO_SECTIONS, rowsAtDesktop: PARAMETRI_AT_DESKTOP });
+  // RU10 (D-RU28): a closed row under the verdict at every width, open by itself while the form is not the run's.
+  const parametriCollapse = useStaleOpenCollapse(run ? sections.collapse(PROJECTION_SECTION_IDS.parametri) : undefined, stale);
   // At 768 the rows pair up (Ventaglio beside Scenari, Parametri on the whole row), in landscape the
   // index sits beside the verdict and Tappe (lib/utils/tabletComposition.ts). Without a run no stage.
   const stageRef = useTabletStage();
@@ -405,7 +411,7 @@ export function ProjectionTab() {
   // ─── Render ──────────────────────────────────────────────────────────────────
   const parametri = (
     <ParametriTile
-      collapse={run ? sections.collapse(PROJECTION_SECTION_IDS.parametri) : undefined}
+      collapse={parametriCollapse}
       asideWhenClosed={describeProjectionParametriClosedAside(stale)}
       reading={describeProjectionParametri(typedPlan)}
       aside={PROJECTION_PARAMETRI_ASIDE}
@@ -534,7 +540,7 @@ export function ProjectionTab() {
               />
             </div>
 
-            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PROJECTION_SECTION_IDS.parametri), 'desktop:col-span-12')}>{parametri}</div>
+            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PROJECTION_SECTION_IDS.parametri), 'desktop:col-span-12 desktop:row-start-1')}>{parametri}</div>
           </div>
           </RowAnswers>
         </div>

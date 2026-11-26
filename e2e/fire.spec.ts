@@ -21,6 +21,7 @@
  */
 
 import { test, expect, type Page } from '@playwright/test';
+import { openFireTab } from './fireNav';
 
 /**
  * A euro amount without cents as Intl prints it: a (non-breaking) space before €, the integer
@@ -159,7 +160,7 @@ test('«Il mio piano» opens and closes above the tabs, measured by height, and 
   await expect(page.getByLabel(/Spesa del piano/)).toBeVisible();
   await expect(page.getByLabel('Includi casa di abitazione nel FIRE')).toHaveCount(0);
   // Every field says where it acts (RP1).
-  await expect(page.getByText('Agisce su: Calcolatore, Coast FIRE, What If', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('Agisce su: Quando, E se…, Coast FIRE', { exact: false }).first()).toBeVisible();
 
   // Close: the content collapses to (near) zero height or unmounts entirely.
   await trigger.click();
@@ -230,12 +231,12 @@ test('at 1440 the tabs are the tabs of today: no closed row, no strip, no scope 
   }
 
   // What If: the Evento is the first tile of the DOM and the left cell of the first row (The Input Tile Rule).
-  await page.getByRole('tab', { name: 'What If' }).click();
+  await openFireTab(page, 'E se…');
   await expect(page.getByRole('region', { name: 'Verdetto sul What If' })).toBeVisible({ timeout: 30_000 });
   const evento = (await page.getByRole('region', { name: 'Evento simulato' }).boundingBox())!;
   const primaDopo = (await page.getByRole('region', { name: "Prima e dopo l'evento" }).boundingBox())!;
   expect(evento.x).toBeLessThan(primaDopo.x);
   expect(Math.abs(evento.y - primaDopo.y)).toBeLessThan(2);
-  const panel = page.getByRole('tabpanel', { name: 'What If' });
+  const panel = page.getByRole('tabpanel', { name: 'E se…' });
   expect((await panel.locator('section.rounded-2xl').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label'))))[0]).toBe('Evento simulato');
 });

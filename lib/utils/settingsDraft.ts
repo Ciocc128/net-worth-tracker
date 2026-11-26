@@ -177,7 +177,6 @@ export interface InvestimentiSlice {
   stampDutyEnabled: boolean;
   stampDutyRate: number;
   checkingAccountSubCategory: string;
-  includePrimaryResidenceInFIRE: boolean;
 }
 
 /** The pairs the last «Salva» adapted to keep the correlation matrix valid (R5), by pair index; marked until the next write. */
@@ -295,7 +294,6 @@ export function sliceSettings(document: AssetAllocationSettings | null): Setting
     stampDutyEnabled: data.stampDutyEnabled ?? false,
     stampDutyRate: data.stampDutyRate ?? DEFAULT_STAMP_DUTY_RATE,
     checkingAccountSubCategory: data.checkingAccountSubCategory || NO_SELECTION,
-    includePrimaryResidenceInFIRE: data.includePrimaryResidenceInFIRE ?? false,
   };
 
   // Avanzate: the market as the Monte Carlo and the Ventaglio will read it (no commodity list
@@ -402,7 +400,8 @@ export function composeSettingsDocument(
     // `userAge` is NOT written from here (D-T5): the age is typed in FIRE › Il mio piano.
     // Present-but-undefined when it follows the ECB estimate: the service's `'x' in settings` guard deletes it.
     riskFreeRate: investimenti.riskFreeRate,
-    includePrimaryResidenceInFIRE: investimenti.includePrimaryResidenceInFIRE,
+    // RU10 (D-RU31): the home in the FIRE wealth is FIRE › Il mio piano's; carried through from the document read just before.
+    includePrimaryResidenceInFIRE: current?.includePrimaryResidenceInFIRE,
     goalBasedInvestingEnabled: funzioni.goalBasedInvestingEnabled,
     ...(goalsSwitchedOff ? { goalDrivenAllocationEnabled: false } : {}),
     withdrawalRate: current?.withdrawalRate,

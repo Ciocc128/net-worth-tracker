@@ -25,7 +25,7 @@ test('the Altro sheet holds the view\'s groups; a hidden page opens with its lin
   let sheet = await openAltro(page);
   await expect(sheet.getByRole('link', { name: 'Analisi spese' })).toBeVisible();
   await expect(sheet.getByRole('link', { name: 'Storico' })).toBeVisible();
-  for (const name of ['Allocazione', 'Rendimenti', 'FIRE e Simulazioni', 'Previdenza']) {
+  for (const name of ['Allocazione', 'Rendimenti', 'FIRE', 'Previdenza']) {
     await expect(sheet.getByRole('link', { name })).toHaveCount(0);
   }
   await expect(sheet.getByText('Investimenti', { exact: true })).toHaveCount(0);
