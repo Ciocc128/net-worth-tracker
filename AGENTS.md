@@ -42,7 +42,7 @@ holds it): how it was learned is `git log`'s.
 ### Italian Localization
 - **Capitals and decimals** (UM3, 2026-11-22, N14; `doc/ui-movimento/README.md` § 5.3a): a label, a button and a tab take a single initial capital; full capitals are only for an acronym (ETF, PAC, EUR), never `uppercase` styling on a label (The Sentence-Case-Label Rule). A decimal number uses the comma; a percentage prints 0 decimals when whole and 1 otherwise, a market parameter 2.
 - UI text Italian, code comments English. `formatCurrency()`, `formatDate()` (`DD/MM/YYYY`), `Sottocategoria` (no
-  hyphen), `Buongiorno Giuseppe` (no comma). English on purpose: `Hall of Fame`, `FIRE e Simulazioni`, `Cashflow`,
+  hyphen), `Buongiorno Giuseppe` (no comma). English on purpose: `Hall of Fame`, `FIRE`, `Cashflow`,
   `Assistente AI` and the standard metric names; `Current Yield` → `Rendimento Corrente`.
 - **`formatPercentage` exists TWICE and the two disagree**: `lib/utils/formatters`' is `toFixed` (`40.71%`), the it-IT
   one is `Intl('it-IT')` (`40,71%`) — `formatPercentageIt`/`formatNumberIt` in `lib/utils/formatters.ts`, to which

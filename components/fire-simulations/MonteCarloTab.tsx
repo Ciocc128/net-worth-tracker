@@ -587,7 +587,7 @@ export function MonteCarloTab() {
         )}
 
         <div
-          className={cn(run ? TILE_ROW_CELL_CLASS : TILE_CELL_CLASS, run ? tablet.cellClass(MONTE_CARLO_SECTION_IDS.parametri) : 'tablet:col-span-2', 'desktop:col-span-12', run && 'desktop:order-first')}
+          className={cn(run ? TILE_ROW_CELL_CLASS : TILE_CELL_CLASS, run ? tablet.cellClass(MONTE_CARLO_SECTION_IDS.parametri) : 'tablet:col-span-2', 'desktop:col-span-12', run && 'desktop:row-start-1')}
         >
           <ParametriTile
             collapse={parametriCollapse}

@@ -540,7 +540,7 @@ export function ProjectionTab() {
               />
             </div>
 
-            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PROJECTION_SECTION_IDS.parametri), 'desktop:col-span-12 desktop:order-first')}>{parametri}</div>
+            <div className={cn(TILE_ROW_CELL_CLASS, tablet.cellClass(PROJECTION_SECTION_IDS.parametri), 'desktop:col-span-12 desktop:row-start-1')}>{parametri}</div>
           </div>
           </RowAnswers>
         </div>

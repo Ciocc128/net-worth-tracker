@@ -299,7 +299,7 @@ test.describe('FIRE, tappa C: le righe del fork', () => {
     await expect(cells).toHaveCount(3);
     await expect(cells.nth(2)).toContainText(/^Spesa al 90%/);
     await expect(cells.nth(2)).toHaveAccessibleName(/, apre Spesa sostenibile$/);
-    const { order, orderClasses } = await readOrderAndClasses(page, 'Dopo il FIRE');
+    const { order, orderClasses } = await readOrderAndClasses(page, 'Approfondimenti');
     expect(order.map((section) => section.name).slice(-3)).toEqual(['Scenari a confronto', 'Parametri della simulazione', 'Spesa sostenibile']);
     expect(isSorted(order.map((section) => section.top)), JSON.stringify(order)).toBe(true);
     expect(orderClasses).toEqual([]);
@@ -327,7 +327,7 @@ test.describe('FIRE, tappa C: le righe del fork', () => {
     for (let i = 0; i < 2; i += 1) expect((await cells.nth(i).boundingBox())!.height).toBeGreaterThanOrEqual(44);
 
     // Il DOM è l'ordine verticale: Tappe, poi le tre righe; nessun order-*.
-    const { order, orderClasses } = await readOrderAndClasses(page, 'Proiezione');
+    const { order, orderClasses } = await readOrderAndClasses(page, 'Approfondimenti');
     expect(order.map((section) => section.name).slice(0, 4)).toEqual(['Valore del portafoglio per tappa', 'Ventaglio del portafoglio', 'Scenari a confronto', 'Parametri della proiezione']);
     expect(isSorted(order.map((section) => section.top)), JSON.stringify(order)).toBe(true);
     expect(orderClasses).toEqual([]);

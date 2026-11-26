@@ -160,7 +160,7 @@ test('«Il mio piano» opens and closes above the tabs, measured by height, and 
   await expect(page.getByLabel(/Spesa del piano/)).toBeVisible();
   await expect(page.getByLabel('Includi casa di abitazione nel FIRE')).toHaveCount(0);
   // Every field says where it acts (RP1).
-  await expect(page.getByText('Agisce su: Calcolatore, Coast FIRE, What If', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('Agisce su: Quando, E se…, Coast FIRE', { exact: false }).first()).toBeVisible();
 
   // Close: the content collapses to (near) zero height or unmounts entirely.
   await trigger.click();
