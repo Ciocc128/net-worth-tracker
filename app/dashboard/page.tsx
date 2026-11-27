@@ -64,7 +64,7 @@ import { CashflowTile } from '@/components/dashboard/overview/CashflowTile';
 import { ComposizioneTile } from '@/components/dashboard/overview/ComposizioneTile';
 import { CostiTile } from '@/components/dashboard/overview/CostiTile';
 import { ObiettivoTile } from '@/components/dashboard/overview/ObiettivoTile';
-import { VersoIlFireTileSkeleton } from '@/components/dashboard/overview/VersoIlFireTile';
+import { VersoIlFireTileSkeleton } from '@/components/dashboard/overview/VersoIlFireTileSkeleton';
 import { lazyComponent } from '@/components/ui/lazy-component';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { isFirePlanFilled } from '@/lib/utils/fireProgress';
