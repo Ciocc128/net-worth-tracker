@@ -1,0 +1,22 @@
+﻿data;importo;tipo;categoria;sottocategoria;note;valuta
+2026-03-01;700,00;fixed;Casa;Affitto;Canone affitto · Carta Banca A;EUR
+2026-03-01;50,00;fixed;Casa;Condominio;Spese condominio · Carta Banca A;EUR
+2026-03-03;10,00;variable;Abbonamenti & Trasporti;Telefono e cloud;Sim telefono · Carta Banca A;EUR
+2026-03-05;40,00;variable;Spesa Alimentare;Supermercato;Spesa supermercato · buoni pasto ×5;EUR
+2026-03-06;4,00;variable;Spesa Alimentare;Caffè lavoro;Ricarica caffè · Carta Banca A;EUR
+2026-03-10;30,00;variable;Tempo Libero & Svaghi;Ristoranti;Pizza · Carta Banca A;EUR
+2026-03-12;20,00;variable;Tempo Libero & Svaghi;Aperitivi;Spritz · Contanti;EUR
+2026-03-15;120,00;variable;Viaggi;Voli;Volo A/R · straordinaria · Carta PayPal (Banca A);EUR
+2026-03-20;60,00;variable;Shopping Personale;Vestiti;Pantaloni · straordinaria · Carta Banca B;EUR
+2026-03-22;15,00;variable;Salute;Farmacia;Farmacia · straordinaria · Carta Banca A;EUR
+2026-03-25;25,00;variable;Altro;Regali;Regalo compleanno · straordinaria · Contanti;EUR
+2026-03-27;2000,00;income;Stipendio;;Recap Mensili · Busta Paga;EUR
+2026-03-27;140,00;income;Buoni pasto;;Recap Mensili · Buoni Pasto;EUR
+2026-04-01;700,00;fixed;Casa;Affitto;Canone affitto · Carta Banca A;EUR
+2026-04-01;50,00;fixed;Casa;Condominio;Spese condominio · Carta Banca A;EUR
+2026-04-08;45,00;variable;Spesa Alimentare;Supermercato;Spesa supermercato · Carta Banca A;EUR
+2026-04-14;60,00;income;Rimborsi;;Volo A/R · straordinaria · Carta Banca A · rimborso di Viaggi;EUR
+2026-04-18;35,00;variable;Tempo Libero & Svaghi;Ristoranti;Cena · Carta Banca A;EUR
+2026-04-27;2000,00;income;Stipendio;;Recap Mensili · Busta Paga;EUR
+2026-04-27;150,00;income;Buoni pasto;;Recap Mensili · Buoni Pasto;EUR
+2026-04-27;100,00;income;Regali ricevuti;;Recap Mensili · Regali;EUR
